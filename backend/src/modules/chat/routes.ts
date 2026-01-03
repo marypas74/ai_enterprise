@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import { findOne, findMany, insertOne, updateOne } from '../../database/index.js';
 import { AIProviderFactory, calculateCost, Message } from '../ai/providers.js';
 import { fetchAllModels, clearModelsCache } from '../../services/ModelFetcher.js';
+import { ParlantProviderFactory, fetchParlantAgents, checkParlantHealth } from '../../services/ParlantProvider.js';
 
 // Helper to decrypt secrets
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'default-key-change-in-production!!';
@@ -67,8 +68,21 @@ export async function chatRoutes(fastify: FastifyInstance) {
 
     try {
       const body = completionSchema.parse(request.body);
-      const provider = AIProviderFactory.getProvider(body.model);
-      const providerName = AIProviderFactory.getProviderName(body.model);
+
+      // Check if this is a Parlant agent (model format: "parlant:{agentId}")
+      const isParlantAgent = body.model.startsWith('parlant:');
+      let provider;
+      let providerName: string;
+
+      if (isParlantAgent) {
+        const agentId = body.model.replace('parlant:', '');
+        provider = ParlantProviderFactory.getProvider(agentId, 'Parlant Agent', `user_${user.id}`);
+        providerName = 'parlant';
+        fastify.log.info(`[Chat] Using Parlant agent: ${agentId}`);
+      } else {
+        provider = AIProviderFactory.getProvider(body.model);
+        providerName = AIProviderFactory.getProviderName(body.model);
+      }
 
       let conversationId = body.conversationId;
       let messages: Message[] = [];
@@ -379,6 +393,27 @@ export async function chatRoutes(fastify: FastifyInstance) {
 
     // Fetch models dynamically from provider APIs
     const models = await fetchAllModels(providerConfigs);
+
+    // Also fetch Parlant agents if the service is healthy
+    try {
+      const parlantHealthy = await checkParlantHealth();
+      if (parlantHealthy) {
+        const parlantAgents = await fetchParlantAgents();
+        fastify.log.info(`Found ${parlantAgents.length} Parlant agents`);
+
+        // Add Parlant agents as "models"
+        for (const agent of parlantAgents) {
+          models.push({
+            id: `parlant:${agent.id}`,
+            name: agent.name || `Parlant Agent`,
+            provider: 'Parlant',
+            description: agent.description || 'Controlled AI Agent with Guidelines'
+          });
+        }
+      }
+    } catch (err: any) {
+      fastify.log.warn(`Failed to fetch Parlant agents: ${err?.message || err}`);
+    }
 
     fastify.log.info(`Returning ${models.length} models from provider APIs`);
     return models;

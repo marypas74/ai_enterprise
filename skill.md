@@ -1492,3 +1492,208 @@ git remote set-url origin https://github.com/user/repo.git
 git prune
 rm -f .git/gc.log
 ```
+
+---
+
+# Parlant come Provider Chat - Integrazione Completa
+
+## Panoramica
+
+Parlant può funzionare come "middleware" per la chat, permettendo agli utenti di selezionare agenti Parlant direttamente dal selettore modelli invece di OpenAI/Anthropic.
+
+## Architettura
+
+```
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│   Frontend  │───▶│   Backend   │───▶│   Parlant   │
+│ Chat + Model│    │ /completions│    │  Agent API  │
+│   Selector  │    │ ParlantProv │    │  Guidelines │
+└─────────────┘    └─────────────┘    └─────────────┘
+                          │
+                          ▼
+                   ┌─────────────┐
+                   │ OpenAI/etc  │
+                   │ (altri LLM) │
+                   └─────────────┘
+```
+
+## ParlantProvider - Implementazione
+
+Crea `backend/src/services/ParlantProvider.ts`:
+
+```typescript
+import { AIProvider, CompletionOptions, StreamChunk, ProviderType } from '../modules/ai/providers.js';
+
+const PARLANT_URL = process.env.PARLANT_URL || 'http://parlant:8800';
+
+export class ParlantProvider implements AIProvider {
+  name: ProviderType = 'custom';
+  private agentId: string;
+  private customerId: string;
+
+  constructor(agentId: string, agentName: string, customerId: string) {
+    this.agentId = agentId;
+    this.customerId = customerId;
+  }
+
+  private async getOrCreateSession(): Promise<{ id: string }> {
+    // Check for existing session
+    const { data: sessions } = await parlantFetch(
+      'GET',
+      `/sessions?agent_id=${this.agentId}&customer_id=${this.customerId}`
+    );
+
+    if (Array.isArray(sessions) && sessions.length > 0) {
+      return sessions[0];
+    }
+
+    // Create new session
+    const { data } = await parlantFetch('POST', '/sessions', {
+      agent_id: this.agentId,
+      customer_id: this.customerId
+    });
+
+    return data;
+  }
+
+  async *streamComplete(options: CompletionOptions): AsyncGenerator<StreamChunk> {
+    const lastMessage = [...options.messages].reverse().find(m => m.role === 'user');
+    if (!lastMessage) throw new Error('No user message found');
+
+    const session = await this.getOrCreateSession();
+
+    // Get current offset
+    const { data: events } = await parlantFetch('GET', `/sessions/${session.id}/events`);
+    const offset = Array.isArray(events) ? events.length : 0;
+
+    // Send message - Parlant v3.0 format!
+    await parlantFetch('POST', `/sessions/${session.id}/events`, {
+      kind: 'message',
+      source: 'customer',
+      data: { message: lastMessage.content }  // NOTA: data.message, NON content!
+    });
+
+    // Long-poll for response
+    const startTime = Date.now();
+    let currentOffset = offset + 1;
+
+    while (Date.now() - startTime < 120000) {
+      const { data: newEvents } = await parlantFetch(
+        'GET',
+        `/sessions/${session.id}/events?min_offset=${currentOffset}&waitForData=true`,
+        undefined,
+        30000
+      );
+
+      if (Array.isArray(newEvents)) {
+        for (const event of newEvents) {
+          if (event.source === 'ai_agent' && event.kind === 'message' && !event.deleted) {
+            yield { content: event.data?.message || '', done: false };
+            yield { content: '', done: true };
+            return;
+          }
+          if (event.offset >= currentOffset) currentOffset = event.offset + 1;
+        }
+      }
+      await new Promise(r => setTimeout(r, 500));
+    }
+
+    yield { content: 'Timeout waiting for Parlant response', done: true };
+  }
+}
+```
+
+## Formato Evento Parlant v3.0
+
+**IMPORTANTE**: Parlant v3.0 aspetta un formato specifico per gli eventi:
+
+```typescript
+// SBAGLIATO (causa 422 Unprocessable Entity)
+{
+  kind: 'message',
+  source: 'customer',
+  content: 'Hello'  // ❌ NON FUNZIONA
+}
+
+// CORRETTO
+{
+  kind: 'message',
+  source: 'customer',
+  data: {
+    message: 'Hello'  // ✅ Deve essere data.message
+  }
+}
+```
+
+## Integrazione in Chat Routes
+
+In `backend/src/modules/chat/routes.ts`:
+
+```typescript
+import { ParlantProviderFactory, fetchParlantAgents, checkParlantHealth } from '../../services/ParlantProvider.js';
+
+// Nel completions endpoint:
+const isParlantAgent = body.model.startsWith('parlant:');
+
+if (isParlantAgent) {
+  const agentId = body.model.replace('parlant:', '');
+  provider = ParlantProviderFactory.getProvider(agentId, 'Agent', `user_${user.id}`);
+  providerName = 'parlant';
+} else {
+  provider = AIProviderFactory.getProvider(body.model);
+  providerName = AIProviderFactory.getProviderName(body.model);
+}
+```
+
+## Aggiungere Agenti Parlant al Selettore Modelli
+
+```typescript
+// In /chat/models endpoint:
+
+// Fetch Parlant agents if healthy
+const parlantHealthy = await checkParlantHealth();
+if (parlantHealthy) {
+  const agents = await fetchParlantAgents();
+  for (const agent of agents) {
+    models.push({
+      id: `parlant:${agent.id}`,
+      name: agent.name,
+      provider: 'Parlant',
+      description: agent.description || 'Controlled AI Agent'
+    });
+  }
+}
+```
+
+## Frontend - Nessuna Modifica Necessaria
+
+Il frontend riceve i modelli Parlant come qualsiasi altro modello. L'utente può selezionarli normalmente.
+
+## Debugging
+
+```bash
+# Verificare che Parlant sia attivo
+curl http://localhost:8800/agents
+
+# Testare invio evento (formato corretto!)
+curl -X POST http://localhost:8800/sessions/SESSION_ID/events \
+  -H "Content-Type: application/json" \
+  -d '{"kind":"message","source":"customer","data":{"message":"Hello"}}'
+
+# Logs backend
+kubectl logs -f deployment/backend -n enterprise-ai-chat | grep Parlant
+```
+
+## Errori Comuni
+
+### 422 Unprocessable Entity
+- **Causa**: Formato evento sbagliato (content invece di data.message)
+- **Soluzione**: Usare `data: { message: ... }`
+
+### Timeout
+- **Causa**: Parlant impiega più di 30s a rispondere
+- **Soluzione**: Aumentare timeout in pollForResponse
+
+### Session non trovata
+- **Causa**: Session ID errato o scaduta
+- **Soluzione**: Creare nuova sessione con getOrCreateSession()

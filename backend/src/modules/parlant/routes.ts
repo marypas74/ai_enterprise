@@ -422,19 +422,25 @@ export async function parlantRoutes(fastify: FastifyInstance) {
     const { sessionId } = request.params as { sessionId: string };
     try {
       const body = sendMessageSchema.parse(request.body);
+      // Parlant v3.0 expects: { kind, source, data: { message: "..." } }
       const eventData = {
         kind: 'message',
         source: 'customer',
-        content: body.content,
-        metadata: body.metadata
+        data: {
+          message: body.content,
+          ...(body.metadata || {})
+        }
       };
+      console.log(`[Parlant Routes] Sending event to session ${sessionId}:`, JSON.stringify(eventData));
       // Use longer timeout for message processing
       const { data, status } = await parlantRequest('POST', `/sessions/${sessionId}/events`, eventData, 120000);
+      console.log(`[Parlant Routes] Response status: ${status}`);
       return reply.status(status).send(data);
     } catch (error: any) {
       if (error instanceof z.ZodError) {
         return reply.status(400).send({ error: 'Validation failed', details: error.errors });
       }
+      console.error(`[Parlant Routes] Error:`, error.message);
       return reply.status(502).send({ error: error.message });
     }
   });
