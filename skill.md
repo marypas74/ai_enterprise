@@ -1096,3 +1096,280 @@ kubectl rollout restart deployment/myapp -n mynamespace
 
 - [MicroK8s Registry](https://microk8s.io/docs/registry-built-in)
 - [Kubernetes imagePullPolicy](https://kubernetes.io/docs/concepts/containers/images/#image-pull-policy)
+
+---
+
+# Parlant AI Agent Framework - REST API Integration
+
+## Panoramica
+
+Parlant è un framework open-source per agenti AI controllati tramite guidelines. Fornisce controllo deterministico sulle risposte AI.
+
+GitHub: https://github.com/emcie-co/parlant
+Docs: https://www.parlant.io/docs
+
+## Avvio Server
+
+```bash
+# Usando CLI (metodo raccomandato)
+python -m parlant.bin.server run --anthropic --port 8800 --migrate --log-level info
+
+# Variabili ambiente richieste
+ANTHROPIC_API_KEY=sk-ant-api03-...
+```
+
+## REST API Endpoints
+
+| Metodo | Endpoint | Descrizione |
+|--------|----------|-------------|
+| GET | `/agents` | Lista agenti |
+| POST | `/agents` | Crea agente |
+| GET | `/agents/{id}` | Dettagli agente |
+| DELETE | `/agents/{id}` | Elimina agente |
+| GET | `/customers` | Lista clienti |
+| POST | `/customers` | Crea cliente |
+| GET | `/sessions` | Lista sessioni |
+| POST | `/sessions` | Crea sessione |
+| GET | `/sessions/{id}/events` | Eventi sessione |
+| POST | `/sessions/{id}/events` | Invia messaggio |
+| GET | `/guidelines` | Lista guidelines |
+| POST | `/guidelines` | Crea guideline |
+
+## Health Check
+
+Parlant **NON** ha un endpoint `/health`. Usare `/` o `/agents` per verificare che sia attivo:
+
+```typescript
+// Health check usando root endpoint
+const { status } = await fetch('http://parlant:8800/');
+if (status >= 200 && status < 500) {
+  // Parlant is healthy
+}
+```
+
+## Proxy Backend Pattern
+
+```typescript
+async function parlantRequest(method: string, path: string, body?: any) {
+  const response = await fetch(`${PARLANT_URL}${path}`, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: body ? JSON.stringify(body) : undefined
+  });
+
+  // IMPORTANTE: Leggere body UNA SOLA VOLTA
+  const text = await response.text();
+
+  let data;
+  if (text && text.trim()) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = text;
+    }
+  } else {
+    data = null;
+  }
+
+  return { data, status: response.status };
+}
+```
+
+## Riferimenti
+
+- [Parlant Sessions](https://www.parlant.io/docs/concepts/sessions/)
+- [Parlant Conversation API](https://www.parlant.io/docs/engine-internals/conversation-api/)
+- [Create Agent API](https://www.parlant.io/docs/api/create-agent/)
+
+---
+
+# Node.js Fetch - "Body Stream Already Read" Error
+
+## Problema
+
+```
+TypeError: Failed to execute 'text' on 'Response': body stream already read
+```
+
+Questo errore si verifica quando si tenta di leggere il body di una Response più di una volta.
+
+## Causa
+
+Il body di una Response fetch è uno stream che può essere letto **una sola volta**:
+
+```typescript
+// SBAGLIATO - legge body due volte
+const contentType = response.headers.get('content-type');
+if (contentType?.includes('application/json')) {
+  data = await response.json();  // Prima lettura
+} else {
+  data = await response.text();  // Errore se json() fallisce!
+}
+```
+
+## Soluzione 1: Leggere come Text e Parsare
+
+```typescript
+// CORRETTO - legge una volta sola
+const text = await response.text();
+
+let data;
+if (text && text.trim()) {
+  try {
+    data = JSON.parse(text);
+  } catch {
+    data = text;  // Non è JSON, usa come stringa
+  }
+} else {
+  data = null;  // Response vuota
+}
+```
+
+## Soluzione 2: Usare response.clone()
+
+```typescript
+// CORRETTO - clona prima di leggere
+const clonedResponse = response.clone();
+
+try {
+  data = await response.json();
+} catch {
+  data = await clonedResponse.text();
+}
+```
+
+## Riferimenti
+
+- [MSW Issue #1640](https://github.com/mswjs/msw/issues/1640)
+- [Medium - Fetch JSON with Text Fallback](https://medium.com/@straker/using-fetch-to-read-json-with-text-fallback-c16b82334e33)
+
+---
+
+# VS Code Extension - WebView React Best Practices
+
+## Starter Templates Raccomandati
+
+1. **GitHub Next Template** (consigliato)
+   - https://github.com/githubnext/vscode-react-webviews
+   - Vite + React + TypeScript + Tailwind
+   - VS Code theme colors integrati
+
+2. **Snowflake Starter**
+   - React + SWC + Webpack
+   - TypeScript completo
+
+## IMPORTANTE: Webview UI Toolkit Deprecato
+
+Il Webview UI Toolkit di Microsoft è stato **deprecato dal 1 gennaio 2025**. Usare componenti custom o librerie alternative.
+
+## Security Best Practices
+
+1. **Content Security Policy** - Sempre impostare CSP rigorosa
+2. **No inline scripts** - Usare solo script esterni
+3. **State persistence** - Lo stato viene perso quando webview va in background
+
+```typescript
+// State persistence con message passing
+panel.webview.onDidReceiveMessage(message => {
+  if (message.type === 'saveState') {
+    panel.webview.setState(message.state);
+  }
+});
+```
+
+## Hot Module Replacement (HMR)
+
+```typescript
+// Development: carica da localhost
+// Production: carica dal bundle extension
+const scriptUri = isDev
+  ? 'http://localhost:5173/src/main.tsx'
+  : panel.webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'dist', 'webview.js'));
+```
+
+## Theming
+
+VS Code ha 3 tipi di tema. Testare sempre tutti:
+- Light
+- Dark
+- High Contrast
+
+```css
+/* Usare variabili CSS di VS Code */
+body {
+  background: var(--vscode-editor-background);
+  color: var(--vscode-editor-foreground);
+}
+```
+
+## Riferimenti
+
+- [VS Code Webview API](https://code.visualstudio.com/api/extension-guides/webview)
+- [GitHub Next Template](https://github.com/githubnext/vscode-react-webviews)
+- [Medium - React Webviews Guide](https://medium.com/snowflake/how-to-build-a-vs-code-extension-using-react-webviews-0e2481ce1ba2)
+
+---
+
+# Git - Inizializzare Repository e Push
+
+## Workflow Completo
+
+```bash
+# 1. Inizializza repository
+git init
+git branch -m main
+
+# 2. Crea .gitignore
+cat > .gitignore << 'EOF'
+node_modules/
+dist/
+.env
+.env.local
+__pycache__/
+*.pyc
+EOF
+
+# 3. Configura user
+git config user.email "user@example.com"
+git config user.name "username"
+
+# 4. Aggiungi remote
+git remote add origin https://github.com/user/repo.git
+
+# 5. Stage e commit
+git add -A
+git commit -m "feat: Initial commit"
+
+# 6. Push (con token se necessario)
+git remote set-url origin https://TOKEN@github.com/user/repo.git
+git push -u origin main
+```
+
+## Gestire Conflitti con Remote Esistente
+
+```bash
+# Se remote ha già commit
+git fetch origin
+git rebase origin/main
+
+# Risolvere conflitti
+git checkout --ours FILE  # Mantieni versione locale
+git add FILE
+git rebase --continue
+
+git push -u origin main
+```
+
+## Rimuovere Token dall'URL (Sicurezza)
+
+```bash
+# Dopo il push, rimuovere token dall'URL
+git remote set-url origin https://github.com/user/repo.git
+```
+
+## Pulizia Git
+
+```bash
+git prune
+rm -f .git/gc.log
+```
