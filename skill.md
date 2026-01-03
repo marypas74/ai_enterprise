@@ -1175,11 +1175,130 @@ async function parlantRequest(method: string, path: string, body?: any) {
 }
 ```
 
+## TypeScript Client SDK
+
+Repository ufficiale: https://github.com/emcie-co/parlant-client-typescript
+
+```bash
+npm install parlant-client
+```
+
+### Esempio di utilizzo
+
+```typescript
+import { ParlantClient } from 'parlant-client';
+
+const client = ParlantClient({ environment: 'http://localhost:8800' });
+
+// Crea sessione
+const session = await client.sessions.create({
+  agent_id: AGENT_ID,
+  customer_id: CUSTOMER_ID  // opzionale
+});
+
+// Invia messaggio
+const customerEvent = await client.sessions.createEvent(session.id, {
+  kind: "message",
+  source: "customer",
+  message: "Ciao, ho bisogno di aiuto"
+});
+
+// Attendi risposta con long-polling
+const [agentEvent] = await client.sessions.listEvents(session.id, {
+  kinds: "message",
+  source: "ai_agent",
+  minOffset: customerEvent.offset,
+  waitForData: 60  // Attendi fino a 60 secondi
+});
+
+console.log(agentEvent.data.message);
+```
+
+## Sessions e Events
+
+### Concetti chiave
+
+- **Session**: Rappresenta una conversazione continua tra agente e cliente
+- **Event**: Ogni interazione (messaggio, status, tool call) è un evento
+- **Offset**: Numero sequenziale che indica l'ordine degli eventi (0, 1, 2...)
+- **Correlation ID**: Collega eventi AI ai trigger che li hanno generati
+
+### Tipi di eventi
+
+| Tipo | Descrizione |
+|------|-------------|
+| `message` | Messaggio di un partecipante |
+| `status` | Update dall'agente ("thinking...", "typing...") |
+| `tool` | Risultato chiamata tool |
+| `custom` | Evento definito dall'applicazione |
+
+### Long-Polling Pattern
+
+```typescript
+// Loop di polling per nuovi messaggi
+async function pollMessages(sessionId: string, lastOffset: number) {
+  while (true) {
+    try {
+      const events = await client.sessions.listEvents(sessionId, {
+        minOffset: lastOffset + 1,
+        waitForData: 60  // Timeout 60 secondi
+      });
+
+      if (events.length > 0) {
+        lastOffset = events[events.length - 1].offset;
+        // Processa nuovi eventi
+        events.forEach(event => handleEvent(event));
+      }
+    } catch (error) {
+      if (error.name !== 'AbortError') {
+        console.error('Polling error:', error);
+      }
+    }
+  }
+}
+```
+
+## React Widget Ufficiale
+
+```bash
+npm install parlant-chat-react
+```
+
+```jsx
+import ParlantChatbox from 'parlant-chat-react';
+
+function App() {
+  return (
+    <ParlantChatbox
+      server="http://localhost:8800"
+      agentId="AGENT_ID"
+    />
+  );
+}
+```
+
+## Frontend Health Check Fix
+
+**Problema**: Il frontend mostrava "Disconnected" anche se Parlant era attivo.
+
+**Causa**: Il frontend confrontava `status === 'ok'` ma il backend restituisce `status: 'healthy'`.
+
+```typescript
+// SBAGLIATO
+set({ serviceHealth: response.data?.status === 'ok' ? 'healthy' : 'unhealthy' });
+
+// CORRETTO
+const isHealthy = response.data?.status === 'healthy' || response.data?.status === 'ok';
+set({ serviceHealth: isHealthy ? 'healthy' : 'unhealthy' });
+```
+
 ## Riferimenti
 
 - [Parlant Sessions](https://www.parlant.io/docs/concepts/sessions/)
 - [Parlant Conversation API](https://www.parlant.io/docs/engine-internals/conversation-api/)
 - [Create Agent API](https://www.parlant.io/docs/api/create-agent/)
+- [TypeScript Client SDK](https://github.com/emcie-co/parlant-client-typescript)
+- [React Widget](https://www.npmjs.com/package/parlant-chat-react)
 
 ---
 

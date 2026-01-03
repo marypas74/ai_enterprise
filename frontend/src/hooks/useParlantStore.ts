@@ -96,8 +96,11 @@ export const useParlantStore = create<ParlantState>((set, get) => ({
   checkHealth: async () => {
     try {
       const response = await api.get('/parlant/health');
-      set({ serviceHealth: response.data?.status === 'ok' ? 'healthy' : 'unhealthy' });
-    } catch {
+      // Backend returns { status: 'healthy', service: 'parlant', data: ... }
+      const isHealthy = response.data?.status === 'healthy' || response.data?.status === 'ok';
+      set({ serviceHealth: isHealthy ? 'healthy' : 'unhealthy' });
+    } catch (err) {
+      console.error('[Parlant] Health check failed:', err);
       set({ serviceHealth: 'unhealthy' });
     }
   },
