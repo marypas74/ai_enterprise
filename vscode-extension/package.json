@@ -1,0 +1,362 @@
+{
+  "name": "enterprise-ai-chat",
+  "displayName": "Enterprise AI Chat",
+  "description": "Integrate with Enterprise AI Chat platform for AI-powered code assistance",
+  "version": "2.9.1",
+  "publisher": "enterprise-ai",
+  "icon": "resources/icon.png",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "extensionKind": [
+    "ui",
+    "workspace"
+  ],
+  "categories": [
+    "Machine Learning",
+    "Programming Languages",
+    "Other"
+  ],
+  "keywords": [
+    "ai",
+    "chat",
+    "gpt",
+    "claude",
+    "gemini",
+    "code assistant",
+    "ai toolkit",
+    "rag",
+    "mcp",
+    "prompt templates",
+    "model playground"
+  ],
+  "activationEvents": [
+    "onCommand:enterprise-ai-chat.openAIPanel",
+    "onCommand:enterprise-ai-chat.explainCode",
+    "onCommand:enterprise-ai-chat.fixCode",
+    "onCommand:enterprise-ai-chat.improveCode",
+    "onCommand:enterprise-ai-chat.generateTests"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "enterprise-ai-agents",
+          "title": "Auto-Claude Agents",
+          "icon": "$(robot)"
+        }
+      ]
+    },
+    "views": {
+      "enterprise-ai-agents": [
+        {
+          "id": "enterprise-ai-chat.agentDashboard",
+          "name": "Dashboard",
+          "type": "webview"
+        },
+        {
+          "id": "enterprise-ai-chat.agentSessions",
+          "name": "Sessions"
+        },
+        {
+          "id": "enterprise-ai-chat.terminalSlots",
+          "name": "Terminal Slots"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "enterprise-ai-chat.openAgentPanel",
+        "title": "Open Agent Panel",
+        "category": "Auto-Claude",
+        "icon": "$(robot)"
+      },
+      {
+        "command": "enterprise-ai-chat.createAgentSession",
+        "title": "Create Agent Session",
+        "category": "Auto-Claude",
+        "icon": "$(add)"
+      },
+      {
+        "command": "enterprise-ai-chat.refreshAgents",
+        "title": "Refresh Agents",
+        "category": "Auto-Claude",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "enterprise-ai-chat.openChat",
+        "title": "Open Enterprise AI Chat",
+        "category": "Enterprise AI",
+        "icon": "$(sparkle)"
+      },
+      {
+        "command": "enterprise-ai-chat.newChat",
+        "title": "New Chat",
+        "category": "Enterprise AI"
+      },
+      {
+        "command": "enterprise-ai-chat.explainCode",
+        "title": "Explain Code",
+        "category": "Enterprise AI"
+      },
+      {
+        "command": "enterprise-ai-chat.fixCode",
+        "title": "Fix Code",
+        "category": "Enterprise AI"
+      },
+      {
+        "command": "enterprise-ai-chat.improveCode",
+        "title": "Improve Code",
+        "category": "Enterprise AI"
+      },
+      {
+        "command": "enterprise-ai-chat.generateTests",
+        "title": "Generate Tests",
+        "category": "Enterprise AI"
+      },
+      {
+        "command": "enterprise-ai-chat.addToChat",
+        "title": "Add to Enterprise AI",
+        "category": "Enterprise AI"
+      },
+      {
+        "command": "enterprise-ai-chat.addFileToContext",
+        "title": "Add File to Context",
+        "category": "Enterprise AI"
+      },
+      {
+        "command": "enterprise-ai-chat.configure",
+        "title": "Settings",
+        "category": "Enterprise AI"
+      },
+      {
+        "command": "enterprise-ai-chat.loginClaudePro",
+        "title": "Login with Claude API",
+        "category": "Enterprise AI"
+      },
+      {
+        "command": "enterprise-ai-chat.useTemplate",
+        "title": "Use Prompt Template",
+        "category": "AI Toolkit",
+        "icon": "$(file-code)"
+      },
+      {
+        "command": "enterprise-ai-chat.openPlayground",
+        "title": "Open Model Playground",
+        "category": "AI Toolkit",
+        "icon": "$(beaker)"
+      },
+      {
+        "command": "enterprise-ai-chat.ragSearch",
+        "title": "RAG Search in Codebase",
+        "category": "AI Toolkit",
+        "icon": "$(search)"
+      },
+      {
+        "command": "enterprise-ai-chat.openAIPanel",
+        "title": "Start Enterprise AI Session",
+        "category": "Enterprise AI",
+        "icon": "$(terminal)"
+      },
+      {
+        "command": "enterprise-ai-chat.inlineEdit",
+        "title": "Inline Edit with AI",
+        "category": "Enterprise AI",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "enterprise-ai-chat.chatWithContext",
+        "title": "Chat with Context (@file, @selection)",
+        "category": "Enterprise AI",
+        "icon": "$(comment-discussion)"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "enterprise-ai-chat.openChat",
+          "group": "navigation"
+        }
+      ],
+      "editor/context": [
+        {
+          "submenu": "enterprise-ai-chat.submenu",
+          "group": "enterprise-ai"
+        }
+      ],
+      "enterprise-ai-chat.submenu": [
+        {
+          "command": "enterprise-ai-chat.inlineEdit",
+          "when": "editorHasSelection",
+          "group": "1_edit"
+        },
+        {
+          "command": "enterprise-ai-chat.chatWithContext",
+          "when": "editorTextFocus",
+          "group": "1_edit"
+        },
+        {
+          "command": "enterprise-ai-chat.addToChat",
+          "when": "editorHasSelection",
+          "group": "2_chat"
+        },
+        {
+          "command": "enterprise-ai-chat.explainCode",
+          "when": "editorHasSelection",
+          "group": "3_actions"
+        },
+        {
+          "command": "enterprise-ai-chat.improveCode",
+          "when": "editorHasSelection",
+          "group": "3_actions"
+        },
+        {
+          "command": "enterprise-ai-chat.fixCode",
+          "when": "editorHasSelection",
+          "group": "3_actions"
+        },
+        {
+          "command": "enterprise-ai-chat.generateTests",
+          "when": "editorHasSelection",
+          "group": "3_actions"
+        }
+      ]
+    },
+    "submenus": [
+      {
+        "id": "enterprise-ai-chat.submenu",
+        "label": "Enterprise AI"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "enterprise-ai-chat.openChat",
+        "key": "ctrl+shift+l",
+        "mac": "cmd+shift+l"
+      },
+      {
+        "command": "enterprise-ai-chat.newChat",
+        "key": "ctrl+n",
+        "mac": "cmd+n",
+        "when": "focusedView == 'enterprise-ai-chat.chatView'"
+      },
+      {
+        "command": "enterprise-ai-chat.addToChat",
+        "key": "ctrl+shift+a",
+        "mac": "cmd+shift+a",
+        "when": "editorHasSelection"
+      },
+      {
+        "command": "enterprise-ai-chat.useTemplate",
+        "key": "ctrl+shift+t",
+        "mac": "cmd+shift+t"
+      },
+      {
+        "command": "enterprise-ai-chat.openPlayground",
+        "key": "ctrl+shift+p",
+        "mac": "cmd+shift+p",
+        "when": "focusedView == 'enterprise-ai-chat.chatView'"
+      },
+      {
+        "command": "enterprise-ai-chat.ragSearch",
+        "key": "ctrl+shift+r",
+        "mac": "cmd+shift+r"
+      },
+      {
+        "command": "enterprise-ai-chat.inlineEdit",
+        "key": "ctrl+k",
+        "mac": "cmd+k",
+        "when": "editorTextFocus && editorHasSelection"
+      },
+      {
+        "command": "enterprise-ai-chat.chatWithContext",
+        "key": "ctrl+shift+c",
+        "mac": "cmd+shift+c",
+        "when": "editorTextFocus"
+      }
+    ],
+    "configuration": {
+      "title": "Enterprise AI Chat",
+      "properties": {
+        "enterprise-ai-chat.useDirectClaude": {
+          "type": "boolean",
+          "default": false,
+          "description": "Use Claude directly instead of backend server"
+        },
+        "enterprise-ai-chat.claudeAuthMode": {
+          "type": "string",
+          "default": "api",
+          "enum": [
+            "api",
+            "pro"
+          ],
+          "enumDescriptions": [
+            "API Key (prepaid credits from console.anthropic.com) - Recommended",
+            "Claude Pro/Max subscription (OAuth - NOT SUPPORTED for programmatic access)"
+          ],
+          "description": "How to authenticate with Claude (API Key is recommended)"
+        },
+        "enterprise-ai-chat.claudeApiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Your Anthropic API key (only for 'api' auth mode)"
+        },
+        "enterprise-ai-chat.claudeModel": {
+          "type": "string",
+          "default": "claude-sonnet-4-20250514",
+          "enum": [
+            "claude-sonnet-4-20250514",
+            "claude-opus-4-20250514",
+            "claude-3-5-sonnet-latest",
+            "claude-3-5-haiku-latest",
+            "claude-3-opus-latest"
+          ],
+          "description": "Claude model to use"
+        },
+        "enterprise-ai-chat.serverUrl": {
+          "type": "string",
+          "default": "https://192.168.1.123",
+          "description": "URL of the Enterprise AI Chat server (when not using direct Claude)"
+        },
+        "enterprise-ai-chat.defaultModel": {
+          "type": "string",
+          "default": "gpt-4o",
+          "description": "Default AI model for backend server"
+        },
+        "enterprise-ai-chat.useReactUI": {
+          "type": "boolean",
+          "default": true,
+          "description": "Use the new Enterprise AI-style React UI with streaming support"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run webpack",
+    "compile": "tsc -p ./",
+    "webpack": "webpack --mode production",
+    "webpack:dev": "webpack --mode development",
+    "watch": "webpack --mode development --watch",
+    "pretest": "npm run compile",
+    "lint": "eslint src --ext ts",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^6.13.0",
+    "@typescript-eslint/parser": "^6.13.0",
+    "@vscode/vsce": "^2.22.0",
+    "eslint": "^8.55.0",
+    "ts-loader": "^9.5.4",
+    "typescript": "^5.3.2",
+    "webpack": "^5.104.1",
+    "webpack-cli": "^6.0.1"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.71.2",
+    "axios": "^1.6.2",
+    "eventsource": "^2.0.2"
+  }
+}

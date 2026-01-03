@@ -1,0 +1,198 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mariadb-init
+  namespace: enterprise-ai-chat
+data:
+  init.sql: |
+    -- Enterprise AI Chat - Database Schema
+    -- MariaDB 10.11+
+    
+    CREATE DATABASE IF NOT EXISTS enterprise_ai_chat
+        CHARACTER SET utf8mb4
+        COLLATE utf8mb4_unicode_ci;
+    
+    USE enterprise_ai_chat;
+    
+    -- ============================================
+    -- USERS & AUTHENTICATION
+    -- ============================================
+    
+    CREATE TABLE users (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        email VARCHAR(255) NOT NULL UNIQUE,
+        password_hash VARCHAR(255) NOT NULL,
+        name VARCHAR(100) NOT NULL,
+        role ENUM('admin', 'user') DEFAULT 'user',
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        last_login_at TIMESTAMP NULL,
+        INDEX idx_email (email),
+        INDEX idx_role (role),
+        INDEX idx_is_active (is_active)
+    ) ENGINE=InnoDB;
+    
+    CREATE TABLE refresh_tokens (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        user_id BIGINT UNSIGNED NOT NULL,
+        token_hash VARCHAR(255) NOT NULL UNIQUE,
+        expires_at TIMESTAMP NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        revoked_at TIMESTAMP NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        INDEX idx_token_hash (token_hash),
+        INDEX idx_expires_at (expires_at)
+    ) ENGINE=InnoDB;
+    
+    -- ============================================
+    -- GROUPS & PERMISSIONS
+    -- ============================================
+    
+    CREATE TABLE `groups` (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(100) NOT NULL UNIQUE,
+        description TEXT,
+        max_tokens_per_month BIGINT UNSIGNED DEFAULT 1000000,
+        allowed_models JSON,
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_name (name),
+        INDEX idx_is_active (is_active)
+    ) ENGINE=InnoDB;
+    
+    CREATE TABLE user_groups (
+        user_id BIGINT UNSIGNED NOT NULL,
+        group_id BIGINT UNSIGNED NOT NULL,
+        joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, group_id),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (group_id) REFERENCES `groups`(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB;
+    
+    -- ============================================
+    -- CONVERSATIONS & MESSAGES
+    -- ============================================
+    
+    CREATE TABLE conversations (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        user_id BIGINT UNSIGNED NOT NULL,
+        title VARCHAR(255),
+        model VARCHAR(50) NOT NULL,
+        provider ENUM('openai', 'anthropic', 'google') NOT NULL,
+        system_prompt TEXT,
+        is_archived BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        INDEX idx_user_id (user_id),
+        INDEX idx_created_at (created_at),
+        INDEX idx_is_archived (is_archived)
+    ) ENGINE=InnoDB;
+    
+    CREATE TABLE messages (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        conversation_id BIGINT UNSIGNED NOT NULL,
+        role ENUM('system', 'user', 'assistant') NOT NULL,
+        content TEXT NOT NULL,
+        tokens_input INT UNSIGNED DEFAULT 0,
+        tokens_output INT UNSIGNED DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+        INDEX idx_conversation_id (conversation_id),
+        INDEX idx_created_at (created_at)
+    ) ENGINE=InnoDB;
+    
+    -- ============================================
+    -- TOKEN USAGE & COSTS
+    -- ============================================
+    
+    CREATE TABLE token_usage (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        user_id BIGINT UNSIGNED NOT NULL,
+        conversation_id BIGINT UNSIGNED,
+        provider ENUM('openai', 'anthropic', 'google') NOT NULL,
+        model VARCHAR(50) NOT NULL,
+        tokens_input INT UNSIGNED NOT NULL,
+        tokens_output INT UNSIGNED NOT NULL,
+        cost_usd DECIMAL(10, 6) DEFAULT 0,
+        recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE SET NULL,
+        INDEX idx_user_id (user_id),
+        INDEX idx_provider (provider),
+        INDEX idx_recorded_at (recorded_at)
+    ) ENGINE=InnoDB;
+    
+    -- Monthly usage summary (for quick queries)
+    CREATE TABLE monthly_usage (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        user_id BIGINT UNSIGNED NOT NULL,
+        year_month CHAR(7) NOT NULL, -- YYYY-MM format
+        provider ENUM('openai', 'anthropic', 'google') NOT NULL,
+        total_tokens_input BIGINT UNSIGNED DEFAULT 0,
+        total_tokens_output BIGINT UNSIGNED DEFAULT 0,
+        total_cost_usd DECIMAL(12, 6) DEFAULT 0,
+        request_count INT UNSIGNED DEFAULT 0,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_user_month_provider (user_id, year_month, provider),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        INDEX idx_year_month (year_month)
+    ) ENGINE=InnoDB;
+    
+    -- ============================================
+    -- AUDIT LOG
+    -- ============================================
+    
+    CREATE TABLE audit_log (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        user_id BIGINT UNSIGNED,
+        action VARCHAR(50) NOT NULL,
+        entity_type VARCHAR(50),
+        entity_id BIGINT UNSIGNED,
+        details JSON,
+        ip_address VARCHAR(45),
+        user_agent TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+        INDEX idx_user_id (user_id),
+        INDEX idx_action (action),
+        INDEX idx_entity_type (entity_type),
+        INDEX idx_created_at (created_at)
+    ) ENGINE=InnoDB;
+    
+    -- ============================================
+    -- API KEYS (for external integrations)
+    -- ============================================
+    
+    CREATE TABLE api_keys (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        user_id BIGINT UNSIGNED NOT NULL,
+        name VARCHAR(100) NOT NULL,
+        key_hash VARCHAR(255) NOT NULL UNIQUE,
+        key_prefix VARCHAR(8) NOT NULL, -- First 8 chars for identification
+        permissions JSON,
+        last_used_at TIMESTAMP NULL,
+        expires_at TIMESTAMP NULL,
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        INDEX idx_key_hash (key_hash),
+        INDEX idx_user_id (user_id)
+    ) ENGINE=InnoDB;
+    
+    -- ============================================
+    -- INITIAL DATA
+    -- ============================================
+    
+    -- Default admin user (password: admin123 - CHANGE IN PRODUCTION!)
+    INSERT INTO users (email, password_hash, name, role) VALUES
+    ('admin@enterprise.local', '$2b$10$rQZ8K1KHCqVnUkPYnQQOXOQlZqKBYIUgGXUvMGqDfVWN5bPBzBqYe', 'Administrator', 'admin');
+    
+    -- Default group
+    INSERT INTO `groups` (name, description, allowed_models) VALUES
+    ('Default', 'Default user group', '["gpt-4", "gpt-4o", "claude-3-5-sonnet", "claude-3-opus", "gemini-pro", "gemini-ultra"]');
+    
+    -- Assign admin to default group
+    INSERT INTO user_groups (user_id, group_id) VALUES (1, 1);

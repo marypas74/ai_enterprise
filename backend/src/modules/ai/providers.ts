@@ -1,0 +1,578 @@
+import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenAI } from '@google/genai';
+
+// Types
+export type ProviderType = 'openai' | 'anthropic' | 'google' | 'ollama' | 'custom';
+
+export interface Message {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+export interface CompletionOptions {
+  model: string;
+  messages: Message[];
+  maxTokens?: number;
+  temperature?: number;
+  stream?: boolean;
+}
+
+export interface CompletionResult {
+  content: string;
+  tokensInput: number;
+  tokensOutput: number;
+  model: string;
+  provider: ProviderType;
+}
+
+export interface StreamChunk {
+  content: string;
+  done: boolean;
+}
+
+export interface ProviderConfig {
+  apiKey?: string;
+  baseUrl?: string;
+  timeout?: number;
+  keepAlive?: string;
+  customHeaders?: Record<string, string>;
+}
+
+// Model pricing (USD per 1K tokens) - Updated December 2025
+export const MODEL_PRICING: Record<string, { input: number; output: number }> = {
+  // OpenAI - Latest models
+  'gpt-4.1': { input: 0.002, output: 0.008 },          // Latest GPT-4.1
+  'gpt-4.1-mini': { input: 0.0004, output: 0.0016 },   // GPT-4.1 Mini
+  'gpt-4.1-nano': { input: 0.0001, output: 0.0004 },   // GPT-4.1 Nano
+  'gpt-4o': { input: 0.0025, output: 0.01 },
+  'gpt-4o-mini': { input: 0.00015, output: 0.0006 },
+  'gpt-4-turbo': { input: 0.01, output: 0.03 },
+  'gpt-4': { input: 0.03, output: 0.06 },
+  'gpt-3.5-turbo': { input: 0.0005, output: 0.0015 },
+  // OpenAI Reasoning models
+  'o1': { input: 0.015, output: 0.06 },
+  'o1-mini': { input: 0.003, output: 0.012 },
+  'o1-preview': { input: 0.015, output: 0.06 },
+  'o3-mini': { input: 0.0011, output: 0.0044 },
+  // Anthropic - Claude 4
+  'claude-sonnet-4-20250514': { input: 0.003, output: 0.015 },
+  'claude-opus-4-20250514': { input: 0.015, output: 0.075 },
+  // Anthropic - Claude 3.5/3
+  'claude-3-5-sonnet-latest': { input: 0.003, output: 0.015 },
+  'claude-3-5-haiku-latest': { input: 0.0008, output: 0.004 },
+  'claude-3-opus-latest': { input: 0.015, output: 0.075 },
+  'claude-3-haiku-20240307': { input: 0.00025, output: 0.00125 },
+  // Google Gemini
+  'gemini-2.0-flash': { input: 0.0001, output: 0.0004 },
+  'gemini-2.0-flash-thinking': { input: 0.0001, output: 0.0004 },
+  'gemini-1.5-pro': { input: 0.00125, output: 0.005 },
+  'gemini-1.5-flash': { input: 0.000075, output: 0.0003 }
+};
+
+// Calculate cost
+export function calculateCost(model: string, tokensInput: number, tokensOutput: number): number {
+  const pricing = MODEL_PRICING[model] || { input: 0.01, output: 0.03 };
+  return (tokensInput * pricing.input + tokensOutput * pricing.output) / 1000;
+}
+
+// Provider interface (Strategy pattern)
+export interface AIProvider {
+  name: ProviderType;
+  complete(options: CompletionOptions): Promise<CompletionResult>;
+  streamComplete(options: CompletionOptions): AsyncGenerator<StreamChunk>;
+}
+
+// OpenAI Provider
+export class OpenAIProvider implements AIProvider {
+  name: 'openai' = 'openai';
+  private client: OpenAI;
+
+  constructor(config?: { apiKey?: string }) {
+    const apiKey = config?.apiKey || process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new Error('OpenAI API key not configured');
+    }
+    this.client = new OpenAI({ apiKey });
+  }
+
+  async complete(options: CompletionOptions): Promise<CompletionResult> {
+    const response = await this.client.chat.completions.create({
+      model: options.model,
+      messages: options.messages,
+      max_tokens: options.maxTokens || 4096,
+      temperature: options.temperature || 0.7
+    });
+
+    return {
+      content: response.choices[0]?.message?.content || '',
+      tokensInput: response.usage?.prompt_tokens || 0,
+      tokensOutput: response.usage?.completion_tokens || 0,
+      model: options.model,
+      provider: 'openai'
+    };
+  }
+
+  async *streamComplete(options: CompletionOptions): AsyncGenerator<StreamChunk> {
+    const stream = await this.client.chat.completions.create({
+      model: options.model,
+      messages: options.messages,
+      max_tokens: options.maxTokens || 4096,
+      temperature: options.temperature || 0.7,
+      stream: true
+    });
+
+    for await (const chunk of stream) {
+      const content = chunk.choices[0]?.delta?.content || '';
+      const done = chunk.choices[0]?.finish_reason === 'stop';
+      yield { content, done };
+    }
+  }
+}
+
+// Anthropic Provider (supports both API key and OAuth token)
+export class AnthropicProvider implements AIProvider {
+  name: 'anthropic' = 'anthropic';
+  private client: Anthropic | null = null;
+  private oauthToken: string | null = null;
+  private apiKey: string | null = null;
+
+  constructor(config?: ProviderConfig) {
+    // OAuth token takes priority over API key
+    if (config?.apiKey?.startsWith('sk-ant-oat')) {
+      // This is an OAuth token, use Bearer auth
+      this.oauthToken = config.apiKey;
+    } else if (config?.apiKey) {
+      this.apiKey = config.apiKey;
+      this.client = new Anthropic({ apiKey: config.apiKey });
+    } else if (process.env.ANTHROPIC_API_KEY) {
+      this.apiKey = process.env.ANTHROPIC_API_KEY;
+      this.client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    }
+  }
+
+  // Helper to make API calls with OAuth token
+  private async callWithOAuth(endpoint: string, body: any, stream: boolean = false): Promise<Response> {
+    console.log(`[Anthropic OAuth] Calling ${endpoint}, stream=${stream}, model=${body.model}`);
+
+    const response = await fetch(`https://api.anthropic.com/v1${endpoint}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.oauthToken}`,
+        'anthropic-version': '2023-06-01',
+        'anthropic-beta': 'oauth-2025-04-20',  // Required for OAuth tokens
+        'User-Agent': 'Claude-Code/2.1.0'  // Identify as Claude Code
+      },
+      body: JSON.stringify({ ...body, stream })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[Anthropic OAuth] Error ${response.status}: ${errorText}`);
+      let errorMessage = `Anthropic API error: ${response.status}`;
+      try {
+        const errorData = JSON.parse(errorText);
+        errorMessage = errorData.error?.message || errorMessage;
+      } catch {}
+      throw new Error(errorMessage);
+    }
+
+    console.log(`[Anthropic OAuth] Success ${response.status}`);
+    return response;
+  }
+
+  async complete(options: CompletionOptions): Promise<CompletionResult> {
+    // Extract system message
+    const systemMessage = options.messages.find(m => m.role === 'system');
+    const conversationMessages = options.messages.filter(m => m.role !== 'system');
+
+    const requestBody = {
+      model: options.model,
+      max_tokens: options.maxTokens || 4096,
+      system: systemMessage?.content,
+      messages: conversationMessages.map(m => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content
+      }))
+    };
+
+    // Use OAuth if available, otherwise use SDK
+    if (this.oauthToken) {
+      const response = await this.callWithOAuth('/messages', requestBody, false);
+      const data = await response.json() as {
+        content: Array<{ type: string; text?: string }>;
+        usage: { input_tokens: number; output_tokens: number };
+      };
+
+      const textContent = data.content.find(c => c.type === 'text');
+
+      return {
+        content: textContent?.text || '',
+        tokensInput: data.usage.input_tokens,
+        tokensOutput: data.usage.output_tokens,
+        model: options.model,
+        provider: 'anthropic'
+      };
+    }
+
+    // Use SDK with API key
+    if (!this.client) {
+      throw new Error('Anthropic provider not configured. Set API key or OAuth token.');
+    }
+
+    const response = await this.client.messages.create(requestBody);
+    const textContent = response.content.find(c => c.type === 'text');
+
+    return {
+      content: textContent?.text || '',
+      tokensInput: response.usage.input_tokens,
+      tokensOutput: response.usage.output_tokens,
+      model: options.model,
+      provider: 'anthropic'
+    };
+  }
+
+  async *streamComplete(options: CompletionOptions): AsyncGenerator<StreamChunk> {
+    const systemMessage = options.messages.find(m => m.role === 'system');
+    const conversationMessages = options.messages.filter(m => m.role !== 'system');
+
+    const requestBody = {
+      model: options.model,
+      max_tokens: options.maxTokens || 4096,
+      system: systemMessage?.content,
+      messages: conversationMessages.map(m => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content
+      }))
+    };
+
+    // Use OAuth if available
+    if (this.oauthToken) {
+      const response = await this.callWithOAuth('/messages', requestBody, true);
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('No response body');
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') continue;
+
+            try {
+              const event = JSON.parse(data) as {
+                type: string;
+                delta?: { type: string; text?: string };
+              };
+
+              if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
+                yield { content: event.delta.text || '', done: false };
+              }
+              if (event.type === 'message_stop') {
+                yield { content: '', done: true };
+              }
+            } catch {
+              // Skip invalid JSON
+            }
+          }
+        }
+      }
+      return;
+    }
+
+    // Use SDK with API key
+    if (!this.client) {
+      throw new Error('Anthropic provider not configured. Set API key or OAuth token.');
+    }
+
+    const stream = this.client.messages.stream(requestBody);
+
+    for await (const event of stream) {
+      if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+        yield { content: event.delta.text, done: false };
+      }
+      if (event.type === 'message_stop') {
+        yield { content: '', done: true };
+      }
+    }
+  }
+}
+
+// Google Gemini Provider
+export class GoogleProvider implements AIProvider {
+  name: 'google' = 'google';
+  private client: GoogleGenAI;
+
+  constructor() {
+    this.client = new GoogleGenAI({
+      apiKey: process.env.GOOGLE_AI_API_KEY || ''
+    });
+  }
+
+  async complete(options: CompletionOptions): Promise<CompletionResult> {
+    // Build prompt with history
+    const systemMessage = options.messages.find(m => m.role === 'system');
+    const conversationMessages = options.messages.filter(m => m.role !== 'system');
+    const lastMessage = conversationMessages[conversationMessages.length - 1];
+
+    const response = await this.client.models.generateContent({
+      model: options.model,
+      contents: lastMessage.content,
+      config: {
+        systemInstruction: systemMessage?.content,
+        maxOutputTokens: options.maxTokens || 4096,
+        temperature: options.temperature || 0.7
+      }
+    });
+
+    return {
+      content: response.text || '',
+      tokensInput: response.usageMetadata?.promptTokenCount || 0,
+      tokensOutput: response.usageMetadata?.candidatesTokenCount || 0,
+      model: options.model,
+      provider: 'google'
+    };
+  }
+
+  async *streamComplete(options: CompletionOptions): AsyncGenerator<StreamChunk> {
+    const systemMessage = options.messages.find(m => m.role === 'system');
+    const conversationMessages = options.messages.filter(m => m.role !== 'system');
+    const lastMessage = conversationMessages[conversationMessages.length - 1];
+
+    const stream = await this.client.models.generateContentStream({
+      model: options.model,
+      contents: lastMessage.content,
+      config: {
+        systemInstruction: systemMessage?.content,
+        maxOutputTokens: options.maxTokens || 4096,
+        temperature: options.temperature || 0.7
+      }
+    });
+
+    for await (const chunk of stream) {
+      yield { content: chunk.text || '', done: false };
+    }
+    yield { content: '', done: true };
+  }
+}
+
+// Ollama Provider (Local LLMs)
+export class OllamaProvider implements AIProvider {
+  name: 'ollama' = 'ollama';
+  private baseUrl: string;
+  private timeout: number;
+  private keepAlive: string;
+
+  constructor(config?: ProviderConfig) {
+    this.baseUrl = config?.baseUrl || process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
+    this.timeout = config?.timeout || 120000;
+    this.keepAlive = config?.keepAlive || '5m';
+  }
+
+  async complete(options: CompletionOptions): Promise<CompletionResult> {
+    const response = await fetch(`${this.baseUrl}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: options.model,
+        messages: options.messages,
+        stream: false,
+        options: {
+          num_predict: options.maxTokens || 4096,
+          temperature: options.temperature || 0.7
+        },
+        keep_alive: this.keepAlive
+      }),
+      signal: AbortSignal.timeout(this.timeout)
+    });
+
+    if (!response.ok) {
+      throw new Error(`Ollama API error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json() as {
+      message: { content: string };
+      prompt_eval_count?: number;
+      eval_count?: number;
+    };
+
+    return {
+      content: data.message?.content || '',
+      tokensInput: data.prompt_eval_count || 0,
+      tokensOutput: data.eval_count || 0,
+      model: options.model,
+      provider: 'ollama'
+    };
+  }
+
+  async *streamComplete(options: CompletionOptions): AsyncGenerator<StreamChunk> {
+    const response = await fetch(`${this.baseUrl}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: options.model,
+        messages: options.messages,
+        stream: true,
+        options: {
+          num_predict: options.maxTokens || 4096,
+          temperature: options.temperature || 0.7
+        },
+        keep_alive: this.keepAlive
+      }),
+      signal: AbortSignal.timeout(this.timeout)
+    });
+
+    if (!response.ok) {
+      throw new Error(`Ollama API error: ${response.status} ${response.statusText}`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('No response body');
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const data = JSON.parse(line) as { message?: { content: string }; done: boolean };
+          yield {
+            content: data.message?.content || '',
+            done: data.done
+          };
+        } catch {
+          // Skip invalid JSON
+        }
+      }
+    }
+  }
+}
+
+// Custom OpenAI-compatible Provider
+export class CustomProvider implements AIProvider {
+  name: 'custom' = 'custom';
+  private client: OpenAI;
+
+  constructor(config: ProviderConfig) {
+    this.client = new OpenAI({
+      apiKey: config.apiKey || 'dummy-key',
+      baseURL: config.baseUrl,
+      defaultHeaders: config.customHeaders
+    });
+  }
+
+  async complete(options: CompletionOptions): Promise<CompletionResult> {
+    const response = await this.client.chat.completions.create({
+      model: options.model,
+      messages: options.messages,
+      max_tokens: options.maxTokens || 4096,
+      temperature: options.temperature || 0.7
+    });
+
+    return {
+      content: response.choices[0]?.message?.content || '',
+      tokensInput: response.usage?.prompt_tokens || 0,
+      tokensOutput: response.usage?.completion_tokens || 0,
+      model: options.model,
+      provider: 'custom'
+    };
+  }
+
+  async *streamComplete(options: CompletionOptions): AsyncGenerator<StreamChunk> {
+    const stream = await this.client.chat.completions.create({
+      model: options.model,
+      messages: options.messages,
+      max_tokens: options.maxTokens || 4096,
+      temperature: options.temperature || 0.7,
+      stream: true
+    });
+
+    for await (const chunk of stream) {
+      const content = chunk.choices[0]?.delta?.content || '';
+      const done = chunk.choices[0]?.finish_reason === 'stop';
+      yield { content, done };
+    }
+  }
+}
+
+// Provider Factory with dynamic configuration support
+export class AIProviderFactory {
+  private static providers: Map<string, AIProvider> = new Map();
+  private static providerConfigs: Map<ProviderType, ProviderConfig> = new Map();
+
+  // Set configuration for a provider (called when settings are loaded from DB)
+  static setProviderConfig(providerType: ProviderType, config: ProviderConfig) {
+    this.providerConfigs.set(providerType, config);
+    // Clear cached provider to force recreation with new config
+    this.providers.delete(providerType);
+  }
+
+  static getProvider(model: string, providerTypeOverride?: ProviderType): AIProvider {
+    const providerName = providerTypeOverride || this.getProviderName(model);
+    const config = this.providerConfigs.get(providerName);
+
+    if (!this.providers.has(providerName)) {
+      switch (providerName) {
+        case 'openai':
+          this.providers.set(providerName, new OpenAIProvider(config));
+          break;
+        case 'anthropic':
+          this.providers.set(providerName, new AnthropicProvider(config));
+          break;
+        case 'google':
+          this.providers.set(providerName, new GoogleProvider());
+          break;
+        case 'ollama':
+          this.providers.set(providerName, new OllamaProvider(config));
+          break;
+        case 'custom':
+          if (!config) throw new Error('Custom provider requires configuration');
+          this.providers.set(providerName, new CustomProvider(config));
+          break;
+        default:
+          throw new Error(`Unknown provider for model: ${model}`);
+      }
+    }
+
+    return this.providers.get(providerName)!;
+  }
+
+  static getProviderName(model: string): ProviderType {
+    if (model.startsWith('gpt-') || model.startsWith('o1-') || model.startsWith('o3-')) return 'openai';
+    if (model.startsWith('claude-')) return 'anthropic';
+    if (model.startsWith('gemini-')) return 'google';
+    // Check for common Ollama model patterns
+    if (model.match(/^(llama|mistral|mixtral|codellama|phi|qwen|deepseek|vicuna|orca|neural|dolphin|openhermes|starling|yi|solar)/i)) {
+      return 'ollama';
+    }
+    // Default to custom for unknown models
+    return 'custom';
+  }
+
+  static getAvailableModels(): string[] {
+    return Object.keys(MODEL_PRICING);
+  }
+
+  // Clear all cached providers (useful when reloading configuration)
+  static clearProviders() {
+    this.providers.clear();
+  }
+}

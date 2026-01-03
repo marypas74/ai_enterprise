@@ -1,0 +1,38 @@
+# PersistentVolume for shared project storage
+# This volume mounts a host directory that can be shared via Samba/CIFS for Windows access
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: shared-projects-pv
+  labels:
+    type: local
+    purpose: projects
+spec:
+  storageClassName: manual
+  capacity:
+    storage: 100Gi
+  accessModes:
+    - ReadWriteMany  # Multiple pods can read/write
+  persistentVolumeReclaimPolicy: Retain
+  hostPath:
+    path: /data/shared-projects  # This directory will be shared via Samba
+    type: DirectoryOrCreate
+
+---
+# PersistentVolumeClaim for the backend pods
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: shared-projects-pvc
+  namespace: enterprise-ai-chat
+spec:
+  storageClassName: manual
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 100Gi
+  selector:
+    matchLabels:
+      type: local
+      purpose: projects
