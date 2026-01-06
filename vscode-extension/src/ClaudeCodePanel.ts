@@ -155,6 +155,13 @@ export class ClaudeCodePanel {
     }
 
     /**
+     * Send stream error
+     */
+    public streamError(error: string) {
+        this.postMessage({ type: 'streamError', payload: { error } });
+    }
+
+    /**
      * Add complete message
      */
     public addMessage(role: 'user' | 'assistant' | 'system', content: string) {
@@ -240,7 +247,8 @@ export class ClaudeCodePanel {
                 vscode.commands.executeCommand(
                     'enterprise-ai-chat.moveKanbanCard',
                     message.cardId,
-                    message.columnId
+                    message.columnId,
+                    message.projectId // Pass projectId for proper API call
                 );
                 break;
 
@@ -255,6 +263,25 @@ export class ClaudeCodePanel {
 
             case 'getVersionInfo':
                 vscode.commands.executeCommand('enterprise-ai-chat.getVersionInfo');
+                break;
+
+            // History operations
+            case 'loadHistory':
+                vscode.commands.executeCommand('enterprise-ai-chat.loadHistory');
+                break;
+
+            case 'loadConversation':
+                vscode.commands.executeCommand(
+                    'enterprise-ai-chat.loadConversation',
+                    message.conversationId
+                );
+                break;
+
+            case 'deleteConversation':
+                vscode.commands.executeCommand(
+                    'enterprise-ai-chat.deleteConversation',
+                    message.conversationId
+                );
                 break;
         }
     }

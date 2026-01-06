@@ -245,6 +245,17 @@ function ChatPanel({ agentId, agentName }: { agentId: string; agentName: string 
     }
   }, [currentSession?.id]);
 
+  // Poll for new events (AI responses come asynchronously)
+  useEffect(() => {
+    if (!currentSession) return;
+
+    const pollInterval = setInterval(() => {
+      fetchEvents(currentSession.id);
+    }, 2000); // Poll every 2 seconds
+
+    return () => clearInterval(pollInterval);
+  }, [currentSession?.id]);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [events]);
@@ -259,6 +270,7 @@ function ChatPanel({ agentId, agentName }: { agentId: string; agentName: string 
     setInput('');
     setIsSending(true);
     await sendMessage(currentSession.id, message);
+    // Immediate fetch after sending, then polling will continue
     await fetchEvents(currentSession.id);
     setIsSending(false);
   };
@@ -293,31 +305,33 @@ function ChatPanel({ agentId, agentName }: { agentId: string; agentName: string 
         <>
           {/* Messages */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {events.length === 0 ? (
+            {events.filter(e => e.kind === 'message').length === 0 ? (
               <div className="text-center text-surface-500 py-8">
                 <p>Session started. Send a message to begin.</p>
               </div>
             ) : (
-              events.map((event) => (
-                <div
-                  key={event.id}
-                  className={clsx(
-                    'flex',
-                    event.source === 'customer' ? 'justify-end' : 'justify-start'
-                  )}
-                >
+              events
+                .filter((event) => event.kind === 'message' && event.data?.message)
+                .map((event) => (
                   <div
+                    key={event.id}
                     className={clsx(
-                      'max-w-[80%] px-4 py-2 rounded-lg',
-                      event.source === 'customer'
-                        ? 'bg-primary-600 text-white'
-                        : 'bg-surface-100 dark:bg-surface-800 text-surface-900 dark:text-surface-100'
+                      'flex',
+                      event.source === 'customer' ? 'justify-end' : 'justify-start'
                     )}
                   >
-                    <p>{event.content}</p>
+                    <div
+                      className={clsx(
+                        'max-w-[80%] px-4 py-2 rounded-lg',
+                        event.source === 'customer'
+                          ? 'bg-primary-600 text-white'
+                          : 'bg-surface-100 dark:bg-surface-800 text-surface-900 dark:text-surface-100'
+                      )}
+                    >
+                      <p>{event.data?.message}</p>
+                    </div>
                   </div>
-                </div>
-              ))
+                ))
             )}
             <div ref={messagesEndRef} />
           </div>

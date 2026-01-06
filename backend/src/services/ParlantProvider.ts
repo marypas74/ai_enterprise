@@ -68,6 +68,13 @@ async function parlantFetch(
     if (error.name === 'AbortError') {
       throw new Error('Parlant service request timeout');
     }
+    // Provide more specific error messages
+    if (error.cause?.code === 'ECONNREFUSED' || error.message?.includes('ECONNREFUSED')) {
+      throw new Error(`Parlant service not reachable at ${PARLANT_URL}. Is the service running?`);
+    }
+    if (error.cause?.code === 'ENOTFOUND' || error.message?.includes('ENOTFOUND')) {
+      throw new Error(`Parlant service hostname not found: ${PARLANT_URL}. Check PARLANT_URL configuration.`);
+    }
     throw new Error(`Parlant service error: ${error.message}`);
   }
 }
@@ -340,12 +347,16 @@ export async function fetchParlantAgents(): Promise<ParlantAgent[]> {
   }
 }
 
-// Check Parlant health
+// Check Parlant health - uses /agents endpoint since root returns 307 redirect
 export async function checkParlantHealth(): Promise<boolean> {
   try {
-    const { status } = await parlantFetch('GET', '/', undefined, 5000);
-    return status >= 200 && status < 500;
-  } catch {
+    const { status, data } = await parlantFetch('GET', '/agents', undefined, 5000);
+    // Parlant is healthy if it returns 200 and a valid array
+    const healthy = status === 200 && Array.isArray(data);
+    console.log(`[Parlant] Health check: status=${status}, healthy=${healthy}`);
+    return healthy;
+  } catch (error: any) {
+    console.error(`[Parlant] Health check failed: ${error.message}`);
     return false;
   }
 }

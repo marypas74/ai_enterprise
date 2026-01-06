@@ -24,6 +24,7 @@ import { orchestratorRoutes } from './modules/orchestrator/routes.js';
 import { debugRoutes, addToLogBuffer } from './modules/admin/debug.js';
 import { downloadRoutes } from './modules/downloads/routes.js';
 import { parlantRoutes } from './modules/parlant/routes.js';
+import fileRoutes from './modules/files/routes.js';
 import { AIProviderFactory } from './modules/ai/providers.js';
 import { AgentOrchestrator } from './services/AgentOrchestrator.js';
 import { AgentEventEmitter } from './services/AgentEventEmitter.js';
@@ -184,12 +185,28 @@ async function bootstrap() {
     fastify.log.warn('Could not load provider configurations from database: ' + String(err));
   }
 
-  // JWT Authentication Decorator
+  // JWT Authentication Decorator with detailed logging
   fastify.decorate('authenticate', async function(request: any, reply: any) {
+    const authHeader = request.headers.authorization;
+    const url = request.url;
+
+    // Log auth attempt for debugging
+    if (!authHeader) {
+      fastify.log.warn(`[Auth] No Authorization header for ${url}`);
+      return reply.status(401).send({ error: 'Unauthorized', reason: 'Missing Authorization header' });
+    }
+
+    if (!authHeader.startsWith('Bearer ')) {
+      fastify.log.warn(`[Auth] Invalid Authorization format for ${url}`);
+      return reply.status(401).send({ error: 'Unauthorized', reason: 'Invalid token format' });
+    }
+
     try {
       await request.jwtVerify();
-    } catch (err) {
-      reply.status(401).send({ error: 'Unauthorized' });
+      fastify.log.debug(`[Auth] OK for ${url} - User: ${request.user?.id}`);
+    } catch (err: any) {
+      fastify.log.warn(`[Auth] JWT verify failed for ${url}: ${err.message}`);
+      return reply.status(401).send({ error: 'Unauthorized', reason: err.message });
     }
   });
 
@@ -209,6 +226,7 @@ async function bootstrap() {
   await fastify.register(debugRoutes, { prefix: '/api/admin' });
   await fastify.register(downloadRoutes, { prefix: '/api' });
   await fastify.register(parlantRoutes, { prefix: '/api/parlant' });
+  await fastify.register(fileRoutes, { prefix: '/api/files' });
 
   // Initialize Agent Orchestrator
   try {
@@ -323,7 +341,7 @@ async function bootstrap() {
   const BUILD_TIME = new Date().toISOString();
   fastify.get('/version', async () => ({
     name: 'enterprise-ai-chat-backend',
-    version: '1.3.0',
+    version: '1.4.0',
     buildTime: BUILD_TIME,
     nodeVersion: process.version,
     environment: process.env.NODE_ENV || 'development'
@@ -331,7 +349,7 @@ async function bootstrap() {
 
   fastify.get('/api/version', async () => ({
     name: 'enterprise-ai-chat-backend',
-    version: '1.3.0',
+    version: '1.4.0',
     buildTime: BUILD_TIME,
     nodeVersion: process.version,
     environment: process.env.NODE_ENV || 'development'

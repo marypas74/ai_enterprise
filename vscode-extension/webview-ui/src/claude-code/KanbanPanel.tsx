@@ -32,7 +32,6 @@ interface KanbanAccessDenied {
 }
 
 interface KanbanPanelProps {
-  vscode: any;
   projects: Project[];
   columns: Column[];
   selectedProject?: number;
@@ -41,10 +40,13 @@ interface KanbanPanelProps {
   onUpdateCard: (cardId: number, columnId: string | number, notes?: string) => void;
   onAddNote: (cardId: number, note: string) => void;
   onCompleteWithFeedback?: (cardId: number, feedback: string) => void;
+  onDeleteCard?: (cardId: number) => void;
+  onEditCard?: (card: Card) => void;
+  onExecuteTask?: (card: Card) => void;
+  isCompact?: boolean; // For split view mode
 }
 
 const KanbanPanel: React.FC<KanbanPanelProps> = ({
-  vscode,
   projects,
   columns,
   selectedProject,
@@ -53,12 +55,19 @@ const KanbanPanel: React.FC<KanbanPanelProps> = ({
   onUpdateCard,
   onAddNote,
   onCompleteWithFeedback,
+  onDeleteCard,
+  onEditCard,
+  onExecuteTask,
+  isCompact = false,
 }) => {
   const [expandedCard, setExpandedCard] = useState<number | null>(null);
   const [noteText, setNoteText] = useState('');
   const [draggedCard, setDraggedCard] = useState<Card | null>(null);
   const [feedbackModal, setFeedbackModal] = useState<{ card: Card; columnName: string } | null>(null);
   const [feedbackText, setFeedbackText] = useState('');
+  const [editModal, setEditModal] = useState<Card | null>(null);
+  const [editForm, setEditForm] = useState({ title: '', description: '', priority: 'medium' as Card['priority'] });
+  const [deleteConfirm, setDeleteConfirm] = useState<Card | null>(null);
 
   const priorityColors: Record<string, string> = {
     low: '#22c55e',
@@ -123,7 +132,7 @@ const KanbanPanel: React.FC<KanbanPanelProps> = ({
   const totalCards = columns.reduce((sum, col) => sum + col.cards.length, 0);
 
   return (
-    <div className="kanban-panel">
+    <div className={`kanban-panel ${isCompact ? 'kanban-compact' : ''}`}>
       {/* Project Selector */}
       <div className="kanban-header">
         <h3 className="kanban-title">
@@ -236,6 +245,38 @@ const KanbanPanel: React.FC<KanbanPanelProps> = ({
 
                     {/* Quick Actions */}
                     <div className="card-actions">
+                      {/* Execute with AI button - Primary action */}
+                      {onExecuteTask && (
+                        <button
+                          className="card-action-btn execute"
+                          onClick={() => onExecuteTask(card)}
+                          title="Execute with AI"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <polygon points="5 3 19 12 5 21 5 3" />
+                          </svg>
+                        </button>
+                      )}
+
+                      {/* Edit button */}
+                      <button
+                        className="card-action-btn edit"
+                        onClick={() => {
+                          setEditForm({
+                            title: card.title,
+                            description: card.description || '',
+                            priority: card.priority
+                          });
+                          setEditModal(card);
+                        }}
+                        title="Edit card"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                        </svg>
+                      </button>
+
                       <button
                         className="card-action-btn"
                         onClick={() => setExpandedCard(expandedCard === card.id ? null : card.id)}
@@ -244,7 +285,6 @@ const KanbanPanel: React.FC<KanbanPanelProps> = ({
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                         </svg>
-                        Note
                       </button>
 
                       {/* Complete with feedback button */}
@@ -257,7 +297,6 @@ const KanbanPanel: React.FC<KanbanPanelProps> = ({
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                             <polyline points="20 6 9 17 4 12" />
                           </svg>
-                          Done
                         </button>
                       )}
 
@@ -281,6 +320,18 @@ const KanbanPanel: React.FC<KanbanPanelProps> = ({
                           </svg>
                         </button>
                       )}
+
+                      {/* Delete button */}
+                      <button
+                        className="card-action-btn delete"
+                        onClick={() => setDeleteConfirm(card)}
+                        title="Delete card"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <polyline points="3 6 5 6 21 6" />
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                        </svg>
+                      </button>
                     </div>
 
                     {/* Expanded Note Input */}
@@ -397,6 +448,115 @@ const KanbanPanel: React.FC<KanbanPanelProps> = ({
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
                 Complete Task
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      {editModal && (
+        <div className="feedback-modal-overlay">
+          <div className="feedback-modal edit-modal">
+            <h3>Edit Task</h3>
+            <div className="feedback-input-group">
+              <label>Title</label>
+              <input
+                type="text"
+                value={editForm.title}
+                onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                placeholder="Task title..."
+                className="edit-input"
+              />
+            </div>
+            <div className="feedback-input-group">
+              <label>Description</label>
+              <textarea
+                value={editForm.description}
+                onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                placeholder="Task description..."
+                rows={3}
+              />
+            </div>
+            <div className="feedback-input-group">
+              <label>Priority</label>
+              <select
+                value={editForm.priority}
+                onChange={(e) => setEditForm({ ...editForm, priority: e.target.value as Card['priority'] })}
+                className="edit-select"
+              >
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="urgent">Urgent</option>
+              </select>
+            </div>
+            <div className="modal-actions">
+              <button
+                className="modal-btn cancel"
+                onClick={() => {
+                  setEditModal(null);
+                  setEditForm({ title: '', description: '', priority: 'medium' });
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                className="modal-btn complete"
+                onClick={() => {
+                  if (onEditCard && editForm.title.trim()) {
+                    onEditCard({
+                      ...editModal,
+                      title: editForm.title,
+                      description: editForm.description,
+                      priority: editForm.priority
+                    });
+                  }
+                  setEditModal(null);
+                  setEditForm({ title: '', description: '', priority: 'medium' });
+                }}
+                disabled={!editForm.title.trim()}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                  <polyline points="17 21 17 13 7 13 7 21" />
+                  <polyline points="7 3 7 8 15 8" />
+                </svg>
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm && (
+        <div className="feedback-modal-overlay">
+          <div className="feedback-modal delete-modal">
+            <h3>Delete Task</h3>
+            <p className="modal-task-title">{deleteConfirm.title}</p>
+            <p className="delete-warning">Are you sure you want to delete this task? This action cannot be undone.</p>
+            <div className="modal-actions">
+              <button
+                className="modal-btn cancel"
+                onClick={() => setDeleteConfirm(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className="modal-btn delete"
+                onClick={() => {
+                  if (onDeleteCard) {
+                    onDeleteCard(deleteConfirm.id);
+                  }
+                  setDeleteConfirm(null);
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polyline points="3 6 5 6 21 6" />
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                </svg>
+                Delete Task
               </button>
             </div>
           </div>

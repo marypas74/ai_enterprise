@@ -1,12 +1,38 @@
 /**
  * StorageService - Handles project folder creation and management
- * Integrates with network shares for code generation
+ * Uses local path /app/projects which should be mounted via Kubernetes HostPath
+ * to the actual storage location (e.g., /data/shared-projects on host)
  */
 
 import * as fs from 'fs';
 import * as path from 'path';
 
-const STORAGE_ROOT = process.env.STORAGE_ROOT || '/mnt/projects/repositories';
+// Default to /app/projects - this will be mounted via K8s HostPath to actual storage
+const STORAGE_ROOT = process.env.STORAGE_ROOT || '/app/projects';
+
+// Initialize storage directory on module load
+function initializeStorage(): void {
+  try {
+    if (!fs.existsSync(STORAGE_ROOT)) {
+      fs.mkdirSync(STORAGE_ROOT, { recursive: true });
+      console.log(`[Storage] ✅ Created storage root: ${STORAGE_ROOT}`);
+    } else {
+      console.log(`[Storage] ✅ Storage root exists: ${STORAGE_ROOT}`);
+    }
+
+    // Test write access
+    const testFile = path.join(STORAGE_ROOT, '.write-test');
+    fs.writeFileSync(testFile, 'test', 'utf-8');
+    fs.unlinkSync(testFile);
+    console.log(`[Storage] ✅ Write access verified for: ${STORAGE_ROOT}`);
+  } catch (error: any) {
+    console.error(`[Storage] ❌ CRITICAL: Cannot initialize storage at ${STORAGE_ROOT}: ${error.message}`);
+    console.error(`[Storage] ❌ Make sure the path exists and is writable!`);
+  }
+}
+
+// Run initialization
+initializeStorage();
 
 export interface ProjectFolder {
   basePath: string;

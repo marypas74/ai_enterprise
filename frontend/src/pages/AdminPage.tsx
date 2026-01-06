@@ -545,7 +545,7 @@ function AuditLog() {
   );
 }
 
-const FRONTEND_VERSION = '1.3.1';
+const FRONTEND_VERSION = '1.3.6';
 
 export default function AdminPage() {
   const location = useLocation();

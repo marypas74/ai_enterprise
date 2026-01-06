@@ -122,7 +122,7 @@ const MainLayout: React.FC = () => {
   const [versionInfo, setVersionInfo] = useState<{
     extension: string;
     backend?: { version: string; buildTime: string };
-  }>({ extension: '2.9.14' });
+  }>({ extension: '2.9.15' });
 
   const streamingRef = useRef('');
   const generateId = () => `msg-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
@@ -356,7 +356,7 @@ const MainLayout: React.FC = () => {
 
         case 'versionInfo':
           setVersionInfo({
-            extension: payload?.extension || '2.9.14',
+            extension: payload?.extension || '2.9.15',
             backend: payload?.backend
           });
           break;
@@ -509,6 +509,21 @@ const MainLayout: React.FC = () => {
   // Execute Task with AI - Opens split view and sends structured prompt
   // CRITICAL: moveCard is FIRE-AND-FORGET, never blocks the chat stream
   const handleExecuteTask = useCallback((card: Card) => {
+    // === EMERGENCY FIX: Validate projectId before executing ===
+    let validProjectId = selectedProject;
+    if (!validProjectId || validProjectId === 0) {
+      // Try to get first project as fallback
+      if (projects.length > 0) {
+        validProjectId = projects[0].id;
+        console.warn(`[ExecuteTask] ⚠️ No project selected, using fallback: ${validProjectId}`);
+      } else {
+        console.error('[ExecuteTask] ❌ CRITICAL: No project available!');
+        alert('Errore: Nessun progetto selezionato. Seleziona un progetto prima di eseguire task.');
+        return;
+      }
+    }
+    console.log(`[ExecuteTask] Using projectId: ${validProjectId}`);
+
     // Build structured prompt from card data
     const checklistItems = card.checklist?.map(item => `- [${item.completed ? 'x' : ' '}] ${item.text}`).join('\n') || '';
     const tagsInfo = card.tags?.length ? `TAGS: ${card.tags.join(', ')}` : '';
@@ -550,38 +565,16 @@ Please analyze this task and help me implement it. When generating code, use the
     vscode.postMessage({
       type: 'sendAgentic',
       message: prompt,
-      projectId: selectedProject,
+      projectId: validProjectId,  // Use validated projectId (never 0 or undefined)
     });
 
-    // === STEP 3: BYPASSED - moveCard DISABLED to prevent 500 error blocking ===
-    // TODO: Re-enable when backend is fixed
-    console.warn('[ExecuteTask] BYPASS: Skipping card move to prevent crash. Chat starting...');
-    /* DISABLED - API 500 workaround
-    setTimeout(() => {
-      try {
-        const inProgressColumn = columns.find(col =>
-          col.name.toLowerCase().includes('progress') ||
-          col.name.toLowerCase().includes('corso') ||
-          col.name.toLowerCase() === 'in progress' ||
-          col.name.toLowerCase() === 'doing'
-        );
+    // === STEP 3: moveCard PERMANENTLY DISABLED ===
+    // The moveCard feature caused 500 errors and hung the AI agent indefinitely.
+    // It has been LOBOTOMIZED. The user must manually move cards on the Kanban board.
+    // DO NOT RE-ENABLE THIS CODE.
+    console.log(`[ExecuteTask] moveCard DISABLED - Agent focuses ONLY on code generation`);
 
-        if (inProgressColumn && card.column_id !== inProgressColumn.id && selectedProject) {
-          console.log(`[ExecuteTask] ASYNC: Moving card ${card.id} to "In Progress"`);
-          vscode.postMessage({
-            type: 'moveCard',
-            cardId: card.id,
-            columnId: inProgressColumn.id,
-            projectId: selectedProject,
-          });
-        }
-      } catch (err) {
-        console.warn('[ExecuteTask] moveCard failed (swallowed):', err);
-      }
-    }, 100);
-    */ // END DISABLED
-
-  }, [columns, selectedProject]);
+  }, [columns, selectedProject, projects]);
 
   // Close split view and return to normal Kanban
   const handleCloseSplitView = useCallback(() => {

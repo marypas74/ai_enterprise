@@ -872,23 +872,6 @@ export async function projectRoutes(fastify: FastifyInstance) {
     }
   }, async (request: FastifyRequest<{ Params: { projectId: string; cardId: string } }>, reply: FastifyReply) => {
     const { projectId, cardId } = request.params;
-
-    // ============================================================
-    // EMERGENCY BYPASS - Return 200 OK immediately, do NOTHING
-    // This prevents 500 errors from blocking AI generation
-    // TODO: Remove this bypass once root cause is fixed
-    // ============================================================
-    fastify.log.warn(`[Card Move] BYPASS MODE: Returning 200 OK without processing for card ${cardId}`);
-    return {
-      success: true,
-      message: 'BYPASSED - Card move disabled temporarily',
-      cardId: Number(cardId),
-      projectId: Number(projectId)
-    };
-    // ============================================================
-    // END BYPASS - Code below is unreachable until bypass removed
-    // ============================================================
-
     const userId = (request.user as any).id;
 
     // Log the request for debugging

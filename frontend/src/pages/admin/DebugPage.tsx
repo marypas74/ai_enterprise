@@ -171,13 +171,14 @@ export default function DebugPage() {
         const response = await originalFetch(input, init);
         const duration = Date.now() - startTime;
 
-        // Clone response to read body
+        // Clone response to read body (read as text first, then parse - avoid body stream error)
         const cloned = response.clone();
         let responseBody;
+        const text = await cloned.text();
         try {
-          responseBody = await cloned.json();
+          responseBody = text ? JSON.parse(text) : null;
         } catch {
-          responseBody = await cloned.text();
+          responseBody = text;
         }
 
         if (!isPaused) {

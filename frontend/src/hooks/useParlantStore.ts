@@ -30,12 +30,21 @@ export interface ParlantSession {
 
 export interface ParlantEvent {
   id: string;
-  sessionId: string;
+  sessionId?: string;
   kind: string;
   source: string;
-  content: string;
-  metadata?: Record<string, any>;
-  createdAt?: string;
+  // Parlant API returns message content in data.message
+  data?: {
+    message?: string;
+    status?: string;
+    participant?: {
+      id: string;
+      display_name?: string;
+    };
+  };
+  offset?: number;
+  creation_utc?: string;
+  correlation_id?: string;
 }
 
 export interface ParlantEvaluation {

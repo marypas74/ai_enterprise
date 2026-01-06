@@ -153,12 +153,32 @@ body {
   top: calc(100% + 4px);
   right: 0;
   min-width: 200px;
+  max-height: calc(100vh - 120px); /* Constrain height to viewport */
+  overflow-y: auto; /* Enable vertical scrolling */
   background: var(--claude-bg-tertiary);
   border: 1px solid var(--claude-border);
   border-radius: 8px;
   padding: 4px;
   z-index: 1000;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+/* Scrollbar styling for model dropdown - VS Code native look */
+.model-selector-dropdown::-webkit-scrollbar {
+  width: 8px;
+}
+
+.model-selector-dropdown::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.model-selector-dropdown::-webkit-scrollbar-thumb {
+  background: var(--claude-border);
+  border-radius: 4px;
+}
+
+.model-selector-dropdown::-webkit-scrollbar-thumb:hover {
+  background: var(--claude-text-muted);
 }
 
 .model-option {
@@ -202,6 +222,10 @@ body {
   flex: 1;
   overflow: hidden;
   position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0; /* Critical for flex child overflow */
 }
 
 /* ============================================
@@ -724,6 +748,13 @@ body {
 .login-button:hover {
   background: var(--claude-orange-hover);
   transform: scale(1.02);
+}
+
+.login-version {
+  margin-top: 24px;
+  font-size: 12px;
+  color: var(--claude-text-muted);
+  opacity: 0.6;
 }
 
 /* ============================================
@@ -1253,6 +1284,86 @@ body {
   border-color: #16a34a;
 }
 
+.modal-btn.delete {
+  background: #ef4444;
+  border: 1px solid #ef4444;
+  color: white;
+}
+
+.modal-btn.delete:hover {
+  background: #dc2626;
+  border-color: #dc2626;
+}
+
+/* Card action buttons - edit and delete */
+.card-action-btn.edit {
+  color: #3b82f6;
+}
+
+.card-action-btn.edit:hover {
+  background: rgba(59, 130, 246, 0.15);
+}
+
+.card-action-btn.delete {
+  color: #ef4444;
+}
+
+.card-action-btn.delete:hover {
+  background: rgba(239, 68, 68, 0.15);
+}
+
+/* Edit modal specific styles */
+.edit-modal .feedback-input-group input,
+.edit-modal .feedback-input-group select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--claude-border);
+  border-radius: 6px;
+  background: var(--claude-bg);
+  color: var(--claude-text);
+  font-size: 13px;
+}
+
+.edit-modal .feedback-input-group select {
+  cursor: pointer;
+}
+
+.edit-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--claude-border);
+  border-radius: 6px;
+  background: var(--claude-bg);
+  color: var(--claude-text);
+  font-size: 13px;
+}
+
+.edit-select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--claude-border);
+  border-radius: 6px;
+  background: var(--claude-bg);
+  color: var(--claude-text);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+/* Delete modal specific styles */
+.delete-modal h3 {
+  color: #ef4444;
+}
+
+.delete-warning {
+  color: var(--claude-text-secondary);
+  font-size: 13px;
+  margin: 12px 0;
+  padding: 12px;
+  background: rgba(239, 68, 68, 0.1);
+  border-radius: 6px;
+  border-left: 3px solid #ef4444;
+}
+
 /* Tab Navigation for switching between Chat and Kanban */
 .panel-tabs {
   display: flex;
@@ -1290,4 +1401,428 @@ body {
 .panel-tab svg {
   width: 16px;
   height: 16px;
+}
+
+/* ============================================
+   History Sidebar
+   ============================================ */
+.history-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  animation: fadeIn 0.15s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.history-sidebar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 280px;
+  height: 100%;
+  background: var(--claude-bg-secondary);
+  border-right: 1px solid var(--claude-border);
+  display: flex;
+  flex-direction: column;
+  animation: slideIn 0.2s ease;
+}
+
+@keyframes slideIn {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+.history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  border-bottom: 1px solid var(--claude-border);
+}
+
+.history-header h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--claude-text);
+  margin: 0;
+}
+
+.history-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--claude-text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.history-close:hover {
+  background: var(--claude-bg-tertiary);
+  color: var(--claude-text);
+}
+
+.history-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.history-loading,
+.history-empty {
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--claude-text-muted);
+  font-size: 13px;
+}
+
+.history-error {
+  padding: 24px 16px;
+  text-align: center;
+  color: #ef4444;
+  font-size: 13px;
+}
+
+.history-item {
+  position: relative;
+  padding: 12px;
+  margin-bottom: 4px;
+  background: transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.history-item:hover {
+  background: var(--claude-bg-tertiary);
+}
+
+.history-item.active {
+  background: var(--claude-orange-dim);
+}
+
+.history-item-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--claude-text);
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-right: 24px;
+}
+
+.history-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--claude-text-muted);
+}
+
+.history-item-model {
+  text-transform: capitalize;
+}
+
+.history-item-delete {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--claude-text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.15s;
+}
+
+.history-item:hover .history-item-delete {
+  opacity: 1;
+}
+
+.history-item-delete:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+}
+
+.history-refresh {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 8px;
+  padding: 10px;
+  background: transparent;
+  border: 1px solid var(--claude-border);
+  border-radius: 6px;
+  color: var(--claude-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.history-refresh:hover {
+  background: var(--claude-bg-tertiary);
+  color: var(--claude-text);
+}
+
+/* ============================================
+   SPLIT VIEW - Task Execution Mode (Claude Dev Style)
+   CRITICAL: Must NEVER stack vertically
+   ============================================ */
+
+/* Override main container in split mode - FORCE HORIZONTAL */
+.claude-main.split-view {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  gap: 0 !important;
+  height: 100% !important;
+  height: calc(100vh - 48px) !important; /* Subtract header */
+  width: 100% !important;
+  min-height: 0 !important;
+  max-height: calc(100vh - 48px) !important;
+  overflow: hidden !important;
+  align-items: stretch !important;
+  position: relative !important;
+}
+
+/* Reset any conflicting styles */
+.claude-main.split-view > * {
+  float: none !important;
+  clear: none !important;
+  display: flex !important;
+}
+
+/* Left Panel - Task Focus (30% width) */
+.split-kanban {
+  width: 30% !important;
+  min-width: 280px !important;
+  max-width: 380px !important;
+  flex: 0 0 30% !important; /* Don't grow or shrink */
+  height: 100% !important;
+  max-height: 100% !important;
+  border-right: 2px solid var(--claude-border);
+  display: flex !important;
+  flex-direction: column !important;
+  background: var(--claude-bg-secondary);
+  overflow: hidden !important;
+}
+
+/* Hide kanban board horizontal scroll in split mode */
+.split-kanban .kanban-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.split-kanban .kanban-board {
+  flex-direction: column !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  gap: 8px;
+  padding: 8px;
+}
+
+.split-kanban .kanban-column {
+  flex: 0 0 auto !important;
+  width: 100% !important;
+  min-width: unset !important;
+  max-height: none;
+}
+
+.split-kanban .kanban-cards {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+/* Right Panel - Chat/Editor (70% width) */
+.split-chat {
+  flex: 1 1 70% !important; /* Grow to fill remaining space */
+  width: 70% !important;
+  min-width: 0 !important; /* Allow shrinking below content size */
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  min-height: 0 !important;
+  position: relative !important;
+  overflow: hidden !important;
+  background: var(--claude-bg);
+}
+
+.split-chat .messages-area {
+  flex: 1 !important;
+  overflow-y: auto !important;
+  padding: 16px;
+  padding-bottom: 120px; /* Space for input */
+  min-height: 0 !important;
+}
+
+/* Floating input in split chat */
+.split-chat .floating-input-container {
+  position: absolute !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  background: var(--claude-bg);
+  border-top: 1px solid var(--claude-border);
+  padding: 16px;
+  z-index: 10;
+}
+
+/* Active Task Header */
+.active-task-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, rgba(124, 77, 255, 0.15), rgba(33, 150, 243, 0.1));
+  border-bottom: 1px solid var(--claude-border);
+}
+
+.active-task-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.active-task-info .task-priority {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.active-task-info .task-priority.priority-low { background: #22c55e; }
+.active-task-info .task-priority.priority-medium { background: #3b82f6; }
+.active-task-info .task-priority.priority-high { background: #f97316; }
+.active-task-info .task-priority.priority-urgent { background: #ef4444; }
+
+.active-task-info .task-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--claude-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.close-split-btn {
+  background: transparent;
+  border: none;
+  padding: 6px;
+  cursor: pointer;
+  color: var(--claude-text-muted);
+  border-radius: 4px;
+  transition: all 0.15s;
+}
+
+.close-split-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--claude-text);
+}
+
+/* Compact Kanban Panel */
+.kanban-panel.kanban-compact {
+  height: 100%;
+  overflow: hidden;
+}
+
+.kanban-panel.kanban-compact .kanban-header {
+  padding: 8px 12px;
+}
+
+.kanban-panel.kanban-compact .kanban-title {
+  font-size: 12px;
+}
+
+.kanban-panel.kanban-compact .kanban-stats {
+  padding: 4px 12px;
+  font-size: 10px;
+}
+
+.kanban-panel.kanban-compact .kanban-board {
+  padding: 8px;
+  gap: 8px;
+}
+
+.kanban-panel.kanban-compact .kanban-column {
+  min-width: 200px;
+}
+
+.kanban-panel.kanban-compact .kanban-column-header {
+  padding: 8px;
+  font-size: 11px;
+}
+
+.kanban-panel.kanban-compact .kanban-card {
+  padding: 8px;
+}
+
+.kanban-panel.kanban-compact .card-title {
+  font-size: 11px;
+}
+
+.kanban-panel.kanban-compact .card-description {
+  font-size: 10px;
+  -webkit-line-clamp: 1;
+}
+
+.kanban-panel.kanban-compact .card-actions {
+  gap: 2px;
+}
+
+.kanban-panel.kanban-compact .card-action-btn {
+  padding: 3px;
+}
+
+/* Execute Button Styling */
+.card-action-btn.execute {
+  background: linear-gradient(135deg, #7c4dff, #536dfe);
+  color: white;
+  border-radius: 4px;
+}
+
+.card-action-btn.execute:hover {
+  background: linear-gradient(135deg, #651fff, #304ffe);
+  transform: scale(1.1);
+  box-shadow: 0 2px 8px rgba(124, 77, 255, 0.4);
+}
+
+.card-action-btn.execute svg {
+  fill: currentColor;
+  stroke: none;
+}
+
+/* Animation for execute button */
+@keyframes pulse-execute {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(124, 77, 255, 0.4); }
+  50% { box-shadow: 0 0 0 4px rgba(124, 77, 255, 0); }
+}
+
+.card-action-btn.execute:focus {
+  animation: pulse-execute 1s ease-out;
 }

@@ -317,18 +317,47 @@ export async function parlantRoutes(fastify: FastifyInstance) {
       security: [{ bearerAuth: [] }]
     }
   }, async (request: FastifyRequest, reply: FastifyReply) => {
-    const user = request.user as { id: number; username: string };
+    const user = request.user as { id: number; username: string; email?: string };
     try {
       const body = createSessionSchema.parse(request.body);
-      // Add user info as customer ID if not provided
+
+      // Ensure customer exists in Parlant (create if not)
+      const customerId = body.customerId || `enterprise_user_${user.id}`;
+      const customerName = user.username || user.email || `User ${user.id}`;
+
+      // Try to get existing customer, create if not found
+      const { status: customerStatus } = await parlantRequest('GET', `/customers/${customerId}`);
+      if (customerStatus === 404) {
+        // Create the customer
+        fastify.log.info(`[Parlant] Creating customer: ${customerId}`);
+        await parlantRequest('POST', '/customers', {
+          name: customerName,
+          metadata: {
+            enterprise_user_id: user.id,
+            enterprise_username: user.username
+          }
+        });
+
+        // Get the created customer to get its Parlant ID
+        const { data: customers } = await parlantRequest('GET', '/customers');
+        const customer = customers?.find((c: any) => c.name === customerName);
+        if (customer) {
+          // Create session with Parlant customer ID
+          const sessionData = {
+            agent_id: body.agentId,
+            customer_id: customer.id,
+            metadata: body.metadata
+          };
+          const { data, status } = await parlantRequest('POST', '/sessions', sessionData);
+          return reply.status(status).send(data);
+        }
+      }
+
+      // Customer exists, create session
       const sessionData = {
         agent_id: body.agentId,
-        customer_id: body.customerId || `user_${user.id}`,
-        metadata: {
-          ...body.metadata,
-          enterprise_user_id: user.id,
-          enterprise_username: user.username
-        }
+        customer_id: customerId,
+        metadata: body.metadata
       };
       const { data, status } = await parlantRequest('POST', '/sessions', sessionData);
       return reply.status(status).send(data);
@@ -336,6 +365,7 @@ export async function parlantRoutes(fastify: FastifyInstance) {
       if (error instanceof z.ZodError) {
         return reply.status(400).send({ error: 'Validation failed', details: error.errors });
       }
+      fastify.log.error(`[Parlant] Session creation error: ${error.message}`);
       return reply.status(502).send({ error: error.message });
     }
   });
@@ -422,16 +452,13 @@ export async function parlantRoutes(fastify: FastifyInstance) {
     const { sessionId } = request.params as { sessionId: string };
     try {
       const body = sendMessageSchema.parse(request.body);
-      // Parlant v3.0 expects: { kind, source, data: { message: "..." } }
+      // Parlant expects: { kind, source, message: "..." } - message at top level
       const eventData = {
         kind: 'message',
         source: 'customer',
-        data: {
-          message: body.content,
-          ...(body.metadata || {})
-        }
+        message: body.content
       };
-      console.log(`[Parlant Routes] Sending event to session ${sessionId}:`, JSON.stringify(eventData));
+      fastify.log.info(`[Parlant Routes] Sending event to session ${sessionId}: ${JSON.stringify(eventData)}`);
       // Use longer timeout for message processing
       const { data, status } = await parlantRequest('POST', `/sessions/${sessionId}/events`, eventData, 120000);
       console.log(`[Parlant Routes] Response status: ${status}`);

@@ -151,6 +151,12 @@ class ClaudeCodePanel {
         this.postMessage({ type: 'streamEnd' });
     }
     /**
+     * Send stream error
+     */
+    streamError(error) {
+        this.postMessage({ type: 'streamError', payload: { error } });
+    }
+    /**
      * Add complete message
      */
     addMessage(role, content) {
@@ -213,13 +219,24 @@ class ClaudeCodePanel {
                 vscode.commands.executeCommand('enterprise-ai-chat.selectKanbanProject', message.projectId);
                 break;
             case 'moveCard':
-                vscode.commands.executeCommand('enterprise-ai-chat.moveKanbanCard', message.cardId, message.columnId);
+                vscode.commands.executeCommand('enterprise-ai-chat.moveKanbanCard', message.cardId, message.columnId, message.projectId // Pass projectId for proper API call
+                );
                 break;
             case 'addCardComment':
                 vscode.commands.executeCommand('enterprise-ai-chat.addKanbanComment', message.projectId, message.cardId, message.content);
                 break;
             case 'getVersionInfo':
                 vscode.commands.executeCommand('enterprise-ai-chat.getVersionInfo');
+                break;
+            // History operations
+            case 'loadHistory':
+                vscode.commands.executeCommand('enterprise-ai-chat.loadHistory');
+                break;
+            case 'loadConversation':
+                vscode.commands.executeCommand('enterprise-ai-chat.loadConversation', message.conversationId);
+                break;
+            case 'deleteConversation':
+                vscode.commands.executeCommand('enterprise-ai-chat.deleteConversation', message.conversationId);
                 break;
         }
     }
