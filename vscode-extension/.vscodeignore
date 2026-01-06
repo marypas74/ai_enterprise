@@ -11,5 +11,17 @@ vsc-extension-quickstart.md
 **/*.tsx
 node_modules/**
 webview-ui/**
+scripts/**
+
+# Include output files (these are NOT ignored)
+!out/**
+!out/extension.js
 !out/webview.js
 !out/webview.css
+!out/claudeCodeWebview.js
+!out/claudeCode.css
+!out/ClaudeCodePanel.js
+!out/AgentPanel.js
+!out/ReactChatProvider.js
+!out/services/**
+!out/types/**

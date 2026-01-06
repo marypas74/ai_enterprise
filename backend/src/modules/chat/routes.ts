@@ -75,8 +75,27 @@ export async function chatRoutes(fastify: FastifyInstance) {
       let providerName: string;
 
       if (isParlantAgent) {
-        const agentId = body.model.replace('parlant:', '');
-        provider = ParlantProviderFactory.getProvider(agentId, 'Parlant Agent', `user_${user.id}`);
+        // Parse agent ID safely
+        const agentId = body.model.split(':')[1];
+        if (!agentId || agentId.trim() === '') {
+          return reply.status(400).send({
+            error: 'Invalid Parlant model format',
+            message: 'Expected format: parlant:{agentId}'
+          });
+        }
+
+        // Check if Parlant service is reachable BEFORE attempting to use it
+        const parlantHealthy = await checkParlantHealth();
+        if (!parlantHealthy) {
+          fastify.log.error(`[Chat] Parlant service is not reachable`);
+          return reply.status(503).send({
+            error: 'Parlant service unavailable',
+            message: 'The Parlant AI Agent service is not running or not reachable. Please contact your administrator.',
+            hint: 'Ensure PARLANT_URL is configured and the Parlant service is running.'
+          });
+        }
+
+        provider = ParlantProviderFactory.getProvider(agentId.trim(), 'Parlant Agent', `user_${user.id}`);
         providerName = 'parlant';
         fastify.log.info(`[Chat] Using Parlant agent: ${agentId}`);
       } else {
@@ -172,8 +191,21 @@ export async function chatRoutes(fastify: FastifyInstance) {
         tokensInput = Math.ceil(messages.reduce((acc, m) => acc + m.content.length / 4, 0));
         tokensOutput = Math.ceil(fullResponse.length / 4);
 
-      } catch (streamError) {
-        reply.raw.write(`data: ${JSON.stringify({ error: 'Stream error', done: true })}\n\n`);
+      } catch (streamError: any) {
+        const errorMessage = streamError?.message || 'Unknown stream error';
+        fastify.log.error(`[Chat] Stream error: ${errorMessage}`);
+
+        // Provide specific error messages for known issues
+        let userMessage = 'An error occurred while processing your request.';
+        if (errorMessage.includes('Parlant')) {
+          userMessage = 'Parlant AI Agent service error: ' + errorMessage;
+        } else if (errorMessage.includes('timeout')) {
+          userMessage = 'Request timed out. The AI service took too long to respond.';
+        } else if (errorMessage.includes('ECONNREFUSED') || errorMessage.includes('fetch failed')) {
+          userMessage = 'Could not connect to the AI service. Please try again later.';
+        }
+
+        reply.raw.write(`data: ${JSON.stringify({ error: userMessage, done: true })}\n\n`);
         reply.raw.end();
         return;
       }
@@ -430,5 +462,300 @@ export async function chatRoutes(fastify: FastifyInstance) {
   }, async () => {
     clearModelsCache();
     return { message: 'Models cache cleared' };
+  });
+
+  // Agentic chat with tool support (for task execution)
+  const agenticSchema = z.object({
+    conversationId: z.number().optional(),
+    projectId: z.number(),
+    model: z.string(),
+    message: z.string().min(1),
+    systemPrompt: z.string().optional(),
+    enableTools: z.boolean().optional().default(true)
+  });
+
+  fastify.post('/agentic', {
+    onRequest: [(fastify as any).authenticate],
+    schema: {
+      description: 'Agentic chat with tool support for file operations',
+      tags: ['chat'],
+      security: [{ bearerAuth: [] }]
+    }
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const user = request.user as { id: number };
+    const reqId = `AG-${Date.now()}`; // Unique request ID for tracing
+
+    console.log(`\n${'='.repeat(60)}`);
+    console.log(`[${reqId}] STEP 1: Received Agentic Chat Request`);
+    console.log(`[${reqId}] User: ${user.id}, Time: ${new Date().toISOString()}`);
+    console.log(`${'='.repeat(60)}`);
+
+    try {
+      const body = agenticSchema.parse(request.body);
+      console.log(`[${reqId}] STEP 1b: Body parsed - Model: ${body.model}, Message length: ${body.message?.length || 0}`);
+
+      // ============================================================
+      // ECHO MODE TEST - Send "/test" to verify SSE streaming works
+      // ============================================================
+      if (body.message.startsWith('/test')) {
+        console.log(`[${reqId}] ECHO MODE: Testing SSE stream...`);
+        reply.raw.writeHead(200, {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive'
+        });
+        reply.raw.write(`data: ${JSON.stringify({ content: 'Echo test: Stream working! ', done: false })}\n\n`);
+        await new Promise(resolve => setTimeout(resolve, 500));
+        reply.raw.write(`data: ${JSON.stringify({ content: 'Second chunk received. ', done: false })}\n\n`);
+        await new Promise(resolve => setTimeout(resolve, 500));
+        reply.raw.write(`data: ${JSON.stringify({ content: 'Third chunk. Stream OK!', done: false })}\n\n`);
+        reply.raw.write(`data: ${JSON.stringify({ content: '', done: true, conversationId: 0 })}\n\n`);
+        reply.raw.end();
+        console.log(`[${reqId}] ECHO MODE: Test complete`);
+        return;
+      }
+      // ============================================================
+
+      // Only Anthropic models support tools in this implementation
+      if (!body.model.startsWith('claude-')) {
+        return reply.status(400).send({
+          error: 'Agentic mode only supports Claude models',
+          hint: 'Use a claude-* model for task execution with file tools'
+        });
+      }
+
+      // Dynamically import tool service
+      const { getToolDefinitions, executeTool } = await import('../../services/ToolService.js');
+
+      // Get project context for tools
+      const project = await findOne<{ name: string; owner_id: number }>(
+        fastify.db,
+        'SELECT name, owner_id FROM projects WHERE id = ?',
+        [body.projectId]
+      );
+
+      if (!project) {
+        return reply.status(404).send({ error: 'Project not found' });
+      }
+
+      const owner = await findOne<{ name: string; email: string }>(
+        fastify.db,
+        'SELECT name, email FROM users WHERE id = ?',
+        [project.owner_id]
+      );
+
+      const toolContext = {
+        userName: owner?.name || owner?.email?.split('@')[0] || `user_${project.owner_id}`,
+        projectName: project.name,
+        projectId: body.projectId,
+        userId: user.id
+      };
+
+      // Ensure project folder exists
+      const { createProjectFolder } = await import('../../services/StorageService.js');
+      await createProjectFolder(toolContext.userName, toolContext.projectName);
+
+      // Get tool definitions
+      const tools = body.enableTools ? getToolDefinitions() : [];
+
+      // Build messages
+      let conversationId = body.conversationId;
+      let messages: { role: 'user' | 'assistant'; content: any }[] = [];
+
+      if (conversationId) {
+        const conversation = await findOne<Conversation>(
+          fastify.db,
+          'SELECT * FROM conversations WHERE id = ? AND user_id = ?',
+          [conversationId, user.id]
+        );
+
+        if (!conversation) {
+          return reply.status(404).send({ error: 'Conversation not found' });
+        }
+
+        const dbMessages = await findMany<DbMessage>(
+          fastify.db,
+          'SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at ASC',
+          [conversationId]
+        );
+
+        messages = dbMessages
+          .filter(m => m.role !== 'system')
+          .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+      } else {
+        const title = body.message.slice(0, 100);
+        conversationId = await insertOne(
+          fastify.db,
+          'INSERT INTO conversations (user_id, title, model, provider, system_prompt) VALUES (?, ?, ?, ?, ?)',
+          [user.id, title, body.model, 'anthropic', body.systemPrompt || null]
+        );
+      }
+
+      // Add user message
+      messages.push({ role: 'user', content: body.message });
+      await insertOne(
+        fastify.db,
+        'INSERT INTO messages (conversation_id, role, content) VALUES (?, ?, ?)',
+        [conversationId, 'user', body.message]
+      );
+
+      // Set up SSE streaming
+      reply.raw.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'X-Conversation-Id': conversationId.toString()
+      });
+
+      // Import Anthropic SDK
+      const Anthropic = (await import('@anthropic-ai/sdk')).default;
+      const providerConfig = AIProviderFactory['providerConfigs']?.get('anthropic');
+      const apiKey = providerConfig?.apiKey || process.env.ANTHROPIC_API_KEY;
+
+      if (!apiKey) {
+        reply.raw.write(`data: ${JSON.stringify({ error: 'Anthropic API key not configured', done: true })}\n\n`);
+        reply.raw.end();
+        return;
+      }
+
+      const client = new Anthropic({ apiKey });
+      console.log(`[${reqId}] STEP 2: Anthropic client created, API key present: ${!!apiKey}`);
+
+      // Agentic loop - continue until no tool calls
+      let fullResponse = '';
+      let tokensInput = 0;
+      let tokensOutput = 0;
+      let iteration = 0;
+      const maxIterations = 10; // Prevent infinite loops
+
+      // Send immediate "thinking" notification to keep connection alive
+      reply.raw.write(`data: ${JSON.stringify({ status: 'thinking', message: 'Connecting to AI...', reqId })}\n\n`);
+
+      while (iteration < maxIterations) {
+        iteration++;
+        console.log(`[${reqId}] STEP 3: Starting iteration ${iteration}, messages count: ${messages.length}`);
+
+        try {
+          console.log(`[${reqId}] STEP 3a: Calling Anthropic API (model: ${body.model})...`);
+          const apiStartTime = Date.now();
+
+          // Make API call with tools - ADD TIMEOUT
+          const response = await Promise.race([
+            client.messages.create({
+              model: body.model,
+              max_tokens: 4096,
+              system: body.systemPrompt || 'You are a helpful AI assistant that can write and manage code files.',
+              tools: tools as any,
+              messages
+            }),
+            new Promise((_, reject) =>
+              setTimeout(() => reject(new Error('MODEL_PROVIDER_TIMEOUT: No response after 60 seconds')), 60000)
+            )
+          ]) as any;
+
+          const apiDuration = Date.now() - apiStartTime;
+          console.log(`[${reqId}] STEP 3b: Anthropic API responded in ${apiDuration}ms`);
+
+          tokensInput += response.usage.input_tokens;
+          tokensOutput += response.usage.output_tokens;
+
+          // Process response content
+          let hasToolUse = false;
+          const toolResults: any[] = [];
+          console.log(`[${reqId}] STEP 4: Processing ${response.content?.length || 0} content blocks`);
+
+          for (const block of response.content) {
+            if (block.type === 'text') {
+              fullResponse += block.text;
+              const chunkData = JSON.stringify({ content: block.text, done: false, iteration });
+              console.log(`[${reqId}] STEP 4a: Writing text chunk, size: ${chunkData.length} bytes`);
+              reply.raw.write(`data: ${chunkData}\n\n`);
+            } else if (block.type === 'tool_use') {
+              hasToolUse = true;
+              console.log(`[${reqId}] STEP 4b: Tool use detected: ${block.name}`);
+
+              // Notify client about tool use
+              reply.raw.write(`data: ${JSON.stringify({
+                toolUse: { name: block.name, input: block.input },
+                done: false,
+                iteration
+              })}\n\n`);
+
+              // Execute tool
+              const result = await executeTool(block.name, block.input as Record<string, any>, toolContext);
+
+              // Notify client about tool result
+              reply.raw.write(`data: ${JSON.stringify({
+                toolResult: { name: block.name, success: result.success, output: result.output, error: result.error },
+                done: false,
+                iteration
+              })}\n\n`);
+
+              toolResults.push({
+                type: 'tool_result',
+                tool_use_id: block.id,
+                content: result.success
+                  ? JSON.stringify(result.output)
+                  : `Error: ${result.error}`
+              });
+            }
+          }
+
+          // If there were tool uses, add assistant response and tool results to messages
+          if (hasToolUse) {
+            messages.push({ role: 'assistant', content: response.content as any });
+            messages.push({ role: 'user', content: toolResults });
+          } else {
+            // No tool use, we're done
+            break;
+          }
+
+          // Check stop reason
+          if (response.stop_reason === 'end_turn' && !hasToolUse) {
+            break;
+          }
+
+        } catch (error: any) {
+          fastify.log.error(`[Agentic] Error in iteration ${iteration}: ${error.message}`);
+          reply.raw.write(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+          reply.raw.end();
+          return;
+        }
+      }
+
+      // Final done message
+      reply.raw.write(`data: ${JSON.stringify({ content: '', done: true, conversationId, iterations: iteration })}\n\n`);
+
+      // Save assistant message
+      if (fullResponse) {
+        await insertOne(
+          fastify.db,
+          'INSERT INTO messages (conversation_id, role, content, tokens_input, tokens_output) VALUES (?, ?, ?, ?, ?)',
+          [conversationId, 'assistant', fullResponse, tokensInput, tokensOutput]
+        );
+      }
+
+      // Record usage
+      const cost = calculateCost(body.model, tokensInput, tokensOutput);
+      await insertOne(
+        fastify.db,
+        'INSERT INTO token_usage (user_id, conversation_id, provider, model, tokens_input, tokens_output, cost_usd) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [user.id, conversationId, 'anthropic', body.model, tokensInput, tokensOutput, cost]
+      );
+
+      await updateOne(
+        fastify.db,
+        'UPDATE conversations SET updated_at = NOW() WHERE id = ?',
+        [conversationId]
+      );
+
+      reply.raw.end();
+
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return reply.status(400).send({ error: 'Validation failed', details: err.errors });
+      }
+      throw err;
+    }
   });
 }

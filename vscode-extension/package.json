@@ -2,7 +2,7 @@
   "name": "enterprise-ai-chat",
   "displayName": "Enterprise AI Chat",
   "description": "Integrate with Enterprise AI Chat platform for AI-powered code assistance",
-  "version": "2.9.1",
+  "version": "2.9.14",
   "publisher": "enterprise-ai",
   "icon": "resources/icon.png",
   "engines": {
@@ -340,7 +340,11 @@
     "watch": "webpack --mode development --watch",
     "pretest": "npm run compile",
     "lint": "eslint src --ext ts",
-    "package": "vsce package"
+    "package": "vsce package",
+    "bump": "node scripts/bump-version.js",
+    "build:webview": "cd webview-ui && npm run build",
+    "build:all": "npm run build:webview && npm run compile",
+    "release": "npm run bump && npm run build:all && npm run package"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",

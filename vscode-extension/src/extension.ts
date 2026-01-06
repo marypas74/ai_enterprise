@@ -340,6 +340,12 @@ let claudeRefreshToken: string | undefined;
 let availableModels: AvailableModel[] = [];
 let selectedModel: string | undefined;
 
+// Agent providers - need module-level access for credential updates
+let _agentSessionsProvider: AgentSessionsProvider | undefined;
+let _terminalSlotsProvider: TerminalSlotsProvider | undefined;
+let _agentDashboardProvider: AgentDashboardProvider | undefined;
+let _agentApiService: AgentApiService | undefined;
+
 // AI Toolkit Features - Global State (fetched from admin console)
 let playgroundSettings: PlaygroundSettings = {
     temperature: 0.7,
@@ -352,6 +358,19 @@ let playgroundSettings: PlaygroundSettings = {
 let mcpServers: MCPServer[] = [];
 let adminPromptTemplates: PromptTemplate[] = []; // Admin-approved templates from backend
 let aiToolkitEnabled = false; // Admin toggle for AI Toolkit features
+
+// Kanban loading guard to prevent infinite loops - CIRCUIT BREAKER
+let isLoadingProjects = false;
+let projectsLoaded = false;
+let lastProjectLoadTime = 0;
+const PROJECT_LOAD_COOLDOWN = 5000; // 5 seconds minimum between loads
+
+// Circuit breaker - prevents DDOS on backend
+let projectLoadCallCount = 0;
+let circuitBreakerWindowStart = 0;
+const CIRCUIT_BREAKER_MAX_CALLS = 3;
+const CIRCUIT_BREAKER_WINDOW_MS = 3000; // 3 seconds
+let circuitBreakerTripped = false;
 
 // RAG Configuration (fetched from admin console)
 let ragConfig: RAGConfig = {
@@ -425,6 +444,26 @@ async function loginToBackend(context: vscode.ExtensionContext) {
             if (selectedModel) {
                 panel.updateModels(availableModels, selectedModel);
             }
+        }
+
+        // CRITICAL: Update agent providers with new credentials (fixes 401 errors)
+        const config = vscode.workspace.getConfiguration('enterprise-ai-chat');
+        const agentServerUrl = config.get<string>('serverUrl') || 'https://192.168.1.123';
+        if (_agentSessionsProvider) {
+            _agentSessionsProvider.updateCredentials(agentServerUrl, accessToken || null);
+            outputChannel.appendLine('[Auth] AgentSessionsProvider credentials updated');
+        }
+        if (_terminalSlotsProvider) {
+            _terminalSlotsProvider.updateCredentials(agentServerUrl, accessToken || null);
+            outputChannel.appendLine('[Auth] TerminalSlotsProvider credentials updated');
+        }
+        if (_agentDashboardProvider) {
+            _agentDashboardProvider.updateCredentials(agentServerUrl, accessToken || null);
+            outputChannel.appendLine('[Auth] AgentDashboardProvider credentials updated');
+        }
+        if (_agentApiService) {
+            _agentApiService.updateCredentials(agentServerUrl, accessToken || null);
+            outputChannel.appendLine('[Auth] AgentApiService credentials updated');
         }
 
         vscode.window.showInformationMessage(`Connected as ${currentUser?.name}`);
@@ -767,13 +806,18 @@ async function sendBackendMessage(message: string, panel: ClaudeCodePanel) {
                             try {
                                 const data = JSON.parse(jsonStr);
                                 if (data.content) {
+                                    outputChannel.appendLine(`[Stream] Chunk received: ${data.content.length} chars`);
                                     panel.streamChunk(data.content);
                                 }
+                                if (data.error) {
+                                    outputChannel.appendLine(`[Stream] Error from backend: ${data.error}`);
+                                    panel.addMessage('system', data.error);
+                                }
                                 if (data.done) {
-                                    outputChannel.appendLine(`Stream complete. ConvID: ${data.conversationId || conversationId}`);
+                                    outputChannel.appendLine(`[Stream] Complete. ConvID: ${data.conversationId || conversationId}`);
                                 }
                             } catch (parseErr) {
-                                outputChannel.appendLine(`SSE parse error: ${jsonStr}`);
+                                outputChannel.appendLine(`[Stream] SSE parse error: ${jsonStr}`);
                             }
                         }
                     }
@@ -782,38 +826,36 @@ async function sendBackendMessage(message: string, panel: ClaudeCodePanel) {
 
             res.on('end', () => {
                 panel.streamEnd();
-                outputChannel.appendLine('SSE stream ended');
+                outputChannel.appendLine('[Stream] SSE stream ended successfully');
             });
 
             res.on('error', (error: Error) => {
-                panel.streamEnd();
-                panel.addMessage('system', `Stream error: ${error.message}`);
+                outputChannel.appendLine(`[Stream] Response error: ${error.message}`);
+                panel.streamError(`Stream interrupted: ${error.message}`);
             });
         });
 
         req.on('error', (error: Error) => {
-            outputChannel.appendLine(`Request error: ${error.message}`);
-            panel.streamEnd();
+            outputChannel.appendLine(`[Stream] Request error: ${error.message}`);
 
             // User-friendly connection errors
+            let userMessage = error.message;
             if (error.message.includes('ECONNREFUSED')) {
-                panel.addMessage('system', 'Connection refused. Is the backend server running?');
+                userMessage = 'Connection refused. Is the backend server running?';
             } else if (error.message.includes('ETIMEDOUT')) {
-                panel.addMessage('system', 'Connection timed out. Check network connectivity.');
+                userMessage = 'Connection timed out. Check network connectivity.';
             } else if (error.message.includes('ENOTFOUND')) {
-                panel.addMessage('system', 'Server not found. Check the server URL in settings.');
-            } else {
-                panel.addMessage('system', `Connection error: ${error.message}`);
+                userMessage = 'Server not found. Check the server URL in settings.';
             }
+            panel.streamError(userMessage);
         });
 
         req.write(requestBody);
         req.end();
 
     } catch (error: any) {
-        outputChannel.appendLine(`Backend API error: ${error.message}`);
-        panel.streamEnd();
-        panel.addMessage('system', `Error: ${error.message}`);
+        outputChannel.appendLine(`[Stream] Backend API error: ${error.message}`);
+        panel.streamError(`Error: ${error.message}`);
     }
 }
 
@@ -925,7 +967,7 @@ export function activate(context: vscode.ExtensionContext) {
     const config = vscode.workspace.getConfiguration('enterprise-ai-chat');
     const agentServerUrl = config.get<string>('serverUrl') || 'https://192.168.1.123';
 
-    // Initialize agent providers
+    // Initialize agent providers and assign to module-level variables
     const agentSessionsProvider = new AgentSessionsProvider(agentServerUrl, savedToken || null);
     const terminalSlotsProvider = new TerminalSlotsProvider(agentServerUrl, savedToken || null);
     const agentDashboardProvider = new AgentDashboardProvider(
@@ -934,6 +976,12 @@ export function activate(context: vscode.ExtensionContext) {
         savedToken || null
     );
     const agentApiService = new AgentApiService(agentServerUrl, savedToken || null);
+
+    // Store references for credential updates after login
+    _agentSessionsProvider = agentSessionsProvider;
+    _terminalSlotsProvider = terminalSlotsProvider;
+    _agentDashboardProvider = agentDashboardProvider;
+    _agentApiService = agentApiService;
 
     // Register tree views
     context.subscriptions.push(
@@ -1258,7 +1306,7 @@ Output only the modified code, nothing else:`
 
         // Get version info - for debugging deployments
         vscode.commands.registerCommand('enterprise-ai-chat.getVersionInfo', async () => {
-            const extensionVersion = '2.9.0';
+            const extensionVersion = '2.9.14';
             let backendVersion = null;
 
             try {
@@ -1280,15 +1328,154 @@ Output only the modified code, nothing else:`
         }),
 
         // ============================================
+        // CHAT HISTORY COMMANDS
+        // ============================================
+
+        // Load chat history
+        vscode.commands.registerCommand('enterprise-ai-chat.loadHistory', async () => {
+            const panel = getPanel();
+            try {
+                outputChannel.appendLine('[History] Loading chat history...');
+
+                if (!accessToken) {
+                    outputChannel.appendLine('[History] No access token - user not authenticated');
+                    // Notify webview that loading finished (with empty list)
+                    panel.postMessage({
+                        type: 'setHistory',
+                        payload: { conversations: [], error: 'Please login first' }
+                    });
+                    return;
+                }
+
+                const authHeaders = { headers: { 'Authorization': `Bearer ${accessToken}` } };
+                const response = await api.get('/api/chat/conversations', {
+                    ...authHeaders,
+                    params: { archived: false, limit: 50, offset: 0 }
+                });
+
+                const conversations = response.data || [];
+                outputChannel.appendLine(`[History] Loaded ${conversations.length} conversations`);
+
+                panel.postMessage({
+                    type: 'setHistory',
+                    payload: { conversations }
+                });
+            } catch (error: any) {
+                outputChannel.appendLine(`[History] Error loading history: ${error.message}`);
+                // Always notify webview on error so loading state clears
+                panel.postMessage({
+                    type: 'setHistory',
+                    payload: { conversations: [], error: error.message }
+                });
+            }
+        }),
+
+        // Load a specific conversation
+        vscode.commands.registerCommand('enterprise-ai-chat.loadConversation', async (conversationId: number) => {
+            try {
+                outputChannel.appendLine(`[History] Loading conversation ${conversationId}...`);
+
+                if (!accessToken) {
+                    outputChannel.appendLine('[History] No access token');
+                    return;
+                }
+
+                const authHeaders = { headers: { 'Authorization': `Bearer ${accessToken}` } };
+                const response = await api.get(`/api/chat/conversations/${conversationId}/messages`, authHeaders);
+
+                const { conversation, messages } = response.data;
+                outputChannel.appendLine(`[History] Loaded conversation with ${messages.length} messages`);
+
+                const panel = getPanel();
+                panel.postMessage({
+                    type: 'loadedConversation',
+                    payload: {
+                        conversationId: conversation.id,
+                        title: conversation.title,
+                        model: conversation.model,
+                        messages: messages.map((m: any) => ({
+                            id: `msg-${m.id}`,
+                            role: m.role,
+                            content: m.content,
+                            timestamp: m.created_at
+                        }))
+                    }
+                });
+            } catch (error: any) {
+                outputChannel.appendLine(`[History] Error loading conversation: ${error.message}`);
+            }
+        }),
+
+        // Delete a conversation
+        vscode.commands.registerCommand('enterprise-ai-chat.deleteConversation', async (conversationId: number) => {
+            try {
+                outputChannel.appendLine(`[History] Deleting conversation ${conversationId}...`);
+
+                if (!accessToken) {
+                    return;
+                }
+
+                const authHeaders = { headers: { 'Authorization': `Bearer ${accessToken}` } };
+                await api.delete(`/api/chat/conversations/${conversationId}`, authHeaders);
+
+                outputChannel.appendLine(`[History] Conversation ${conversationId} deleted`);
+
+                // Refresh history
+                vscode.commands.executeCommand('enterprise-ai-chat.loadHistory');
+            } catch (error: any) {
+                outputChannel.appendLine(`[History] Error deleting conversation: ${error.message}`);
+            }
+        }),
+
+        // ============================================
         // KANBAN COMMANDS
         // ============================================
 
         // Load Kanban projects (with access check)
         vscode.commands.registerCommand('enterprise-ai-chat.loadProjects', async () => {
+            const now = Date.now();
+
+            // CIRCUIT BREAKER: Check if tripped
+            if (circuitBreakerTripped) {
+                outputChannel.appendLine('[Kanban] CIRCUIT BREAKER TRIPPED - refusing all loadProjects calls');
+                return;
+            }
+
+            // CIRCUIT BREAKER: Reset window if expired
+            if (now - circuitBreakerWindowStart > CIRCUIT_BREAKER_WINDOW_MS) {
+                projectLoadCallCount = 0;
+                circuitBreakerWindowStart = now;
+            }
+
+            // CIRCUIT BREAKER: Increment and check
+            projectLoadCallCount++;
+            outputChannel.appendLine(`[Kanban] loadProjects call #${projectLoadCallCount} in window`);
+
+            if (projectLoadCallCount > CIRCUIT_BREAKER_MAX_CALLS) {
+                circuitBreakerTripped = true;
+                outputChannel.appendLine(`[Kanban] CIRCUIT BREAKER TRIGGERED: ${projectLoadCallCount} calls in ${CIRCUIT_BREAKER_WINDOW_MS}ms - STOPPING ALL REQUESTS`);
+                vscode.window.showErrorMessage('Kanban: Too many requests detected. Please reload the extension.');
+                return;
+            }
+
+            // Guard against concurrent loading
+            if (isLoadingProjects) {
+                outputChannel.appendLine('[Kanban] Skipping - already loading projects');
+                return;
+            }
+
+            // Cooldown check
+            if (projectsLoaded && (now - lastProjectLoadTime) < PROJECT_LOAD_COOLDOWN) {
+                outputChannel.appendLine(`[Kanban] Skipping - projects loaded ${now - lastProjectLoadTime}ms ago (cooldown: ${PROJECT_LOAD_COOLDOWN}ms)`);
+                return;
+            }
+
+            isLoadingProjects = true;
+            lastProjectLoadTime = now;
+
             try {
                 outputChannel.appendLine('Loading Kanban projects...');
                 outputChannel.appendLine(`Auth token present: ${!!accessToken}`);
-                outputChannel.appendLine(`API auth header: ${!!api.defaults.headers.common['Authorization']}`);
 
                 if (!accessToken) {
                     outputChannel.appendLine('WARNING: No access token - user not authenticated');
@@ -1326,6 +1513,7 @@ Output only the modified code, nothing else:`
                 const response = await api.get('/api/projects', authHeaders);
                 const projects = response.data || [];
                 outputChannel.appendLine(`Loaded ${projects.length} projects`);
+                projectsLoaded = true;
 
                 const panel = getPanel();
                 panel.postMessage({
@@ -1334,6 +1522,14 @@ Output only the modified code, nothing else:`
                 });
             } catch (error: any) {
                 outputChannel.appendLine(`Error loading projects: ${error.message}`);
+
+                // Handle 429 Rate Limit
+                if (error.response?.status === 429) {
+                    outputChannel.appendLine('[Kanban] Rate limited (429) - stopping further requests');
+                    projectsLoaded = true; // Prevent further attempts
+                    vscode.window.showWarningMessage('Rate limit exceeded. Please wait before retrying.');
+                    return;
+                }
 
                 // Handle 403 Kanban access denied
                 if (error.response?.status === 403 && error.response?.data?.error === 'Kanban access denied') {
@@ -1348,6 +1544,8 @@ Output only the modified code, nothing else:`
                 } else {
                     vscode.window.showErrorMessage('Failed to load Kanban projects');
                 }
+            } finally {
+                isLoadingProjects = false;
             }
         }),
 
@@ -1966,6 +2164,8 @@ class ChatViewProvider implements vscode.WebviewViewProvider {
     private _projectMembers: ProjectMember[] = [];
     private _notifications: KanbanNotification[] = [];
     private _notificationInterval?: NodeJS.Timeout;
+    private _isLoadingProjects: boolean = false;
+    private _projectsLoaded: boolean = false;
 
     // AI Toolkit Features
     private _aiToolkitEnabled: boolean = false;
@@ -2067,7 +2267,23 @@ class ChatViewProvider implements vscode.WebviewViewProvider {
                     break;
                 case 'moveCard':
                     if (data.cardId && data.columnId) {
-                        this._moveKanbanCard(data.cardId, data.columnId);
+                        // Use projectId from message if provided, otherwise fall back to _selectedProject
+                        const projectId = data.projectId || this._selectedProject;
+                        if (projectId) {
+                            this._moveKanbanCardWithProject(data.cardId, data.columnId, projectId);
+                        } else {
+                            outputChannel.appendLine('[moveCard] Error: No projectId available');
+                        }
+                    }
+                    break;
+                case 'deleteCard':
+                    if (data.cardId) {
+                        this._deleteKanbanCard(data.cardId);
+                    }
+                    break;
+                case 'editCard':
+                    if (data.cardId) {
+                        this._editKanbanCard(data.cardId, data.title, data.description, data.priority);
                     }
                     break;
                 case 'selectProject':
@@ -2124,8 +2340,162 @@ class ChatViewProvider implements vscode.WebviewViewProvider {
                         this._invokeMCPTool(data.serverId, data.toolName, data.args);
                     }
                     break;
+                case 'sendAgentic':
+                    // Agentic mode with tool support for task execution
+                    if (data.message?.trim() && data.projectId) {
+                        await this.sendAgenticMessage(data.message, data.projectId);
+                    }
+                    break;
             }
         });
+    }
+
+    /**
+     * Send message in agentic mode with file tool support
+     * Uses /api/chat/agentic endpoint
+     */
+    public async sendAgenticMessage(message: string, projectId: number) {
+        if (!accessToken) {
+            vscode.window.showWarningMessage('Login required for agentic mode');
+            return;
+        }
+
+        const config = vscode.workspace.getConfiguration('enterprise-ai-chat');
+        const serverUrl = config.get<string>('serverUrl') || 'https://192.168.1.123';
+        const model = config.get<string>('claudeModel') || 'claude-sonnet-4-20250514';
+
+        // Notify webview that we're loading
+        this._view?.webview.postMessage({ type: 'streamStart' });
+
+        try {
+            const response = await fetch(`${serverUrl}/api/chat/agentic`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${accessToken}`
+                },
+                body: JSON.stringify({
+                    message,
+                    projectId,
+                    model,
+                    systemPrompt: `You are an AI coding assistant with DIRECT FILE SYSTEM ACCESS.
+
+## CRITICAL INSTRUCTIONS:
+1. When generating code, you MUST use the 'write_file' tool to save files. DO NOT just print code.
+2. Files are saved to a network repository at: \\\\192.168.1.123\\projects\\repositories
+3. Use 'list_files' to check existing project structure before writing.
+4. Use 'read_file' to read existing files when needed.
+
+## WORKFLOW:
+1. Analyze the user's request
+2. Plan the file structure (e.g., src/main.py, tests/test_main.py)
+3. Use write_file tool to CREATE each file with full content
+4. Explain what you created and how to use it
+
+## EXAMPLE:
+User: "Create a Python hello world"
+You: I'll create a Python hello world script.
+[Use write_file tool with path="src/hello.py" and content="print('Hello, World!')"]
+Done! I created src/hello.py. Run it with: python src/hello.py
+
+REMEMBER: Always USE THE TOOLS. Never just print code without saving it.`,
+                    enableTools: true
+                })
+            });
+
+            if (!response.ok) {
+                const errBody = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string };
+                throw new Error(errBody.error || `HTTP ${response.status}`);
+            }
+
+            // Handle SSE stream
+            const reader = response.body?.getReader();
+            if (!reader) throw new Error('No response body');
+
+            const decoder = new TextDecoder();
+            let buffer = '';
+            let chunkCount = 0;
+            const streamStartTime = Date.now();
+
+            outputChannel.appendLine(`[Agentic] TRACE: SSE stream connected, waiting for chunks...`);
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) {
+                    outputChannel.appendLine(`[Agentic] TRACE: Stream ended after ${Date.now() - streamStartTime}ms, ${chunkCount} chunks received`);
+                    break;
+                }
+
+                const rawChunk = decoder.decode(value, { stream: true });
+                chunkCount++;
+                outputChannel.appendLine(`[Agentic] TRACE: Chunk #${chunkCount} received, size: ${rawChunk.length} bytes`);
+
+                buffer += rawChunk;
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const jsonStr = line.slice(6);
+                        if (!jsonStr.trim()) continue;
+
+                        try {
+                            const data = JSON.parse(jsonStr);
+                            outputChannel.appendLine(`[Agentic] TRACE: Parsed event - keys: ${Object.keys(data).join(', ')}`);
+
+                            if (data.content) {
+                                // Stream text content
+                                this._view?.webview.postMessage({
+                                    type: 'streamChunk',
+                                    payload: { content: data.content }
+                                });
+                            }
+
+                            if (data.toolUse) {
+                                // Tool being used
+                                this._view?.webview.postMessage({
+                                    type: 'toolUse',
+                                    payload: data.toolUse
+                                });
+                                outputChannel.appendLine(`[Agentic] Tool use: ${data.toolUse.name}`);
+                            }
+
+                            if (data.toolResult) {
+                                // Tool result
+                                this._view?.webview.postMessage({
+                                    type: 'toolResult',
+                                    payload: data.toolResult
+                                });
+                                outputChannel.appendLine(`[Agentic] Tool result: ${data.toolResult.name} - ${data.toolResult.success ? 'success' : 'error'}`);
+                            }
+
+                            if (data.error) {
+                                this._view?.webview.postMessage({
+                                    type: 'streamError',
+                                    payload: { error: data.error }
+                                });
+                            }
+
+                            if (data.done) {
+                                this._view?.webview.postMessage({
+                                    type: 'streamEnd',
+                                    payload: { conversationId: data.conversationId, iterations: data.iterations }
+                                });
+                            }
+                        } catch (e) {
+                            // Skip invalid JSON
+                        }
+                    }
+                }
+            }
+        } catch (err) {
+            const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+            outputChannel.appendLine(`[Agentic] Error: ${errorMsg}`);
+            this._view?.webview.postMessage({
+                type: 'streamError',
+                payload: { error: errorMsg }
+            });
+        }
     }
 
     private async _executeCommand(command: string) {
@@ -2168,10 +2538,23 @@ class ChatViewProvider implements vscode.WebviewViewProvider {
     // ==========================================
 
     private async _loadProjects() {
+        // Guard against infinite loops
+        if (this._isLoadingProjects) {
+            outputChannel.appendLine('[ReactChatProvider] Skipping _loadProjects - already loading');
+            return;
+        }
+        if (this._projectsLoaded && this._projects.length > 0) {
+            outputChannel.appendLine('[ReactChatProvider] Skipping _loadProjects - already loaded');
+            return;
+        }
+
+        this._isLoadingProjects = true;
+
         try {
             const response = await api.get('/api/projects');
             this._projects = response.data || [];
-            outputChannel.appendLine(`Loaded ${this._projects.length} projects`);
+            this._projectsLoaded = true;
+            outputChannel.appendLine(`[ReactChatProvider] Loaded ${this._projects.length} projects`);
 
             // Restore selected project
             const savedProject = this._context.globalState.get<number>('selectedProject');
@@ -2181,8 +2564,16 @@ class ChatViewProvider implements vscode.WebviewViewProvider {
             }
 
             this._updateView();
-        } catch (error) {
-            outputChannel.appendLine(`Failed to load projects: ${error}`);
+        } catch (error: any) {
+            // Handle 429 Rate Limit
+            if (error.response?.status === 429) {
+                outputChannel.appendLine('[ReactChatProvider] Rate limited (429) - stopping further requests');
+                this._projectsLoaded = true; // Prevent further attempts
+                return;
+            }
+            outputChannel.appendLine(`[ReactChatProvider] Failed to load projects: ${error}`);
+        } finally {
+            this._isLoadingProjects = false;
         }
     }
 
@@ -2316,18 +2707,92 @@ class ChatViewProvider implements vscode.WebviewViewProvider {
             vscode.window.showWarningMessage('Seleziona prima un progetto');
             return;
         }
+        await this._moveKanbanCardWithProject(cardId, columnId, this._selectedProject);
+    }
 
+    private async _moveKanbanCardWithProject(cardId: number, columnId: number, projectId: number) {
+        // FAIL-SAFE: This function NEVER throws, NEVER shows errors
+        // Card move is non-critical - AI generation must continue regardless
         try {
-            await api.post(`/api/projects/${this._selectedProject}/cards/${cardId}/move`, {
+            outputChannel.appendLine(`[moveCard] Moving card ${cardId} to column ${columnId} in project ${projectId}`);
+
+            const response = await api.post(`/api/projects/${projectId}/cards/${cardId}/move`, {
                 column_id: columnId,
                 sort_order: 0
+            }).catch((err: any) => {
+                // Silently log but never throw
+                outputChannel.appendLine(`[moveCard] API error (ignored): ${err.message}`);
+                return { data: { success: false, warning: err.message } };
             });
 
-            const columnName = this._kanbanColumns.find(c => c.id === columnId)?.name || 'nuova colonna';
-            vscode.window.showInformationMessage(`Card spostata in "${columnName}"`);
-            this._logActivity('card_moved', { cardId, columnId, projectId: this._selectedProject });
+            if (response?.data?.success) {
+                const columnName = this._kanbanColumns.find(c => c.id === columnId)?.name || 'nuova colonna';
+                outputChannel.appendLine(`[moveCard] Card ${cardId} moved to "${columnName}"`);
+
+                // Background refresh - don't await
+                this._loadKanbanColumns(projectId).then(() => this._updateView()).catch(() => {});
+
+                // Notify webview (non-blocking)
+                this._view?.webview.postMessage({
+                    type: 'kanbanCardMoved',
+                    payload: { cardId, columnId, projectId, success: true }
+                });
+            } else {
+                outputChannel.appendLine(`[moveCard] Backend warning: ${response?.data?.warning || 'unknown'}`);
+                // Still notify webview but don't block anything
+                this._view?.webview.postMessage({
+                    type: 'kanbanCardMoved',
+                    payload: { cardId, columnId, projectId, success: false, warning: response?.data?.warning }
+                });
+            }
         } catch (error: any) {
-            vscode.window.showErrorMessage(`Errore spostamento card: ${error.message}`);
+            // CRITICAL: Never throw, never show error message - just log silently
+            outputChannel.appendLine(`[moveCard] Caught exception (swallowed): ${error.message}`);
+            console.warn('[moveCard] Swallowed error:', error);
+            // Do NOT show vscode.window.showErrorMessage - it interrupts the user
+        }
+    }
+
+    private async _deleteKanbanCard(cardId: number) {
+        if (!this._selectedProject) {
+            vscode.window.showWarningMessage('Seleziona prima un progetto');
+            return;
+        }
+
+        try {
+            await api.delete(`/api/projects/${this._selectedProject}/cards/${cardId}`);
+            vscode.window.showInformationMessage('Card eliminata con successo');
+            this._logActivity('card_deleted', { cardId, projectId: this._selectedProject });
+
+            // Refresh the board
+            await this._loadKanbanColumns(this._selectedProject);
+            this._updateView();
+        } catch (error: any) {
+            vscode.window.showErrorMessage(`Errore eliminazione card: ${error.message}`);
+        }
+    }
+
+    private async _editKanbanCard(cardId: number, title?: string, description?: string, priority?: string) {
+        if (!this._selectedProject) {
+            vscode.window.showWarningMessage('Seleziona prima un progetto');
+            return;
+        }
+
+        try {
+            const updateData: Record<string, any> = {};
+            if (title) updateData.title = title;
+            if (description !== undefined) updateData.description = description;
+            if (priority) updateData.priority = priority;
+
+            await api.patch(`/api/projects/${this._selectedProject}/cards/${cardId}`, updateData);
+            vscode.window.showInformationMessage('Card aggiornata con successo');
+            this._logActivity('card_updated', { cardId, projectId: this._selectedProject, ...updateData });
+
+            // Refresh the board
+            await this._loadKanbanColumns(this._selectedProject);
+            this._updateView();
+        } catch (error: any) {
+            vscode.window.showErrorMessage(`Errore aggiornamento card: ${error.message}`);
         }
     }
 
