@@ -29,3 +29,6 @@ data:
 
   # CORS - Update with your domain
   CORS_ORIGIN: "https://chat.yourdomain.com"
+
+  # Ollama (local LLM server)
+  OLLAMA_BASE_URL: "http://ollama:11434"

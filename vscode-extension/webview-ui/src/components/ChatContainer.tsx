@@ -5,15 +5,16 @@ import LoadingIndicator from './LoadingIndicator';
 import ScrollToBottomButton from './ScrollToBottomButton';
 import { useAutoScroll, useScrollOnChange } from '../hooks/useAutoScroll';
 import { ChatMessage, VSCodeAPI, AvailableModel, AuthState, ExtensionMessage } from '../types';
+import { BotIconType } from './BotIcon';
 
 // Get VS Code API
 const vscode: VSCodeAPI = (window as any).acquireVsCodeApi
   ? (window as any).acquireVsCodeApi()
   : {
-      postMessage: () => {},
-      getState: () => ({}),
-      setState: () => {},
-    };
+    postMessage: () => { },
+    getState: () => ({}),
+    setState: () => { },
+  };
 
 interface ChatContainerProps {
   initialMessages?: ChatMessage[];
@@ -27,6 +28,7 @@ const ChatContainer: React.FC<ChatContainerProps> = ({ initialMessages = [] }) =
   const [models, setModels] = useState<AvailableModel[]>([]);
   const [selectedModel, setSelectedModel] = useState<string>('');
   const [authState, setAuthState] = useState<AuthState>({ isAuthenticated: false });
+  const [botIconType, setBotIconType] = useState<BotIconType>('default');
 
   // Auto-scroll hook
   const { containerRef, isAtBottom, scrollToBottom, handleScroll } = useAutoScroll({
@@ -162,6 +164,13 @@ const ChatContainer: React.FC<ChatContainerProps> = ({ initialMessages = [] }) =
 
         case 'insertCode':
           // Insert code into input (handled by ChatInput)
+          break;
+
+        case 'updateSettings':
+          // Update settings like bot icon
+          if (payload?.botIconStyle) {
+            setBotIconType(payload.botIconStyle as BotIconType);
+          }
           break;
       }
     };
@@ -304,6 +313,7 @@ const ChatContainer: React.FC<ChatContainerProps> = ({ initialMessages = [] }) =
                 key={message.id}
                 message={message}
                 isStreaming={message.isStreaming}
+                botIconType={botIconType}
                 onCopyCode={handleCopyCode}
                 onRunCommand={handleRunCommand}
                 onApplyCode={handleApplyCode}

@@ -154,6 +154,11 @@ export async function adminRoutes(fastify: FastifyInstance) {
       name: string;
       role?: 'admin' | 'user';
       groupIds?: number[];
+      phone?: string;
+      company?: string;
+      department?: string;
+      job_title?: string;
+      notes?: string;
     };
 
     // Check if exists
@@ -166,8 +171,8 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
     const userId = await insertOne(
       fastify.db,
-      'INSERT INTO users (email, password_hash, name, role) VALUES (?, ?, ?, ?)',
-      [body.email, passwordHash, body.name, body.role || 'user']
+      'INSERT INTO users (email, password_hash, name, role, phone, company, department, job_title, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [body.email, passwordHash, body.name, body.role || 'user', body.phone || null, body.company || null, body.department || null, body.job_title || null, body.notes || null]
     );
 
     // Add to groups
@@ -209,6 +214,11 @@ export async function adminRoutes(fastify: FastifyInstance) {
       role?: 'admin' | 'user';
       is_active?: boolean;
       password?: string;
+      phone?: string;
+      company?: string;
+      department?: string;
+      job_title?: string;
+      notes?: string;
     };
 
     const updates: string[] = [];
@@ -229,6 +239,27 @@ export async function adminRoutes(fastify: FastifyInstance) {
     if (body.password) {
       updates.push('password_hash = ?');
       values.push(await bcrypt.hash(body.password, 10));
+    }
+    // Profile fields - allow empty string to clear
+    if (body.phone !== undefined) {
+      updates.push('phone = ?');
+      values.push(body.phone || null);
+    }
+    if (body.company !== undefined) {
+      updates.push('company = ?');
+      values.push(body.company || null);
+    }
+    if (body.department !== undefined) {
+      updates.push('department = ?');
+      values.push(body.department || null);
+    }
+    if (body.job_title !== undefined) {
+      updates.push('job_title = ?');
+      values.push(body.job_title || null);
+    }
+    if (body.notes !== undefined) {
+      updates.push('notes = ?');
+      values.push(body.notes || null);
     }
 
     if (updates.length === 0) {

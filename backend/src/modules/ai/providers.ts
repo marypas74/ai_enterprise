@@ -16,6 +16,7 @@ export interface CompletionOptions {
   maxTokens?: number;
   temperature?: number;
   stream?: boolean;
+  tools?: any[]; // Allow passing tools definitions
 }
 
 export interface CompletionResult {
@@ -55,13 +56,10 @@ export const MODEL_PRICING: Record<string, { input: number; output: number }> = 
   'o1-mini': { input: 0.003, output: 0.012 },
   'o1-preview': { input: 0.015, output: 0.06 },
   'o3-mini': { input: 0.0011, output: 0.0044 },
-  // Anthropic - Claude 4
+  // Anthropic - Claude 4 (Current - Jan 2026)
   'claude-sonnet-4-20250514': { input: 0.003, output: 0.015 },
   'claude-opus-4-20250514': { input: 0.015, output: 0.075 },
-  // Anthropic - Claude 3.5/3
-  'claude-3-5-sonnet-latest': { input: 0.003, output: 0.015 },
-  'claude-3-5-haiku-latest': { input: 0.0008, output: 0.004 },
-  'claude-3-opus-latest': { input: 0.015, output: 0.075 },
+  // Anthropic - Claude 3 (Legacy)
   'claude-3-haiku-20240307': { input: 0.00025, output: 0.00125 },
   // Google Gemini
   'gemini-2.0-flash': { input: 0.0001, output: 0.0004 },
@@ -113,7 +111,7 @@ export class OpenAIProvider implements AIProvider {
     };
   }
 
-  async *streamComplete(options: CompletionOptions): AsyncGenerator<StreamChunk> {
+  async * streamComplete(options: CompletionOptions): AsyncGenerator<StreamChunk> {
     const stream = await this.client.chat.completions.create({
       model: options.model,
       messages: options.messages,
@@ -125,7 +123,9 @@ export class OpenAIProvider implements AIProvider {
     for await (const chunk of stream) {
       const content = chunk.choices[0]?.delta?.content || '';
       const done = chunk.choices[0]?.finish_reason === 'stop';
-      yield { content, done };
+      yield {
+        content, done
+      };
     }
   }
 }
@@ -174,7 +174,7 @@ export class AnthropicProvider implements AIProvider {
       try {
         const errorData = JSON.parse(errorText);
         errorMessage = errorData.error?.message || errorMessage;
-      } catch {}
+      } catch { }
       throw new Error(errorMessage);
     }
 
@@ -308,15 +308,34 @@ export class AnthropicProvider implements AIProvider {
   }
 }
 
-// Google Gemini Provider
+// Google Gemini Provider (supports both API key and OAuth)
 export class GoogleProvider implements AIProvider {
   name: 'google' = 'google';
   private client: GoogleGenAI;
+  private userId?: number;
 
-  constructor() {
-    this.client = new GoogleGenAI({
-      apiKey: process.env.GOOGLE_AI_API_KEY || ''
-    });
+  constructor(config?: ProviderConfig & { userId?: number }) {
+    this.userId = config?.userId;
+
+    // Priority: OAuth token > API key in config > Environment variable
+    if (config?.apiKey) {
+      // Could be an OAuth access token or API key
+      this.client = new GoogleGenAI({ apiKey: config.apiKey });
+      console.log('[GoogleProvider] Using provided API key/OAuth token');
+    } else if (process.env.GOOGLE_AI_API_KEY) {
+      this.client = new GoogleGenAI({ apiKey: process.env.GOOGLE_AI_API_KEY });
+      console.log('[GoogleProvider] Using environment API key');
+    } else {
+      throw new Error('Google API key not configured. Set GOOGLE_AI_API_KEY or configure OAuth.');
+    }
+  }
+
+  /**
+   * Update the client with new credentials (e.g., refreshed OAuth token)
+   */
+  updateCredentials(apiKey: string): void {
+    this.client = new GoogleGenAI({ apiKey });
+    console.log('[GoogleProvider] Updated credentials');
   }
 
   async complete(options: CompletionOptions): Promise<CompletionResult> {
@@ -366,7 +385,7 @@ export class GoogleProvider implements AIProvider {
   }
 }
 
-// Ollama Provider (Local LLMs)
+// Ollama Provider (Local LLMs) - With Debug Logging
 export class OllamaProvider implements AIProvider {
   name: 'ollama' = 'ollama';
   private baseUrl: string;
@@ -375,8 +394,9 @@ export class OllamaProvider implements AIProvider {
 
   constructor(config?: ProviderConfig) {
     this.baseUrl = config?.baseUrl || process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
-    this.timeout = config?.timeout || 120000;
-    this.keepAlive = config?.keepAlive || '5m';
+    this.timeout = config?.timeout || 300000; // Default 5 minutes
+    this.keepAlive = config?.keepAlive || '-1'; // Keep models loaded indefinitely
+    console.log(`[Ollama] Initialized: baseUrl=${this.baseUrl}, timeout=${this.timeout}ms, keepAlive=${this.keepAlive}`);
   }
 
   async complete(options: CompletionOptions): Promise<CompletionResult> {
@@ -387,6 +407,7 @@ export class OllamaProvider implements AIProvider {
         model: options.model,
         messages: options.messages,
         stream: false,
+        tools: options.tools,
         options: {
           num_predict: options.maxTokens || 4096,
           temperature: options.temperature || 0.7
@@ -416,52 +437,85 @@ export class OllamaProvider implements AIProvider {
   }
 
   async *streamComplete(options: CompletionOptions): AsyncGenerator<StreamChunk> {
-    const response = await fetch(`${this.baseUrl}/api/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: options.model,
-        messages: options.messages,
-        stream: true,
-        options: {
-          num_predict: options.maxTokens || 4096,
-          temperature: options.temperature || 0.7
-        },
-        keep_alive: this.keepAlive
-      }),
-      signal: AbortSignal.timeout(this.timeout)
-    });
+    const startTime = Date.now();
+    console.log(`[Ollama] Starting stream request: model=${options.model}, timeout=${this.timeout}ms`);
+    console.log(`[Ollama] Messages count: ${options.messages.length}, last message length: ${options.messages[options.messages.length - 1]?.content?.length || 0} chars`);
 
-    if (!response.ok) {
-      throw new Error(`Ollama API error: ${response.status} ${response.statusText}`);
-    }
+    try {
+      const response = await fetch(`${this.baseUrl}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: options.model,
+          messages: options.messages,
+          stream: true,
+          tools: options.tools,
+          options: {
+            num_predict: options.maxTokens || 4096,
+            temperature: options.temperature || 0.7
+          },
+          keep_alive: this.keepAlive
+        }),
+        signal: AbortSignal.timeout(this.timeout)
+      });
 
-    const reader = response.body?.getReader();
-    if (!reader) throw new Error('No response body');
+      const connectTime = Date.now() - startTime;
+      console.log(`[Ollama] Connection established in ${connectTime}ms, status=${response.status}`);
 
-    const decoder = new TextDecoder();
-    let buffer = '';
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unable to read error');
+        console.error(`[Ollama] API error: ${response.status} ${response.statusText} - ${errorText}`);
+        throw new Error(`Ollama API error: ${response.status} ${response.statusText}`);
+      }
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('No response body');
 
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let chunkCount = 0;
+      let totalContent = '';
 
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        try {
-          const data = JSON.parse(line) as { message?: { content: string }; done: boolean };
-          yield {
-            content: data.message?.content || '',
-            done: data.done
-          };
-        } catch {
-          // Skip invalid JSON
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          const totalTime = Date.now() - startTime;
+          console.log(`[Ollama] Stream complete: ${chunkCount} chunks, ${totalContent.length} chars, ${totalTime}ms total`);
+          break;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const data = JSON.parse(line) as { message?: { content: string }; done: boolean; error?: string };
+            if (data.error) throw new Error(data.error);
+            chunkCount++;
+            if (data.message?.content) {
+              totalContent += data.message.content;
+            }
+            if (chunkCount === 1) {
+              console.log(`[Ollama] First chunk received after ${Date.now() - startTime}ms`);
+            }
+            yield {
+              content: data.message?.content || '',
+              done: data.done
+            };
+          } catch {
+            // Skip invalid JSON
+          }
         }
       }
+    } catch (error: any) {
+      const elapsed = Date.now() - startTime;
+      console.error(`[Ollama] Stream error after ${elapsed}ms: ${error.name} - ${error.message}`);
+      if (error.name === 'TimeoutError' || error.message?.includes('abort')) {
+        throw new Error(`Ollama request timed out after ${elapsed}ms. The model may be loading or the prompt is too complex.`);
+      }
+      throw error;
     }
   }
 }
@@ -482,9 +536,10 @@ export class CustomProvider implements AIProvider {
   async complete(options: CompletionOptions): Promise<CompletionResult> {
     const response = await this.client.chat.completions.create({
       model: options.model,
-      messages: options.messages,
+      messages: options.messages as any,
       max_tokens: options.maxTokens || 4096,
-      temperature: options.temperature || 0.7
+      temperature: options.temperature || 0.7,
+      tools: options.tools
     });
 
     return {
@@ -499,10 +554,11 @@ export class CustomProvider implements AIProvider {
   async *streamComplete(options: CompletionOptions): AsyncGenerator<StreamChunk> {
     const stream = await this.client.chat.completions.create({
       model: options.model,
-      messages: options.messages,
+      messages: options.messages as any,
       max_tokens: options.maxTokens || 4096,
       temperature: options.temperature || 0.7,
-      stream: true
+      stream: true,
+      tools: options.tools
     });
 
     for await (const chunk of stream) {
@@ -560,7 +616,7 @@ export class AIProviderFactory {
     if (model.startsWith('claude-')) return 'anthropic';
     if (model.startsWith('gemini-')) return 'google';
     // Check for common Ollama model patterns
-    if (model.match(/^(llama|mistral|mixtral|codellama|phi|qwen|deepseek|vicuna|orca|neural|dolphin|openhermes|starling|yi|solar)/i)) {
+    if (model.match(/^(llama|mistral|mixtral|codellama|phi|qwen|deepseek|vicuna|orca|neural|dolphin|openhermes|starling|yi|solar|glm|glm4|glm-)/i)) {
       return 'ollama';
     }
     // Default to custom for unknown models

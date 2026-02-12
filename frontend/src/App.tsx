@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './hooks/useAuthStore';
+import { useIdleTimeout } from './hooks/useIdleTimeout';
 import LoginPage from './pages/LoginPage';
 import ChatPage from './pages/ChatPage';
 import AdminPage from './pages/AdminPage';
@@ -20,6 +21,9 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  // Auto-logout after 20 minutes of inactivity
+  useIdleTimeout();
+
   return (
     <div className="min-h-screen bg-surface-50 dark:bg-surface-950">
       <Routes>

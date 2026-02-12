@@ -19,6 +19,9 @@ interface MessageAreaProps {
   onCopy: (text: string) => void;
   onRun: (command: string) => void;
   onApply: (code: string, language: string) => void;
+  debugStatus?: string;
+  debugTimer?: number;
+  onAbort?: () => void;
 }
 
 /**
@@ -32,6 +35,9 @@ const MessageArea: React.FC<MessageAreaProps> = ({
   onCopy,
   onRun,
   onApply,
+  debugStatus,
+  debugTimer,
+  onAbort,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const isAtBottomRef = useRef(true);
@@ -100,7 +106,7 @@ const MessageArea: React.FC<MessageAreaProps> = ({
         </div>
       )}
 
-      {/* Loading indicator */}
+      {/* Loading indicator - clean version */}
       {isLoading && !streamingContent && (
         <div className="thinking-indicator">
           <div className="thinking-icon">

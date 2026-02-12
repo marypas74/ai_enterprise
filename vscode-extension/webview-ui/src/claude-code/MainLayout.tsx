@@ -118,11 +118,32 @@ const MainLayout: React.FC = () => {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
 
+  // Debug state for tracking API calls
+  const [debugStatus, setDebugStatus] = useState<string>('idle');
+  const [debugTimer, setDebugTimer] = useState<number>(0);
+  const debugTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Abort handler
+  const handleAbort = useCallback(() => {
+    console.log('[MainLayout] User aborted request');
+    setIsLoading(false);
+    if (debugTimerRef.current) {
+      clearInterval(debugTimerRef.current);
+      debugTimerRef.current = null;
+    }
+    setDebugStatus('🛑 Aborted by user');
+    setDebugTimer(0);
+    streamingRef.current = '';
+    setStreamingContent('');
+    // Notify extension to cancel
+    vscode.postMessage({ type: 'abortRequest' });
+  }, []);
+
   // Version state
   const [versionInfo, setVersionInfo] = useState<{
     extension: string;
     backend?: { version: string; buildTime: string };
-  }>({ extension: '2.9.15' });
+  }>({ extension: '2.9.21' });
 
   const streamingRef = useRef('');
   const generateId = () => `msg-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
@@ -193,9 +214,16 @@ const MainLayout: React.FC = () => {
 
         case 'streamStart':
           console.log('[MainLayout] streamStart received');
-          setIsLoading(true); // Keep loading indicator until we get content
+          setIsLoading(true);
           streamingRef.current = '';
           setStreamingContent('');
+          // Start debug timer
+          setDebugStatus('⏳ Waiting for API response...');
+          setDebugTimer(0);
+          if (debugTimerRef.current) clearInterval(debugTimerRef.current);
+          debugTimerRef.current = setInterval(() => {
+            setDebugTimer(t => t + 1);
+          }, 1000);
           break;
 
         case 'streamChunk':
@@ -205,7 +233,13 @@ const MainLayout: React.FC = () => {
               console.log(`[MainLayout] streamChunk: ${content.length} chars`);
               streamingRef.current += content;
               setStreamingContent(streamingRef.current);
-              setIsLoading(false); // Content arriving, hide "Thinking..."
+              setIsLoading(false);
+              // Stop timer and update debug status
+              if (debugTimerRef.current) {
+                clearInterval(debugTimerRef.current);
+                debugTimerRef.current = null;
+              }
+              setDebugStatus('✅ Receiving stream data');
             }
           } catch (err) {
             console.error('[MainLayout] Error processing streamChunk:', err);
@@ -215,6 +249,13 @@ const MainLayout: React.FC = () => {
         case 'streamEnd':
           console.log(`[MainLayout] streamEnd, total: ${streamingRef.current.length} chars`);
           setIsLoading(false);
+          // Stop debug timer
+          if (debugTimerRef.current) {
+            clearInterval(debugTimerRef.current);
+            debugTimerRef.current = null;
+          }
+          setDebugStatus('✅ Complete');
+          setDebugTimer(0);
           if (streamingRef.current && streamingRef.current.trim()) {
             const finalContent = streamingRef.current;
             setMessages((prev) => [
@@ -234,6 +275,12 @@ const MainLayout: React.FC = () => {
         case 'streamError':
           console.error('[MainLayout] streamError:', payload?.error);
           setIsLoading(false);
+          // Stop debug timer
+          if (debugTimerRef.current) {
+            clearInterval(debugTimerRef.current);
+            debugTimerRef.current = null;
+          }
+          setDebugStatus(`❌ Error: ${payload?.error || 'Unknown'}`);
           // Add error message to chat
           setMessages((prev) => [
             ...prev,
@@ -356,7 +403,7 @@ const MainLayout: React.FC = () => {
 
         case 'versionInfo':
           setVersionInfo({
-            extension: payload?.extension || '2.9.15',
+            extension: payload?.extension || '2.9.21',
             backend: payload?.backend
           });
           break;
@@ -429,6 +476,10 @@ const MainLayout: React.FC = () => {
 
     setMessages((prev) => [...prev, userMessage]);
     setIsLoading(true);
+
+    // Initialize debug tracking
+    setDebugStatus('📤 Sending message to extension...');
+    setDebugTimer(0);
 
     vscode.postMessage({ type: 'send', message: content });
   }, []);
@@ -509,6 +560,11 @@ const MainLayout: React.FC = () => {
   // Execute Task with AI - Opens split view and sends structured prompt
   // CRITICAL: moveCard is FIRE-AND-FORGET, never blocks the chat stream
   const handleExecuteTask = useCallback((card: Card) => {
+    console.log('[MainLayout] ============ EXECUTE TASK CALLED ============');
+    console.log('[MainLayout] Card received:', JSON.stringify(card, null, 2));
+    console.log('[MainLayout] selectedProject:', selectedProject);
+    console.log('[MainLayout] projects count:', projects.length);
+
     // === EMERGENCY FIX: Validate projectId before executing ===
     let validProjectId = selectedProject;
     if (!validProjectId || validProjectId === 0) {
@@ -562,11 +618,17 @@ Please analyze this task and help me implement it. When generating code, use the
     setIsLoading(true);
 
     // === STEP 2: Start AI chat stream IMMEDIATELY ===
+    console.log('[MainLayout] 📤 POSTING MESSAGE TO VSCODE:', {
+      type: 'sendAgentic',
+      message: prompt.substring(0, 100) + '...',
+      projectId: validProjectId
+    });
     vscode.postMessage({
       type: 'sendAgentic',
       message: prompt,
       projectId: validProjectId,  // Use validated projectId (never 0 or undefined)
     });
+    console.log('[MainLayout] ✅ postMessage SENT SUCCESSFULLY');
 
     // === STEP 3: moveCard PERMANENTLY DISABLED ===
     // The moveCard feature caused 500 errors and hung the AI agent indefinitely.
@@ -789,6 +851,9 @@ Please analyze this task and help me implement it. When generating code, use the
                 onCopy={handleCopy}
                 onRun={handleRun}
                 onApply={handleApply}
+                debugStatus={debugStatus}
+                debugTimer={debugTimer}
+                onAbort={handleAbort}
               />
               <FloatingInput
                 onSend={handleSend}
@@ -806,6 +871,9 @@ Please analyze this task and help me implement it. When generating code, use the
               onCopy={handleCopy}
               onRun={handleRun}
               onApply={handleApply}
+              debugStatus={debugStatus}
+              debugTimer={debugTimer}
+              onAbort={handleAbort}
             />
           ) : (
             <WelcomeHero />

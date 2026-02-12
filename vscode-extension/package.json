@@ -2,7 +2,7 @@
   "name": "enterprise-ai-chat",
   "displayName": "Enterprise AI Chat",
   "description": "Integrate with Enterprise AI Chat platform for AI-powered code assistance",
-  "version": "2.9.15",
+  "version": "2.9.21",
   "publisher": "enterprise-ai",
   "icon": "resources/icon.png",
   "engines": {
@@ -328,6 +328,27 @@
           "type": "boolean",
           "default": true,
           "description": "Use the new Enterprise AI-style React UI with streaming support"
+        },
+        "enterprise-ai-chat.botIconStyle": {
+          "type": "string",
+          "default": "default",
+          "enum": [
+            "default",
+            "purple",
+            "sparkle",
+            "brain",
+            "chat",
+            "robot"
+          ],
+          "enumDescriptions": [
+            "Globe - Classic AI globe icon",
+            "Robot - Purple robot assistant",
+            "Sparkle - Magical AI sparkle",
+            "Brain - Neural network brain",
+            "Chat - Chat assistant bubble",
+            "Android - Robot head"
+          ],
+          "description": "AI assistant avatar icon style"
         }
       }
     }
@@ -349,10 +370,10 @@
   "devDependencies": {
     "@types/node": "^20.10.0",
     "@types/vscode": "^1.85.0",
-    "@typescript-eslint/eslint-plugin": "^6.13.0",
-    "@typescript-eslint/parser": "^6.13.0",
+    "@typescript-eslint/eslint-plugin": "^8.54.0",
+    "@typescript-eslint/parser": "^8.54.0",
     "@vscode/vsce": "^2.22.0",
-    "eslint": "^8.55.0",
+    "eslint": "^9.39.2",
     "ts-loader": "^9.5.4",
     "typescript": "^5.3.2",
     "webpack": "^5.104.1",

@@ -1,0 +1,58 @@
+-- Migration: Add Google OAuth Provider
+-- Date: 2026-01-07
+
+-- Add Google OAuth provider if it doesn't exist
+INSERT IGNORE INTO ai_providers (name, display_name, provider_type, is_enabled, is_local, config_schema) VALUES
+('google_oauth', 'Google (OAuth)', 'google', FALSE, FALSE, '{
+  "type": "object",
+  "required": [],
+  "properties": {
+    "oauth_token": {
+      "type": "string",
+      "title": "OAuth Token",
+      "description": "OAuth access token (managed automatically)",
+      "format": "password"
+    },
+    "client_id": {
+      "type": "string",
+      "title": "Client ID",
+      "description": "Google Cloud OAuth Client ID"
+    },
+    "client_secret": {
+      "type": "string",
+      "title": "Client Secret",
+      "description": "Google Cloud OAuth Client Secret",
+      "format": "password"
+    }
+  }
+}');
+
+-- Add Google OAuth models
+INSERT IGNORE INTO ai_models (provider_id, model_id, display_name, description, context_window, max_output_tokens, input_cost_per_1k, output_cost_per_1k, supports_streaming, supports_functions, supports_vision, is_enabled, is_default, sort_order) VALUES
+((SELECT id FROM ai_providers WHERE name = 'google_oauth'), 'gemini-2.0-flash', 'Gemini 2.0 Flash', 'Latest Gemini with multimodal capabilities', 1000000, 8192, 0, 0, TRUE, TRUE, TRUE, TRUE, TRUE, 1),
+((SELECT id FROM ai_providers WHERE name = 'google_oauth'), 'gemini-1.5-pro', 'Gemini 1.5 Pro', 'Most capable Gemini model', 2000000, 8192, 0, 0, TRUE, TRUE, TRUE, TRUE, FALSE, 2),
+((SELECT id FROM ai_providers WHERE name = 'google_oauth'), 'gemini-1.5-flash', 'Gemini 1.5 Flash', 'Fast and versatile', 1000000, 8192, 0, 0, TRUE, TRUE, TRUE, TRUE, FALSE, 3);
+
+-- Also add Claude OAuth provider if missing (anthropic_oauth)
+INSERT IGNORE INTO ai_providers (name, display_name, provider_type, is_enabled, is_local, config_schema) VALUES
+('anthropic_oauth', 'Claude Pro (OAuth)', 'anthropic', FALSE, FALSE, '{
+  "type": "object",
+  "required": [],
+  "properties": {
+    "oauth_token": {
+      "type": "string",
+      "title": "OAuth Token",
+      "description": "OAuth access token from your Claude Pro subscription",
+      "format": "password"
+    }
+  }
+}');
+
+-- Add Claude OAuth models
+INSERT IGNORE INTO ai_models (provider_id, model_id, display_name, description, context_window, max_output_tokens, input_cost_per_1k, output_cost_per_1k, supports_streaming, supports_functions, supports_vision, is_enabled, is_default, sort_order) VALUES
+((SELECT id FROM ai_providers WHERE name = 'anthropic_oauth'), 'claude-sonnet-4-20250514', 'Claude Sonnet 4', 'Latest Claude Sonnet - via your Claude Pro subscription', 200000, 8192, 0, 0, TRUE, TRUE, TRUE, TRUE, TRUE, 1),
+((SELECT id FROM ai_providers WHERE name = 'anthropic_oauth'), 'claude-3-5-sonnet-20241022', 'Claude 3.5 Sonnet', 'Excellent balance - via your Claude Pro subscription', 200000, 8192, 0, 0, TRUE, TRUE, TRUE, TRUE, FALSE, 2),
+((SELECT id FROM ai_providers WHERE name = 'anthropic_oauth'), 'claude-3-opus-20240229', 'Claude 3 Opus', 'Most powerful - via your Claude Pro subscription', 200000, 4096, 0, 0, TRUE, TRUE, TRUE, TRUE, FALSE, 3),
+((SELECT id FROM ai_providers WHERE name = 'anthropic_oauth'), 'claude-3-haiku-20240307', 'Claude 3 Haiku', 'Fastest - via your Claude Pro subscription', 200000, 4096, 0, 0, TRUE, TRUE, TRUE, TRUE, FALSE, 4);
+
+SELECT 'Migration completed: Added Google OAuth and Claude Pro OAuth providers' AS status;

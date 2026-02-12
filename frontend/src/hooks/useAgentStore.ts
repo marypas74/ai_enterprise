@@ -235,7 +235,11 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         isLoading: false
       });
     } catch (err: any) {
-      set({ error: err.response?.data?.error || 'Failed to fetch sessions', isLoading: false });
+      const errorMsg = err.response?.data?.error || 'Failed to fetch sessions';
+      const details = err.response?.data?.details;
+      const fullError = details ? `${errorMsg}: ${JSON.stringify(details)}` : errorMsg;
+      console.error('[AgentStore] fetchSessions error:', fullError);
+      set({ error: fullError, isLoading: false });
     }
   },
 
@@ -262,7 +266,11 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       }));
       return session;
     } catch (err: any) {
-      set({ error: err.response?.data?.error || 'Failed to create session', isLoading: false });
+      const errorMsg = err.response?.data?.error || 'Failed to create session';
+      const details = err.response?.data?.details;
+      const fullError = details ? `${errorMsg}: ${JSON.stringify(details)}` : errorMsg;
+      console.error('[AgentStore] createSession error:', fullError);
+      set({ error: fullError, isLoading: false });
       throw err;
     }
   },
@@ -394,7 +402,11 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       const response = await agentApi.orchestrator.status();
       set({ orchestratorMetrics: response.data });
     } catch (err: any) {
-      set({ error: err.response?.data?.error || 'Failed to fetch metrics' });
+      const errorMsg = err.response?.data?.error || 'Failed to fetch metrics';
+      const details = err.response?.data?.details;
+      const fullError = details ? `${errorMsg}: ${JSON.stringify(details)}` : errorMsg;
+      console.error('[AgentStore] fetchOrchestratorMetrics error:', fullError);
+      set({ error: fullError });
     }
   },
 

@@ -2,6 +2,7 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { findOne, findAll, insertOne, updateOne } from '../../database/index.js';
 import crypto from 'crypto';
+import { getOllamaModelSyncService } from '../../services/OllamaModelSyncService.js';
 
 // Simple encryption for API keys (use a proper KMS in production)
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'default-key-change-in-production!!';
@@ -306,50 +307,6 @@ export async function providerRoutes(fastify: FastifyInstance) {
           if (!response.ok) throw new Error(`OpenAI API error: ${response.status}`);
           break;
         }
-        case 'anthropic_oauth': {
-          // Claude Pro OAuth - test OAuth token
-          const oauthTokenSetting = await findOne<ProviderSetting>(
-            fastify.db,
-            "SELECT * FROM ai_provider_settings WHERE provider_id = ? AND setting_key = 'oauth_token'",
-            [id]
-          );
-
-          if (!oauthTokenSetting?.setting_value) {
-            throw new Error('OAuth token non configurato. Configura il token OAuth.');
-          }
-
-          const decryptedToken = decrypt(oauthTokenSetting.setting_value);
-          fastify.log.info(`Testing Claude OAuth - token prefix: ${decryptedToken.substring(0, 20)}...`);
-
-          const testResponse = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${decryptedToken}`,
-              'anthropic-version': '2023-06-01',
-              'anthropic-beta': 'oauth-2025-04-20',
-              'User-Agent': 'Claude-Code/2.1.0'
-            },
-            body: JSON.stringify({
-              model: 'claude-sonnet-4-20250514',
-              max_tokens: 10,
-              messages: [{ role: 'user', content: 'Hi' }]
-            })
-          });
-
-          const responseText = await testResponse.text();
-          fastify.log.info(`Claude OAuth test response: ${testResponse.status} - ${responseText.substring(0, 200)}`);
-
-          if (!testResponse.ok) {
-            let errorMessage = `OAuth test fallito: ${testResponse.status}`;
-            try {
-              const errorData = JSON.parse(responseText);
-              errorMessage = errorData.error?.message || errorMessage;
-            } catch {}
-            throw new Error(errorMessage);
-          }
-          break;
-        }
         case 'anthropic_api':
         case 'anthropic': {
           // Claude API Key - test API key format
@@ -509,6 +466,45 @@ export async function providerRoutes(fastify: FastifyInstance) {
       );
     }
 
+    // If is_enabled changed, sync with Ollama if it's an Ollama model
+    if (body.is_enabled !== undefined) {
+      const model = await findOne<Model & { provider_name: string }>(
+        fastify.db,
+        `SELECT m.*, p.name as provider_name
+         FROM ai_models m
+         JOIN ai_providers p ON m.provider_id = p.id
+         WHERE m.id = ?`,
+        [id]
+      );
+
+      if (model && model.provider_name === 'ollama') {
+        // Get Ollama base URL from settings
+        const settings = await findAll<ProviderSetting>(
+          fastify.db,
+          'SELECT * FROM ai_provider_settings WHERE provider_id = ?',
+          [model.provider_id]
+        );
+        const config: Record<string, string> = {};
+        for (const s of settings) {
+          config[s.setting_key] = s.is_secret ? decrypt(s.setting_value) : s.setting_value;
+        }
+        const baseUrl = config.base_url || 'http://localhost:11434';
+
+        // Sync the model (pull or remove based on is_enabled)
+        const ollamaService = getOllamaModelSyncService(baseUrl);
+        const syncResult = await ollamaService.syncModel(model.model_id, body.is_enabled);
+
+        fastify.log.info(`[OllamaSync] Model ${model.model_id}: ${syncResult.action} - ${syncResult.message}`);
+
+        if (!syncResult.success && syncResult.action !== 'none') {
+          // Log warning but don't fail the request - DB state is already updated
+          fastify.log.warn(`[OllamaSync] Failed to sync model ${model.model_id}: ${syncResult.message}`);
+        }
+
+        return { success: true, ollamaSync: syncResult };
+      }
+    }
+
     return { success: true };
   });
 
@@ -529,361 +525,11 @@ export async function providerRoutes(fastify: FastifyInstance) {
   });
 
   // ==========================================
-  // CLAUDE PRO OAUTH
+  // SYNC ENDPOINTS
   // ==========================================
 
-  // Claude OAuth Configuration
-  // Reference: https://github.com/sst/opencode-anthropic-auth, https://github.com/grll/claude-code-login
-  const CLAUDE_OAUTH_CLIENT_ID = '9d1c250a-e61b-44d9-88ed-5944d1962f5e';
-  const CLAUDE_OAUTH_AUTHORIZE_URL = 'https://claude.ai/oauth/authorize';
-  const CLAUDE_OAUTH_TOKEN_URL = 'https://console.anthropic.com/v1/oauth/token'; // IMPORTANT: /v1/ not /api/
-
-  // Helper to store/get OAuth state in Redis (shared between pods)
-  const OAUTH_STATE_PREFIX = 'oauth:claude:state:';
-  const OAUTH_STATE_TTL = 600; // 10 minutes
-
-  // Initiate Claude Pro OAuth flow
-  fastify.post('/providers/anthropic/oauth/init', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
-    schema: {
-      description: 'Initiate Claude Pro OAuth flow',
-      tags: ['admin'],
-      security: [{ bearerAuth: [] }]
-    }
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
-    // Generate PKCE code verifier and challenge
-    const codeVerifier = crypto.randomBytes(32).toString('base64url');
-    const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('base64url');
-    const state = crypto.randomBytes(16).toString('hex');
-
-    // Store code verifier in Redis for later token exchange (shared between pods)
-    await fastify.redis.setex(
-      `${OAUTH_STATE_PREFIX}${state}`,
-      OAUTH_STATE_TTL,
-      JSON.stringify({ codeVerifier, createdAt: Date.now() })
-    );
-
-    // The redirect URI that shows the code to copy (console.anthropic.com shows a nice UI)
-    const redirectUri = 'https://console.anthropic.com/oauth/code/callback';
-
-    const authUrl = new URL(CLAUDE_OAUTH_AUTHORIZE_URL);
-    authUrl.searchParams.set('code', 'true');  // Important: enables code display page
-    authUrl.searchParams.set('client_id', CLAUDE_OAUTH_CLIENT_ID);
-    authUrl.searchParams.set('response_type', 'code');
-    authUrl.searchParams.set('scope', 'org:create_api_key user:profile user:inference'); // These are the correct scopes
-    authUrl.searchParams.set('code_challenge', codeChallenge);
-    authUrl.searchParams.set('code_challenge_method', 'S256');
-    authUrl.searchParams.set('state', state);
-    authUrl.searchParams.set('redirect_uri', redirectUri);
-
-    return {
-      authUrl: authUrl.toString(),
-      state,
-      instructions: 'Apri il link nel browser, autorizza, e poi copia il codice dalla URL di callback (parametro code=...) e invialo all\'endpoint /providers/anthropic/oauth/complete'
-    };
-  });
-
-  // Complete Claude Pro OAuth flow with authorization code
-  fastify.post('/providers/anthropic/oauth/complete', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
-    schema: {
-      description: 'Complete Claude Pro OAuth flow with authorization code',
-      tags: ['admin'],
-      security: [{ bearerAuth: [] }]
-    }
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
-    const body = request.body as { code: string; state: string };
-
-    if (!body.code || !body.state) {
-      return reply.status(400).send({ error: 'Missing code or state' });
-    }
-
-    // The code might be in format "code#state" - handle both cases
-    let authCode = body.code;
-    let authState = body.state;
-
-    // If code contains #, split it (format: code#state from callback URL)
-    if (authCode.includes('#')) {
-      const parts = authCode.split('#');
-      authCode = parts[0];
-      // If state wasn't provided separately, extract from code
-      if (!authState && parts[1]) {
-        authState = parts[1];
-      }
-    }
-
-    // Get stored code verifier from Redis
-    const stateData = await fastify.redis.get(`${OAUTH_STATE_PREFIX}${authState}`);
-    if (!stateData) {
-      fastify.log.error(`OAuth state not found: ${authState}`);
-      return reply.status(400).send({
-        error: 'Invalid or expired state',
-        details: 'The OAuth state has expired or was not found. Please restart the OAuth flow.'
-      });
-    }
-
-    const { codeVerifier } = JSON.parse(stateData);
-    // Delete the state from Redis after use
-    await fastify.redis.del(`${OAUTH_STATE_PREFIX}${authState}`);
-
-    try {
-      // Exchange code for token - MUST match the redirect_uri used in init
-      const redirectUri = 'https://console.anthropic.com/oauth/code/callback';
-
-      fastify.log.info(`OAuth token exchange: code=${authCode.substring(0, 10)}..., state=${authState}`);
-
-      const tokenRequestBody = {
-        grant_type: 'authorization_code',
-        client_id: CLAUDE_OAUTH_CLIENT_ID,
-        code: authCode,
-        redirect_uri: redirectUri,
-        code_verifier: codeVerifier,
-        state: authState
-      };
-
-      const response = await fetch(CLAUDE_OAUTH_TOKEN_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify(tokenRequestBody)
-      });
-
-      const responseText = await response.text();
-      fastify.log.info(`OAuth token response: ${response.status} - ${responseText.substring(0, 200)}`);
-
-      if (!response.ok) {
-        let errorMessage = `Token exchange failed: ${response.status}`;
-        try {
-          const errorData = JSON.parse(responseText);
-          errorMessage = errorData.error_description || errorData.error || errorMessage;
-        } catch {
-          errorMessage = responseText || errorMessage;
-        }
-        throw new Error(errorMessage);
-      }
-
-      const tokenData = JSON.parse(responseText) as { access_token: string; refresh_token?: string; expires_in?: number };
-
-      if (!tokenData.access_token) {
-        throw new Error('No access token in response');
-      }
-
-      // Get Anthropic OAuth provider (not anthropic_api)
-      const provider = await findOne<Provider>(
-        fastify.db,
-        "SELECT * FROM ai_providers WHERE name = 'anthropic_oauth'",
-        []
-      );
-
-      if (!provider) {
-        return reply.status(404).send({ error: 'Anthropic OAuth provider not found' });
-      }
-
-      // Store OAuth token (encrypted)
-      const encryptedToken = encrypt(tokenData.access_token);
-      await fastify.db.execute(
-        `INSERT INTO ai_provider_settings (provider_id, setting_key, setting_value, is_secret)
-         VALUES (?, 'oauth_token', ?, TRUE)
-         ON DUPLICATE KEY UPDATE setting_value = ?, is_secret = TRUE`,
-        [provider.id, encryptedToken, encryptedToken]
-      );
-
-      // Store refresh token if available
-      if (tokenData.refresh_token) {
-        const encryptedRefresh = encrypt(tokenData.refresh_token);
-        await fastify.db.execute(
-          `INSERT INTO ai_provider_settings (provider_id, setting_key, setting_value, is_secret)
-           VALUES (?, 'oauth_refresh_token', ?, TRUE)
-           ON DUPLICATE KEY UPDATE setting_value = ?, is_secret = TRUE`,
-          [provider.id, encryptedRefresh, encryptedRefresh]
-        );
-      }
-
-      // Log audit (details must be valid JSON due to CHECK constraint)
-      await insertOne(
-        fastify.db,
-        'INSERT INTO audit_log (user_id, action, entity_type, entity_id, details, ip_address) VALUES (?, ?, ?, ?, ?, ?)',
-        [(request.user as any).id, 'configure_oauth', 'ai_provider', provider.id, JSON.stringify({ message: 'Claude Pro OAuth configured' }), request.ip]
-      );
-
-      return {
-        success: true,
-        message: 'Claude Pro OAuth token configurato con successo! Tutti gli utenti possono ora usare Claude con la tua subscription.'
-      };
-    } catch (error: any) {
-      return reply.status(400).send({
-        success: false,
-        error: error.message || 'Token exchange failed'
-      });
-    }
-  });
-
-  // Check Claude Pro OAuth status
-  fastify.get('/providers/anthropic/oauth/status', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
-    schema: {
-      description: 'Check if Claude Pro OAuth is configured',
-      tags: ['admin'],
-      security: [{ bearerAuth: [] }]
-    }
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
-    const provider = await findOne<Provider>(
-      fastify.db,
-      "SELECT * FROM ai_providers WHERE name = 'anthropic_oauth'",
-      []
-    );
-
-    if (!provider) {
-      return { configured: false, hasApiKey: false, hasOAuthToken: false };
-    }
-
-    const settings = await findAll<ProviderSetting>(
-      fastify.db,
-      'SELECT setting_key FROM ai_provider_settings WHERE provider_id = ? AND setting_value IS NOT NULL AND setting_value != ?',
-      [provider.id, '']
-    );
-
-    const settingKeys = settings.map(s => s.setting_key);
-
-    return {
-      configured: settingKeys.includes('api_key') || settingKeys.includes('oauth_token'),
-      hasApiKey: settingKeys.includes('api_key'),
-      hasOAuthToken: settingKeys.includes('oauth_token'),
-      preferOAuth: settingKeys.includes('oauth_token') // OAuth has priority over API key
-    };
-  });
-
-  // Remove Claude Pro OAuth token
-  fastify.delete('/providers/anthropic/oauth', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
-    schema: {
-      description: 'Remove Claude Pro OAuth token',
-      tags: ['admin'],
-      security: [{ bearerAuth: [] }]
-    }
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
-    const provider = await findOne<Provider>(
-      fastify.db,
-      "SELECT * FROM ai_providers WHERE name = 'anthropic_oauth'",
-      []
-    );
-
-    if (!provider) {
-      return reply.status(404).send({ error: 'Anthropic OAuth provider not found' });
-    }
-
-    await fastify.db.execute(
-      "DELETE FROM ai_provider_settings WHERE provider_id = ? AND setting_key IN ('oauth_token', 'oauth_refresh_token')",
-      [provider.id]
-    );
-
-    // Log audit (details must be valid JSON)
-    await insertOne(
-      fastify.db,
-      'INSERT INTO audit_log (user_id, action, entity_type, entity_id, details, ip_address) VALUES (?, ?, ?, ?, ?, ?)',
-      [(request.user as any).id, 'remove_oauth', 'ai_provider', provider.id, JSON.stringify({ message: 'Claude Pro OAuth removed' }), request.ip]
-    );
-
-    return { success: true, message: 'Claude Pro OAuth token rimosso' };
-  });
-
-  // Set Claude Pro OAuth token manually (from claude login credentials)
-  fastify.post('/providers/anthropic/oauth/token', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
-    schema: {
-      description: 'Set Claude Pro OAuth token manually',
-      tags: ['admin'],
-      security: [{ bearerAuth: [] }]
-    }
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
-    const body = request.body as { accessToken: string; refreshToken?: string };
-
-    if (!body.accessToken?.trim()) {
-      return reply.status(400).send({ error: 'Access token is required' });
-    }
-
-    const accessToken = body.accessToken.trim();
-
-    // Validate token format (should start with specific prefix for OAuth tokens)
-    if (!accessToken.startsWith('sk-ant-')) {
-      return reply.status(400).send({
-        error: 'Invalid token format. Token should start with sk-ant-. Make sure you copied the accessToken from ~/.claude/credentials.json'
-      });
-    }
-
-    try {
-      // Test the token by making a simple API call
-      const testResponse = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-          'anthropic-version': '2023-06-01',
-          'anthropic-beta': 'oauth-2025-04-20'  // Required for OAuth tokens
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 10,
-          messages: [{ role: 'user', content: 'Hi' }]
-        })
-      });
-
-      if (!testResponse.ok) {
-        const errorData = await testResponse.json().catch(() => ({})) as { error?: { message?: string } };
-        throw new Error(errorData.error?.message || `Token validation failed: ${testResponse.status}`);
-      }
-
-      // Get Anthropic OAuth provider
-      const provider = await findOne<Provider>(
-        fastify.db,
-        "SELECT * FROM ai_providers WHERE name = 'anthropic_oauth'",
-        []
-      );
-
-      if (!provider) {
-        return reply.status(404).send({ error: 'Anthropic OAuth provider not found' });
-      }
-
-      // Store OAuth token (encrypted)
-      const encryptedToken = encrypt(accessToken);
-      await fastify.db.execute(
-        `INSERT INTO ai_provider_settings (provider_id, setting_key, setting_value, is_secret)
-         VALUES (?, 'oauth_token', ?, TRUE)
-         ON DUPLICATE KEY UPDATE setting_value = ?, is_secret = TRUE`,
-        [provider.id, encryptedToken, encryptedToken]
-      );
-
-      // Store refresh token if provided
-      if (body.refreshToken?.trim()) {
-        const encryptedRefresh = encrypt(body.refreshToken.trim());
-        await fastify.db.execute(
-          `INSERT INTO ai_provider_settings (provider_id, setting_key, setting_value, is_secret)
-           VALUES (?, 'oauth_refresh_token', ?, TRUE)
-           ON DUPLICATE KEY UPDATE setting_value = ?, is_secret = TRUE`,
-          [provider.id, encryptedRefresh, encryptedRefresh]
-        );
-      }
-
-      // Log audit (details must be valid JSON due to CHECK constraint)
-      await insertOne(
-        fastify.db,
-        'INSERT INTO audit_log (user_id, action, entity_type, entity_id, details, ip_address) VALUES (?, ?, ?, ?, ?, ?)',
-        [(request.user as any).id, 'set_oauth_token', 'ai_provider', provider.id, JSON.stringify({ message: 'Claude Pro OAuth token set manually' }), request.ip]
-      );
-
-      return {
-        success: true,
-        message: 'Claude Pro OAuth token configurato con successo! Il token è stato validato e funziona correttamente.'
-      };
-    } catch (error: any) {
-      return reply.status(400).send({
-        success: false,
-        error: error.message || 'Failed to validate token'
-      });
-    }
-  });
+  // Placeholder - OAuth providers have been removed
+  // See migration: remove_oauth_providers.sql
 
   // Sync OpenAI models
   fastify.post('/providers/openai/sync', {
@@ -1033,5 +679,282 @@ export async function providerRoutes(fastify: FastifyInstance) {
         error: error.message || 'Failed to sync Ollama models'
       });
     }
+  });
+
+  // ==========================================
+  // OLLAMA DOCKER MANAGEMENT
+  // ==========================================
+
+  const OLLAMA_CONTAINER_NAME = 'enterprise-ai-ollama';
+
+  // Helper to execute commands safely using execFile
+  const execCommand = (cmd: string, args: string[]): Promise<{ stdout: string; stderr: string }> => {
+    return new Promise((resolve, reject) => {
+      const { execFile } = require('child_process');
+      execFile(cmd, args, { timeout: 300000 }, (error: any, stdout: string, stderr: string) => {
+        if (error) {
+          reject(new Error(stderr || error.message));
+        } else {
+          resolve({ stdout, stderr });
+        }
+      });
+    });
+  };
+
+  // Deploy Ollama Docker container
+  fastify.post('/providers/ollama/docker/deploy', {
+    onRequest: [(fastify as any).authenticate, adminOnly],
+    schema: {
+      description: 'Deploy Ollama Docker container',
+      tags: ['admin'],
+      security: [{ bearerAuth: [] }]
+    }
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const body = request.body as {
+      port?: number;
+      gpuEnabled?: boolean;
+      memoryLimit?: string;
+      models?: string[];
+    };
+
+    const port = body.port || 11434;
+    const gpuEnabled = body.gpuEnabled ?? false;
+    const memoryLimit = body.memoryLimit || '8g';
+    const models = body.models || [];
+
+    // Validate inputs
+    if (port < 1024 || port > 65535) {
+      return reply.status(400).send({ error: 'Invalid port number' });
+    }
+    if (!/^\d+[mg]$/i.test(memoryLimit)) {
+      return reply.status(400).send({ error: 'Invalid memory limit format (e.g., 8g, 4096m)' });
+    }
+
+    try {
+      // Check if Docker is available
+      await execCommand('docker', ['--version']);
+
+      // Stop existing container if running
+      try {
+        await execCommand('docker', ['stop', OLLAMA_CONTAINER_NAME]);
+      } catch {}
+      try {
+        await execCommand('docker', ['rm', OLLAMA_CONTAINER_NAME]);
+      } catch {}
+
+      // Build docker run arguments
+      const dockerArgs = [
+        'run', '-d',
+        '--name', OLLAMA_CONTAINER_NAME,
+        '-p', `${port}:11434`,
+        '-v', 'ollama-data:/root/.ollama',
+        `--memory=${memoryLimit}`,
+        '--restart=unless-stopped'
+      ];
+
+      // Add GPU support if enabled
+      if (gpuEnabled) {
+        dockerArgs.push('--gpus', 'all');
+      }
+
+      dockerArgs.push('ollama/ollama');
+
+      fastify.log.info(`Starting Ollama container with args: ${dockerArgs.join(' ')}`);
+      const { stdout } = await execCommand('docker', dockerArgs);
+      const containerId = stdout.trim().substring(0, 12);
+
+      // Wait for container to be ready
+      await new Promise(resolve => setTimeout(resolve, 5000));
+
+      // Pull requested models
+      const pulledModels: string[] = [];
+      for (const model of models) {
+        // Validate model name (alphanumeric, dots, colons, hyphens only)
+        if (!/^[a-zA-Z0-9.:_-]+$/.test(model)) {
+          fastify.log.warn(`Invalid model name: ${model}`);
+          continue;
+        }
+        try {
+          fastify.log.info(`Pulling model: ${model}`);
+          await execCommand('docker', ['exec', OLLAMA_CONTAINER_NAME, 'ollama', 'pull', model]);
+          pulledModels.push(model);
+        } catch (err: any) {
+          fastify.log.warn(`Failed to pull model ${model}: ${err.message}`);
+        }
+      }
+
+      // Update provider settings with new base_url
+      const provider = await findOne<Provider>(
+        fastify.db,
+        "SELECT * FROM ai_providers WHERE name = 'ollama'",
+        []
+      );
+
+      if (provider) {
+        const baseUrl = `http://localhost:${port}`;
+        await fastify.db.execute(
+          `INSERT INTO ai_provider_settings (provider_id, setting_key, setting_value, is_secret)
+           VALUES (?, 'base_url', ?, FALSE)
+           ON DUPLICATE KEY UPDATE setting_value = ?`,
+          [provider.id, baseUrl, baseUrl]
+        );
+
+        // Enable the provider
+        await fastify.db.execute(
+          'UPDATE ai_providers SET is_enabled = TRUE WHERE id = ?',
+          [provider.id]
+        );
+      }
+
+      return {
+        success: true,
+        containerId,
+        port,
+        gpuEnabled,
+        memoryLimit,
+        pulledModels,
+        message: `Ollama container started on port ${port}. ${pulledModels.length} models pulled.`
+      };
+    } catch (error: any) {
+      fastify.log.error(`Ollama deploy error: ${error.message}`);
+      return reply.status(400).send({
+        success: false,
+        error: error.message || 'Failed to deploy Ollama container'
+      });
+    }
+  });
+
+  // Get Ollama Docker status
+  fastify.get('/providers/ollama/docker/status', {
+    onRequest: [(fastify as any).authenticate, adminOnly],
+    schema: {
+      description: 'Get Ollama Docker container status',
+      tags: ['admin'],
+      security: [{ bearerAuth: [] }]
+    }
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const { stdout } = await execCommand('docker', [
+        'inspect', OLLAMA_CONTAINER_NAME,
+        '--format', '{{.State.Status}}|{{.State.StartedAt}}'
+      ]);
+
+      const parts = stdout.trim().split('|');
+      const status = parts[0];
+      const startedAt = parts[1];
+
+      // Get available models
+      let models: string[] = [];
+      if (status === 'running') {
+        try {
+          const { stdout: modelsOutput } = await execCommand('docker', [
+            'exec', OLLAMA_CONTAINER_NAME, 'ollama', 'list'
+          ]);
+          // Parse ollama list output (skip header line)
+          const lines = modelsOutput.trim().split('\n').slice(1);
+          models = lines.map(line => line.split(/\s+/)[0]).filter(m => m.length > 0);
+        } catch {}
+      }
+
+      return {
+        running: status === 'running',
+        status,
+        startedAt,
+        containerName: OLLAMA_CONTAINER_NAME,
+        models
+      };
+    } catch (error: any) {
+      return { running: false, status: 'not_deployed', models: [] };
+    }
+  });
+
+  // Pull a model to Ollama container
+  fastify.post('/providers/ollama/docker/pull-model', {
+    onRequest: [(fastify as any).authenticate, adminOnly],
+    schema: {
+      description: 'Pull a model to Ollama container',
+      tags: ['admin'],
+      security: [{ bearerAuth: [] }]
+    }
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const body = request.body as { model: string };
+
+    if (!body.model?.trim()) {
+      return reply.status(400).send({ error: 'Model name is required' });
+    }
+
+    // Validate model name
+    const model = body.model.trim();
+    if (!/^[a-zA-Z0-9.:_-]+$/.test(model)) {
+      return reply.status(400).send({ error: 'Invalid model name' });
+    }
+
+    try {
+      fastify.log.info(`Pulling model: ${model}`);
+      await execCommand('docker', ['exec', OLLAMA_CONTAINER_NAME, 'ollama', 'pull', model]);
+
+      return {
+        success: true,
+        message: `Model ${model} pulled successfully`
+      };
+    } catch (error: any) {
+      return reply.status(400).send({
+        success: false,
+        error: error.message || 'Failed to pull model'
+      });
+    }
+  });
+
+  // Stop Ollama Docker container
+  fastify.delete('/providers/ollama/docker/stop', {
+    onRequest: [(fastify as any).authenticate, adminOnly],
+    schema: {
+      description: 'Stop Ollama Docker container',
+      tags: ['admin'],
+      security: [{ bearerAuth: [] }]
+    }
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      await execCommand('docker', ['stop', OLLAMA_CONTAINER_NAME]);
+      await execCommand('docker', ['rm', OLLAMA_CONTAINER_NAME]);
+
+      return {
+        success: true,
+        message: 'Ollama container stopped and removed'
+      };
+    } catch (error: any) {
+      return reply.status(400).send({
+        success: false,
+        error: error.message || 'Failed to stop container'
+      });
+    }
+  });
+
+  // Get available Ollama models from registry
+  fastify.get('/providers/ollama/models/available', {
+    onRequest: [(fastify as any).authenticate, adminOnly],
+    schema: {
+      description: 'Get list of popular Ollama models',
+      tags: ['admin'],
+      security: [{ bearerAuth: [] }]
+    }
+  }, async () => {
+    // Popular models with their info
+    return {
+      models: [
+        { id: 'llama3.2', name: 'Llama 3.2', size: '2B/3B', description: 'Meta latest small model' },
+        { id: 'llama3.1:8b', name: 'Llama 3.1 8B', size: '8B', description: 'Meta Llama 3.1 8B' },
+        { id: 'llama3.1:70b', name: 'Llama 3.1 70B', size: '70B', description: 'Meta Llama 3.1 70B (requires 48GB+ VRAM)' },
+        { id: 'mistral', name: 'Mistral 7B', size: '7B', description: 'Fast and efficient' },
+        { id: 'mixtral', name: 'Mixtral 8x7B', size: '47B', description: 'Mixture of experts' },
+        { id: 'codellama', name: 'Code Llama', size: '7B/13B/34B', description: 'Optimized for code' },
+        { id: 'deepseek-coder-v2', name: 'DeepSeek Coder V2', size: '16B/236B', description: 'Advanced coding model' },
+        { id: 'qwen2.5', name: 'Qwen 2.5', size: '0.5B-72B', description: 'Alibaba multilingual model' },
+        { id: 'phi3', name: 'Phi-3', size: '3.8B', description: 'Microsoft small but capable' },
+        { id: 'gemma2', name: 'Gemma 2', size: '2B/9B/27B', description: 'Google open model' },
+        { id: 'llava', name: 'LLaVA', size: '7B/13B', description: 'Vision-enabled model' },
+        { id: 'nomic-embed-text', name: 'Nomic Embed', size: '137M', description: 'Text embeddings' }
+      ]
+    };
   });
 }

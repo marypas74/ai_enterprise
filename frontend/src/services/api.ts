@@ -7,7 +7,10 @@ export const api = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true,
   headers: {
-    'Content-Type': 'application/json'
+    'Content-Type': 'application/json',
+    'Cache-Control': 'no-cache, no-store, must-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0'
   }
 });
 
@@ -124,7 +127,8 @@ async function makeStreamRequest(
   model: string,
   message: string,
   conversationId?: number,
-  systemPrompt?: string
+  systemPrompt?: string,
+  attachmentIds?: number[]
 ): Promise<Response> {
   return fetch(`${API_BASE_URL}/chat/completions`, {
     method: 'POST',
@@ -137,7 +141,8 @@ async function makeStreamRequest(
       model,
       message,
       conversationId,
-      systemPrompt
+      systemPrompt,
+      attachmentIds
     })
   });
 }
@@ -150,12 +155,13 @@ export async function streamChat(
   onDone: (conversationId: number) => void,
   onError: (error: string) => void,
   conversationId?: number,
-  systemPrompt?: string
+  systemPrompt?: string,
+  attachmentIds?: number[]
 ): Promise<void> {
   // Get token from Zustand store for consistency
   let token = useAuthStore.getState().accessToken || '';
 
-  let response = await makeStreamRequest(token, model, message, conversationId, systemPrompt);
+  let response = await makeStreamRequest(token, model, message, conversationId, systemPrompt, attachmentIds);
 
   // Handle 401 - try to refresh token first before logging out
   if (response.status === 401) {
@@ -170,7 +176,7 @@ export async function streamChat(
       token = accessToken;
 
       // Retry the request with new token
-      response = await makeStreamRequest(token, model, message, conversationId, systemPrompt);
+      response = await makeStreamRequest(token, model, message, conversationId, systemPrompt, attachmentIds);
 
       // If still 401 after refresh, then logout
       if (response.status === 401) {

@@ -11,11 +11,12 @@ import {
   CheckCircle,
   Cloud,
   Server,
-  Key,
-  LogIn,
   Trash2,
-  ExternalLink,
-  Copy
+  Download,
+  HardDrive,
+  Cpu,
+  Box,
+  StopCircle
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -30,17 +31,20 @@ interface Provider {
   settings?: Record<string, any>;
 }
 
-interface OAuthStatus {
-  configured: boolean;
-  hasApiKey: boolean;
-  hasOAuthToken: boolean;
-  preferOAuth: boolean;
+interface OllamaDockerStatus {
+  running: boolean;
+  containerId?: string;
+  port?: number;
+  models?: string[];
+  gpuEnabled?: boolean;
+  memoryLimit?: string;
 }
 
-interface OAuthInitResponse {
-  authUrl: string;
-  state: string;
-  instructions: string;
+interface AvailableModel {
+  name: string;
+  description: string;
+  size: string;
+  parameters: string;
 }
 
 export default function ProvidersPage() {
@@ -52,24 +56,28 @@ export default function ProvidersPage() {
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [syncing, setSyncing] = useState(false);
 
-  // Claude Pro OAuth state
-  const [oauthStatus, setOAuthStatus] = useState<OAuthStatus | null>(null);
-  const [oauthLoading, setOAuthLoading] = useState(false);
-  const [oauthData, setOAuthData] = useState<OAuthInitResponse | null>(null);
-  const [oauthCode, setOAuthCode] = useState('');
-  const [oauthError, setOAuthError] = useState<string | null>(null);
-  const [showManualToken, setShowManualToken] = useState(false);
-  const [manualToken, setManualToken] = useState('');
-  const [manualRefreshToken, setManualRefreshToken] = useState('');
+  // Ollama Docker state
+  const [ollamaDockerStatus, setOllamaDockerStatus] = useState<OllamaDockerStatus | null>(null);
+  const [ollamaDockerLoading, setOllamaDockerLoading] = useState(false);
+  const [availableModels, setAvailableModels] = useState<AvailableModel[]>([]);
+  const [showDockerConfig, setShowDockerConfig] = useState(false);
+  const [dockerConfig, setDockerConfig] = useState({
+    port: 11434,
+    enableGpu: false,
+    memoryLimit: '8g',
+    initialModels: [] as string[]
+  });
+  const [pullingModel, setPullingModel] = useState<string | null>(null);
 
   useEffect(() => {
     loadProviders();
   }, []);
 
-  // Load OAuth status when Claude Pro OAuth provider is selected
+  // Load Ollama Docker status when Ollama provider is selected
   useEffect(() => {
-    if (selectedProvider?.name === 'anthropic_oauth') {
-      loadOAuthStatus();
+    if (selectedProvider?.name === 'ollama') {
+      loadOllamaDockerStatus();
+      loadAvailableModels();
     }
   }, [selectedProvider]);
 
@@ -148,95 +156,74 @@ export default function ProvidersPage() {
     }
   };
 
-  // Claude Pro OAuth functions
-  const loadOAuthStatus = async () => {
+  // Ollama Docker functions
+  const loadOllamaDockerStatus = async () => {
     try {
-      const response = await api.get('/admin/providers/anthropic/oauth/status');
-      setOAuthStatus(response.data);
+      const response = await api.get('/admin/providers/ollama/docker/status');
+      setOllamaDockerStatus(response.data);
     } catch (err) {
-      console.error('Failed to load OAuth status:', err);
+      console.error('Failed to load Ollama Docker status:', err);
+      setOllamaDockerStatus({ running: false });
     }
   };
 
-  const initOAuth = async () => {
-    setOAuthLoading(true);
-    setOAuthError(null);
-    setOAuthData(null);
+  const loadAvailableModels = async () => {
     try {
-      const response = await api.post('/admin/providers/anthropic/oauth/init');
-      setOAuthData(response.data);
-      // Open the auth URL in a new tab
-      window.open(response.data.authUrl, '_blank');
+      const response = await api.get('/admin/providers/ollama/models/available');
+      setAvailableModels(response.data.models || []);
+    } catch (err) {
+      console.error('Failed to load available models:', err);
+    }
+  };
+
+  const deployOllamaDocker = async () => {
+    setOllamaDockerLoading(true);
+    try {
+      await api.post('/admin/providers/ollama/docker/deploy', dockerConfig);
+      setTestResult({ success: true, message: 'Container Ollama avviato con successo!' });
+      setShowDockerConfig(false);
+      await loadOllamaDockerStatus();
     } catch (err: any) {
-      setOAuthError(err.response?.data?.error || 'Failed to initialize OAuth');
-    } finally {
-      setOAuthLoading(false);
-    }
-  };
-
-  const completeOAuth = async () => {
-    if (!oauthCode.trim() || !oauthData?.state) {
-      setOAuthError('Please enter the authorization code');
-      return;
-    }
-    setOAuthLoading(true);
-    setOAuthError(null);
-    try {
-      await api.post('/admin/providers/anthropic/oauth/complete', {
-        code: oauthCode.trim(),
-        state: oauthData.state
+      setTestResult({
+        success: false,
+        message: err.response?.data?.error || 'Errore durante il deploy del container'
       });
-      setOAuthData(null);
-      setOAuthCode('');
-      await loadOAuthStatus();
-      setTestResult({ success: true, message: 'Claude Pro OAuth configured successfully!' });
-    } catch (err: any) {
-      setOAuthError(err.response?.data?.error || 'Failed to complete OAuth');
     } finally {
-      setOAuthLoading(false);
+      setOllamaDockerLoading(false);
     }
   };
 
-  const removeOAuth = async () => {
-    if (!confirm('Remove Claude Pro OAuth token? You will need to reconfigure it.')) return;
-    setOAuthLoading(true);
+  const stopOllamaDocker = async () => {
+    if (!confirm('Fermare e rimuovere il container Ollama?')) return;
+    setOllamaDockerLoading(true);
     try {
-      await api.delete('/admin/providers/anthropic/oauth');
-      await loadOAuthStatus();
-      setTestResult({ success: true, message: 'OAuth token removed' });
+      await api.delete('/admin/providers/ollama/docker/stop');
+      setTestResult({ success: true, message: 'Container Ollama fermato' });
+      await loadOllamaDockerStatus();
     } catch (err: any) {
-      setOAuthError(err.response?.data?.error || 'Failed to remove OAuth');
-    } finally {
-      setOAuthLoading(false);
-    }
-  };
-
-  const submitManualToken = async () => {
-    if (!manualToken.trim()) {
-      setOAuthError('Please enter the access token');
-      return;
-    }
-    setOAuthLoading(true);
-    setOAuthError(null);
-    try {
-      await api.post('/admin/providers/anthropic/oauth/token', {
-        accessToken: manualToken.trim(),
-        refreshToken: manualRefreshToken.trim() || undefined
+      setTestResult({
+        success: false,
+        message: err.response?.data?.error || 'Errore durante lo stop del container'
       });
-      setManualToken('');
-      setManualRefreshToken('');
-      setShowManualToken(false);
-      await loadOAuthStatus();
-      setTestResult({ success: true, message: 'Claude Pro OAuth token configurato con successo!' });
-    } catch (err: any) {
-      setOAuthError(err.response?.data?.error || 'Failed to set token');
     } finally {
-      setOAuthLoading(false);
+      setOllamaDockerLoading(false);
     }
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
+  const pullModel = async (modelName: string) => {
+    setPullingModel(modelName);
+    try {
+      await api.post('/admin/providers/ollama/docker/pull-model', { model: modelName });
+      setTestResult({ success: true, message: `Modello ${modelName} scaricato con successo!` });
+      await loadOllamaDockerStatus();
+    } catch (err: any) {
+      setTestResult({
+        success: false,
+        message: err.response?.data?.error || `Errore durante il download di ${modelName}`
+      });
+    } finally {
+      setPullingModel(null);
+    }
   };
 
   const getProviderIcon = (type: string) => {
@@ -370,189 +357,138 @@ export default function ProvidersPage() {
                 </div>
               )}
 
-              {/* Claude Pro OAuth Section (only for anthropic_oauth provider) */}
-              {selectedProvider.name === 'anthropic_oauth' && (
-                <div className="mb-6 p-4 bg-gradient-to-r from-purple-900/20 to-blue-900/20 rounded-lg border border-purple-500/30">
-                  <div className="flex items-center gap-2 mb-3">
-                    <LogIn className="w-5 h-5 text-purple-400" />
-                    <h3 className="font-semibold text-purple-300">Configurazione OAuth Token</h3>
-                    {oauthStatus?.hasOAuthToken && (
-                      <span className="ml-auto px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full flex items-center gap-1">
-                        <CheckCircle className="w-3 h-3" /> Configurato
-                      </span>
+
+              {/* Settings Form for provider configuration */}
+              <DynamicForm
+                schema={selectedProvider.config_schema}
+                initialValues={selectedProvider.settings || {}}
+                onSubmit={saveSettings}
+                submitLabel="Salva Configurazione"
+                loading={saving}
+              />
+
+              {/* Ollama Docker Management Section */}
+              {selectedProvider.name === 'ollama' && (
+                <div className="mt-6 pt-6 border-t border-surface-200 dark:border-surface-700">
+                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <Box className="w-5 h-5" />
+                    Gestione Container Docker
+                  </h3>
+
+                  {/* Docker Status */}
+                  <div className="mb-4 p-4 rounded-lg bg-surface-50 dark:bg-surface-800">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={clsx(
+                          'w-3 h-3 rounded-full',
+                          ollamaDockerStatus?.running ? 'bg-green-500' : 'bg-surface-400'
+                        )} />
+                        <span className="font-medium">
+                          {ollamaDockerStatus?.running ? 'Container in esecuzione' : 'Container non attivo'}
+                        </span>
+                      </div>
+                      {ollamaDockerStatus?.running ? (
+                        <button
+                          onClick={stopOllamaDocker}
+                          disabled={ollamaDockerLoading}
+                          className="btn btn-danger btn-sm flex items-center gap-2"
+                        >
+                          <StopCircle className="w-4 h-4" />
+                          Ferma Container
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setShowDockerConfig(true)}
+                          disabled={ollamaDockerLoading}
+                          className="btn btn-primary btn-sm flex items-center gap-2"
+                        >
+                          <Play className="w-4 h-4" />
+                          Avvia Container
+                        </button>
+                      )}
+                    </div>
+
+                    {ollamaDockerStatus?.running && (
+                      <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                        <div>
+                          <span className="text-surface-500">Porta:</span>
+                          <span className="ml-2 font-mono">{ollamaDockerStatus.port}</span>
+                        </div>
+                        <div>
+                          <span className="text-surface-500">GPU:</span>
+                          <span className="ml-2">{ollamaDockerStatus.gpuEnabled ? 'Abilitata' : 'Disabilitata'}</span>
+                        </div>
+                        <div>
+                          <span className="text-surface-500">Memoria:</span>
+                          <span className="ml-2 font-mono">{ollamaDockerStatus.memoryLimit}</span>
+                        </div>
+                        <div>
+                          <span className="text-surface-500">Modelli:</span>
+                          <span className="ml-2">{ollamaDockerStatus.models?.length || 0}</span>
+                        </div>
+                      </div>
                     )}
                   </div>
 
-                  <p className="text-sm text-surface-400 mb-4">
-                    Usa la tua subscription Claude Pro/Max. Gli utenti usano Claude senza bisogno di API key propria.
-                  </p>
-
-                  {oauthError && (
-                    <div className="flex items-center gap-2 p-3 rounded-lg mb-4 bg-red-900/20 text-red-400 text-sm">
-                      <AlertCircle className="w-4 h-4" />
-                      {oauthError}
-                    </div>
-                  )}
-
-                  {oauthStatus?.hasOAuthToken ? (
-                    <div className="flex items-center gap-3">
-                      <button
-                        onClick={() => setShowManualToken(true)}
-                        disabled={oauthLoading}
-                        className="btn btn-secondary flex items-center gap-2"
-                      >
-                        <RefreshCw className={clsx('w-4 h-4', oauthLoading && 'animate-spin')} />
-                        Reconfigure
-                      </button>
-                      <button
-                        onClick={removeOAuth}
-                        disabled={oauthLoading}
-                        className="btn bg-red-600 hover:bg-red-700 text-white flex items-center gap-2"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                        Remove
-                      </button>
-                    </div>
-                  ) : !showManualToken && !oauthData ? (
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-3">
-                        <button
-                          onClick={() => setShowManualToken(true)}
-                          disabled={oauthLoading}
-                          className="btn bg-purple-600 hover:bg-purple-700 text-white flex items-center gap-2"
-                        >
-                          <Key className="w-4 h-4" />
-                          Inserisci Token Manualmente
-                        </button>
-                        <span className="text-surface-500 text-xs">oppure</span>
-                        <button
-                          onClick={initOAuth}
-                          disabled={oauthLoading}
-                          className="btn btn-secondary flex items-center gap-2"
-                        >
-                          <LogIn className={clsx('w-4 h-4', oauthLoading && 'animate-spin')} />
-                          Usa Browser OAuth
-                        </button>
-                      </div>
-                      <p className="text-xs text-surface-500">
-                        Raccomandiamo l'inserimento manuale del token ottenuto da <code className="bg-surface-700 px-1 rounded">claude login</code>
-                      </p>
-                    </div>
-                  ) : oauthData ? (
-                    <div className="space-y-3">
-                      <div className="p-3 bg-surface-800 rounded-lg">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs text-surface-400">URL di autorizzazione:</span>
-                          <button
-                            onClick={() => copyToClipboard(oauthData.authUrl)}
-                            className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1"
-                          >
-                            <Copy className="w-3 h-3" /> Copia URL
-                          </button>
+                  {/* Docker Config Modal */}
+                  {showDockerConfig && (
+                    <div className="mb-4 p-4 rounded-lg border border-primary-200 bg-primary-50 dark:bg-primary-900/20 dark:border-primary-800">
+                      <h4 className="font-medium mb-4">Configurazione Container</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Porta</label>
+                          <input
+                            type="number"
+                            value={dockerConfig.port}
+                            onChange={(e) => setDockerConfig({ ...dockerConfig, port: parseInt(e.target.value) })}
+                            className="input w-full"
+                            min={1024}
+                            max={65535}
+                          />
                         </div>
-                        <input
-                          type="text"
-                          readOnly
-                          value={oauthData.authUrl}
-                          className="input w-full text-xs font-mono bg-surface-900"
-                          onClick={(e) => (e.target as HTMLInputElement).select()}
-                        />
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Limite Memoria</label>
+                          <select
+                            value={dockerConfig.memoryLimit}
+                            onChange={(e) => setDockerConfig({ ...dockerConfig, memoryLimit: e.target.value })}
+                            className="input w-full"
+                          >
+                            <option value="4g">4 GB</option>
+                            <option value="8g">8 GB</option>
+                            <option value="16g">16 GB</option>
+                            <option value="32g">32 GB</option>
+                            <option value="64g">64 GB</option>
+                          </select>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            id="enableGpu"
+                            checked={dockerConfig.enableGpu}
+                            onChange={(e) => setDockerConfig({ ...dockerConfig, enableGpu: e.target.checked })}
+                            className="rounded"
+                          />
+                          <label htmlFor="enableGpu" className="text-sm flex items-center gap-2">
+                            <Cpu className="w-4 h-4" />
+                            Abilita GPU (NVIDIA)
+                          </label>
+                        </div>
                       </div>
-
-                      <div className="p-3 bg-amber-900/20 border border-amber-500/30 rounded-lg">
-                        <p className="text-xs text-amber-300 mb-2">
-                          <strong>Nota:</strong> Dopo aver cliccato "Autorizza" su claude.ai, verrai reindirizzato a una pagina.
-                          Copia il parametro <code className="bg-surface-700 px-1 rounded">code=...</code> dalla URL del browser.
-                        </p>
-                      </div>
-
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={oauthCode}
-                          onChange={(e) => setOAuthCode(e.target.value)}
-                          placeholder="Incolla il code qui..."
-                          className="input flex-1"
-                        />
+                      <div className="flex gap-2 mt-4">
                         <button
-                          onClick={completeOAuth}
-                          disabled={oauthLoading || !oauthCode.trim()}
-                          className="btn bg-green-600 hover:bg-green-700 text-white flex items-center gap-2"
+                          onClick={deployOllamaDocker}
+                          disabled={ollamaDockerLoading}
+                          className="btn btn-primary flex items-center gap-2"
                         >
-                          <CheckCircle className="w-4 h-4" />
-                          Completa
-                        </button>
-                      </div>
-
-                      <div className="flex items-center gap-3">
-                        <a
-                          href={oauthData.authUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-blue-400 hover:underline flex items-center gap-1"
-                        >
-                          <ExternalLink className="w-3 h-3" /> Apri pagina autorizzazione
-                        </a>
-                        <button
-                          onClick={() => { setOAuthData(null); setOAuthCode(''); }}
-                          className="text-xs text-surface-400 hover:text-surface-300"
-                        >
-                          Annulla
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      <div className="p-3 bg-surface-800 rounded-lg">
-                        <p className="text-xs text-surface-400 mb-2">
-                          <strong className="text-purple-300">Come ottenere il token:</strong>
-                        </p>
-                        <ol className="text-xs text-surface-400 list-decimal list-inside space-y-1">
-                          <li>Installa Claude Code CLI: <code className="bg-surface-700 px-1 rounded">npm install -g @anthropic-ai/claude-code</code></li>
-                          <li>Esegui: <code className="bg-surface-700 px-1 rounded">claude login</code></li>
-                          <li>Completa l'autorizzazione nel browser</li>
-                          <li>Copia il token da: <code className="bg-surface-700 px-1 rounded">~/.claude/credentials.json</code></li>
-                          <li>Incolla il campo <code className="bg-surface-700 px-1 rounded">accessToken</code> qui sotto</li>
-                        </ol>
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="text-xs text-surface-400">Access Token *</label>
-                        <input
-                          type="password"
-                          value={manualToken}
-                          onChange={(e) => setManualToken(e.target.value)}
-                          placeholder="sk-ant-oat01-..."
-                          className="input w-full font-mono text-sm"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="text-xs text-surface-400">Refresh Token (opzionale, per auto-rinnovo)</label>
-                        <input
-                          type="password"
-                          value={manualRefreshToken}
-                          onChange={(e) => setManualRefreshToken(e.target.value)}
-                          placeholder="anthropic-refresh-..."
-                          className="input w-full font-mono text-sm"
-                        />
-                      </div>
-
-                      <div className="flex gap-2">
-                        <button
-                          onClick={submitManualToken}
-                          disabled={oauthLoading || !manualToken.trim()}
-                          className="btn bg-green-600 hover:bg-green-700 text-white flex items-center gap-2"
-                        >
-                          {oauthLoading ? (
+                          {ollamaDockerLoading ? (
                             <RefreshCw className="w-4 h-4 animate-spin" />
                           ) : (
-                            <CheckCircle className="w-4 h-4" />
+                            <Play className="w-4 h-4" />
                           )}
-                          Salva Token
+                          Avvia
                         </button>
                         <button
-                          onClick={() => { setShowManualToken(false); setManualToken(''); setManualRefreshToken(''); setOAuthError(null); }}
+                          onClick={() => setShowDockerConfig(false)}
                           className="btn btn-secondary"
                         >
                           Annulla
@@ -560,18 +496,55 @@ export default function ProvidersPage() {
                       </div>
                     </div>
                   )}
-                </div>
-              )}
 
-              {/* Settings Form for all providers except anthropic_oauth */}
-              {selectedProvider.name !== 'anthropic_oauth' && (
-                <DynamicForm
-                  schema={selectedProvider.config_schema}
-                  initialValues={selectedProvider.settings || {}}
-                  onSubmit={saveSettings}
-                  submitLabel="Salva Configurazione"
-                  loading={saving}
-                />
+                  {/* Available Models */}
+                  {ollamaDockerStatus?.running && availableModels.length > 0 && (
+                    <div>
+                      <h4 className="font-medium mb-3 flex items-center gap-2">
+                        <HardDrive className="w-4 h-4" />
+                        Modelli Disponibili
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        {availableModels.map((model) => {
+                          const isInstalled = ollamaDockerStatus.models?.includes(model.name);
+                          const isPulling = pullingModel === model.name;
+                          return (
+                            <div
+                              key={model.name}
+                              className="flex items-center justify-between p-3 rounded-lg bg-surface-50 dark:bg-surface-800"
+                            >
+                              <div>
+                                <div className="font-medium flex items-center gap-2">
+                                  {model.name}
+                                  {isInstalled && (
+                                    <CheckCircle className="w-4 h-4 text-green-500" />
+                                  )}
+                                </div>
+                                <div className="text-xs text-surface-500">
+                                  {model.parameters} • {model.size}
+                                </div>
+                              </div>
+                              {!isInstalled && (
+                                <button
+                                  onClick={() => pullModel(model.name)}
+                                  disabled={isPulling || !!pullingModel}
+                                  className="btn btn-sm btn-secondary flex items-center gap-1"
+                                >
+                                  {isPulling ? (
+                                    <RefreshCw className="w-3 h-3 animate-spin" />
+                                  ) : (
+                                    <Download className="w-3 h-3" />
+                                  )}
+                                  {isPulling ? 'Scaricando...' : 'Scarica'}
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           ) : (

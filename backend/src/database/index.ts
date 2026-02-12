@@ -27,6 +27,9 @@ async function databaseConnector(fastify: FastifyInstance) {
     const connection = await pool.getConnection();
     fastify.log.info('Database connected successfully');
     connection.release();
+
+    // Run auto-migrations for new tables
+    await runAutoMigrations(pool, fastify);
   } catch (err) {
     fastify.log.error({ err }, 'Database connection failed');
     throw err;
@@ -66,4 +69,69 @@ export async function insertOne(pool: mysql.Pool, sql: string, params: any[] = [
 export async function updateOne(pool: mysql.Pool, sql: string, params: any[] = []): Promise<number> {
   const [result] = await pool.execute(sql, params);
   return (result as mysql.ResultSetHeader).affectedRows;
+}
+
+// Auto-migrations for new tables
+async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Promise<void> {
+  const migrations = [
+    {
+      name: 'user_google_auth',
+      sql: `CREATE TABLE IF NOT EXISTS user_google_auth (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        user_id BIGINT UNSIGNED NOT NULL UNIQUE,
+        access_token TEXT NOT NULL,
+        refresh_token TEXT,
+        expires_at TIMESTAMP NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        INDEX idx_user_id (user_id)
+      ) ENGINE=InnoDB`
+    },
+    {
+      name: 'document_chunks',
+      sql: `CREATE TABLE IF NOT EXISTS document_chunks (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        attachment_id BIGINT UNSIGNED NOT NULL,
+        chunk_index INT UNSIGNED NOT NULL,
+        content TEXT NOT NULL,
+        char_count INT UNSIGNED NOT NULL,
+        metadata JSON NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_attachment_id (attachment_id),
+        INDEX idx_chunk_index (attachment_id, chunk_index),
+        FULLTEXT INDEX ft_content (content),
+        CONSTRAINT fk_chunk_attachment FOREIGN KEY (attachment_id)
+            REFERENCES chat_attachments(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+    },
+    {
+      name: 'vector_index_status',
+      sql: `CREATE TABLE IF NOT EXISTS vector_index_status (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        attachment_id BIGINT UNSIGNED NOT NULL UNIQUE,
+        total_chunks INT UNSIGNED NOT NULL DEFAULT 0,
+        indexed_chunks INT UNSIGNED NOT NULL DEFAULT 0,
+        embedding_model VARCHAR(100) NULL,
+        vector_collection VARCHAR(100) NULL,
+        status ENUM('pending', 'indexing', 'completed', 'failed') DEFAULT 'pending',
+        error TEXT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_attachment_id (attachment_id),
+        INDEX idx_status (status),
+        CONSTRAINT fk_vector_attachment FOREIGN KEY (attachment_id)
+            REFERENCES chat_attachments(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+    }
+  ];
+
+  for (const migration of migrations) {
+    try {
+      await pool.execute(migration.sql);
+      fastify.log.info(`[Migration] Table ${migration.name} ready`);
+    } catch (err) {
+      fastify.log.warn({ err }, `[Migration] Table ${migration.name} migration skipped (may already exist)`);
+    }
+  }
 }

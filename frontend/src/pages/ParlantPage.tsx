@@ -459,13 +459,6 @@ export default function ParlantPage() {
               >
                 <RefreshCw className="w-5 h-5" />
               </button>
-              <a
-                href="/auto-claude"
-                className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors"
-              >
-                <Bot className="w-5 h-5" />
-                <span className="text-sm">Auto-Claude</span>
-              </a>
               {user?.role === 'admin' && (
                 <a
                   href="/admin"

@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
 import cookie from '@fastify/cookie';
+import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
@@ -20,11 +21,15 @@ import { projectRoutes } from './modules/projects/routes.js';
 import { activityRoutes } from './modules/activity/routes.js';
 import { taskRoutes } from './modules/tasks/routes.js';
 import { agentRoutes } from './modules/agents/routes.js';
+import { agentSdkRoutes } from './modules/agents/agentSdkRoutes.js';
 import { orchestratorRoutes } from './modules/orchestrator/routes.js';
+import { googleOAuthRoutes } from './modules/auth/googleOAuthRoutes.js';
 import { debugRoutes, addToLogBuffer } from './modules/admin/debug.js';
 import { downloadRoutes } from './modules/downloads/routes.js';
 import { parlantRoutes } from './modules/parlant/routes.js';
+import { ralphRoutes } from './modules/ralph/routes.js';
 import fileRoutes from './modules/files/routes.js';
+import attachmentRoutes from './modules/attachments/routes.js';
 import { AIProviderFactory } from './modules/ai/providers.js';
 import { AgentOrchestrator } from './services/AgentOrchestrator.js';
 import { AgentEventEmitter } from './services/AgentEventEmitter.js';
@@ -87,6 +92,14 @@ async function bootstrap() {
   // Cookies
   await fastify.register(cookie);
 
+  // Multipart for file uploads
+  await fastify.register(multipart, {
+    limits: {
+      fileSize: 50 * 1024 * 1024, // 50MB max
+      files: 10, // Max 10 files per request
+    },
+  });
+
   // WebSocket support for real-time updates
   await fastify.register(websocket);
 
@@ -115,6 +128,15 @@ async function bootstrap() {
     routePrefix: '/docs'
   });
 
+  // Global no-cache headers on all API responses
+  fastify.addHook('onSend', (request, reply, payload, done) => {
+    reply.header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+    reply.header('Pragma', 'no-cache');
+    reply.header('Expires', '0');
+    reply.header('Surrogate-Control', 'no-store');
+    done();
+  });
+
   // Database & Cache
   await fastify.register(databasePlugin);
   await fastify.register(redisPlugin);
@@ -130,7 +152,7 @@ async function bootstrap() {
 
     const providerSettings = await findAll<ProviderSetting>(
       fastify.db,
-      `SELECT p.name as provider_name, ps.setting_key, ps.setting_value, ps.is_secret
+      `SELECT p.provider_type as provider_name, ps.setting_key, ps.setting_value, ps.is_secret
        FROM ai_provider_settings ps
        JOIN ai_providers p ON ps.provider_id = p.id
        WHERE p.is_enabled = TRUE`
@@ -176,7 +198,9 @@ async function bootstrap() {
 
       AIProviderFactory.setProviderConfig(providerName as any, {
         apiKey: settings.api_key,
-        baseUrl: settings.base_url
+        baseUrl: settings.base_url,
+        timeout: settings.timeout ? parseInt(settings.timeout, 10) : 120000,
+        keepAlive: settings.keep_alive || '5m'
       });
 
       fastify.log.info(`Loaded configuration for provider: ${providerName}`);
@@ -222,11 +246,15 @@ async function bootstrap() {
   await fastify.register(taskRoutes, { prefix: '/api' });
   await fastify.register(activityRoutes, { prefix: '/api' });
   await fastify.register(agentRoutes, { prefix: '/api/agents' });
+  await fastify.register(agentSdkRoutes, { prefix: '/api/agents' });
   await fastify.register(orchestratorRoutes, { prefix: '/api/orchestrator' });
+  await fastify.register(googleOAuthRoutes, { prefix: '/api/auth' });
   await fastify.register(debugRoutes, { prefix: '/api/admin' });
   await fastify.register(downloadRoutes, { prefix: '/api' });
   await fastify.register(parlantRoutes, { prefix: '/api/parlant' });
+  await fastify.register(ralphRoutes, { prefix: '/api/ralph' });
   await fastify.register(fileRoutes, { prefix: '/api/files' });
+  await fastify.register(attachmentRoutes, { prefix: '/api/attachments' });
 
   // Initialize Agent Orchestrator
   try {
@@ -341,7 +369,7 @@ async function bootstrap() {
   const BUILD_TIME = new Date().toISOString();
   fastify.get('/version', async () => ({
     name: 'enterprise-ai-chat-backend',
-    version: '1.4.0',
+    version: '1.4.2',
     buildTime: BUILD_TIME,
     nodeVersion: process.version,
     environment: process.env.NODE_ENV || 'development'
@@ -349,7 +377,7 @@ async function bootstrap() {
 
   fastify.get('/api/version', async () => ({
     name: 'enterprise-ai-chat-backend',
-    version: '1.4.0',
+    version: '1.4.2',
     buildTime: BUILD_TIME,
     nodeVersion: process.version,
     environment: process.env.NODE_ENV || 'development'

@@ -17,15 +17,16 @@ export interface VSCodeAPI {
 // Message from extension
 export interface ExtensionMessage {
   type:
-    | 'addMessage'
-    | 'streamStart'
-    | 'streamChunk'
-    | 'streamEnd'
-    | 'setLoading'
-    | 'clearMessages'
-    | 'updateModels'
-    | 'setAuthenticated'
-    | 'insertCode';
+  | 'addMessage'
+  | 'streamStart'
+  | 'streamChunk'
+  | 'streamEnd'
+  | 'setLoading'
+  | 'clearMessages'
+  | 'updateModels'
+  | 'setAuthenticated'
+  | 'insertCode'
+  | 'updateSettings';
   payload?: any;
 }
 

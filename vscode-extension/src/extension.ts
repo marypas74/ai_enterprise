@@ -368,9 +368,11 @@ const PROJECT_LOAD_COOLDOWN = 5000; // 5 seconds minimum between loads
 // Circuit breaker - prevents DDOS on backend
 let projectLoadCallCount = 0;
 let circuitBreakerWindowStart = 0;
-const CIRCUIT_BREAKER_MAX_CALLS = 3;
-const CIRCUIT_BREAKER_WINDOW_MS = 3000; // 3 seconds
+const CIRCUIT_BREAKER_MAX_CALLS = 10; // Allow more calls before tripping
+const CIRCUIT_BREAKER_WINDOW_MS = 10000; // 10 seconds window
 let circuitBreakerTripped = false;
+let circuitBreakerTripTime = 0;
+const CIRCUIT_BREAKER_RESET_MS = 30000; // Auto-reset after 30 seconds
 
 // RAG Configuration (fetched from admin console)
 let ragConfig: RAGConfig = {
@@ -638,6 +640,148 @@ async function handleSendMessage(message: string, context: vscode.ExtensionConte
         await sendBackendMessage(message, panel);
     } else {
         panel.addMessage('system', 'Please login first or configure Claude API key in settings.');
+    }
+}
+
+/**
+ * Handle agentic message from Kanban task execution
+ * Uses /api/chat/agentic endpoint with tool support
+ */
+async function handleAgenticMessage(
+    panel: ClaudeCodePanel,
+    message: string,
+    projectId: number,
+    context: vscode.ExtensionContext
+) {
+    if (!accessToken) {
+        panel.addMessage('system', 'Please login first to execute tasks.');
+        vscode.commands.executeCommand('enterprise-ai-chat.login');
+        return;
+    }
+
+    const config = vscode.workspace.getConfiguration('enterprise-ai-chat');
+    const serverUrl = config.get<string>('serverUrl') || 'https://192.168.1.123';
+    const model = config.get<string>('claudeModel') || 'claude-sonnet-4-20250514';
+
+    outputChannel.appendLine(`[Agentic Panel] Starting: message=${message.substring(0, 50)}..., projectId=${projectId}, model=${model}`);
+
+    // Notify webview that we're starting
+    panel.streamStart();
+
+    try {
+        const https = require('https');
+        const url = new URL(`${serverUrl}/api/chat/agentic`);
+
+        const requestBody = JSON.stringify({
+            message,
+            projectId,
+            model,
+            systemPrompt: `You are an AI coding assistant with DIRECT FILE SYSTEM ACCESS.
+
+## CRITICAL INSTRUCTIONS:
+1. When generating code, you MUST use the 'write_file' tool to save files. DO NOT just print code.
+2. Files are saved to a network repository at: \\\\192.168.1.123\\projects\\repositories
+3. Use 'list_files' to check existing project structure before writing.
+4. Use 'read_file' to read existing files when needed.
+
+## WORKFLOW:
+1. Analyze the user's request
+2. Plan the file structure (e.g., src/main.py, tests/test_main.py)
+3. Use write_file tool to CREATE each file with full content
+4. Explain what you created and how to use it
+
+REMEMBER: Always USE THE TOOLS. Never just print code without saving it.`,
+            enableTools: true
+        });
+
+        const options = {
+            hostname: url.hostname,
+            port: url.port || 443,
+            path: url.pathname,
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${accessToken}`,
+                'Accept': 'text/event-stream',
+                'Content-Length': Buffer.byteLength(requestBody),
+            },
+            rejectUnauthorized: false,
+        };
+
+        const req = https.request(options, (res: any) => {
+            outputChannel.appendLine(`[Agentic Panel] Response status: ${res.statusCode}`);
+
+            if (res.statusCode !== 200) {
+                let errorBody = '';
+                res.on('data', (chunk: Buffer) => { errorBody += chunk.toString(); });
+                res.on('end', () => {
+                    panel.streamEnd();
+                    let errorMsg = `Server error: ${res.statusCode}`;
+                    try {
+                        const parsed = JSON.parse(errorBody);
+                        errorMsg = parsed.error || parsed.message || errorMsg;
+                    } catch {}
+                    panel.streamError(errorMsg);
+                });
+                return;
+            }
+
+            let buffer = '';
+            let chunkCount = 0;
+
+            res.on('data', (chunk: Buffer) => {
+                buffer += chunk.toString();
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const jsonStr = line.slice(6).trim();
+                        if (!jsonStr) continue;
+
+                        try {
+                            const data = JSON.parse(jsonStr);
+                            chunkCount++;
+                            outputChannel.appendLine(`[Agentic Panel] Chunk #${chunkCount}: keys=${Object.keys(data).join(',')}`);
+
+                            if (data.content) {
+                                panel.streamChunk(data.content);
+                            }
+                            if (data.error) {
+                                panel.streamError(data.error);
+                            }
+                            if (data.done) {
+                                panel.streamEnd();
+                            }
+                        } catch (e) {
+                            // Skip invalid JSON
+                        }
+                    }
+                }
+            });
+
+            res.on('end', () => {
+                outputChannel.appendLine(`[Agentic Panel] Stream ended, ${chunkCount} chunks received`);
+                panel.streamEnd();
+            });
+
+            res.on('error', (err: Error) => {
+                outputChannel.appendLine(`[Agentic Panel] Response error: ${err.message}`);
+                panel.streamError(err.message);
+            });
+        });
+
+        req.on('error', (err: Error) => {
+            outputChannel.appendLine(`[Agentic Panel] Request error: ${err.message}`);
+            panel.streamError(err.message);
+        });
+
+        req.write(requestBody);
+        req.end();
+
+    } catch (error: any) {
+        outputChannel.appendLine(`[Agentic Panel] Error: ${error.message}`);
+        panel.streamError(error.message);
     }
 }
 
@@ -1297,6 +1441,19 @@ Output only the modified code, nothing else:`
             await handleSendMessage(message, context);
         }),
 
+        // Handle agentic message from Kanban task execution
+        vscode.commands.registerCommand('enterprise-ai-chat.sendAgenticMessage', async (message: string, projectId: number) => {
+            outputChannel.appendLine(`[Agentic Command] Received: message=${message?.substring(0, 50)}..., projectId=${projectId}`);
+            const panel = getPanel();
+            await handleAgenticMessage(panel, message, projectId, context);
+        }),
+
+        // Handle abort request
+        vscode.commands.registerCommand('enterprise-ai-chat.abortRequest', () => {
+            outputChannel.appendLine('[Abort] Request aborted by user');
+            // Currently just logs - actual abort would require AbortController in fetch
+        }),
+
         // Handle model selection
         vscode.commands.registerCommand('enterprise-ai-chat.selectModel', (modelId: string) => {
             selectedModel = modelId;
@@ -1306,7 +1463,7 @@ Output only the modified code, nothing else:`
 
         // Get version info - for debugging deployments
         vscode.commands.registerCommand('enterprise-ai-chat.getVersionInfo', async () => {
-            const extensionVersion = '2.9.15';
+            const extensionVersion = '2.9.21';
             let backendVersion = null;
 
             try {
@@ -1435,9 +1592,18 @@ Output only the modified code, nothing else:`
         vscode.commands.registerCommand('enterprise-ai-chat.loadProjects', async () => {
             const now = Date.now();
 
-            // CIRCUIT BREAKER: Check if tripped
+            // CIRCUIT BREAKER: Auto-reset after timeout
+            if (circuitBreakerTripped && (now - circuitBreakerTripTime > CIRCUIT_BREAKER_RESET_MS)) {
+                outputChannel.appendLine('[Kanban] CIRCUIT BREAKER AUTO-RESET after 30s cooldown');
+                circuitBreakerTripped = false;
+                projectLoadCallCount = 0;
+                circuitBreakerWindowStart = now;
+            }
+
+            // CIRCUIT BREAKER: Check if still tripped
             if (circuitBreakerTripped) {
-                outputChannel.appendLine('[Kanban] CIRCUIT BREAKER TRIPPED - refusing all loadProjects calls');
+                const remainingMs = CIRCUIT_BREAKER_RESET_MS - (now - circuitBreakerTripTime);
+                outputChannel.appendLine(`[Kanban] CIRCUIT BREAKER ACTIVE - resets in ${Math.ceil(remainingMs/1000)}s`);
                 return;
             }
 
@@ -1449,12 +1615,11 @@ Output only the modified code, nothing else:`
 
             // CIRCUIT BREAKER: Increment and check
             projectLoadCallCount++;
-            outputChannel.appendLine(`[Kanban] loadProjects call #${projectLoadCallCount} in window`);
 
             if (projectLoadCallCount > CIRCUIT_BREAKER_MAX_CALLS) {
                 circuitBreakerTripped = true;
-                outputChannel.appendLine(`[Kanban] CIRCUIT BREAKER TRIGGERED: ${projectLoadCallCount} calls in ${CIRCUIT_BREAKER_WINDOW_MS}ms - STOPPING ALL REQUESTS`);
-                vscode.window.showErrorMessage('Kanban: Too many requests detected. Please reload the extension.');
+                circuitBreakerTripTime = now;
+                outputChannel.appendLine(`[Kanban] CIRCUIT BREAKER TRIGGERED: ${projectLoadCallCount} calls in ${CIRCUIT_BREAKER_WINDOW_MS/1000}s - auto-resets in 30s`);
                 return;
             }
 
@@ -1751,7 +1916,7 @@ function initializeApi() {
         baseURL: serverUrl,
         headers: { 'Content-Type': 'application/json' },
         httpsAgent: httpsAgent,
-        timeout: 120000
+        timeout: 300000  // 5 minutes - needed for Ollama models which can take longer
     });
 
     if (accessToken) {
@@ -2342,8 +2507,14 @@ class ChatViewProvider implements vscode.WebviewViewProvider {
                     break;
                 case 'sendAgentic':
                     // Agentic mode with tool support for task execution
-                    if (data.message?.trim() && data.projectId) {
+                    // CRITICAL FIX: Check for undefined/null, NOT truthiness (projectId: 0 is falsy!)
+                    console.log('[Extension] sendAgentic received:', { message: data.message?.substring(0, 50), projectId: data.projectId });
+                    if (data.message?.trim() && data.projectId !== undefined && data.projectId !== null) {
+                        console.log('[Extension] ✅ Calling sendAgenticMessage...');
                         await this.sendAgenticMessage(data.message, data.projectId);
+                    } else {
+                        console.error('[Extension] ❌ sendAgentic BLOCKED:', { hasMessage: !!data.message?.trim(), projectId: data.projectId });
+                        vscode.window.showErrorMessage(`Cannot execute task: ${!data.message?.trim() ? 'No message' : 'No project ID'}`);
                     }
                     break;
             }

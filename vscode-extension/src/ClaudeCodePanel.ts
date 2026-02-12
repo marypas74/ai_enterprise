@@ -283,6 +283,26 @@ export class ClaudeCodePanel {
                     message.conversationId
                 );
                 break;
+
+            case 'sendAgentic':
+                // Handle agentic task execution from Kanban
+                console.log('[ClaudeCodePanel] sendAgentic received:', message.message?.substring(0, 50), 'projectId:', message.projectId);
+                if (message.message && message.projectId !== undefined) {
+                    vscode.commands.executeCommand(
+                        'enterprise-ai-chat.sendAgenticMessage',
+                        message.message,
+                        message.projectId
+                    );
+                } else {
+                    console.error('[ClaudeCodePanel] sendAgentic missing data:', { hasMessage: !!message.message, projectId: message.projectId });
+                }
+                break;
+
+            case 'abortRequest':
+                // Handle abort request
+                console.log('[ClaudeCodePanel] abortRequest received');
+                vscode.commands.executeCommand('enterprise-ai-chat.abortRequest');
+                break;
         }
     }
 

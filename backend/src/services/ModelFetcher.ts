@@ -90,15 +90,12 @@ async function fetchAnthropicModels(apiKey: string): Promise<AvailableModel[]> {
       return [];
     }
 
-    // Key is valid, return known Claude models
+    // Key is valid, return known Claude models (Updated Jan 2026)
+    // Note: claude-3-5-sonnet-20241022 and claude-3-5-haiku-20241022 are deprecated
     return [
       { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', provider: 'anthropic' },
       { id: 'claude-opus-4-20250514', name: 'Claude Opus 4', provider: 'anthropic' },
-      { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', provider: 'anthropic' },
-      { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku', provider: 'anthropic' },
-      { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus', provider: 'anthropic' },
-      { id: 'claude-3-sonnet-20240229', name: 'Claude 3 Sonnet', provider: 'anthropic' },
-      { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku', provider: 'anthropic' },
+      { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku (Fast)', provider: 'anthropic' },
     ];
   } catch (error) {
     console.error('Failed to verify Anthropic API:', error);

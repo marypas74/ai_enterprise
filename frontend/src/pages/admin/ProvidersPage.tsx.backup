@@ -1,0 +1,1104 @@
+import { useState, useEffect } from 'react';
+import { api } from '../../services/api';
+import DynamicForm from '../../components/DynamicForm';
+import {
+  Settings,
+  Check,
+  X,
+  Play,
+  RefreshCw,
+  AlertCircle,
+  CheckCircle,
+  Cloud,
+  Server,
+  Key,
+  LogIn,
+  Trash2,
+  ExternalLink,
+  Copy
+} from 'lucide-react';
+import clsx from 'clsx';
+
+interface Provider {
+  id: number;
+  name: string;
+  display_name: string;
+  provider_type: string;
+  is_enabled: boolean;
+  is_local: boolean;
+  config_schema: any;
+  settings?: Record<string, any>;
+}
+
+interface OAuthStatus {
+  configured: boolean;
+  hasApiKey: boolean;
+  hasOAuthToken: boolean;
+  preferOAuth: boolean;
+}
+
+interface GoogleOAuthStatus {
+  configured: boolean;
+  hasApiKey: boolean;
+  user: {
+    hasOAuth: boolean;
+    expiresAt?: string;
+    hasRefreshToken: boolean;
+  };
+}
+
+interface GoogleProOAuthStatus {
+  configured: boolean;
+  hasClientId: boolean;
+  hasClientSecret: boolean;
+  hasOAuthToken: boolean;
+  canStartOAuth: boolean;
+}
+
+interface OAuthInitResponse {
+  authUrl: string;
+  state: string;
+  instructions: string;
+}
+
+export default function ProvidersPage() {
+  const [providers, setProviders] = useState<Provider[]>([]);
+  const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [syncing, setSyncing] = useState(false);
+
+  // Claude Pro OAuth state
+  const [oauthStatus, setOAuthStatus] = useState<OAuthStatus | null>(null);
+  const [oauthLoading, setOAuthLoading] = useState(false);
+  const [oauthData, setOAuthData] = useState<OAuthInitResponse | null>(null);
+  const [oauthCode, setOAuthCode] = useState('');
+  const [oauthError, setOAuthError] = useState<string | null>(null);
+  const [showManualToken, setShowManualToken] = useState(false);
+  const [manualToken, setManualToken] = useState('');
+  const [manualRefreshToken, setManualRefreshToken] = useState('');
+
+  // Google OAuth state (user-level)
+  const [googleOAuthStatus, setGoogleOAuthStatus] = useState<GoogleOAuthStatus | null>(null);
+  const [googleOAuthLoading, setGoogleOAuthLoading] = useState(false);
+  const [googleOAuthError, setGoogleOAuthError] = useState<string | null>(null);
+
+  // Google Pro OAuth state (admin-level)
+  const [googleProOAuthStatus, setGoogleProOAuthStatus] = useState<GoogleProOAuthStatus | null>(null);
+  const [googleProOAuthLoading, setGoogleProOAuthLoading] = useState(false);
+  const [googleProOAuthError, setGoogleProOAuthError] = useState<string | null>(null);
+  const [showGoogleProManualToken, setShowGoogleProManualToken] = useState(false);
+  const [googleProManualToken, setGoogleProManualToken] = useState('');
+  const [googleProManualRefreshToken, setGoogleProManualRefreshToken] = useState('');
+
+  useEffect(() => {
+    loadProviders();
+  }, []);
+
+  // Load OAuth status when OAuth providers are selected
+  useEffect(() => {
+    if (selectedProvider?.name === 'anthropic_oauth') {
+      loadOAuthStatus();
+    }
+    // Load Google OAuth status when Google provider is selected
+    if (selectedProvider?.name === 'google') {
+      loadGoogleOAuthStatus();
+    }
+    // Load Google Pro OAuth status when Google Pro provider is selected
+    if (selectedProvider?.name === 'google_pro') {
+      loadGoogleProOAuthStatus();
+    }
+  }, [selectedProvider]);
+
+  const loadProviders = async () => {
+    try {
+      const response = await api.get('/admin/providers');
+      setProviders(response.data);
+    } catch (err) {
+      console.error('Failed to load providers:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadProviderDetails = async (id: number) => {
+    try {
+      const response = await api.get(`/admin/providers/${id}`);
+      setSelectedProvider(response.data);
+      setTestResult(null);
+    } catch (err) {
+      console.error('Failed to load provider details:', err);
+    }
+  };
+
+  const toggleProvider = async (id: number, enabled: boolean) => {
+    try {
+      await api.patch(`/admin/providers/${id}`, { is_enabled: enabled });
+      setProviders(prev =>
+        prev.map(p => p.id === id ? { ...p, is_enabled: enabled } : p)
+      );
+    } catch (err) {
+      console.error('Failed to toggle provider:', err);
+    }
+  };
+
+  const saveSettings = async (values: Record<string, any>) => {
+    if (!selectedProvider) return;
+    setSaving(true);
+    try {
+      await api.put(`/admin/providers/${selectedProvider.id}/settings`, values);
+      setTestResult({ success: true, message: 'Settings saved successfully' });
+    } catch (err) {
+      console.error('Failed to save settings:', err);
+      setTestResult({ success: false, message: 'Failed to save settings' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const testConnection = async () => {
+    if (!selectedProvider) return;
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const response = await api.post(`/admin/providers/${selectedProvider.id}/test`);
+      setTestResult({ success: response.data.success, message: response.data.message || 'Connection successful' });
+    } catch (err: any) {
+      setTestResult({
+        success: false,
+        message: err.response?.data?.error || 'Connection failed'
+      });
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const syncOllamaModels = async () => {
+    setSyncing(true);
+    try {
+      const response = await api.post('/admin/providers/ollama/sync');
+      alert(`Synced ${response.data.models?.length || 0} models from Ollama`);
+    } catch (err: any) {
+      alert('Failed to sync: ' + (err.response?.data?.error || 'Unknown error'));
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  // Claude Pro OAuth functions
+  const loadOAuthStatus = async () => {
+    try {
+      const response = await api.get('/admin/providers/anthropic/oauth/status');
+      setOAuthStatus(response.data);
+    } catch (err) {
+      console.error('Failed to load OAuth status:', err);
+    }
+  };
+
+  const initOAuth = async () => {
+    setOAuthLoading(true);
+    setOAuthError(null);
+    setOAuthData(null);
+    try {
+      const response = await api.post('/admin/providers/anthropic/oauth/init');
+      setOAuthData(response.data);
+      // Open the auth URL in a new tab
+      window.open(response.data.authUrl, '_blank');
+    } catch (err: any) {
+      setOAuthError(err.response?.data?.error || 'Failed to initialize OAuth');
+    } finally {
+      setOAuthLoading(false);
+    }
+  };
+
+  const completeOAuth = async () => {
+    if (!oauthCode.trim() || !oauthData?.state) {
+      setOAuthError('Please enter the authorization code');
+      return;
+    }
+    setOAuthLoading(true);
+    setOAuthError(null);
+    try {
+      await api.post('/admin/providers/anthropic/oauth/complete', {
+        code: oauthCode.trim(),
+        state: oauthData.state
+      });
+      setOAuthData(null);
+      setOAuthCode('');
+      await loadOAuthStatus();
+      setTestResult({ success: true, message: 'Claude Pro OAuth configured successfully!' });
+    } catch (err: any) {
+      setOAuthError(err.response?.data?.error || 'Failed to complete OAuth');
+    } finally {
+      setOAuthLoading(false);
+    }
+  };
+
+  const removeOAuth = async () => {
+    if (!confirm('Remove Claude Pro OAuth token? You will need to reconfigure it.')) return;
+    setOAuthLoading(true);
+    try {
+      await api.delete('/admin/providers/anthropic/oauth');
+      await loadOAuthStatus();
+      setTestResult({ success: true, message: 'OAuth token removed' });
+    } catch (err: any) {
+      setOAuthError(err.response?.data?.error || 'Failed to remove OAuth');
+    } finally {
+      setOAuthLoading(false);
+    }
+  };
+
+  const submitManualToken = async () => {
+    if (!manualToken.trim()) {
+      setOAuthError('Please enter the access token');
+      return;
+    }
+    setOAuthLoading(true);
+    setOAuthError(null);
+    try {
+      await api.post('/admin/providers/anthropic/oauth/token', {
+        accessToken: manualToken.trim(),
+        refreshToken: manualRefreshToken.trim() || undefined
+      });
+      setManualToken('');
+      setManualRefreshToken('');
+      setShowManualToken(false);
+      await loadOAuthStatus();
+      setTestResult({ success: true, message: 'Claude Pro OAuth token configurato con successo!' });
+    } catch (err: any) {
+      setOAuthError(err.response?.data?.error || 'Failed to set token');
+    } finally {
+      setOAuthLoading(false);
+    }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+  };
+
+  // Google OAuth functions
+  const loadGoogleOAuthStatus = async () => {
+    try {
+      const response = await api.get('/auth/google/status');
+      setGoogleOAuthStatus(response.data);
+    } catch (err) {
+      console.error('Failed to load Google OAuth status:', err);
+    }
+  };
+
+  const startGoogleOAuth = async () => {
+    setGoogleOAuthLoading(true);
+    setGoogleOAuthError(null);
+    try {
+      const response = await api.get('/auth/google/authorize');
+      // Open the auth URL in a new tab
+      window.open(response.data.authUrl, '_blank');
+    } catch (err: any) {
+      if (err.response?.status === 400) {
+        setGoogleOAuthError('Google OAuth non configurato. Configura GOOGLE_CLIENT_ID e GOOGLE_CLIENT_SECRET nel server.');
+      } else {
+        setGoogleOAuthError(err.response?.data?.error || 'Errore durante l\'avvio OAuth');
+      }
+    } finally {
+      setGoogleOAuthLoading(false);
+    }
+  };
+
+  const disconnectGoogleOAuth = async () => {
+    if (!confirm('Disconnettere l\'account Google? Dovrai riconfigurare OAuth.')) return;
+    setGoogleOAuthLoading(true);
+    try {
+      await api.post('/auth/google/disconnect');
+      await loadGoogleOAuthStatus();
+      setTestResult({ success: true, message: 'Account Google disconnesso' });
+    } catch (err: any) {
+      setGoogleOAuthError(err.response?.data?.error || 'Errore durante la disconnessione');
+    } finally {
+      setGoogleOAuthLoading(false);
+    }
+  };
+
+  const testGoogleConnection = async () => {
+    setGoogleOAuthLoading(true);
+    setGoogleOAuthError(null);
+    try {
+      const response = await api.get('/auth/google/test');
+      setTestResult({ success: true, message: `Connessione Google riuscita! ${response.data.modelsAvailable} modelli disponibili` });
+    } catch (err: any) {
+      setGoogleOAuthError(err.response?.data?.error || 'Test connessione fallito');
+    } finally {
+      setGoogleOAuthLoading(false);
+    }
+  };
+
+  // Google Pro OAuth functions (admin-level)
+  const loadGoogleProOAuthStatus = async () => {
+    try {
+      const response = await api.get('/admin/providers/google/oauth/status');
+      setGoogleProOAuthStatus(response.data);
+    } catch (err) {
+      console.error('Failed to load Google Pro OAuth status:', err);
+    }
+  };
+
+  const startGoogleProOAuth = async () => {
+    setGoogleProOAuthLoading(true);
+    setGoogleProOAuthError(null);
+    try {
+      const response = await api.post('/admin/providers/google/oauth/init');
+      // Open the auth URL in a popup window
+      const popup = window.open(response.data.authUrl, 'google-oauth', 'width=600,height=700');
+
+      // Listen for success message from popup
+      const handleMessage = (event: MessageEvent) => {
+        if (event.data?.type === 'google-oauth-success') {
+          window.removeEventListener('message', handleMessage);
+          loadGoogleProOAuthStatus();
+          setTestResult({ success: true, message: 'Google Pro connesso con successo!' });
+        }
+      };
+      window.addEventListener('message', handleMessage);
+
+      // Also poll for status in case popup communication fails
+      const pollInterval = setInterval(async () => {
+        if (popup?.closed) {
+          clearInterval(pollInterval);
+          window.removeEventListener('message', handleMessage);
+          await loadGoogleProOAuthStatus();
+        }
+      }, 1000);
+
+    } catch (err: any) {
+      if (err.response?.status === 400) {
+        setGoogleProOAuthError(err.response?.data?.details || err.response?.data?.error || 'Configura Client ID e Client Secret prima di continuare');
+      } else {
+        setGoogleProOAuthError(err.response?.data?.error || 'Errore durante l\'avvio OAuth');
+      }
+    } finally {
+      setGoogleProOAuthLoading(false);
+    }
+  };
+
+  const disconnectGoogleProOAuth = async () => {
+    if (!confirm('Disconnettere Google Pro? Dovrai riconfigurare OAuth.')) return;
+    setGoogleProOAuthLoading(true);
+    try {
+      await api.delete('/admin/providers/google/oauth');
+      await loadGoogleProOAuthStatus();
+      setTestResult({ success: true, message: 'Google Pro disconnesso' });
+    } catch (err: any) {
+      setGoogleProOAuthError(err.response?.data?.error || 'Errore durante la disconnessione');
+    } finally {
+      setGoogleProOAuthLoading(false);
+    }
+  };
+
+  const submitGoogleProManualToken = async () => {
+    if (!googleProManualToken.trim()) {
+      setGoogleProOAuthError('Please enter the access token');
+      return;
+    }
+    setGoogleProOAuthLoading(true);
+    setGoogleProOAuthError(null);
+    try {
+      await api.post('/admin/providers/google/oauth/token', {
+        accessToken: googleProManualToken.trim(),
+        refreshToken: googleProManualRefreshToken.trim() || undefined
+      });
+      setGoogleProManualToken('');
+      setGoogleProManualRefreshToken('');
+      setShowGoogleProManualToken(false);
+      await loadGoogleProOAuthStatus();
+      setTestResult({ success: true, message: 'Google Pro OAuth token configurato con successo!' });
+    } catch (err: any) {
+      setGoogleProOAuthError(err.response?.data?.error || 'Failed to set token');
+    } finally {
+      setGoogleProOAuthLoading(false);
+    }
+  };
+
+  const getProviderIcon = (type: string) => {
+    switch (type) {
+      case 'openai': return '🤖';
+      case 'anthropic': return '🧠';
+      case 'google': return '✨';
+      case 'ollama': return '🦙';
+      default: return '⚙️';
+    }
+  };
+
+  if (loading) {
+    return <div className="p-6">Loading...</div>;
+  }
+
+  return (
+    <div className="p-6">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold">AI Providers</h1>
+          <p className="text-surface-500 mt-1">Configure your AI service providers and their API credentials</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Provider List */}
+        <div className="lg:col-span-1 space-y-3">
+          {providers.map(provider => (
+            <div
+              key={provider.id}
+              onClick={() => loadProviderDetails(provider.id)}
+              className={clsx(
+                'card p-4 cursor-pointer transition-all',
+                selectedProvider?.id === provider.id
+                  ? 'ring-2 ring-primary-500'
+                  : 'hover:bg-surface-50 dark:hover:bg-surface-800'
+              )}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">{getProviderIcon(provider.provider_type)}</span>
+                  <div>
+                    <h3 className="font-semibold">{provider.display_name}</h3>
+                    <div className="flex items-center gap-2 text-xs text-surface-500">
+                      {provider.is_local ? (
+                        <><Server className="w-3 h-3" /> Local</>
+                      ) : (
+                        <><Cloud className="w-3 h-3" /> Cloud</>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleProvider(provider.id, !provider.is_enabled);
+                  }}
+                  className={clsx(
+                    'p-1.5 rounded-full transition-colors',
+                    provider.is_enabled
+                      ? 'bg-green-100 text-green-600 dark:bg-green-900/30'
+                      : 'bg-surface-100 text-surface-400 dark:bg-surface-800'
+                  )}
+                >
+                  {provider.is_enabled ? (
+                    <Check className="w-4 h-4" />
+                  ) : (
+                    <X className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Provider Settings */}
+        <div className="lg:col-span-2">
+          {selectedProvider ? (
+            <div className="card p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl">{getProviderIcon(selectedProvider.provider_type)}</span>
+                  <div>
+                    <h2 className="text-xl font-bold">{selectedProvider.display_name}</h2>
+                    <p className="text-sm text-surface-500">
+                      {selectedProvider.is_enabled ? 'Enabled' : 'Disabled'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  {selectedProvider.name === 'ollama' && (
+                    <button
+                      onClick={syncOllamaModels}
+                      disabled={syncing}
+                      className="btn btn-secondary flex items-center gap-2"
+                    >
+                      <RefreshCw className={clsx('w-4 h-4', syncing && 'animate-spin')} />
+                      Sync Models
+                    </button>
+                  )}
+                  <button
+                    onClick={testConnection}
+                    disabled={testing}
+                    className="btn btn-secondary flex items-center gap-2"
+                  >
+                    <Play className={clsx('w-4 h-4', testing && 'animate-pulse')} />
+                    Test Connection
+                  </button>
+                </div>
+              </div>
+
+              {/* Test Result */}
+              {testResult && (
+                <div
+                  className={clsx(
+                    'flex items-center gap-2 p-3 rounded-lg mb-6',
+                    testResult.success
+                      ? 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400'
+                      : 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400'
+                  )}
+                >
+                  {testResult.success ? (
+                    <CheckCircle className="w-5 h-5" />
+                  ) : (
+                    <AlertCircle className="w-5 h-5" />
+                  )}
+                  <span>{testResult.message}</span>
+                </div>
+              )}
+
+              {/* Claude Pro OAuth Section (only for anthropic_oauth provider) */}
+              {selectedProvider.name === 'anthropic_oauth' && (
+                <div className="mb-6 p-4 bg-gradient-to-r from-purple-900/20 to-blue-900/20 rounded-lg border border-purple-500/30">
+                  <div className="flex items-center gap-2 mb-3">
+                    <LogIn className="w-5 h-5 text-purple-400" />
+                    <h3 className="font-semibold text-purple-300">Configurazione OAuth Token</h3>
+                    {oauthStatus?.hasOAuthToken && (
+                      <span className="ml-auto px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full flex items-center gap-1">
+                        <CheckCircle className="w-3 h-3" /> Configurato
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="text-sm text-surface-400 mb-4">
+                    Usa la tua subscription Claude Pro/Max. Gli utenti usano Claude senza bisogno di API key propria.
+                  </p>
+
+                  {oauthError && (
+                    <div className="flex items-center gap-2 p-3 rounded-lg mb-4 bg-red-900/20 text-red-400 text-sm">
+                      <AlertCircle className="w-4 h-4" />
+                      {oauthError}
+                    </div>
+                  )}
+
+                  {oauthStatus?.hasOAuthToken ? (
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => setShowManualToken(true)}
+                        disabled={oauthLoading}
+                        className="btn btn-secondary flex items-center gap-2"
+                      >
+                        <RefreshCw className={clsx('w-4 h-4', oauthLoading && 'animate-spin')} />
+                        Reconfigure
+                      </button>
+                      <button
+                        onClick={removeOAuth}
+                        disabled={oauthLoading}
+                        className="btn bg-red-600 hover:bg-red-700 text-white flex items-center gap-2"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Remove
+                      </button>
+                    </div>
+                  ) : !showManualToken && !oauthData ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => setShowManualToken(true)}
+                          disabled={oauthLoading}
+                          className="btn bg-purple-600 hover:bg-purple-700 text-white flex items-center gap-2"
+                        >
+                          <Key className="w-4 h-4" />
+                          Inserisci Token Manualmente
+                        </button>
+                        <span className="text-surface-500 text-xs">oppure</span>
+                        <button
+                          onClick={initOAuth}
+                          disabled={oauthLoading}
+                          className="btn btn-secondary flex items-center gap-2"
+                        >
+                          <LogIn className={clsx('w-4 h-4', oauthLoading && 'animate-spin')} />
+                          Usa Browser OAuth
+                        </button>
+                      </div>
+                      <p className="text-xs text-surface-500">
+                        Raccomandiamo l'inserimento manuale del token ottenuto da <code className="bg-surface-700 px-1 rounded">claude login</code>
+                      </p>
+                    </div>
+                  ) : oauthData ? (
+                    <div className="space-y-3">
+                      <div className="p-3 bg-surface-800 rounded-lg">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs text-surface-400">URL di autorizzazione:</span>
+                          <button
+                            onClick={() => copyToClipboard(oauthData.authUrl)}
+                            className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1"
+                          >
+                            <Copy className="w-3 h-3" /> Copia URL
+                          </button>
+                        </div>
+                        <input
+                          type="text"
+                          readOnly
+                          value={oauthData.authUrl}
+                          className="input w-full text-xs font-mono bg-surface-900"
+                          onClick={(e) => (e.target as HTMLInputElement).select()}
+                        />
+                      </div>
+
+                      <div className="p-3 bg-amber-900/20 border border-amber-500/30 rounded-lg">
+                        <p className="text-xs text-amber-300 mb-2">
+                          <strong>Nota:</strong> Dopo aver cliccato "Autorizza" su claude.ai, verrai reindirizzato a una pagina.
+                          Copia il parametro <code className="bg-surface-700 px-1 rounded">code=...</code> dalla URL del browser.
+                        </p>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={oauthCode}
+                          onChange={(e) => setOAuthCode(e.target.value)}
+                          placeholder="Incolla il code qui..."
+                          className="input flex-1"
+                        />
+                        <button
+                          onClick={completeOAuth}
+                          disabled={oauthLoading || !oauthCode.trim()}
+                          className="btn bg-green-600 hover:bg-green-700 text-white flex items-center gap-2"
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                          Completa
+                        </button>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <a
+                          href={oauthData.authUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-blue-400 hover:underline flex items-center gap-1"
+                        >
+                          <ExternalLink className="w-3 h-3" /> Apri pagina autorizzazione
+                        </a>
+                        <button
+                          onClick={() => { setOAuthData(null); setOAuthCode(''); }}
+                          className="text-xs text-surface-400 hover:text-surface-300"
+                        >
+                          Annulla
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="p-3 bg-surface-800 rounded-lg">
+                        <p className="text-xs text-surface-400 mb-2">
+                          <strong className="text-purple-300">Come ottenere il token:</strong>
+                        </p>
+                        <ol className="text-xs text-surface-400 list-decimal list-inside space-y-1">
+                          <li>Installa Claude Code CLI: <code className="bg-surface-700 px-1 rounded">npm install -g @anthropic-ai/claude-code</code></li>
+                          <li>Esegui: <code className="bg-surface-700 px-1 rounded">claude login</code></li>
+                          <li>Completa l'autorizzazione nel browser</li>
+                          <li>Copia il token da: <code className="bg-surface-700 px-1 rounded">~/.claude/credentials.json</code></li>
+                          <li>Incolla il campo <code className="bg-surface-700 px-1 rounded">accessToken</code> qui sotto</li>
+                        </ol>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-xs text-surface-400">Access Token *</label>
+                        <input
+                          type="password"
+                          value={manualToken}
+                          onChange={(e) => setManualToken(e.target.value)}
+                          placeholder="sk-ant-oat01-..."
+                          className="input w-full font-mono text-sm"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-xs text-surface-400">Refresh Token (opzionale, per auto-rinnovo)</label>
+                        <input
+                          type="password"
+                          value={manualRefreshToken}
+                          onChange={(e) => setManualRefreshToken(e.target.value)}
+                          placeholder="anthropic-refresh-..."
+                          className="input w-full font-mono text-sm"
+                        />
+                      </div>
+
+                      <div className="flex gap-2">
+                        <button
+                          onClick={submitManualToken}
+                          disabled={oauthLoading || !manualToken.trim()}
+                          className="btn bg-green-600 hover:bg-green-700 text-white flex items-center gap-2"
+                        >
+                          {oauthLoading ? (
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <CheckCircle className="w-4 h-4" />
+                          )}
+                          Salva Token
+                        </button>
+                        <button
+                          onClick={() => { setShowManualToken(false); setManualToken(''); setManualRefreshToken(''); setOAuthError(null); }}
+                          className="btn btn-secondary"
+                        >
+                          Annulla
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Google OAuth Section */}
+              {selectedProvider.name === 'google' && (
+                <div className="mb-6 p-4 bg-gradient-to-r from-blue-900/20 to-green-900/20 rounded-lg border border-blue-500/30">
+                  <div className="flex items-center gap-2 mb-3">
+                    <LogIn className="w-5 h-5 text-blue-400" />
+                    <h3 className="font-semibold text-blue-300">Autenticazione Google OAuth</h3>
+                    {googleOAuthStatus?.user?.hasOAuth && (
+                      <span className="ml-auto px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full flex items-center gap-1">
+                        <CheckCircle className="w-3 h-3" /> Connesso
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="text-sm text-surface-400 mb-4">
+                    Puoi autenticarti con il tuo account Google per utilizzare Gemini API senza inserire una API key.
+                    In alternativa, puoi usare una API key qui sotto.
+                  </p>
+
+                  {googleOAuthError && (
+                    <div className="flex items-center gap-2 p-3 rounded-lg mb-4 bg-red-900/20 text-red-400 text-sm">
+                      <AlertCircle className="w-4 h-4" />
+                      {googleOAuthError}
+                    </div>
+                  )}
+
+                  {googleOAuthStatus?.user?.hasOAuth ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 text-sm text-green-400">
+                        <CheckCircle className="w-4 h-4" />
+                        Account Google connesso
+                        {googleOAuthStatus.user.expiresAt && (
+                          <span className="text-surface-500 text-xs">
+                            (scade: {new Date(googleOAuthStatus.user.expiresAt).toLocaleDateString()})
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={testGoogleConnection}
+                          disabled={googleOAuthLoading}
+                          className="btn btn-secondary flex items-center gap-2"
+                        >
+                          <Play className={clsx('w-4 h-4', googleOAuthLoading && 'animate-pulse')} />
+                          Test Connessione
+                        </button>
+                        <button
+                          onClick={disconnectGoogleOAuth}
+                          disabled={googleOAuthLoading}
+                          className="btn bg-red-600 hover:bg-red-700 text-white flex items-center gap-2"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          Disconnetti
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {googleOAuthStatus?.configured ? (
+                        <button
+                          onClick={startGoogleOAuth}
+                          disabled={googleOAuthLoading}
+                          className="btn bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2"
+                        >
+                          <LogIn className={clsx('w-4 h-4', googleOAuthLoading && 'animate-spin')} />
+                          Accedi con Google
+                        </button>
+                      ) : (
+                        <div className="p-3 bg-amber-900/20 border border-amber-500/30 rounded-lg">
+                          <p className="text-xs text-amber-300">
+                            <strong>OAuth non configurato:</strong> Per abilitare l'autenticazione Google, configura le variabili ambiente:
+                          </p>
+                          <ul className="text-xs text-amber-200 list-disc list-inside mt-2">
+                            <li><code className="bg-surface-700 px-1 rounded">GOOGLE_CLIENT_ID</code></li>
+                            <li><code className="bg-surface-700 px-1 rounded">GOOGLE_CLIENT_SECRET</code></li>
+                            <li><code className="bg-surface-700 px-1 rounded">GOOGLE_REDIRECT_URI</code></li>
+                          </ul>
+                          <p className="text-xs text-surface-400 mt-2">
+                            Puoi comunque usare l'API Key qui sotto come alternativa.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="mt-4 pt-4 border-t border-surface-700">
+                    <p className="text-xs text-surface-500">
+                      <strong>Alternativa:</strong> Inserisci una API Key di Google AI Studio qui sotto per usare Gemini senza OAuth.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Google Pro OAuth Section */}
+              {selectedProvider.name === 'google_pro' && (
+                <div className="mb-6 p-4 bg-gradient-to-r from-orange-900/20 to-yellow-900/20 rounded-lg border border-orange-500/30">
+                  <div className="flex items-center gap-2 mb-3">
+                    <LogIn className="w-5 h-5 text-orange-400" />
+                    <h3 className="font-semibold text-orange-300">Google Pro OAuth</h3>
+                    {googleProOAuthStatus?.hasOAuthToken && (
+                      <span className="ml-auto px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full flex items-center gap-1">
+                        <CheckCircle className="w-3 h-3" /> Connesso
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="text-sm text-surface-400 mb-4">
+                    Usa il tuo account Google per accedere a Gemini API. Tutti gli utenti potranno usare Gemini senza bisogno di API key propria.
+                  </p>
+
+                  {googleProOAuthError && (
+                    <div className="flex items-center gap-2 p-3 rounded-lg mb-4 bg-red-900/20 text-red-400 text-sm">
+                      <AlertCircle className="w-4 h-4" />
+                      {googleProOAuthError}
+                    </div>
+                  )}
+
+                  {googleProOAuthStatus?.hasOAuthToken ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 text-sm text-green-400">
+                        <CheckCircle className="w-4 h-4" />
+                        Google Pro connesso e attivo
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => setShowGoogleProManualToken(true)}
+                          disabled={googleProOAuthLoading}
+                          className="btn btn-secondary flex items-center gap-2"
+                        >
+                          <RefreshCw className={clsx('w-4 h-4', googleProOAuthLoading && 'animate-spin')} />
+                          Riconfigura
+                        </button>
+                        <button
+                          onClick={disconnectGoogleProOAuth}
+                          disabled={googleProOAuthLoading}
+                          className="btn bg-red-600 hover:bg-red-700 text-white flex items-center gap-2"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          Disconnetti
+                        </button>
+                      </div>
+                    </div>
+                  ) : !showGoogleProManualToken ? (
+                    <div className="space-y-4">
+                      {/* Opzione 1: OAuth Browser (se configurato) */}
+                      {googleProOAuthStatus?.canStartOAuth && googleProOAuthStatus?.hasClientId && (
+                        <div className="space-y-3">
+                          <button
+                            onClick={startGoogleProOAuth}
+                            disabled={googleProOAuthLoading}
+                            className="btn bg-orange-600 hover:bg-orange-700 text-white flex items-center gap-2"
+                          >
+                            <LogIn className={clsx('w-4 h-4', googleProOAuthLoading && 'animate-spin')} />
+                            Accedi con Google
+                          </button>
+                          <p className="text-xs text-surface-500">
+                            Si aprirà una finestra per autenticarti con il tuo account Google.
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Separatore */}
+                      {googleProOAuthStatus?.hasClientId && (
+                        <div className="flex items-center gap-3">
+                          <div className="flex-1 border-t border-surface-700"></div>
+                          <span className="text-xs text-surface-500">oppure</span>
+                          <div className="flex-1 border-t border-surface-700"></div>
+                        </div>
+                      )}
+
+                      {/* Opzione 2: Token Manuale */}
+                      <button
+                        onClick={() => setShowGoogleProManualToken(true)}
+                        disabled={googleProOAuthLoading}
+                        className="btn btn-secondary flex items-center gap-2"
+                      >
+                        <Key className="w-4 h-4" />
+                        Inserisci Token Manualmente
+                      </button>
+
+                      {/* Istruzioni per configurare OAuth */}
+                      {!googleProOAuthStatus?.hasClientId && (
+                        <div className="p-3 bg-blue-900/20 border border-blue-500/30 rounded-lg">
+                          <p className="text-xs text-blue-300 mb-2">
+                            <strong>Per abilitare "Accedi con Google":</strong>
+                          </p>
+                          <ol className="text-xs text-blue-200 list-decimal list-inside space-y-1">
+                            <li>Vai su <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-100">Google Cloud Console</a></li>
+                            <li>Crea credenziali OAuth 2.0 (Applicazione Web)</li>
+                            <li>Aggiungi come Redirect URI: <code className="bg-surface-700 px-1 rounded">{window.location.origin}/api/admin/providers/google/oauth/callback</code></li>
+                            <li>Salva Client ID e Client Secret nelle impostazioni sotto</li>
+                          </ol>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="p-3 bg-surface-800 rounded-lg">
+                        <p className="text-xs text-surface-400 mb-2">
+                          <strong className="text-orange-300">Come ottenere il token:</strong>
+                        </p>
+                        <ol className="text-xs text-surface-400 list-decimal list-inside space-y-1">
+                          <li>Su un PC con browser, installa: <code className="bg-surface-700 px-1 rounded">pip install google-genai</code></li>
+                          <li>Esegui: <code className="bg-surface-700 px-1 rounded">gemini auth login</code></li>
+                          <li>Completa l'autorizzazione nel browser</li>
+                          <li>Copia i token da <code className="bg-surface-700 px-1 rounded">~/.gemini/oauth_creds.json</code></li>
+                          <li>Incolla <code className="bg-surface-700 px-1 rounded">access_token</code> e <code className="bg-surface-700 px-1 rounded">refresh_token</code> qui sotto</li>
+                        </ol>
+                      </div>
+
+                      <div className="p-3 bg-amber-900/20 border border-amber-500/30 rounded-lg">
+                        <p className="text-xs text-amber-300">
+                          <strong>Importante:</strong> Il <code className="bg-surface-700 px-1 rounded">refresh_token</code> permette il rinnovo automatico.
+                          Senza di esso, dovrai ri-autenticarti ogni ora.
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-xs text-surface-400">Access Token *</label>
+                        <input
+                          type="password"
+                          value={googleProManualToken}
+                          onChange={(e) => setGoogleProManualToken(e.target.value)}
+                          placeholder="ya29.a0ARrdaM..."
+                          className="input w-full font-mono text-sm"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-xs text-surface-400">Refresh Token (raccomandato per auto-rinnovo)</label>
+                        <input
+                          type="password"
+                          value={googleProManualRefreshToken}
+                          onChange={(e) => setGoogleProManualRefreshToken(e.target.value)}
+                          placeholder="1//0eXyz..."
+                          className="input w-full font-mono text-sm"
+                        />
+                      </div>
+
+                      <div className="flex gap-2">
+                        <button
+                          onClick={submitGoogleProManualToken}
+                          disabled={googleProOAuthLoading || !googleProManualToken.trim()}
+                          className="btn bg-green-600 hover:bg-green-700 text-white flex items-center gap-2"
+                        >
+                          {googleProOAuthLoading ? (
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <CheckCircle className="w-4 h-4" />
+                          )}
+                          Salva Token
+                        </button>
+                        <button
+                          onClick={() => { setShowGoogleProManualToken(false); setGoogleProManualToken(''); setGoogleProManualRefreshToken(''); setGoogleProOAuthError(null); }}
+                          className="btn btn-secondary"
+                        >
+                          Annulla
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Sezione configurazione OAuth Credentials */}
+                  <div className="mt-4 pt-4 border-t border-surface-700">
+                    <details className="group">
+                      <summary className="text-xs text-surface-500 cursor-pointer hover:text-surface-400 flex items-center gap-2">
+                        <Settings className="w-3 h-3" />
+                        Configurazione OAuth Avanzata
+                        <span className="ml-auto text-surface-600 group-open:rotate-180 transition-transform">&#9660;</span>
+                      </summary>
+                      <div className="mt-3 space-y-3">
+                        <p className="text-xs text-surface-500">
+                          Configura le tue credenziali OAuth per abilitare il login diretto dal browser.
+                        </p>
+                        <div className="space-y-2">
+                          <label className="text-xs text-surface-400">Client ID</label>
+                          <input
+                            type="text"
+                            placeholder="123456789-abc.apps.googleusercontent.com"
+                            className="input w-full font-mono text-xs"
+                            defaultValue={selectedProvider.settings?.client_id || ''}
+                            onChange={(e) => {
+                              const newSettings = { ...selectedProvider.settings, client_id: e.target.value };
+                              setSelectedProvider({ ...selectedProvider, settings: newSettings });
+                            }}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs text-surface-400">Client Secret</label>
+                          <input
+                            type="password"
+                            placeholder="GOCSPX-..."
+                            className="input w-full font-mono text-xs"
+                            defaultValue={selectedProvider.settings?.client_secret === '••••••••' ? '' : selectedProvider.settings?.client_secret || ''}
+                            onChange={(e) => {
+                              const newSettings = { ...selectedProvider.settings, client_secret: e.target.value };
+                              setSelectedProvider({ ...selectedProvider, settings: newSettings });
+                            }}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs text-surface-400">Redirect URI (da aggiungere in Google Cloud Console)</label>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              readOnly
+                              value={`${window.location.origin}/api/admin/providers/google/oauth/callback`}
+                              className="input w-full font-mono text-xs bg-surface-900"
+                            />
+                            <button
+                              onClick={() => copyToClipboard(`${window.location.origin}/api/admin/providers/google/oauth/callback`)}
+                              className="btn btn-secondary px-2"
+                              title="Copia"
+                            >
+                              <Copy className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => saveSettings({
+                            client_id: selectedProvider.settings?.client_id,
+                            client_secret: selectedProvider.settings?.client_secret
+                          })}
+                          disabled={saving}
+                          className="btn btn-secondary flex items-center gap-2"
+                        >
+                          {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                          Salva Credenziali OAuth
+                        </button>
+                      </div>
+                    </details>
+                  </div>
+                </div>
+              )}
+
+              {/* Settings Form for providers that need manual configuration */}
+              {selectedProvider.name !== 'anthropic_oauth' && selectedProvider.name !== 'google_pro' && (
+                <DynamicForm
+                  schema={selectedProvider.config_schema}
+                  initialValues={selectedProvider.settings || {}}
+                  onSubmit={saveSettings}
+                  submitLabel="Salva Configurazione"
+                  loading={saving}
+                />
+              )}
+            </div>
+          ) : (
+            <div className="card p-12 text-center">
+              <Settings className="w-12 h-12 mx-auto text-surface-300 mb-4" />
+              <h3 className="text-lg font-medium text-surface-600">Select a Provider</h3>
+              <p className="text-surface-500 mt-1">
+                Choose a provider from the list to configure its settings
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

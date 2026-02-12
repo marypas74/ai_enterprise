@@ -5,6 +5,8 @@ import { findOne, findMany, insertOne, updateOne } from '../../database/index.js
 import { AIProviderFactory, calculateCost, Message } from '../ai/providers.js';
 import { fetchAllModels, clearModelsCache } from '../../services/ModelFetcher.js';
 import { ParlantProviderFactory, fetchParlantAgents, checkParlantHealth } from '../../services/ParlantProvider.js';
+import { enhanceWithWebSearch } from '../../services/WebSearchService.js';
+import { saveCodeBlocks, formatSavedFilesNotification, isAutoSaveModel } from '../../services/CodeAutoSaveService.js';
 
 // Helper to decrypt secrets
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'default-key-change-in-production!!';
@@ -28,7 +30,8 @@ const completionSchema = z.object({
   conversationId: z.number().optional(),
   model: z.string(),
   message: z.string().min(1),
-  systemPrompt: z.string().optional()
+  systemPrompt: z.string().optional(),
+  attachmentIds: z.array(z.number()).optional()
 });
 
 // Types
@@ -69,6 +72,13 @@ export async function chatRoutes(fastify: FastifyInstance) {
     try {
       const body = completionSchema.parse(request.body);
 
+      // DEBUG: Log entry point
+      console.log(`[Chat-DEBUG] ============ REQUEST START ============`);
+      console.log(`[Chat-DEBUG] Model: "${body.model}"`);
+      console.log(`[Chat-DEBUG] Message length: ${body.message?.length || 0}`);
+      console.log(`[Chat-DEBUG] User ID: ${user.id}`);
+      fastify.log.info(`[Chat] Request for model: ${body.model}`);
+
       // Check if this is a Parlant agent (model format: "parlant:{agentId}")
       const isParlantAgent = body.model.startsWith('parlant:');
       let provider;
@@ -99,8 +109,11 @@ export async function chatRoutes(fastify: FastifyInstance) {
         providerName = 'parlant';
         fastify.log.info(`[Chat] Using Parlant agent: ${agentId}`);
       } else {
-        provider = AIProviderFactory.getProvider(body.model);
         providerName = AIProviderFactory.getProviderName(body.model);
+        console.log(`[Chat-DEBUG] Provider determined: "${providerName}" for model "${body.model}"`);
+        fastify.log.info(`[Chat] Using ${providerName} provider for model: ${body.model}`);
+        provider = AIProviderFactory.getProvider(body.model);
+        console.log(`[Chat-DEBUG] Provider instance created: ${provider?.name || 'NULL'}`);
       }
 
       let conversationId = body.conversationId;
@@ -148,19 +161,160 @@ export async function chatRoutes(fastify: FastifyInstance) {
       }
 
       // Add user message
-      messages.push({ role: 'user', content: body.message });
+      // Add user message
+      let userMessage = body.message;
+
+      // Handle attachments if present
+      if (body.attachmentIds && body.attachmentIds.length > 0) {
+        // Fetch attachments
+        const placeholders = body.attachmentIds.map(() => '?').join(',');
+        const attachments = await findMany<any>(
+          fastify.db,
+          `SELECT id, original_name, content_type, processing_status, processed_content
+           FROM chat_attachments
+           WHERE id IN (${placeholders}) AND user_id = ?`,
+          [...body.attachmentIds, user.id]
+        );
+
+        // Build context from: semantic search (L3) → keyword chunks (L2) → full content
+        const contextParts: string[] = [];
+
+        // Try semantic search across all attachments first (Layer 3)
+        let semanticResults: any[] = [];
+        try {
+          const { searchSimilar } = await import('../../services/VectorStoreService.js');
+          semanticResults = await searchSimilar(fastify.db, body.message, {
+            attachmentIds: body.attachmentIds.map(Number),
+            limit: 8,
+            scoreThreshold: 0.3,
+          });
+        } catch {
+          // Vector store not available — will fall back to Layer 2
+        }
+
+        if (semanticResults.length > 0) {
+          // Group semantic results by attachment
+          const byAttachment = new Map<number, string[]>();
+          for (const r of semanticResults) {
+            const arr = byAttachment.get(r.attachmentId) || [];
+            arr.push(r.content);
+            byAttachment.set(r.attachmentId, arr);
+          }
+
+          for (const a of attachments) {
+            if (!a.processed_content) continue;
+            const semanticChunks = byAttachment.get(a.id);
+            const content = semanticChunks
+              ? semanticChunks.join('\n\n---\n\n')
+              : a.processed_content.substring(0, 2000);
+            contextParts.push(`[Allegato: ${a.original_name} (${a.content_type})]\n${content}\n[Fine allegato]`);
+          }
+          console.log(`[Chat-DEBUG] Used semantic search: ${semanticResults.length} chunks across ${byAttachment.size} attachments`);
+        } else {
+          // Fallback to Layer 2 (keyword chunks) or full content
+          for (const a of attachments) {
+            if (!a.processed_content) continue;
+
+            let chunkContext: string | null = null;
+            try {
+              const chunks = await findMany<{ content: string; chunk_index: number; metadata: string }>(
+                fastify.db,
+                'SELECT content, chunk_index, metadata FROM document_chunks WHERE attachment_id = ? ORDER BY chunk_index ASC',
+                [a.id]
+              );
+
+              if (chunks.length > 1) {
+                const { selectRelevantChunks } = await import('../../services/ChunkingService.js');
+                const chunkObjs = chunks.map((c: any) => ({
+                  index: c.chunk_index,
+                  content: c.content,
+                  charCount: c.content.length,
+                  metadata: JSON.parse(c.metadata || '{}')
+                }));
+
+                const relevant = selectRelevantChunks(chunkObjs, body.message, 5);
+                if (relevant.length > 0) {
+                  chunkContext = relevant.map(c => c.content).join('\n\n---\n\n');
+                  console.log(`[Chat-DEBUG] Used ${relevant.length}/${chunks.length} keyword chunks for ${a.original_name}`);
+                }
+              }
+            } catch (chunkErr: any) {
+              console.log(`[Chat-DEBUG] Chunk retrieval failed for ${a.id}: ${chunkErr.message}, using full content`);
+            }
+
+            const content = chunkContext || a.processed_content;
+            contextParts.push(`[Allegato: ${a.original_name} (${a.content_type})]\n${content}\n[Fine allegato]`);
+          }
+        }
+
+        if (contextParts.length > 0) {
+          const attachmentContext = contextParts.join('\n\n');
+          userMessage = `${attachmentContext}\n\n---\nDomanda utente: ${body.message}`;
+          console.log(`[Chat-DEBUG] Added context from ${contextParts.length} attachments`);
+        } else {
+          console.log(`[Chat-DEBUG] Attachments found but no processed content available yet`);
+        }
+      }
+
+      messages.push({ role: 'user', content: userMessage });
       await insertOne(
         fastify.db,
         'INSERT INTO messages (conversation_id, role, content) VALUES (?, ?, ?)',
-        [conversationId, 'user', body.message]
+        [conversationId, 'user', userMessage]
       );
+
+      // Add coding system prompt for coder models
+      if (isAutoSaveModel(body.model)) {
+        const codingSystemPrompt = `Sei un esperto assistente di programmazione. Quando generi codice:
+1. Scrivi codice completo e pronto per la produzione
+2. Includi tutti gli import e le dipendenze necessarie
+3. Aggiungi commenti chiari in italiano che spiegano ogni sezione
+4. Usa il formato commento per il nome file: # filename.py o // filename.js
+5. Genera applicazioni complete, non solo frammenti
+6. Includi gestione errori e validazione input
+7. Segui le best practice del linguaggio
+
+Il codice che generi verrà salvato automaticamente nella cartella condivisa. Usa commenti chiari per i nomi dei file.`;
+
+        const systemIndex = messages.findIndex(m => m.role === 'system');
+        if (systemIndex >= 0) {
+          messages[systemIndex].content = codingSystemPrompt + '\n\n' + messages[systemIndex].content;
+        } else {
+          messages.unshift({ role: 'system', content: codingSystemPrompt });
+        }
+      }
+
+      // Check if web search is needed and enhance context
+      let webSearchPerformed = false;
+      try {
+        const searchResult = await enhanceWithWebSearch(body.message);
+        if (searchResult.shouldSearch && searchResult.searchContext) {
+          webSearchPerformed = true;
+          fastify.log.info(`[Chat] Web search performed, found ${searchResult.searchResponse?.results?.length || 0} results`);
+
+          // Add search context to the system prompt or create one
+          const searchSystemMessage = `You have access to current web search results. Use them to provide accurate, up-to-date information.\n${searchResult.searchContext}`;
+
+          // Check if there's already a system message
+          const systemIndex = messages.findIndex(m => m.role === 'system');
+          if (systemIndex >= 0) {
+            messages[systemIndex].content += '\n\n' + searchSystemMessage;
+          } else {
+            messages.unshift({ role: 'system', content: searchSystemMessage });
+          }
+        }
+      } catch (searchError: any) {
+        fastify.log.warn(`[Chat] Web search failed: ${searchError.message}`);
+        // Continue without search results
+      }
 
       // Set up SSE streaming
       reply.raw.writeHead(200, {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
         'Connection': 'keep-alive',
-        'X-Conversation-Id': conversationId.toString()
+        'X-Conversation-Id': conversationId.toString(),
+        'X-Web-Search': webSearchPerformed ? 'true' : 'false'
       });
 
       // Stream response
@@ -191,8 +345,40 @@ export async function chatRoutes(fastify: FastifyInstance) {
         tokensInput = Math.ceil(messages.reduce((acc, m) => acc + m.content.length / 4, 0));
         tokensOutput = Math.ceil(fullResponse.length / 4);
 
+        // Auto-save code blocks for coding models
+        if (isAutoSaveModel(body.model) && fullResponse.length > 50) {
+          try {
+            const saveResult = await saveCodeBlocks(fullResponse, {
+              projectName: `session_${conversationId}`
+            });
+
+            if (saveResult.savedFiles.length > 0) {
+              const notification = formatSavedFilesNotification(saveResult);
+              // Send notification as additional SSE event
+              reply.raw.write(`data: ${JSON.stringify({
+                content: notification,
+                done: false,
+                autoSave: true,
+                savedFiles: saveResult.savedFiles.map(f => ({
+                  filename: f.filename,
+                  language: f.language,
+                  path: f.path.replace('/data/shared-projects', '\\\\192.168.1.123\\projects').replace(/\//g, '\\\\')
+                }))
+              })}\n\n`);
+              fastify.log.info(`[Chat] Auto-saved ${saveResult.savedFiles.length} code files for model ${body.model}`);
+            }
+          } catch (saveError: unknown) {
+            const errMsg = saveError instanceof Error ? saveError.message : 'Unknown error';
+            fastify.log.warn(`[Chat] Auto-save failed: ${errMsg}`);
+          }
+        }
+
       } catch (streamError: any) {
         const errorMessage = streamError?.message || 'Unknown stream error';
+        console.log(`[Chat-DEBUG] ============ STREAM ERROR ============`);
+        console.log(`[Chat-DEBUG] Error name: ${streamError?.name}`);
+        console.log(`[Chat-DEBUG] Error message: ${errorMessage}`);
+        console.log(`[Chat-DEBUG] Error stack: ${streamError?.stack?.substring(0, 500)}`);
         fastify.log.error(`[Chat] Stream error: ${errorMessage}`);
 
         // Provide specific error messages for known issues
@@ -378,53 +564,49 @@ export async function chatRoutes(fastify: FastifyInstance) {
     return { message: body.archived ? 'Conversation archived' : 'Conversation unarchived' };
   });
 
-  // Get available models - dynamically fetched from provider APIs
+  // Get available models - from database (admin-enabled only)
   fastify.get('/models', {
     onRequest: [(fastify as any).authenticate],
     schema: {
-      description: 'Get available AI models from configured providers (fetched dynamically)',
+      description: 'Get AI models enabled by admin',
       tags: ['chat'],
       security: [{ bearerAuth: [] }]
     }
   }, async () => {
-    // Get enabled providers with their API keys (encrypted)
-    interface ProviderWithKey {
+    // Get enabled models from database with their provider info
+    interface EnabledModel {
+      model_id: string;
+      display_name: string;
+      description: string | null;
+      provider_name: string;
       provider_type: string;
-      setting_value: string;
-      is_secret: boolean;
-      base_url?: string;
+      supports_streaming: boolean;
+      supports_functions: boolean;
+      supports_vision: boolean;
     }
 
-    const providers = await findMany<ProviderWithKey>(
+    const models = await findMany<EnabledModel>(
       fastify.db,
-      `SELECT p.provider_type, ps.setting_value, ps.is_secret,
-              (SELECT ps2.setting_value FROM ai_provider_settings ps2
-               WHERE ps2.provider_id = p.id AND ps2.setting_key = 'base_url') as base_url
-       FROM ai_providers p
-       JOIN ai_provider_settings ps ON ps.provider_id = p.id
-       WHERE p.is_enabled = TRUE
-         AND ps.setting_key IN ('api_key', 'oauth_token')
-         AND ps.setting_value IS NOT NULL
-         AND ps.setting_value != ''
-         AND TRIM(ps.setting_value) != ''`
+      `SELECT m.model_id, m.display_name, m.description,
+              p.name as provider_name, p.provider_type,
+              m.supports_streaming, m.supports_functions, m.supports_vision
+       FROM ai_models m
+       JOIN ai_providers p ON m.provider_id = p.id
+       WHERE m.is_enabled = TRUE
+         AND p.is_enabled = TRUE
+       ORDER BY p.name, m.sort_order, m.display_name`
     );
 
-    if (providers.length === 0) {
-      fastify.log.warn('No providers configured with API keys');
-      return [];
-    }
-
-    // Convert to format expected by ModelFetcher (decrypt API keys)
-    const providerConfigs = providers.map(p => ({
-      type: p.provider_type,
-      apiKey: p.is_secret ? decryptSecret(p.setting_value) : p.setting_value,
-      baseUrl: p.base_url
+    // Transform to expected format
+    const result = models.map(m => ({
+      id: m.model_id,
+      name: m.display_name,
+      provider: m.provider_name,
+      description: m.description || undefined,
+      supportsStreaming: m.supports_streaming,
+      supportsFunctions: m.supports_functions,
+      supportsVision: m.supports_vision
     }));
-
-    fastify.log.info(`Fetching models from ${providerConfigs.length} providers: ${providerConfigs.map(p => p.type).join(', ')}`);
-
-    // Fetch models dynamically from provider APIs
-    const models = await fetchAllModels(providerConfigs);
 
     // Also fetch Parlant agents if the service is healthy
     try {
@@ -435,11 +617,14 @@ export async function chatRoutes(fastify: FastifyInstance) {
 
         // Add Parlant agents as "models"
         for (const agent of parlantAgents) {
-          models.push({
+          result.push({
             id: `parlant:${agent.id}`,
             name: agent.name || `Parlant Agent`,
             provider: 'Parlant',
-            description: agent.description || 'Controlled AI Agent with Guidelines'
+            description: agent.description || 'Controlled AI Agent with Guidelines',
+            supportsStreaming: true,
+            supportsFunctions: false,
+            supportsVision: false
           });
         }
       }
@@ -447,8 +632,8 @@ export async function chatRoutes(fastify: FastifyInstance) {
       fastify.log.warn(`Failed to fetch Parlant agents: ${err?.message || err}`);
     }
 
-    fastify.log.info(`Returning ${models.length} models from provider APIs`);
-    return models;
+    fastify.log.info(`Returning ${result.length} enabled models from database`);
+    return result;
   });
 
   // Clear models cache (useful when provider settings change)
@@ -627,12 +812,11 @@ export async function chatRoutes(fastify: FastifyInstance) {
       });
 
       // ============================================================
-      // IN-CHAT DEBUG HELPER - Shows debug messages in chat window
+      // DEBUG HELPER - Logs to server only (not visible in chat)
       // ============================================================
       const sendDebug = (msg: string) => {
-        const debugContent = `\n\n---\n🛠️ **[DEBUG]** ${msg}\n---\n\n`;
-        reply.raw.write(`data: ${JSON.stringify({ content: debugContent, done: false, isDebug: true })}\n\n`);
-        fastify.log.info(`[IN-CHAT-DEBUG] ${msg}`);
+        // Only log to server, don't send to client
+        fastify.log.info(`[AGENTIC-DEBUG] ${msg}`);
       };
 
       sendDebug(`Agent started - Request ID: ${reqId}`);
@@ -660,24 +844,70 @@ export async function chatRoutes(fastify: FastifyInstance) {
       let iteration = 0;
       const maxIterations = 10; // Prevent infinite loops
 
+      // ============================================================
+      // 30-SECOND WATCHDOG TIMER - Prevents stalled requests
+      // ============================================================
+      const TIMEOUT_MS = 30000;
+      let watchdogTimer: NodeJS.Timeout | null = null;
+      let requestAborted = false;
+
+      const resetWatchdog = (context: string) => {
+        if (watchdogTimer) clearTimeout(watchdogTimer);
+        watchdogTimer = setTimeout(() => {
+          if (!requestAborted) {
+            requestAborted = true;
+            const timeoutMsg = `⏱️ TIMEOUT: No response after 30s during "${context}"`;
+            fastify.log.error(`[${reqId}] ${timeoutMsg}`);
+            sendDebug(`❌ ${timeoutMsg}`);
+            reply.raw.write(`data: ${JSON.stringify({
+              error: 'REQUEST_TIMEOUT_30S',
+              message: timeoutMsg,
+              context,
+              done: true
+            })}\n\n`);
+            reply.raw.end();
+          }
+        }, TIMEOUT_MS);
+      };
+
+      const clearWatchdog = () => {
+        if (watchdogTimer) {
+          clearTimeout(watchdogTimer);
+          watchdogTimer = null;
+        }
+      };
+
+      // Start the watchdog
+      resetWatchdog('initial_connection');
+
       // Send immediate "thinking" notification to keep connection alive
       reply.raw.write(`data: ${JSON.stringify({ status: 'thinking', message: 'Connecting to AI...', reqId })}\n\n`);
+      resetWatchdog('connecting_to_ai');
 
-      while (iteration < maxIterations) {
+      while (iteration < maxIterations && !requestAborted) {
         iteration++;
+        resetWatchdog(`iteration_${iteration}_start`);
         sendDebug(`🔄 Iteration ${iteration}/${maxIterations} - Calling AI...`);
         fastify.log.info(`[${reqId}] STEP 3: Starting iteration ${iteration}, messages count: ${messages.length}`);
+
+        // ============================================================
+        // HARD ABORT with AbortController - Actually kills the request
+        // ============================================================
+        const abortController = new AbortController();
+        const timeoutId = setTimeout(() => {
+          fastify.log.error(`[${reqId}] ⏱️ HARD ABORT: 30s timeout reached, killing request`);
+          abortController.abort();
+        }, TIMEOUT_MS);
 
         try {
           fastify.log.info(`[${reqId}] STEP 3a: Calling Anthropic API (model: ${body.model})...`);
           const apiStartTime = Date.now();
 
-          // Make API call with tools - ADD TIMEOUT
-          const response = await Promise.race([
-            client.messages.create({
-              model: body.model,
-              max_tokens: 4096,
-              system: body.systemPrompt || `You are a skilled software developer AI assistant. Your ONLY purpose is to write and manage code files.
+          // Make API call with AbortController signal
+          const response = await client.messages.create({
+            model: body.model,
+            max_tokens: 4096,
+            system: body.systemPrompt || `You are a skilled software developer AI assistant. Your ONLY purpose is to write and manage code files.
 
 CRITICAL INSTRUCTIONS:
 1. You DO NOT have the ability to update Kanban board status or move cards. Do not try.
@@ -688,14 +918,17 @@ CRITICAL INSTRUCTIONS:
 6. After writing files, briefly explain what you created
 
 Focus 100% on code generation. Start writing files immediately.`,
-              tools: tools as any,
-              messages
-            }),
-            new Promise((_, reject) =>
-              setTimeout(() => reject(new Error('MODEL_PROVIDER_TIMEOUT: No response after 60 seconds')), 60000)
-            )
-          ]) as any;
+            tools: tools as any,
+            messages
+          }, {
+            signal: abortController.signal  // CRITICAL: Pass the abort signal
+          });
 
+          // Clear the timeout since we got a response
+          clearTimeout(timeoutId);
+
+          // AI responded - reset watchdog
+          resetWatchdog(`iteration_${iteration}_processing`);
           const apiDuration = Date.now() - apiStartTime;
           sendDebug(`✅ AI responded in ${apiDuration}ms - Processing ${response.content?.length || 0} blocks...`);
           fastify.log.info(`[${reqId}] STEP 3b: Anthropic API responded in ${apiDuration}ms`);
@@ -748,6 +981,8 @@ Focus 100% on code generation. Start writing files immediately.`,
               // Execute tool with BULLETPROOF error handling
               let result: { success: boolean; output?: any; error?: string };
               try {
+                // Reset watchdog before tool execution (file I/O can be slow)
+                resetWatchdog(`tool_${block.name}`);
                 if (block.name === 'write_file') {
                   sendDebug(`⏳ Saving to network share...`);
                 } else {
@@ -755,6 +990,8 @@ Focus 100% on code generation. Start writing files immediately.`,
                 }
                 fastify.log.info(`[AGENT-DEBUG] Executing tool: ${block.name}...`);
                 result = await executeTool(block.name, block.input as Record<string, any>, toolContext);
+                // Reset watchdog after tool execution
+                resetWatchdog(`tool_${block.name}_done`);
 
                 // Enhanced success message for write_file
                 if (block.name === 'write_file' && result.success) {
@@ -815,13 +1052,46 @@ Focus 100% on code generation. Start writing files immediately.`,
           }
 
         } catch (error: any) {
-          sendDebug(`❌ ERROR in iteration ${iteration}: ${error.message}`);
-          fastify.log.error(`[Agentic] Error in iteration ${iteration}: ${error.message}`);
-          reply.raw.write(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+          // Always clear the timeout to prevent memory leaks
+          clearTimeout(timeoutId);
+          clearWatchdog();
+
+          // Check if this was an abort (timeout)
+          const isAbort = error.name === 'AbortError' || error.message?.includes('abort');
+
+          if (isAbort) {
+            const timeoutMsg = `⏱️ TIMEOUT: Request aborted after ${TIMEOUT_MS / 1000}s - AI model did not respond`;
+            sendDebug(`❌ ${timeoutMsg}`);
+            fastify.log.error({
+              msg: timeoutMsg,
+              reqId,
+              iteration,
+              source: 'backend',
+              type: 'HARD_TIMEOUT'
+            });
+            reply.raw.write(`data: ${JSON.stringify({
+              error: 'REQUEST_TIMEOUT_30S',
+              message: timeoutMsg,
+              done: true
+            })}\n\n`);
+          } else {
+            sendDebug(`❌ ERROR in iteration ${iteration}: ${error.message}`);
+            fastify.log.error({
+              msg: `Agentic error in iteration ${iteration}: ${error.message}`,
+              reqId,
+              source: 'backend',
+              error: error.stack
+            });
+            reply.raw.write(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+          }
+
           reply.raw.end();
           return;
         }
       }
+
+      // Clear watchdog - agent completed successfully
+      clearWatchdog();
 
       // Final done message
       sendDebug(`🎉 AGENT COMPLETE - ${iteration} iterations, ${tokensInput + tokensOutput} tokens used`);

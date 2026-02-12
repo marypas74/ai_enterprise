@@ -11,16 +11,22 @@ import {
   MessageSquare,
   Trash2,
   ChevronDown,
-  Bot,
   User,
   Sparkles,
   Download,
-  Zap
+  Paperclip,
+  FileText,
+  Image,
+  Code,
+  File,
+  Loader2
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import clsx from 'clsx';
+import { BotIcon, BotIconType } from '../components/BotIcon';
+import { IconSelector, useSelectedIcon } from '../components/IconSelector';
 
 interface Message {
   id?: number;
@@ -41,6 +47,24 @@ interface Model {
   provider: string;
 }
 
+interface Attachment {
+  id?: number;
+  file: File;
+  preview?: string;
+  status: 'pending' | 'uploading' | 'uploaded' | 'processing' | 'completed' | 'failed';
+  contentType?: string;
+  uploadedId?: number;
+}
+
+// Helper to get icon for attachment type
+function getAttachmentIcon(mimeType: string) {
+  if (mimeType.startsWith('image/')) return Image;
+  if (mimeType.includes('pdf') || mimeType.includes('document') || mimeType.includes('text/plain')) return FileText;
+  if (mimeType.includes('javascript') || mimeType.includes('typescript') || mimeType.includes('json') ||
+    mimeType.includes('python') || mimeType.includes('java') || mimeType.includes('html') || mimeType.includes('css')) return Code;
+  return File;
+}
+
 export default function ChatPage() {
   const { user, logout } = useAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -53,8 +77,12 @@ export default function ChatPage() {
   const [selectedModel, setSelectedModel] = useState<string>('');
   const [showModelSelect, setShowModelSelect] = useState(false);
   const [modelsLoading, setModelsLoading] = useState(true);
+  const [selectedBotIcon, setSelectedBotIcon] = useSelectedIcon();
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Load available models from configured providers
   useEffect(() => {
@@ -109,6 +137,79 @@ export default function ChatPage() {
   const startNewConversation = () => {
     setCurrentConversationId(null);
     setMessages([]);
+    setAttachments([]);
+  };
+
+  // Handle file selection
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    const newAttachments: Attachment[] = Array.from(files).map(file => ({
+      file,
+      status: 'pending' as const,
+      preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined,
+    }));
+
+    setAttachments(prev => [...prev, ...newAttachments]);
+
+    // Reset input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // Remove attachment
+  const removeAttachment = (index: number) => {
+    setAttachments(prev => {
+      const newAttachments = [...prev];
+      // Revoke preview URL if exists
+      if (newAttachments[index].preview) {
+        URL.revokeObjectURL(newAttachments[index].preview!);
+      }
+      newAttachments.splice(index, 1);
+      return newAttachments;
+    });
+  };
+
+  // Upload attachments before sending message (conversationId is optional)
+  const uploadAttachments = async (conversationId?: number): Promise<number[]> => {
+    if (attachments.length === 0) return [];
+
+    setIsUploading(true);
+    const uploadedIds: number[] = [];
+
+    try {
+      const formData = new FormData();
+      if (conversationId) {
+        formData.append('conversationId', conversationId.toString());
+      }
+
+      attachments.forEach(att => {
+        formData.append('files', att.file);
+      });
+
+      const response = await api.post('/attachments/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      if (response.data.attachments) {
+        uploadedIds.push(...response.data.attachments.map((a: any) => a.id));
+      }
+
+      // Clear attachments after upload
+      attachments.forEach(att => {
+        if (att.preview) URL.revokeObjectURL(att.preview);
+      });
+      setAttachments([]);
+
+    } catch (err) {
+      console.error('Failed to upload attachments:', err);
+    } finally {
+      setIsUploading(false);
+    }
+
+    return uploadedIds;
   };
 
   const deleteConversation = async (id: number, e: React.MouseEvent) => {
@@ -127,50 +228,83 @@ export default function ChatPage() {
   };
 
   const sendMessage = async () => {
-    if (!input.trim() || isStreaming) return;
+    if ((!input.trim() && attachments.length === 0) || isStreaming || isUploading) return;
 
     const userMessage = input.trim();
+    const hasAttachments = attachments.length > 0;
+    const attachmentNames = attachments.map(a => a.file.name);
+
     setInput('');
-    setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
+
+    // Show user message with attachment indicator
+    const displayMessage = hasAttachments
+      ? `${userMessage}\n\n📎 Allegati: ${attachmentNames.join(', ')}`
+      : userMessage;
+
+    setMessages(prev => [...prev, { role: 'user', content: displayMessage }]);
     setIsStreaming(true);
 
     // Add empty assistant message for streaming
     setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
 
-    await streamChat(
-      selectedModel,
-      userMessage,
-      (content) => {
-        setMessages(prev => {
-          const newMessages = [...prev];
-          const lastMessage = newMessages[newMessages.length - 1];
-          if (lastMessage.role === 'assistant') {
-            lastMessage.content += content;
-          }
-          return newMessages;
-        });
-      },
-      (conversationId) => {
-        setIsStreaming(false);
-        if (!currentConversationId) {
-          setCurrentConversationId(conversationId);
-          loadConversations();
+    try {
+      // Upload attachments first (works with or without conversationId)
+      let attachmentIds: number[] = [];
+      if (hasAttachments) {
+        attachmentIds = await uploadAttachments(currentConversationId || undefined);
+      }
+
+      // Build message with attachment context
+      let messageToSend = userMessage;
+      // If we have attachments, we just send the message as is (or with a default prompt if empty)
+      // The backend will inject the context based on attachmentIds
+      if (hasAttachments) {
+        if (!messageToSend) {
+          messageToSend = `Analizza i file allegati: ${attachmentNames.join(', ')}`;
+        } else {
+          messageToSend = `[Allegati: ${attachmentNames.join(', ')}]\n\n${userMessage}`;
         }
-      },
-      (error) => {
-        setIsStreaming(false);
-        setMessages(prev => {
-          const newMessages = [...prev];
-          const lastMessage = newMessages[newMessages.length - 1];
-          if (lastMessage.role === 'assistant') {
-            lastMessage.content = `Error: ${error}`;
+      }
+
+      await streamChat(
+        selectedModel,
+        messageToSend,
+        (content) => {
+          setMessages(prev => {
+            const newMessages = [...prev];
+            const lastMessage = newMessages[newMessages.length - 1];
+            if (lastMessage.role === 'assistant') {
+              lastMessage.content += content;
+            }
+            return newMessages;
+          });
+        },
+        (conversationId) => {
+          setIsStreaming(false);
+          if (!currentConversationId) {
+            setCurrentConversationId(conversationId);
+            loadConversations();
           }
-          return newMessages;
-        });
-      },
-      currentConversationId || undefined,
-      undefined
-    );
+        },
+        (error) => {
+          setIsStreaming(false);
+          setMessages(prev => {
+            const newMessages = [...prev];
+            const lastMessage = newMessages[newMessages.length - 1];
+            if (lastMessage.role === 'assistant') {
+              lastMessage.content = `Errore: ${error}`;
+            }
+            return newMessages;
+          });
+        },
+        currentConversationId || undefined,
+        undefined,
+        attachmentIds.length > 0 ? attachmentIds : undefined
+      );
+    } catch (err) {
+      setIsStreaming(false);
+      console.error('Send message error:', err);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -354,39 +488,27 @@ export default function ChatPage() {
             </div>
           </div>
 
-          <a
-            href="/auto-claude"
-            className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors"
-          >
-            <Sparkles className="w-5 h-5" />
-            <span className="text-sm">Auto-Claude</span>
-          </a>
+          <div className="flex items-center gap-2">
+            <IconSelector onIconChange={setSelectedBotIcon} />
 
-          <a
-            href="/parlant"
-            className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors"
-          >
-            <Zap className="w-5 h-5" />
-            <span className="text-sm">Parlant</span>
-          </a>
-
-          {user?.role === 'admin' && (
-            <a
-              href="/admin"
-              className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors"
-            >
-              <Settings className="w-5 h-5" />
-              <span className="text-sm">Admin</span>
-            </a>
-          )}
+            {user?.role === 'admin' && (
+              <a
+                href="/admin"
+                className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors"
+              >
+                <Settings className="w-5 h-5" />
+                <span className="text-sm">Admin</span>
+              </a>
+            )}
+          </div>
         </header>
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto">
           {messages.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center px-4">
-              <div className="w-16 h-16 rounded-2xl bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center mb-6">
-                <Bot className="w-8 h-8 text-primary-600" />
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center mb-6 text-white">
+                <BotIcon type={selectedBotIcon} size={32} />
               </div>
               <h2 className="text-2xl font-bold mb-2">Enterprise AI Chat</h2>
               <p className="text-surface-500 max-w-md">
@@ -415,7 +537,7 @@ export default function ChatPage() {
                       {message.role === 'user' ? (
                         <User className="w-5 h-5 text-white" />
                       ) : (
-                        <Bot className="w-5 h-5 text-white" />
+                        <BotIcon type={selectedBotIcon} size={20} className="text-white" />
                       )}
                     </div>
                     <div className="flex-1 min-w-0 prose dark:prose-invert prose-sm max-w-none">
@@ -462,14 +584,66 @@ export default function ChatPage() {
         {/* Input */}
         <div className="border-t border-surface-200 dark:border-surface-800 p-4">
           <div className="max-w-3xl mx-auto">
+            {/* Attachments Preview */}
+            {attachments.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-3 p-2 bg-surface-50 dark:bg-surface-900 rounded-lg">
+                {attachments.map((att, index) => {
+                  const IconComponent = getAttachmentIcon(att.file.type);
+                  return (
+                    <div
+                      key={index}
+                      className="relative flex items-center gap-2 px-3 py-2 bg-white dark:bg-surface-800 rounded-lg border border-surface-200 dark:border-surface-700 group"
+                    >
+                      {att.preview ? (
+                        <img src={att.preview} alt="" className="w-8 h-8 object-cover rounded" />
+                      ) : (
+                        <IconComponent className="w-5 h-5 text-surface-500" />
+                      )}
+                      <span className="text-sm truncate max-w-[120px]">{att.file.name}</span>
+                      <button
+                        onClick={() => removeAttachment(index)}
+                        className="p-1 hover:bg-surface-100 dark:hover:bg-surface-700 rounded transition-colors"
+                      >
+                        <X className="w-4 h-4 text-surface-400" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
             <div className="relative flex items-end gap-2">
+              {/* Hidden file input */}
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileSelect}
+                multiple
+                className="hidden"
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.json,.xml,.yaml,.yml,.js,.ts,.jsx,.tsx,.py,.java,.c,.cpp,.h,.html,.css,.jpg,.jpeg,.png,.gif,.webp,.svg,.mp3,.wav,.ogg,.zip,.tar,.gz"
+              />
+
+              {/* Attach button */}
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isStreaming || isUploading}
+                className="p-3 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors disabled:opacity-50"
+                title="Allega file"
+              >
+                {isUploading ? (
+                  <Loader2 className="w-5 h-5 text-surface-500 animate-spin" />
+                ) : (
+                  <Paperclip className="w-5 h-5 text-surface-500" />
+                )}
+              </button>
+
               <div className="flex-1 relative">
                 <textarea
                   ref={inputRef}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder="Message..."
+                  placeholder={attachments.length > 0 ? "Aggiungi un messaggio per gli allegati..." : "Messaggio..."}
                   rows={1}
                   className="input resize-none min-h-[48px] max-h-[200px] py-3 pr-12"
                   style={{
@@ -484,7 +658,7 @@ export default function ChatPage() {
                 />
                 <button
                   onClick={sendMessage}
-                  disabled={!input.trim() || isStreaming}
+                  disabled={(!input.trim() && attachments.length === 0) || isStreaming || isUploading}
                   className="absolute right-2 bottom-2 p-2 rounded-lg bg-primary-600 text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-primary-700 transition-colors"
                 >
                   <Send className="w-5 h-5" />
@@ -492,7 +666,8 @@ export default function ChatPage() {
               </div>
             </div>
             <p className="mt-2 text-xs text-center text-surface-400">
-              {currentModel.name} may produce inaccurate information
+              {currentModel.name} può produrre informazioni imprecise
+              {attachments.length > 0 && ` • ${attachments.length} allegat${attachments.length === 1 ? 'o' : 'i'} pront${attachments.length === 1 ? 'o' : 'i'}`}
             </p>
           </div>
         </div>

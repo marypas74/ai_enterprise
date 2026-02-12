@@ -27,6 +27,12 @@ interface User {
   total_tokens: number;
   groups?: string; // Comma-separated group names from backend
   groupsList?: { id: number; name: string }[]; // Parsed array for UI
+  // Profile fields
+  phone?: string;
+  company?: string;
+  department?: string;
+  job_title?: string;
+  notes?: string;
 }
 
 interface Group {
@@ -43,19 +49,29 @@ interface Group {
 type ActiveTab = 'users' | 'groups';
 
 // Modal Component
-function Modal({ isOpen, onClose, title, children }: {
+function Modal({ isOpen, onClose, title, children, size = 'md' }: {
   isOpen: boolean;
   onClose: () => void;
   title: string;
   children: React.ReactNode;
+  size?: 'md' | 'lg' | 'xl';
 }) {
   if (!isOpen) return null;
+
+  const sizeClasses = {
+    md: 'max-w-md',
+    lg: 'max-w-2xl',
+    xl: 'max-w-4xl'
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white dark:bg-surface-900 rounded-xl shadow-xl w-full max-w-md mx-4 max-h-[90vh] overflow-auto">
-        <div className="flex items-center justify-between p-4 border-b border-surface-200 dark:border-surface-700">
+      <div className={clsx(
+        "relative bg-white dark:bg-surface-900 rounded-xl shadow-xl w-full mx-4 max-h-[90vh] overflow-auto",
+        sizeClasses[size]
+      )}>
+        <div className="flex items-center justify-between p-4 border-b border-surface-200 dark:border-surface-700 sticky top-0 bg-white dark:bg-surface-900">
           <h2 className="text-lg font-semibold">{title}</h2>
           <button onClick={onClose} className="p-1 hover:bg-surface-100 dark:hover:bg-surface-800 rounded">
             <X className="w-5 h-5" />
@@ -69,7 +85,7 @@ function Modal({ isOpen, onClose, title, children }: {
   );
 }
 
-// User Form
+// User Form - Complete with profile fields
 function UserForm({ user, groups, onSave, onCancel }: {
   user?: User;
   groups: Group[];
@@ -86,12 +102,19 @@ function UserForm({ user, groups, onSave, onCancel }: {
   };
 
   const [formData, setFormData] = useState({
+    // Account
     name: user?.name || '',
     email: user?.email || '',
     password: '',
     role: user?.role || 'user',
     is_active: user?.is_active ?? true,
-    group_ids: getInitialGroupIds()
+    group_ids: getInitialGroupIds(),
+    // Profile
+    phone: user?.phone || '',
+    company: user?.company || '',
+    department: user?.department || '',
+    job_title: user?.job_title || '',
+    notes: user?.notes || ''
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -100,88 +123,181 @@ function UserForm({ user, groups, onSave, onCancel }: {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Account Section */}
       <div>
-        <label className="block text-sm font-medium mb-1">Nome</label>
-        <input
-          type="text"
-          value={formData.name}
-          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-          className="input w-full"
-          required
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-medium mb-1">Email</label>
-        <input
-          type="email"
-          value={formData.email}
-          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-          className="input w-full"
-          required
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-medium mb-1">
-          Password {user ? '(lascia vuoto per non modificare)' : ''}
-        </label>
-        <input
-          type="password"
-          value={formData.password}
-          onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-          className="input w-full"
-          required={!user}
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-medium mb-1">Ruolo</label>
-        <select
-          value={formData.role}
-          onChange={(e) => setFormData({ ...formData, role: e.target.value as 'admin' | 'user' })}
-          className="input w-full"
-        >
-          <option value="user">User</option>
-          <option value="admin">Admin</option>
-        </select>
-      </div>
-      <div>
-        <label className="block text-sm font-medium mb-1">Gruppi</label>
-        <div className="space-y-2 max-h-32 overflow-auto border border-surface-200 dark:border-surface-700 rounded-lg p-2">
-          {groups.map((group) => (
-            <label key={group.id} className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={formData.group_ids.includes(group.id)}
-                onChange={(e) => {
-                  if (e.target.checked) {
-                    setFormData({ ...formData, group_ids: [...formData.group_ids, group.id] });
-                  } else {
-                    setFormData({ ...formData, group_ids: formData.group_ids.filter(id => id !== group.id) });
-                  }
-                }}
-                className="rounded"
-              />
-              <span className="text-sm">{group.name}</span>
+        <h3 className="text-sm font-semibold text-surface-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+          <UserCog className="w-4 h-4" />
+          Dati Account
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">Nome Completo *</label>
+            <input
+              type="text"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              className="input w-full"
+              placeholder="Mario Rossi"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Email *</label>
+            <input
+              type="email"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              className="input w-full"
+              placeholder="mario.rossi@azienda.it"
+              required
+              disabled={!!user}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">
+              Password {user ? '(lascia vuoto per non modificare)' : '*'}
             </label>
-          ))}
+            <input
+              type="password"
+              value={formData.password}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              className="input w-full"
+              placeholder={user ? '••••••••' : 'Minimo 8 caratteri'}
+              required={!user}
+              minLength={8}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Ruolo *</label>
+            <select
+              value={formData.role}
+              onChange={(e) => setFormData({ ...formData, role: e.target.value as 'admin' | 'user' })}
+              className="input w-full"
+            >
+              <option value="user">Utente Standard</option>
+              <option value="admin">Amministratore</option>
+            </select>
+          </div>
         </div>
       </div>
-      <div className="flex items-center gap-2">
-        <input
-          type="checkbox"
-          id="is_active"
-          checked={formData.is_active}
-          onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-          className="rounded"
-        />
-        <label htmlFor="is_active" className="text-sm">Utente attivo</label>
+
+      {/* Profile Section */}
+      <div>
+        <h3 className="text-sm font-semibold text-surface-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+          <Users className="w-4 h-4" />
+          Anagrafica
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">Telefono</label>
+            <input
+              type="tel"
+              value={formData.phone}
+              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              className="input w-full"
+              placeholder="+39 123 456 7890"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Azienda</label>
+            <input
+              type="text"
+              value={formData.company}
+              onChange={(e) => setFormData({ ...formData, company: e.target.value })}
+              className="input w-full"
+              placeholder="Nome Azienda S.r.l."
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Reparto/Ufficio</label>
+            <input
+              type="text"
+              value={formData.department}
+              onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+              className="input w-full"
+              placeholder="IT, Marketing, HR..."
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Mansione</label>
+            <input
+              type="text"
+              value={formData.job_title}
+              onChange={(e) => setFormData({ ...formData, job_title: e.target.value })}
+              className="input w-full"
+              placeholder="Developer, Manager..."
+            />
+          </div>
+        </div>
       </div>
-      <div className="flex gap-2 pt-4">
+
+      {/* Groups Section */}
+      <div>
+        <h3 className="text-sm font-semibold text-surface-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+          <Shield className="w-4 h-4" />
+          Gruppi e Permessi
+        </h3>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-2 p-3 border border-surface-200 dark:border-surface-700 rounded-lg bg-surface-50 dark:bg-surface-800/50">
+          {groups.length === 0 ? (
+            <p className="text-sm text-surface-500 col-span-full">Nessun gruppo disponibile</p>
+          ) : (
+            groups.map((group) => (
+              <label key={group.id} className="flex items-center gap-2 cursor-pointer p-2 rounded hover:bg-surface-100 dark:hover:bg-surface-700">
+                <input
+                  type="checkbox"
+                  checked={formData.group_ids.includes(group.id)}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setFormData({ ...formData, group_ids: [...formData.group_ids, group.id] });
+                    } else {
+                      setFormData({ ...formData, group_ids: formData.group_ids.filter(id => id !== group.id) });
+                    }
+                  }}
+                  className="rounded text-primary-500"
+                />
+                <span className="text-sm">{group.name}</span>
+              </label>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Notes Section */}
+      <div>
+        <label className="block text-sm font-medium mb-1">Note Interne</label>
+        <textarea
+          value={formData.notes}
+          onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+          className="input w-full"
+          rows={3}
+          placeholder="Note visibili solo agli amministratori..."
+        />
+      </div>
+
+      {/* Status */}
+      <div className="flex items-center gap-4 p-3 bg-surface-50 dark:bg-surface-800 rounded-lg">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={formData.is_active}
+            onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+            className="rounded text-green-500"
+          />
+          <span className="text-sm font-medium">Utente Attivo</span>
+        </label>
+        <span className="text-xs text-surface-500">
+          {formData.is_active ? 'L\'utente può accedere al sistema' : 'L\'utente non può effettuare il login'}
+        </span>
+      </div>
+
+      {/* Actions */}
+      <div className="flex gap-3 pt-4 border-t border-surface-200 dark:border-surface-700">
         <button type="button" onClick={onCancel} className="btn btn-secondary flex-1">
           Annulla
         </button>
         <button type="submit" className="btn btn-primary flex-1">
-          {user ? 'Aggiorna' : 'Crea'}
+          {user ? 'Salva Modifiche' : 'Crea Utente'}
         </button>
       </div>
     </form>
@@ -307,12 +423,17 @@ export default function UsersGroupsPage() {
   const handleSaveUser = async (data: any) => {
     try {
       if (editingUser) {
-        // Update user
+        // Update user with profile fields
         await api.patch(`/admin/users/${editingUser.id}`, {
           name: data.name,
           role: data.role,
           is_active: data.is_active,
-          password: data.password || undefined
+          password: data.password || undefined,
+          phone: data.phone || null,
+          company: data.company || null,
+          department: data.department || null,
+          job_title: data.job_title || null,
+          notes: data.notes || null
         });
 
         // Update group assignments
@@ -346,13 +467,18 @@ export default function UsersGroupsPage() {
           }
         }
       } else {
-        // Create new user
+        // Create new user with profile fields
         await api.post('/admin/users', {
           email: data.email,
           password: data.password,
           name: data.name,
           role: data.role,
-          groupIds: data.group_ids
+          groupIds: data.group_ids,
+          phone: data.phone || null,
+          company: data.company || null,
+          department: data.department || null,
+          job_title: data.job_title || null,
+          notes: data.notes || null
         });
       }
       setShowUserModal(false);
@@ -678,6 +804,7 @@ export default function UsersGroupsPage() {
           setEditingUser(undefined);
         }}
         title={editingUser ? 'Modifica Utente' : 'Nuovo Utente'}
+        size="lg"
       >
         <UserForm
           user={editingUser}

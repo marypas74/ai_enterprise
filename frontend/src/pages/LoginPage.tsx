@@ -1,14 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../hooks/useAuthStore';
-import { MessageSquare, Mail, Lock, User, AlertCircle } from 'lucide-react';
+import { MessageSquare, Mail, Lock, AlertCircle } from 'lucide-react';
 
 export default function LoginPage() {
-  const [isRegister, setIsRegister] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
-  const { login, register, isLoading, error, clearError } = useAuthStore();
+  const { login, isLoading, error, clearError } = useAuthStore();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -16,11 +14,7 @@ export default function LoginPage() {
     clearError();
 
     try {
-      if (isRegister) {
-        await register(email, password, name);
-      } else {
-        await login(email, password);
-      }
+      await login(email, password);
       navigate('/');
     } catch {
       // Error is already in store
@@ -54,25 +48,6 @@ export default function LoginPage() {
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-5">
-            {isRegister && (
-              <div>
-                <label className="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-2">
-                  Name
-                </label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-surface-400" />
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="input pl-11"
-                    placeholder="Your name"
-                    required={isRegister}
-                  />
-                </div>
-              </div>
-            )}
-
             <div>
               <label className="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-2">
                 Email
@@ -101,8 +76,7 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="input pl-11"
-                  placeholder={isRegister ? 'Min 8 characters' : 'Your password'}
-                  minLength={isRegister ? 8 : undefined}
+                  placeholder="Your password"
                   required
                 />
               </div>
@@ -131,28 +105,19 @@ export default function LoginPage() {
                       d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                     />
                   </svg>
-                  {isRegister ? 'Creating account...' : 'Signing in...'}
+                  Signing in...
                 </span>
               ) : (
-                <>{isRegister ? 'Create Account' : 'Sign In'}</>
+                <>Sign In</>
               )}
             </button>
           </form>
 
-          {/* Toggle */}
+          {/* Info */}
           <div className="mt-6 text-center">
-            <button
-              type="button"
-              onClick={() => {
-                setIsRegister(!isRegister);
-                clearError();
-              }}
-              className="text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
-            >
-              {isRegister
-                ? 'Already have an account? Sign in'
-                : "Don't have an account? Create one"}
-            </button>
+            <p className="text-sm text-surface-500">
+              Contatta l'amministratore per richiedere un account
+            </p>
           </div>
         </div>
 

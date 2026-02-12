@@ -249,7 +249,11 @@ const KanbanPanel: React.FC<KanbanPanelProps> = ({
                       {onExecuteTask && (
                         <button
                           className="card-action-btn execute"
-                          onClick={() => onExecuteTask(card)}
+                          onClick={() => {
+                            console.log('[KanbanPanel] ▶️ PLAY BUTTON CLICKED! Card:', card);
+                            console.log('[KanbanPanel] onExecuteTask function:', typeof onExecuteTask);
+                            onExecuteTask(card);
+                          }}
                           title="Execute with AI"
                         >
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

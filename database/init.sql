@@ -1135,3 +1135,4 @@ INSERT INTO tools (plugin_id, name, display_name, description, tool_type, input_
     }
   }
 }', TRUE, FALSE);
+
