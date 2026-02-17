@@ -36,6 +36,7 @@ interface User {
   is_active: boolean;
   created_at: Date;
   last_login_at: Date;
+  mfa_enabled: boolean;
 }
 
 interface Group {
@@ -318,6 +319,37 @@ export async function adminRoutes(fastify: FastifyInstance) {
     );
 
     return { message: 'User deleted' };
+  });
+
+  // Reset User MFA
+  fastify.post('/users/:id/mfa-reset', {
+    schema: {
+      description: 'Reset user MFA (admin)',
+      tags: ['admin'],
+      security: [{ bearerAuth: [] }]
+    }
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const params = request.params as { id: string };
+    const admin = request.user as { id: number };
+
+    const result = await updateOne(
+      fastify.db,
+      'UPDATE users SET mfa_enabled = FALSE, mfa_secret = NULL WHERE id = ?',
+      [params.id]
+    );
+
+    if (result === 0) {
+      return reply.status(404).send({ error: 'User not found' });
+    }
+
+    // Audit log
+    await insertOne(
+      fastify.db,
+      'INSERT INTO audit_log (user_id, action, entity_type, entity_id, ip_address) VALUES (?, ?, ?, ?, ?)',
+      [admin.id, 'reset_user_mfa', 'user', params.id, request.ip]
+    );
+
+    return { message: 'MFA reset successfully' };
   });
 
   // Note: Groups routes are defined in settings.ts to avoid duplication

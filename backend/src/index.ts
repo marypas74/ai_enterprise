@@ -10,6 +10,7 @@ import 'dotenv/config';
 
 import { databasePlugin } from './database/index.js';
 import { redisPlugin } from './cache/index.js';
+import { geoPlugin } from './modules/geo/index.js';
 import { authRoutes } from './modules/auth/routes.js';
 import { chatRoutes } from './modules/chat/routes.js';
 import { adminRoutes } from './modules/admin/routes.js';
@@ -30,9 +31,11 @@ import { parlantRoutes } from './modules/parlant/routes.js';
 import { ralphRoutes } from './modules/ralph/routes.js';
 import fileRoutes from './modules/files/routes.js';
 import attachmentRoutes from './modules/attachments/routes.js';
+import { toolsRoutes } from './modules/tools/routes.js';
 import { AIProviderFactory } from './modules/ai/providers.js';
 import { AgentOrchestrator } from './services/AgentOrchestrator.js';
 import { AgentEventEmitter } from './services/AgentEventEmitter.js';
+import { LLMSyncWorker } from './services/LLMSyncWorker.js';
 import websocket from '@fastify/websocket';
 import { findAll } from './database/index.js';
 import crypto from 'crypto';
@@ -59,7 +62,8 @@ const fastify = Fastify({
     transport: process.env.NODE_ENV === 'development'
       ? { target: 'pino-pretty', options: { colorize: true } }
       : undefined
-  }
+  },
+  bodyLimit: 50 * 1024 * 1024 // 50MB limit for JSON bodies (needed for large document generation)
 });
 
 async function bootstrap() {
@@ -141,6 +145,9 @@ async function bootstrap() {
   await fastify.register(databasePlugin);
   await fastify.register(redisPlugin);
 
+  // Geo-Referencing Middleware
+  await fastify.register(geoPlugin);
+
   // Load AI provider configurations from database
   try {
     interface ProviderSetting {
@@ -210,7 +217,7 @@ async function bootstrap() {
   }
 
   // JWT Authentication Decorator with detailed logging
-  fastify.decorate('authenticate', async function(request: any, reply: any) {
+  fastify.decorate('authenticate', async function (request: any, reply: any) {
     const authHeader = request.headers.authorization;
     const url = request.url;
 
@@ -255,6 +262,7 @@ async function bootstrap() {
   await fastify.register(ralphRoutes, { prefix: '/api/ralph' });
   await fastify.register(fileRoutes, { prefix: '/api/files' });
   await fastify.register(attachmentRoutes, { prefix: '/api/attachments' });
+  await fastify.register(toolsRoutes, { prefix: '/api' });
 
   // Initialize Agent Orchestrator
   try {
@@ -262,6 +270,19 @@ async function bootstrap() {
     fastify.log.info('Agent Orchestrator initialized');
   } catch (err) {
     fastify.log.warn('Could not initialize Agent Orchestrator: ' + String(err));
+  }
+
+  // Initialize and start LLM Sync Worker
+  try {
+    console.log('[DEBUG] Starting LLMSyncWorker...');
+    const syncWorker = new LLMSyncWorker(fastify);
+    syncWorker.start();
+
+    fastify.addHook('onClose', async () => {
+      syncWorker.stop();
+    });
+  } catch (err) {
+    fastify.log.warn('Could not initialize LLM Sync Worker: ' + String(err));
   }
 
   // WebSocket routes for real-time agent updates
@@ -369,7 +390,7 @@ async function bootstrap() {
   const BUILD_TIME = new Date().toISOString();
   fastify.get('/version', async () => ({
     name: 'enterprise-ai-chat-backend',
-    version: '1.4.2',
+    version: '1.5.5',
     buildTime: BUILD_TIME,
     nodeVersion: process.version,
     environment: process.env.NODE_ENV || 'development'
@@ -377,7 +398,7 @@ async function bootstrap() {
 
   fastify.get('/api/version', async () => ({
     name: 'enterprise-ai-chat-backend',
-    version: '1.4.2',
+    version: '1.5.5',
     buildTime: BUILD_TIME,
     nodeVersion: process.version,
     environment: process.env.NODE_ENV || 'development'

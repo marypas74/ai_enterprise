@@ -9,6 +9,7 @@ import * as XLSX from 'xlsx';
 import { Document, Packer, Paragraph, TextRun } from 'docx';
 import fs from 'fs/promises';
 import path from 'path';
+import PptxGenJS from 'pptxgenjs';
 
 // ============================================================
 // OCR — Tesseract.js
@@ -175,13 +176,17 @@ export async function extractOfficeContent(
  * Convert extracted text into a DOCX document
  * Returns the path of the generated DOCX file
  */
-export async function convertTextToDocx(
+/**
+ * Generate a DOCX buffer from text
+ */
+/**
+ * Generate a DOCX buffer from text
+ */
+export async function generateDocxBuffer(
     text: string,
-    outputPath: string,
-    title: string = 'Documento Convertito'
-): Promise<string> {
+    title: string = 'Documento Generato'
+): Promise<Buffer> {
     try {
-        // Split text into paragraphs
         const paragraphs = text.split('\n').map(line => {
             return new Paragraph({
                 children: [
@@ -206,19 +211,135 @@ export async function convertTextToDocx(
                             }),
                         ],
                     }),
-                    new Paragraph({ children: [] }), // empty line
+                    new Paragraph({ children: [] }),
                     ...paragraphs,
                 ],
             }],
         });
 
-        const buffer = await Packer.toBuffer(doc);
-        await fs.writeFile(outputPath, buffer);
+        return await Packer.toBuffer(doc);
+    } catch (error: any) {
+        console.error(`[DocumentProcessor] DOCX generation error: ${error.message}`);
+        throw new Error(`DOCX generation failed: ${error.message}`);
+    }
+}
 
+/**
+ * Generate an Excel buffer from data
+ * @param data Array of objects (rows)
+ * @param sheetName Name of the sheet
+ */
+export async function generateExcelBuffer(
+    data: Record<string, any>[],
+    sheetName: string = 'Sheet1'
+): Promise<Buffer> {
+    try {
+        const workbook = XLSX.utils.book_new();
+        const worksheet = XLSX.utils.json_to_sheet(data);
+        XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+        return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    } catch (error: any) {
+        console.error(`[DocumentProcessor] Excel generation error: ${error.message}`);
+        throw new Error(`Excel generation failed: ${error.message}`);
+    }
+}
+
+/**
+ * Generate a PowerPoint buffer from slides
+ * @param slides Array of { title, content }
+ * @param title Presentation title
+ */
+export async function generatePptxBuffer(
+    slides: { title: string; content: string }[],
+    title: string = 'Presentazione'
+): Promise<Buffer> {
+    try {
+        const pptx = new (PptxGenJS as any)();
+
+        // set metadata
+        pptx.author = 'Enterprise AI Chat';
+        pptx.company = 'Your Company';
+        pptx.subject = title;
+        pptx.title = title;
+
+        // Title Slide
+        const titleSlide = pptx.addSlide();
+        titleSlide.addText(title, { x: 1, y: 1, w: 8, h: 1, fontSize: 36, align: 'center', bold: true });
+        titleSlide.addText('Generato da AI', { x: 1, y: 2.5, w: 8, h: 0.5, fontSize: 18, align: 'center', color: '363636' });
+
+        // Content Slides
+        for (const slideData of slides) {
+            const slide = pptx.addSlide();
+            slide.addText(slideData.title, { x: 0.5, y: 0.5, w: 9, h: 0.6, fontSize: 24, bold: true, color: '003366' });
+
+            // Handle bullet points if content has newlines
+            const items = slideData.content.split('\n').filter(line => line.trim().length > 0);
+
+            // Simple text rendering
+            slide.addText(slideData.content, { x: 0.5, y: 1.5, w: 9, h: 3.5, fontSize: 14, color: '363636', align: 'left', bullet: items.length > 1 });
+        }
+
+        // Return a nodebuffer. The type definition might require 'nodebuffer' string.
+        return (await pptx.write({ outputType: 'nodebuffer' })) as unknown as Buffer;
+    } catch (error: any) {
+        console.error(`[DocumentProcessor] PPTX generation error: ${error.message}`);
+        throw new Error(`PPTX generation failed: ${error.message}`);
+    }
+}
+
+
+/**
+ * Convert extracted text into a DOCX document
+ * Returns the path of the generated DOCX file
+ */
+export async function convertTextToDocx(
+    text: string,
+    outputPath: string,
+    title: string = 'Documento Convertito'
+): Promise<string> {
+    try {
+        const buffer = await generateDocxBuffer(text, title);
+        await fs.writeFile(outputPath, buffer);
         return outputPath;
     } catch (error: any) {
         console.error(`[DocumentProcessor] DOCX conversion error: ${error.message}`);
         throw new Error(`DOCX conversion failed: ${error.message}`);
+    }
+}
+
+/**
+ * Generate an Excel document from data and save it to disk
+ */
+export async function convertDataToXlsx(
+    data: Record<string, any>[],
+    outputPath: string,
+    sheetName: string = 'Dati'
+): Promise<string> {
+    try {
+        const buffer = await generateExcelBuffer(data, sheetName);
+        await fs.writeFile(outputPath, buffer);
+        return outputPath;
+    } catch (error: any) {
+        console.error(`[DocumentProcessor] Excel conversion error: ${error.message}`);
+        throw new Error(`Excel conversion failed: ${error.message}`);
+    }
+}
+
+/**
+ * Generate a PowerPoint presentation from slides and save it to disk
+ */
+export async function convertSlidesToPptx(
+    slides: { title: string; content: string }[],
+    outputPath: string,
+    title: string = 'Presentazione Generata'
+): Promise<string> {
+    try {
+        const buffer = await generatePptxBuffer(slides, title);
+        await fs.writeFile(outputPath, buffer);
+        return outputPath;
+    } catch (error: any) {
+        console.error(`[DocumentProcessor] PPTX conversion error: ${error.message}`);
+        throw new Error(`PPTX conversion failed: ${error.message}`);
     }
 }
 
@@ -264,6 +385,27 @@ export async function processDocument(
         return { text, method, charCount: text.length };
     }
 
+    // PDF -> pdf-parse (with OCR fallback)
+    if (mimeType === 'application/pdf') {
+        const { extractPdfText } = await import('../modules/attachments/routes.js');
+        let text = await extractPdfText(buffer);
+
+        // Check if text is too sparse or just markers
+        const markerPattern = /-- \d+ of \d+ --/g;
+        const cleanedText = text.replace(markerPattern, '').trim();
+
+        if (cleanedText.length < 20) {
+            console.log(`[DocumentProcessor] PDF text too sparse (${cleanedText.length} chars) for ${originalName}, trying OCR...`);
+            try {
+                const ocrText = await extractPdfWithOCR(buffer);
+                if (ocrText.trim()) text = ocrText;
+            } catch (ocrErr: any) {
+                console.warn(`[DocumentProcessor] PDF OCR fallback failed: ${ocrErr.message}`);
+            }
+        }
+        return { text, method: 'pdf-parse', charCount: text.length };
+    }
+
     // Plain text / code
     if (mimeType.startsWith('text/')) {
         const text = buffer.toString('utf-8');
@@ -277,12 +419,56 @@ export async function processDocument(
     };
 }
 
-/**
- * Cleanup: Terminate the OCR worker when shutting down
- */
 export async function terminateOCRWorker(): Promise<void> {
     if (ocrWorker) {
         await ocrWorker.terminate();
         ocrWorker = null;
+    }
+}
+
+// ============================================================
+// PDF Conversion (LibreOffice)
+// ============================================================
+
+import { exec } from 'child_process';
+import util from 'util';
+const execPromise = util.promisify(exec);
+
+/**
+ * Convert an Office document (DOCX, XLSX, PPTX) to PDF using LibreOffice
+ * @param inputBuffer Buffer of the input file
+ * @param outputDir Directory where the input file and output PDF will be stored
+ * @param originalName Original filename to preserve extension
+ * @returns Path to the generated PDF file
+ */
+export async function convertOfficeToPdf(
+    inputBuffer: Buffer,
+    outputDir: string,
+    originalName: string
+): Promise<string> {
+    try {
+        const inputPath = path.join(outputDir, originalName);
+        await fs.writeFile(inputPath, inputBuffer);
+
+        // Run LibreOffice in headless mode
+        // --outdir is required to specify where the PDF goes
+        const cmd = `soffice --headless --convert-to pdf --outdir "${outputDir}" "${inputPath}"`;
+
+        // Timeout after 30 seconds
+        await execPromise(cmd, { timeout: 30000 });
+
+        const baseName = path.basename(originalName, path.extname(originalName));
+        const pdfPath = path.join(outputDir, `${baseName}.pdf`);
+
+        // Check if file exists
+        await fs.access(pdfPath);
+
+        // Clean up input file
+        await fs.unlink(inputPath).catch(() => { });
+
+        return pdfPath;
+    } catch (error: any) {
+        console.error(`[DocumentProcessor] PDF conversion error: ${error.message}`);
+        throw new Error(`PDF conversion failed: ${error.message}`);
     }
 }

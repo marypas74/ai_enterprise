@@ -7,6 +7,7 @@ import AdminPage from './pages/AdminPage';
 import ProjectsPage from './pages/ProjectsPage';
 import AutoClaudePage from './pages/AutoClaudePage';
 import ParlantPage from './pages/ParlantPage';
+import SettingsPage from './pages/SettingsPage';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
@@ -57,6 +58,14 @@ export default function App() {
           element={
             <PrivateRoute>
               <ParlantPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <PrivateRoute>
+              <SettingsPage />
             </PrivateRoute>
           }
         />

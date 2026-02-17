@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: localhost:32000/enterprise-ai-chat/frontend:latest
+          image: localhost:32000/enterprise-ai-chat-frontend:1.3.21
           imagePullPolicy: Always
           ports:
             - containerPort: 80

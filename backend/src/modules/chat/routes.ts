@@ -699,14 +699,6 @@ Il codice che generi verrà salvato automaticamente nella cartella condivisa. Us
       }
       // ============================================================
 
-      // Only Anthropic models support tools in this implementation
-      if (!body.model.startsWith('claude-')) {
-        return reply.status(400).send({
-          error: 'Agentic mode only supports Claude models',
-          hint: 'Use a claude-* model for task execution with file tools'
-        });
-      }
-
       // Dynamically import tool service
       const { getToolDefinitions, executeTool } = await import('../../services/ToolService.js');
 
@@ -751,7 +743,7 @@ Il codice che generi verrà salvato automaticamente nella cartella condivisa. Us
       const toolContext = {
         userName: owner?.name || owner?.email?.split('@')[0] || `user_${project.owner_id}`,
         projectName: project.name,
-        projectId: validProjectId,  // Use validated projectId
+        projectId: validProjectId,
         userId: user.id
       };
 
@@ -764,7 +756,7 @@ Il codice che generi verrà salvato automaticamente nella cartella condivisa. Us
 
       // Build messages
       let conversationId = body.conversationId;
-      let messages: { role: 'user' | 'assistant'; content: any }[] = [];
+      let messages: { role: 'user' | 'assistant' | 'system' | 'tool'; content: any; tool_calls?: any[]; tool_call_id?: string; name?: string }[] = [];
 
       if (conversationId) {
         const conversation = await findOne<Conversation>(
@@ -783,15 +775,17 @@ Il codice che generi verrà salvato automaticamente nella cartella condivisa. Us
           [conversationId]
         );
 
-        messages = dbMessages
-          .filter(m => m.role !== 'system')
-          .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+        messages = dbMessages.map(m => ({
+          role: m.role as any,
+          content: m.content
+        }));
       } else {
         const title = body.message.slice(0, 100);
+        const providerName = AIProviderFactory.getProviderName(body.model);
         conversationId = await insertOne(
           fastify.db,
           'INSERT INTO conversations (user_id, title, model, provider, system_prompt) VALUES (?, ?, ?, ?, ?)',
-          [user.id, title, body.model, 'anthropic', body.systemPrompt || null]
+          [user.id, title, body.model, providerName, body.systemPrompt || null]
         );
       }
 
@@ -811,31 +805,36 @@ Il codice che generi verrà salvato automaticamente nella cartella condivisa. Us
         'X-Conversation-Id': conversationId.toString()
       });
 
-      // ============================================================
-      // DEBUG HELPER - Logs to server only (not visible in chat)
-      // ============================================================
       const sendDebug = (msg: string) => {
-        // Only log to server, don't send to client
         fastify.log.info(`[AGENTIC-DEBUG] ${msg}`);
       };
 
-      sendDebug(`Agent started - Request ID: ${reqId}`);
-      sendDebug(`Project: ${toolContext.projectName} | User: ${toolContext.userName}`);
-      sendDebug(`Model: ${body.model} | Tools enabled: ${body.enableTools}`);
-
-      // Import Anthropic SDK
-      const Anthropic = (await import('@anthropic-ai/sdk')).default;
-      const providerConfig = AIProviderFactory['providerConfigs']?.get('anthropic');
-      const apiKey = providerConfig?.apiKey || process.env.ANTHROPIC_API_KEY;
-
-      if (!apiKey) {
-        reply.raw.write(`data: ${JSON.stringify({ error: 'Anthropic API key not configured', done: true })}\n\n`);
+      // ============================================================
+      // ECHO MODE TEST - Send "/test" to verify SSE streaming works
+      // ============================================================
+      if (body.message.startsWith('/test')) {
+        fastify.log.info(`[${reqId}] ECHO MODE: Testing SSE stream...`);
+        reply.raw.writeHead(200, {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive'
+        });
+        reply.raw.write(`data: ${JSON.stringify({ content: 'Echo test: Stream working! ', done: false })}\n\n`);
+        await new Promise(resolve => setTimeout(resolve, 500));
+        reply.raw.write(`data: ${JSON.stringify({ content: 'Second chunk received. ', done: false })}\n\n`);
+        await new Promise(resolve => setTimeout(resolve, 500));
+        reply.raw.write(`data: ${JSON.stringify({ content: 'Third chunk. Stream OK!', done: false })}\n\n`);
+        reply.raw.write(`data: ${JSON.stringify({ content: '', done: true, conversationId: 0 })}\n\n`);
         reply.raw.end();
+        fastify.log.info(`[${reqId}] ECHO MODE: Test complete`);
         return;
       }
+      // ============================================================
 
-      const client = new Anthropic({ apiKey });
-      fastify.log.info(`[${reqId}] STEP 2: Anthropic client created, API key present: ${!!apiKey}`);
+      // AI provider setup
+      const providerName = AIProviderFactory.getProviderName(body.model);
+      const provider = AIProviderFactory.getProvider(body.model);
+      fastify.log.info(`[${reqId}] STEP 2: Using provider ${providerName} for model ${body.model}`);
 
       // Agentic loop - continue until no tool calls
       let fullResponse = '';
@@ -884,179 +883,121 @@ Il codice che generi verrà salvato automaticamente nella cartella condivisa. Us
       reply.raw.write(`data: ${JSON.stringify({ status: 'thinking', message: 'Connecting to AI...', reqId })}\n\n`);
       resetWatchdog('connecting_to_ai');
 
+      const systemPrompt = body.systemPrompt || `You are a skilled software developer AI assistant. Your ONLY purpose is to write and manage code files and Office documents.
+
+CRITICAL INSTRUCTIONS:
+1. You DO NOT have the ability to update Kanban board status or move cards. Do not try.
+2. Your available tools are: write_file, read_file, list_files, create_folder, generate_word_document, generate_excel_document, generate_powerpoint_document
+3. When asked to create code or documents, immediately use the appropriate tool to save them.
+4. Save files to the project storage using relative paths (e.g., "src/main.py", "index.html", "outputs/report.docx")
+5. Always create complete, working content - never leave placeholders
+6. After writing files, briefly explain what you created
+
+Focus 100% on generation. Start writing files immediately.`;
+
+      // Inject system prompt if not present in messages
+      if (!messages.find(m => m.role === 'system')) {
+        messages.unshift({ role: 'system', content: systemPrompt });
+      }
+
       while (iteration < maxIterations && !requestAborted) {
         iteration++;
         resetWatchdog(`iteration_${iteration}_start`);
         sendDebug(`🔄 Iteration ${iteration}/${maxIterations} - Calling AI...`);
         fastify.log.info(`[${reqId}] STEP 3: Starting iteration ${iteration}, messages count: ${messages.length}`);
 
-        // ============================================================
-        // HARD ABORT with AbortController - Actually kills the request
-        // ============================================================
-        const abortController = new AbortController();
-        const timeoutId = setTimeout(() => {
-          fastify.log.error(`[${reqId}] ⏱️ HARD ABORT: 30s timeout reached, killing request`);
-          abortController.abort();
-        }, TIMEOUT_MS);
-
         try {
-          fastify.log.info(`[${reqId}] STEP 3a: Calling Anthropic API (model: ${body.model})...`);
           const apiStartTime = Date.now();
 
-          // Make API call with AbortController signal
-          const response = await client.messages.create({
+          // Call provider.complete (non-streaming for tool handling in a loop is usually more robust)
+          // Though we could stream if we wanted chunked text + tool calls later.
+          const response = await provider.complete({
             model: body.model,
-            max_tokens: 4096,
-            system: body.systemPrompt || `You are a skilled software developer AI assistant. Your ONLY purpose is to write and manage code files.
-
-CRITICAL INSTRUCTIONS:
-1. You DO NOT have the ability to update Kanban board status or move cards. Do not try.
-2. Your ONLY tools are: write_file, read_file, list_files, create_folder
-3. When asked to create code, immediately use write_file to save all files
-4. Save files to the project storage using relative paths (e.g., "src/main.py", "index.html")
-5. Always create complete, working code - never leave placeholders
-6. After writing files, briefly explain what you created
-
-Focus 100% on code generation. Start writing files immediately.`,
-            tools: tools as any,
-            messages
-          }, {
-            signal: abortController.signal  // CRITICAL: Pass the abort signal
+            messages,
+            maxTokens: 4096,
+            temperature: 0.7,
+            tools: tools as any
           });
-
-          // Clear the timeout since we got a response
-          clearTimeout(timeoutId);
 
           // AI responded - reset watchdog
           resetWatchdog(`iteration_${iteration}_processing`);
           const apiDuration = Date.now() - apiStartTime;
-          sendDebug(`✅ AI responded in ${apiDuration}ms - Processing ${response.content?.length || 0} blocks...`);
-          fastify.log.info(`[${reqId}] STEP 3b: Anthropic API responded in ${apiDuration}ms`);
+          sendDebug(`✅ AI responded in ${apiDuration}ms`);
+          fastify.log.info(`[${reqId}] STEP 3b: Provider responded in ${apiDuration}ms`);
 
-          tokensInput += response.usage.input_tokens;
-          tokensOutput += response.usage.output_tokens;
+          tokensInput += response.tokensInput;
+          tokensOutput += response.tokensOutput;
 
-          // Process response content
-          let hasToolUse = false;
-          const toolResults: any[] = [];
-          fastify.log.info(`[${reqId}] STEP 4: Processing ${response.content?.length || 0} content blocks`);
+          if (response.content) {
+            fullResponse += response.content;
+            reply.raw.write(`data: ${JSON.stringify({ content: response.content, done: false, iteration })}\n\n`);
+          }
 
-          for (const block of response.content) {
-            if (block.type === 'text') {
-              fullResponse += block.text;
-              const chunkData = JSON.stringify({ content: block.text, done: false, iteration });
-              fastify.log.info(`[AGENT-DEBUG] Writing text chunk, size: ${chunkData.length} bytes`);
-              reply.raw.write(`data: ${chunkData}\n\n`);
-            } else if (block.type === 'tool_use') {
-              hasToolUse = true;
-              const toolInput = block.input as Record<string, any>;
+          // Process tool calls
+          const toolCalls = response.toolCalls;
+          if (toolCalls && toolCalls.length > 0) {
+            sendDebug(`🔧 Processing ${toolCalls.length} tool calls...`);
+            fastify.log.info(`[${reqId}] STEP 4: Tool calls detected: ${toolCalls.length}`);
 
-              // Enhanced visibility for specific tools
-              if (block.name === 'write_file') {
-                const filePath = toolInput.path || 'unknown';
-                const contentSize = (toolInput.content || '').length;
-                sendDebug(`💾 WRITE FILE: ${filePath} (${contentSize} bytes)`);
-              } else if (block.name === 'read_file') {
-                sendDebug(`📖 READ FILE: ${toolInput.path || 'unknown'}`);
-              } else if (block.name === 'list_files') {
-                sendDebug(`📂 LIST FILES: ${toolInput.path || '/'}`);
-              } else if (block.name === 'create_folder') {
-                sendDebug(`📁 CREATE FOLDER: ${toolInput.path || 'unknown'}`);
-              } else {
-                sendDebug(`🔧 TOOL CALL: ${block.name}`);
-              }
+            const toolResults: any[] = [];
 
-              fastify.log.info(`[AGENT-DEBUG] ======== TOOL USE DETECTED ========`);
-              fastify.log.info(`[AGENT-DEBUG] Tool: ${block.name}`);
-              fastify.log.info(`[AGENT-DEBUG] Input: ${JSON.stringify(block.input)}`);
-              fastify.log.info(`[AGENT-DEBUG] ID: ${block.id}`);
+            // Add assistant message with tool calls to history
+            messages.push({
+              role: 'assistant',
+              content: response.content || '',
+              tool_calls: toolCalls
+            } as any);
 
-              // Notify client about tool use
+            for (const toolCall of toolCalls) {
+              const name = toolCall.function?.name || toolCall.name;
+              const input = typeof toolCall.function?.arguments === 'string'
+                ? JSON.parse(toolCall.function.arguments)
+                : (toolCall.function?.arguments || toolCall.input);
+              const id = toolCall.id;
+
+              sendDebug(`🛠️ Tool: ${name}`);
+
+              // Notify client
               reply.raw.write(`data: ${JSON.stringify({
-                toolUse: { name: block.name, input: block.input },
+                toolUse: { name, input },
                 done: false,
                 iteration
               })}\n\n`);
 
-              // Execute tool with BULLETPROOF error handling
               let result: { success: boolean; output?: any; error?: string };
               try {
-                // Reset watchdog before tool execution (file I/O can be slow)
-                resetWatchdog(`tool_${block.name}`);
-                if (block.name === 'write_file') {
-                  sendDebug(`⏳ Saving to network share...`);
-                } else {
-                  sendDebug(`⏳ Executing ${block.name}...`);
-                }
-                fastify.log.info(`[AGENT-DEBUG] Executing tool: ${block.name}...`);
-                result = await executeTool(block.name, block.input as Record<string, any>, toolContext);
-                // Reset watchdog after tool execution
-                resetWatchdog(`tool_${block.name}_done`);
-
-                // Enhanced success message for write_file
-                if (block.name === 'write_file' && result.success) {
-                  const outputPath = result.output?.fullPath || result.output?.path || toolInput.path;
-                  sendDebug(`✅ FILE SAVED: ${outputPath}`);
-                } else {
-                  sendDebug(`✅ ${block.name} completed: success=${result.success}`);
-                }
-                fastify.log.info(`[AGENT-DEBUG] Tool ${block.name} completed: success=${result.success}`);
+                resetWatchdog(`tool_${name}`);
+                result = await executeTool(name, input, toolContext);
+                resetWatchdog(`tool_${name}_done`);
+                sendDebug(`✅ ${name} result: ${result.success ? 'Success' : 'Error'}`);
               } catch (toolError: any) {
-                // CRITICAL: Catch ANY error from tool execution and mock success
-                sendDebug(`⚠️ ${block.name} CRASHED: ${toolError.message}`);
-                sendDebug(`🔄 BYPASSING ERROR - Returning mock success to keep agent alive`);
-                fastify.log.error(`[AGENT-DEBUG] Tool ${block.name} CRASHED: ${toolError.message}`);
-                fastify.log.error(`[AGENT-DEBUG] Full error: ${JSON.stringify(toolError)}`);
-                fastify.log.warn(`[AGENT-DEBUG] Returning MOCK SUCCESS to keep agent alive`);
-                result = {
-                  success: true,
-                  output: {
-                    message: `Tool ${block.name} completed (simulated due to internal error)`,
-                    warning: `Original error suppressed: ${toolError.message}`
-                  }
-                };
+                sendDebug(`⚠️ ${name} crashed: ${toolError.message}`);
+                result = { success: false, error: toolError.message };
               }
 
-              // Notify client about tool result
+              // Notify client
               reply.raw.write(`data: ${JSON.stringify({
-                toolResult: { name: block.name, success: result.success, output: result.output, error: result.error },
+                toolResult: { name, success: result.success, output: result.output, error: result.error },
                 done: false,
                 iteration
               })}\n\n`);
 
               toolResults.push({
-                type: 'tool_result',
-                tool_use_id: block.id,
-                content: result.success
-                  ? JSON.stringify(result.output)
-                  : `Error: ${result.error}`
+                role: 'tool',
+                tool_call_id: id,
+                name: name,
+                content: result.success ? JSON.stringify(result.output) : `Error: ${result.error}`
               });
             }
-          }
 
-          // If there were tool uses, add assistant response and tool results to messages
-          if (hasToolUse) {
-            sendDebug(`🔄 Tool results collected - Continuing loop...`);
-            messages.push({ role: 'assistant', content: response.content as any });
-            messages.push({ role: 'user', content: toolResults });
+            // Add tool results to history
+            messages.push(...toolResults);
           } else {
-            // No tool use, we're done
-            sendDebug(`✅ No more tool calls - Agent completed`);
+            // No tool calls, loop finished
             break;
           }
-
-          // Check stop reason
-          if (response.stop_reason === 'end_turn' && !hasToolUse) {
-            sendDebug(`🏁 Stop reason: end_turn - Finished`);
-            break;
-          }
-
         } catch (error: any) {
-          // Always clear the timeout to prevent memory leaks
-          clearTimeout(timeoutId);
           clearWatchdog();
-
-          // Check if this was an abort (timeout)
           const isAbort = error.name === 'AbortError' || error.message?.includes('abort');
 
           if (isAbort) {
@@ -1111,7 +1052,7 @@ Focus 100% on code generation. Start writing files immediately.`,
       await insertOne(
         fastify.db,
         'INSERT INTO token_usage (user_id, conversation_id, provider, model, tokens_input, tokens_output, cost_usd) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [user.id, conversationId, 'anthropic', body.model, tokensInput, tokensOutput, cost]
+        [user.id, conversationId, providerName, body.model, tokensInput, tokensOutput, cost]
       );
 
       await updateOne(

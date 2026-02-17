@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: backend
-          image: localhost:32000/enterprise-ai-chat-backend:v1.3.6
+          image: localhost:32000/enterprise-ai-chat-backend:1.5.5
           imagePullPolicy: Always
           ports:
             - containerPort: 3000
@@ -36,6 +36,8 @@ spec:
               value: "/app/projects"
             - name: EXTENSION_DIR
               value: "/app/projects/extensions"
+            - name: ALLOWED_COUNTRIES
+              value: "IT,US"
           volumeMounts:
             - name: shared-projects
               mountPath: /app/projects

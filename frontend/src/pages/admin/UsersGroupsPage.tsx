@@ -12,7 +12,9 @@ import {
   Check,
   UserCog,
   Plus,
-  FolderKanban
+  FolderKanban,
+  Lock,
+  Unlock
 } from 'lucide-react';
 import clsx from 'clsx';
 import { format } from 'date-fns';
@@ -25,6 +27,7 @@ interface User {
   is_active: boolean;
   created_at: string;
   total_tokens: number;
+  mfa_enabled?: boolean;
   groups?: string; // Comma-separated group names from backend
   groupsList?: { id: number; name: string }[]; // Parsed array for UI
   // Profile fields
@@ -614,6 +617,7 @@ export default function UsersGroupsPage() {
                 <th className="px-6 py-3 font-medium">Ruolo</th>
                 <th className="px-6 py-3 font-medium">Gruppi</th>
                 <th className="px-6 py-3 font-medium">Stato</th>
+                <th className="px-6 py-3 font-medium text-center">MFA</th>
                 <th className="px-6 py-3 font-medium">Token</th>
                 <th className="px-6 py-3 font-medium">Creato</th>
                 <th className="px-6 py-3 font-medium text-right">Azioni</th>
@@ -670,6 +674,17 @@ export default function UsersGroupsPage() {
                         {user.is_active ? 'Attivo' : 'Disattivo'}
                       </span>
                     </td>
+                    <td className="px-6 py-4 text-center">
+                      {user.mfa_enabled ? (
+                        <span className="inline-flex items-center text-green-600 dark:text-green-400" title="Protetto">
+                          <Lock className="w-4 h-4" />
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center text-surface-300 dark:text-surface-700" title="Non protetto">
+                          <Unlock className="w-4 h-4" />
+                        </span>
+                      )}
+                    </td>
                     <td className="px-6 py-4 text-surface-500">
                       {user.total_tokens?.toLocaleString() || 0}
                     </td>
@@ -695,6 +710,25 @@ export default function UsersGroupsPage() {
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
+                        {user.mfa_enabled && (
+                          <button
+                            onClick={async () => {
+                              if (confirm(`Sei sicuro di voler resettare l'MFA per ${user.name}?`)) {
+                                try {
+                                  await api.post(`/admin/users/${user.id}/mfa-reset`);
+                                  alert('MFA resettato con successo');
+                                  loadData();
+                                } catch (err: any) {
+                                  alert(err.response?.data?.error || 'Errore durante il reset');
+                                }
+                              }
+                            }}
+                            className="p-2 hover:bg-orange-100 dark:hover:bg-orange-900/30 text-orange-600 rounded-lg"
+                            title="Reset MFA"
+                          >
+                            <Shield className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

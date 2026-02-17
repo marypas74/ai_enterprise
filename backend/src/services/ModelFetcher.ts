@@ -205,8 +205,8 @@ export async function fetchAllModels(providers: ProviderConfig[]): Promise<Avail
   const allModels: AvailableModel[] = [];
 
   const fetchPromises = providers.map(async (provider) => {
-    // Check cache first
-    const cacheKey = `${provider.type}-${provider.apiKey.substring(0, 8)}`;
+    const apiKey = provider.apiKey || 'no-key';
+    const cacheKey = `${provider.type}-${apiKey.substring(0, 8)}`;
     const cached = modelsCache.get(cacheKey);
 
     if (cached && Date.now() - cached.timestamp < CACHE_TTL) {

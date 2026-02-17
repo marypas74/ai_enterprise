@@ -24,6 +24,14 @@ print_step() { echo -e "\n${BLUE}==> $1${NC}"; }
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$BASE_DIR"
 
+# Estrai versioni dai package.json
+BACKEND_VERSION=$(grep '"version":' backend/package.json | head -1 | awk -F: '{ print $2 }' | sed 's/[", ]//g')
+FRONTEND_VERSION=$(grep '"version":' frontend/package.json | head -1 | awk -F: '{ print $2 }' | sed 's/[", ]//g')
+
+echo -e "${BLUE}Versioni rilevate:${NC}"
+echo -e "  Backend: ${BACKEND_VERSION}"
+echo -e "  Frontend: ${FRONTEND_VERSION}"
+
 # 1. Installa dipendenze Backend
 print_step "1. Installazione dipendenze Backend..."
 cd backend
@@ -55,22 +63,24 @@ cd ..
 
 # 3. Build Docker Backend
 print_step "3. Build immagine Docker Backend..."
-docker build -t enterprise-ai-chat/backend:latest ./backend
-print_status "Immagine backend creata"
+docker build -t localhost:32000/enterprise-ai-chat-backend:latest ./backend
+docker build -t localhost:32000/enterprise-ai-chat-backend:${BACKEND_VERSION} ./backend
+print_status "Immagine backend creata (latest e ${BACKEND_VERSION})"
 
 # 4. Build Docker Frontend
 print_step "4. Build immagine Docker Frontend..."
-docker build -t enterprise-ai-chat/frontend:latest ./frontend
-print_status "Immagine frontend creata"
+docker build -t localhost:32000/enterprise-ai-chat-frontend:latest ./frontend
+docker build -t localhost:32000/enterprise-ai-chat-frontend:${FRONTEND_VERSION} ./frontend
+print_status "Immagine frontend creata (latest e ${FRONTEND_VERSION})"
 
 # 5. Import in MicroK8s
 print_step "5. Import immagini in MicroK8s..."
-docker save enterprise-ai-chat/backend:latest > /tmp/backend.tar
-docker save enterprise-ai-chat/frontend:latest > /tmp/frontend.tar
+docker save localhost:32000/enterprise-ai-chat-backend:${BACKEND_VERSION} > /tmp/backend.tar
+docker save localhost:32000/enterprise-ai-chat-frontend:${FRONTEND_VERSION} > /tmp/frontend.tar
 microk8s ctr image import /tmp/backend.tar
 microk8s ctr image import /tmp/frontend.tar
 rm /tmp/backend.tar /tmp/frontend.tar
-print_status "Immagini importate in MicroK8s"
+print_status "Immagini versionate importate in MicroK8s"
 
 # 6. Copia schema database nel ConfigMap
 print_step "6. Configurazione schema database..."

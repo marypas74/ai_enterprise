@@ -27,7 +27,8 @@ import {
   Bot,
   LayoutDashboard,
   Activity,
-  Bug
+  Bug,
+  Wifi
 } from 'lucide-react';
 import clsx from 'clsx';
 import { format } from 'date-fns';
@@ -40,6 +41,7 @@ import KanbanPage from './admin/KanbanPage';
 import SystemMonitorPage from './admin/SystemMonitorPage';
 import UsersGroupsPage from './admin/UsersGroupsPage';
 import DebugPage from './admin/DebugPage';
+import SessionsPage from './admin/SessionsPage';
 
 interface User {
   id: number;
@@ -47,6 +49,7 @@ interface User {
   name: string;
   role: 'admin' | 'user';
   is_active: boolean;
+  mfa_enabled?: boolean;
   created_at: string;
   total_tokens: number;
 }
@@ -85,6 +88,7 @@ const NAV_ITEMS = [
   { path: '/admin/plugins', icon: Puzzle, label: 'Plugins & MCP' },
   { path: '/admin/kanban', icon: LayoutDashboard, label: 'Kanban' },
   { path: '/admin/users', icon: Users, label: 'Users' },
+  { path: '/admin/sessions', icon: Wifi, label: 'Sessioni Attive' },
   { path: '/admin/audit', icon: Shield, label: 'Audit Log' },
   { path: '/admin/debug', icon: Bug, label: 'Debug Console' },
 ];
@@ -545,7 +549,9 @@ function AuditLog() {
   );
 }
 
-const FRONTEND_VERSION = '1.3.6';
+import { APP_VERSION } from '../version';
+
+const FRONTEND_VERSION = APP_VERSION;
 
 export default function AdminPage() {
   const location = useLocation();
@@ -622,6 +628,7 @@ export default function AdminPage() {
           <Route path="/plugins" element={<PluginsPage />} />
           <Route path="/kanban" element={<KanbanPage />} />
           <Route path="/users" element={<UsersGroupsPage />} />
+          <Route path="/sessions" element={<SessionsPage />} />
           <Route path="/audit" element={<AuditLog />} />
           <Route path="/debug" element={<DebugPage />} />
         </Routes>

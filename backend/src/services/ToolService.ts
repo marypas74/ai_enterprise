@@ -10,6 +10,8 @@ import {
   createProjectFolder,
   getProjectFolder,
 } from './StorageService.js';
+import { convertTextToDocx, convertDataToXlsx, convertSlidesToPptx } from './DocumentProcessorService.js';
+import path from 'path';
 
 // Tool definitions for Anthropic API
 export interface ToolDefinition {
@@ -101,6 +103,81 @@ export function getToolDefinitions(): ToolDefinition[] {
         },
         required: ['path']
       }
+    },
+    {
+      name: 'generate_word_document',
+      description: 'Generate a Word (.docx) document from the provided text content. The file will be saved in the project directory.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          path: {
+            type: 'string',
+            description: 'The relative path where the Word document should be saved (e.g., "outputs/report.docx")'
+          },
+          content: {
+            type: 'string',
+            description: 'The text content to be included in the Word document'
+          },
+          title: {
+            type: 'string',
+            description: 'Optional title of the document'
+          }
+        },
+        required: ['path', 'content']
+      }
+    },
+    {
+      name: 'generate_excel_document',
+      description: 'Generate an Excel (.xlsx) spreadsheet from a JSON array of objects. Each object represents a row, and its keys represent columns. The file will be saved in the project directory.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          path: {
+            type: 'string',
+            description: 'The relative path where the Excel file should be saved (e.g., "data/report.xlsx")'
+          },
+          data: {
+            type: 'array',
+            items: { type: 'object' },
+            description: 'Array of objects representing the rows of the spreadsheet'
+          },
+          sheetName: {
+            type: 'string',
+            description: 'Optional name of the worksheet'
+          }
+        },
+        required: ['path', 'data']
+      }
+    },
+    {
+      name: 'generate_powerpoint_document',
+      description: 'Generate a PowerPoint (.pptx) presentation from an array of slide objects. The file will be saved in the project directory.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          path: {
+            type: 'string',
+            description: 'The relative path where the PowerPoint file should be saved (e.g., "presentations/deck.pptx")'
+          },
+          slides: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                title: { type: 'string' },
+                content: { type: 'string' }
+              },
+              required: ['title', 'content']
+            },
+            description: 'Array of objects representing the slides ({title: string, content: string})'
+          },
+          title: {
+            type: 'string',
+            description: 'Optional overall title of the presentation'
+          }
+        },
+        required: ['path', 'slides']
+      }
     }
   ];
 }
@@ -188,6 +265,90 @@ export async function executeTool(
             message: `Folder created successfully`,
             path,
             fullPath: folderPath
+          }
+        };
+      }
+
+      case 'generate_word_document': {
+        const { path: relativePath, content, title } = toolInput;
+        if (!relativePath || content === undefined) {
+          return { success: false, error: 'Missing required parameters: path and content' };
+        }
+
+        const projectPath = getProjectFolder(context.userName, context.projectName);
+        const fullPath = path.join(projectPath, relativePath);
+
+        // Ensure parent directory exists
+        const fs = await import('fs');
+        const parentDir = path.dirname(fullPath);
+        if (!fs.default.existsSync(parentDir)) {
+          fs.default.mkdirSync(parentDir, { recursive: true });
+        }
+
+        await convertTextToDocx(content, fullPath, title || relativePath);
+
+        return {
+          success: true,
+          output: {
+            message: `Word document generated successfully`,
+            path: relativePath,
+            fullPath
+          }
+        };
+      }
+
+      case 'generate_excel_document': {
+        const { path: relativePath, data, sheetName } = toolInput;
+        if (!relativePath || !data) {
+          return { success: false, error: 'Missing required parameters: path and data' };
+        }
+
+        const projectPath = getProjectFolder(context.userName, context.projectName);
+        const fullPath = path.join(projectPath, relativePath);
+
+        // Ensure parent directory exists
+        const fs = await import('fs');
+        const parentDir = path.dirname(fullPath);
+        if (!fs.default.existsSync(parentDir)) {
+          fs.default.mkdirSync(parentDir, { recursive: true });
+        }
+
+        await convertDataToXlsx(data, fullPath, sheetName);
+
+        return {
+          success: true,
+          output: {
+            message: `Excel spreadsheet generated successfully`,
+            path: relativePath,
+            fullPath
+          }
+        };
+      }
+
+      case 'generate_powerpoint_document': {
+        const { path: relativePath, slides, title } = toolInput;
+        if (!relativePath || !slides) {
+          return { success: false, error: 'Missing required parameters: path and slides' };
+        }
+
+        const projectPath = getProjectFolder(context.userName, context.projectName);
+        const fullPath = path.join(projectPath, relativePath);
+
+        // Ensure parent directory exists
+        const fs = await import('fs');
+        const parentDir = path.dirname(fullPath);
+        if (!fs.default.existsSync(parentDir)) {
+          fs.default.mkdirSync(parentDir, { recursive: true });
+        }
+
+        await convertSlidesToPptx(slides, fullPath, title);
+
+        return {
+          success: true,
+          output: {
+            message: `PowerPoint presentation generated successfully`,
+            path: relativePath,
+            fullPath
           }
         };
       }

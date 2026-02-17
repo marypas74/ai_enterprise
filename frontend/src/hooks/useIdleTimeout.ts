@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useAuthStore } from './useAuthStore';
 
-const IDLE_TIMEOUT_MS = 20 * 60 * 1000; // 20 minutes
+const IDLE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 const ACTIVITY_EVENTS = ['mousemove', 'keydown', 'scroll', 'click', 'touchstart'] as const;
 
 export function useIdleTimeout() {
@@ -9,7 +9,7 @@ export function useIdleTimeout() {
   const { isAuthenticated, logout } = useAuthStore();
 
   const handleLogout = useCallback(() => {
-    console.warn('[IdleTimeout] 20 minutes of inactivity - auto logout');
+    console.warn('[IdleTimeout] 5 minutes of inactivity - auto logout');
     logout();
     window.location.href = '/login';
   }, [logout]);

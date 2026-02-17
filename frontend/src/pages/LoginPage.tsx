@@ -2,10 +2,15 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../hooks/useAuthStore';
 import { MessageSquare, Mail, Lock, AlertCircle } from 'lucide-react';
+import { APP_VERSION } from '../version';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [totpCode, setTotpCode] = useState('');
+  const [showMfa, setShowMfa] = useState(false);
+  const [mfaSetupRequired, setMfaSetupRequired] = useState(false);
+
   const { login, isLoading, error, clearError } = useAuthStore();
   const navigate = useNavigate();
 
@@ -14,7 +19,20 @@ export default function LoginPage() {
     clearError();
 
     try {
-      await login(email, password);
+      const result: any = await login(email, password, totpCode);
+
+      if (result?.mfa_required) {
+        setShowMfa(true);
+        return;
+      }
+
+      if (result?.mfa_setup_required) {
+        setMfaSetupRequired(true);
+        // We still log them in (they have a token) but force setup
+        navigate('/settings');
+        return;
+      }
+
       navigate('/');
     } catch {
       // Error is already in store
@@ -48,39 +66,72 @@ export default function LoginPage() {
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-5">
-            <div>
-              <label className="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-2">
-                Email
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-surface-400" />
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="input pl-11"
-                  placeholder="you@example.com"
-                  required
-                />
-              </div>
-            </div>
+            {!showMfa ? (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-2">
+                    Email
+                  </label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-surface-400" />
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="input pl-11"
+                      placeholder="you@example.com"
+                      required
+                    />
+                  </div>
+                </div>
 
-            <div>
-              <label className="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-2">
-                Password
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-surface-400" />
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="input pl-11"
-                  placeholder="Your password"
-                  required
-                />
+                <div>
+                  <label className="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-2">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-surface-400" />
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="input pl-11"
+                      placeholder="Your password"
+                      required
+                    />
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div>
+                <label className="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-2">
+                  Codice di Verifica (MFA)
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-surface-400" />
+                  <input
+                    type="text"
+                    value={totpCode}
+                    onChange={(e) => setTotpCode(e.target.value)}
+                    className="input pl-11"
+                    placeholder="000000"
+                    maxLength={6}
+                    autoFocus
+                    required
+                  />
+                </div>
+                <p className="mt-2 text-xs text-surface-500">
+                  Inserisci il codice a 6 cifre dalla tua app di autenticazione.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowMfa(false)}
+                  className="mt-4 text-sm text-primary-600 dark:text-primary-400 hover:underline"
+                >
+                  Torna al login
+                </button>
               </div>
-            </div>
+            )}
 
             <button
               type="submit"
@@ -105,10 +156,10 @@ export default function LoginPage() {
                       d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                     />
                   </svg>
-                  Signing in...
+                  {showMfa ? 'Verifica...' : 'Signing in...'}
                 </span>
               ) : (
-                <>Sign In</>
+                <>{showMfa ? 'Verifica Codice' : 'Sign In'}</>
               )}
             </button>
           </form>
@@ -122,9 +173,14 @@ export default function LoginPage() {
         </div>
 
         {/* Footer */}
-        <p className="mt-6 text-center text-sm text-surface-500">
-          Multi-provider AI Chat Platform
-        </p>
+        <div className="mt-8 text-center space-y-2">
+          <p className="text-sm text-surface-500">
+            Multi-provider AI Chat Platform
+          </p>
+          <p className="text-xs text-surface-400 font-mono">
+            v{APP_VERSION}
+          </p>
+        </div>
       </div>
     </div>
   );

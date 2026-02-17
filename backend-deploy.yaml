@@ -1,0 +1,163 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    deployment.kubernetes.io/revision: "161"
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"annotations":{},"name":"backend","namespace":"enterprise-ai-chat"},"spec":{"replicas":2,"selector":{"matchLabels":{"app":"backend"}},"template":{"metadata":{"labels":{"app":"backend"}},"spec":{"containers":[{"env":[{"name":"DB_PASSWORD","valueFrom":{"secretKeyRef":{"key":"MYSQL_PASSWORD","name":"mariadb-secrets"}}},{"name":"STORAGE_ROOT","value":"/app/projects"},{"name":"PROJECTS_PATH","value":"/app/projects"},{"name":"EXTENSION_DIR","value":"/app/projects/extensions"},{"name":"ALLOWED_COUNTRIES","value":"IT,US"}],"envFrom":[{"configMapRef":{"name":"app-config"}},{"secretRef":{"name":"app-secrets"}}],"image":"localhost:32000/enterprise-ai-chat-backend:latest","imagePullPolicy":"Always","livenessProbe":{"httpGet":{"path":"/health","port":3000},"initialDelaySeconds":15,"periodSeconds":10},"name":"backend","ports":[{"containerPort":3000}],"readinessProbe":{"httpGet":{"path":"/health","port":3000},"initialDelaySeconds":5,"periodSeconds":5},"resources":{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"200m","memory":"256Mi"}},"volumeMounts":[{"mountPath":"/app/projects","name":"shared-projects"}]}],"initContainers":[{"command":["sh","-c","until nc -z mariadb 3306; do\n  echo \"Waiting for MariaDB...\"\n  sleep 2\ndone\necho \"MariaDB is ready\"\n"],"image":"busybox:1.36","name":"wait-for-db"}],"volumes":[{"hostPath":{"path":"/data/shared-projects","type":"DirectoryOrCreate"},"name":"shared-projects"}]}}}}
+  creationTimestamp: "2025-12-26T16:23:20Z"
+  generation: 179
+  name: backend
+  namespace: enterprise-ai-chat
+  resourceVersion: "11116298"
+  uid: 375b6759-81a7-4776-9b13-ecd91afd9144
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 2
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: backend
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/restartedAt: "2026-02-15T16:49:38Z"
+      creationTimestamp: null
+      labels:
+        app: backend
+    spec:
+      containers:
+      - env:
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: MYSQL_PASSWORD
+              name: mariadb-secrets
+        - name: STORAGE_ROOT
+          value: /app/projects
+        - name: PROJECTS_PATH
+          value: /app/projects
+        - name: EXTENSION_DIR
+          value: /app/projects/extensions
+        - name: ALLOWED_COUNTRIES
+          value: IT,US
+        envFrom:
+        - configMapRef:
+            name: app-config
+        - secretRef:
+            name: app-secrets
+        image: localhost:32000/enterprise-ai-chat-backend:1.5.5
+        imagePullPolicy: Always
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /health
+            port: 3000
+            scheme: HTTP
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 1
+        name: backend
+        ports:
+        - containerPort: 3000
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /health
+            port: 3000
+            scheme: HTTP
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 1
+        resources:
+          limits:
+            cpu: 500m
+            memory: 512Mi
+          requests:
+            cpu: 200m
+            memory: 256Mi
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /var/run/docker.sock
+          name: docker-socket
+        - mountPath: /host/proc
+          name: host-proc
+          readOnly: true
+        - mountPath: /host/sys
+          name: host-sys
+          readOnly: true
+        - mountPath: /app/projects
+          name: shared-projects
+      dnsPolicy: ClusterFirst
+      hostPID: true
+      initContainers:
+      - command:
+        - sh
+        - -c
+        - |
+          until nc -z mariadb 3306; do
+            echo "Waiting for MariaDB..."
+            sleep 2
+          done
+          echo "MariaDB is ready"
+        image: busybox:1.36
+        imagePullPolicy: IfNotPresent
+        name: wait-for-db
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      serviceAccount: backend-monitor
+      serviceAccountName: backend-monitor
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - hostPath:
+          path: /data/shared-projects
+          type: Directory
+        name: host-storage
+      - hostPath:
+          path: /data/shared-projects
+          type: DirectoryOrCreate
+        name: shared-projects
+      - hostPath:
+          path: /var/run/docker.sock
+          type: Socket
+        name: docker-socket
+      - hostPath:
+          path: /proc
+          type: Directory
+        name: host-proc
+      - hostPath:
+          path: /sys
+          type: Directory
+        name: host-sys
+status:
+  availableReplicas: 2
+  conditions:
+  - lastTransitionTime: "2026-02-13T12:48:34Z"
+    lastUpdateTime: "2026-02-13T12:48:34Z"
+    message: Deployment has minimum availability.
+    reason: MinimumReplicasAvailable
+    status: "True"
+    type: Available
+  - lastTransitionTime: "2026-02-13T08:12:24Z"
+    lastUpdateTime: "2026-02-15T16:49:55Z"
+    message: ReplicaSet "backend-84fd794846" has successfully progressed.
+    reason: NewReplicaSetAvailable
+    status: "True"
+    type: Progressing
+  observedGeneration: 179
+  readyReplicas: 2
+  replicas: 2
+  updatedReplicas: 2

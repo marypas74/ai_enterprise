@@ -9,7 +9,7 @@ RUN npm ci --legacy-peer-deps
 
 # Copy source code
 COPY . .
-
+COPY src/modules/tools /app/src/modules/tools
 # Build TypeScript
 RUN npm run build
 
@@ -21,6 +21,15 @@ WORKDIR /app
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nodejs -u 1001
+
+# Install LibreOffice and fonts for document conversion
+RUN apk add --no-cache \
+    libreoffice \
+    ttf-dejavu \
+    ttf-droid \
+    ttf-freefont \
+    ttf-liberation \
+    openjdk11-jre
 
 # Copy package files
 COPY package.json package-lock.json* ./

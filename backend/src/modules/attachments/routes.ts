@@ -9,7 +9,7 @@ import { findOne, findAll, findMany, insertOne, updateOne } from '../../database
 import path from 'path';
 import fs from 'fs/promises';
 import crypto from 'crypto';
-import * as pdfUrl from 'pdf-parse';
+import { PDFParse } from 'pdf-parse';
 import {
   extractWithOCR,
   extractPdfWithOCR,
@@ -21,11 +21,19 @@ import { chunkDocument } from '../../services/ChunkingService.js';
 import { indexChunks } from '../../services/VectorStoreService.js';
 import { searchSimilar } from '../../services/VectorStoreService.js';
 
-async function extractPdfText(buffer: Buffer): Promise<string> {
-  // Handle both ES module default export and CommonJS export
-  const parse = (pdfUrl as any).default || pdfUrl;
-  const data = await parse(buffer);
-  return data.text || '';
+export async function extractPdfText(buffer: Buffer): Promise<string> {
+  try {
+    const pdfParse = new PDFParse({ data: buffer });
+    try {
+      const data = await pdfParse.getText();
+      return data.text || '';
+    } finally {
+      await pdfParse.destroy();
+    }
+  } catch (err: any) {
+    console.error(`[Attachments] PDF extraction error: ${err.message}`);
+    return '';
+  }
 }
 
 // Storage path for attachments
@@ -631,9 +639,13 @@ async function queueAttachmentProcessing(fastify: FastifyInstance, attachmentId:
             const pdfBuffer = await fs.readFile(attachment.file_path);
             let pdfText = await extractPdfText(pdfBuffer);
 
-            // If pdf-parse returns empty text, fall back to OCR (scanned PDF)
-            if (!pdfText.trim()) {
-              fastify.log.info(`[Attachments] PDF text empty for ${attachment.original_name}, trying OCR...`);
+            // Robust check: If pdf-parse returns empty text or only markers (e.g. "-- 1 of 4 --")
+            // with very little actual content, fall back to OCR.
+            const markerPattern = /-- \d+ of \d+ --/g;
+            const cleanedText = pdfText.replace(markerPattern, '').trim();
+
+            if (cleanedText.length < 20) {
+              fastify.log.info(`[Attachments] PDF text too sparse (${cleanedText.length} chars) for ${attachment.original_name}, trying OCR...`);
               try {
                 pdfText = await extractPdfWithOCR(pdfBuffer);
               } catch (ocrFallbackError: any) {

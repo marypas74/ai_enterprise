@@ -6,8 +6,11 @@ import { GoogleGenAI } from '@google/genai';
 export type ProviderType = 'openai' | 'anthropic' | 'google' | 'ollama' | 'custom';
 
 export interface Message {
-  role: 'system' | 'user' | 'assistant';
+  role: 'system' | 'user' | 'assistant' | 'tool';
   content: string;
+  tool_calls?: any[];
+  tool_call_id?: string;
+  name?: string;
 }
 
 export interface CompletionOptions {
@@ -25,11 +28,13 @@ export interface CompletionResult {
   tokensOutput: number;
   model: string;
   provider: ProviderType;
+  toolCalls?: any[];
 }
 
 export interface StreamChunk {
   content: string;
   done: boolean;
+  toolCalls?: any[];
 }
 
 export interface ProviderConfig {
@@ -97,9 +102,10 @@ export class OpenAIProvider implements AIProvider {
   async complete(options: CompletionOptions): Promise<CompletionResult> {
     const response = await this.client.chat.completions.create({
       model: options.model,
-      messages: options.messages,
+      messages: options.messages as any,
       max_tokens: options.maxTokens || 4096,
-      temperature: options.temperature || 0.7
+      temperature: options.temperature || 0.7,
+      tools: options.tools as any
     });
 
     return {
@@ -107,24 +113,28 @@ export class OpenAIProvider implements AIProvider {
       tokensInput: response.usage?.prompt_tokens || 0,
       tokensOutput: response.usage?.completion_tokens || 0,
       model: options.model,
-      provider: 'openai'
+      provider: 'openai',
+      toolCalls: response.choices[0]?.message?.tool_calls
     };
   }
 
   async * streamComplete(options: CompletionOptions): AsyncGenerator<StreamChunk> {
     const stream = await this.client.chat.completions.create({
       model: options.model,
-      messages: options.messages,
+      messages: options.messages as any,
       max_tokens: options.maxTokens || 4096,
       temperature: options.temperature || 0.7,
-      stream: true
+      stream: true,
+      tools: options.tools as any
     });
 
     for await (const chunk of stream) {
       const content = chunk.choices[0]?.delta?.content || '';
-      const done = chunk.choices[0]?.finish_reason === 'stop';
+      const done = chunk.choices[0]?.finish_reason === 'stop' || chunk.choices[0]?.finish_reason === 'tool_calls';
       yield {
-        content, done
+        content,
+        done,
+        toolCalls: chunk.choices[0]?.delta?.tool_calls
       };
     }
   }
@@ -187,14 +197,46 @@ export class AnthropicProvider implements AIProvider {
     const systemMessage = options.messages.find(m => m.role === 'system');
     const conversationMessages = options.messages.filter(m => m.role !== 'system');
 
-    const requestBody = {
+    const requestBody: any = {
       model: options.model,
       max_tokens: options.maxTokens || 4096,
       system: systemMessage?.content,
-      messages: conversationMessages.map(m => ({
-        role: m.role as 'user' | 'assistant',
-        content: m.content
-      }))
+      messages: conversationMessages.map(m => {
+        if (m.role === 'tool') {
+          return {
+            role: 'user',
+            content: [
+              {
+                type: 'tool_result',
+                tool_use_id: m.tool_call_id,
+                content: m.content
+              }
+            ]
+          };
+        }
+
+        const content: any[] = [];
+        if (m.content) content.push({ type: 'text', text: m.content });
+
+        if (m.role === 'assistant' && (m as any).tool_calls) {
+          (m as any).tool_calls.forEach((tc: any) => {
+            content.push({
+              type: 'tool_use',
+              id: tc.id,
+              name: tc.function?.name || tc.name,
+              input: typeof tc.function?.arguments === 'string'
+                ? JSON.parse(tc.function.arguments)
+                : (tc.function?.arguments || tc.input)
+            });
+          });
+        }
+
+        return {
+          role: m.role as 'user' | 'assistant',
+          content: content.length === 1 && content[0].type === 'text' ? content[0].text : content
+        };
+      }),
+      tools: options.tools as any
     };
 
     // Use OAuth if available, otherwise use SDK
@@ -212,7 +254,8 @@ export class AnthropicProvider implements AIProvider {
         tokensInput: data.usage.input_tokens,
         tokensOutput: data.usage.output_tokens,
         model: options.model,
-        provider: 'anthropic'
+        provider: 'anthropic',
+        toolCalls: (data as any).content.filter((c: any) => c.type === 'tool_use')
       };
     }
 
@@ -229,7 +272,8 @@ export class AnthropicProvider implements AIProvider {
       tokensInput: response.usage.input_tokens,
       tokensOutput: response.usage.output_tokens,
       model: options.model,
-      provider: 'anthropic'
+      provider: 'anthropic',
+      toolCalls: response.content.filter(c => c.type === 'tool_use')
     };
   }
 
@@ -295,7 +339,7 @@ export class AnthropicProvider implements AIProvider {
       throw new Error('Anthropic provider not configured. Set API key or OAuth token.');
     }
 
-    const stream = this.client.messages.stream(requestBody);
+    const stream = this.client.messages.stream(requestBody as any);
 
     for await (const event of stream) {
       if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
@@ -400,11 +444,21 @@ export class OllamaProvider implements AIProvider {
   }
 
   async complete(options: CompletionOptions): Promise<CompletionResult> {
+    // Model mapping for Ollama (handles 'fast' aliases from DB)
+    const modelMapping: Record<string, string> = {
+      'qwen-fast': 'qwen2.5:3b',
+      'llama-fast': 'llama3.2:3b',
+      'gemma-fast': 'gemma2:2b',
+      'phi-fast': 'phi3:mini'
+    };
+
+    const targetModel = modelMapping[options.model] || options.model;
+
     const response = await fetch(`${this.baseUrl}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: options.model,
+        model: targetModel,
         messages: options.messages,
         stream: false,
         tools: options.tools,
@@ -432,13 +486,25 @@ export class OllamaProvider implements AIProvider {
       tokensInput: data.prompt_eval_count || 0,
       tokensOutput: data.eval_count || 0,
       model: options.model,
-      provider: 'ollama'
+      provider: 'ollama',
+      toolCalls: (data as any).message?.tool_calls
     };
   }
 
   async *streamComplete(options: CompletionOptions): AsyncGenerator<StreamChunk> {
     const startTime = Date.now();
-    console.log(`[Ollama] Starting stream request: model=${options.model}, timeout=${this.timeout}ms`);
+
+    // Model mapping for Ollama (handles 'fast' aliases from DB)
+    const modelMapping: Record<string, string> = {
+      'qwen-fast': 'qwen2.5:3b',
+      'llama-fast': 'llama3.2:3b',
+      'gemma-fast': 'gemma2:2b',
+      'phi-fast': 'phi3:mini'
+    };
+
+    const targetModel = modelMapping[options.model] || options.model;
+
+    console.log(`[Ollama] Starting stream request: model=${targetModel} (orig=${options.model}), timeout=${this.timeout}ms`);
     console.log(`[Ollama] Messages count: ${options.messages.length}, last message length: ${options.messages[options.messages.length - 1]?.content?.length || 0} chars`);
 
     try {
@@ -446,7 +512,7 @@ export class OllamaProvider implements AIProvider {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: options.model,
+          model: targetModel,
           messages: options.messages,
           stream: true,
           tools: options.tools,
@@ -502,7 +568,8 @@ export class OllamaProvider implements AIProvider {
             }
             yield {
               content: data.message?.content || '',
-              done: data.done
+              done: data.done,
+              toolCalls: (data.message as any)?.tool_calls
             };
           } catch {
             // Skip invalid JSON

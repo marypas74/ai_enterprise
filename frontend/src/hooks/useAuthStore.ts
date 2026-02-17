@@ -7,6 +7,7 @@ interface User {
   email: string;
   name: string;
   role: 'admin' | 'user';
+  mfa_enabled?: boolean;
 }
 
 interface AuthState {
@@ -15,7 +16,7 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, totpCode?: string) => Promise<any>;
   register: (email: string, password: string, name: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshToken: () => Promise<void>;
@@ -31,17 +32,34 @@ export const useAuthStore = create<AuthState>()(
       isLoading: false,
       error: null,
 
-      login: async (email, password) => {
+      login: async (email, password, totpCode) => {
         set({ isLoading: true, error: null });
         try {
-          const response = await api.post('/auth/login', { email, password });
-          const { accessToken, user } = response.data;
+          const response = await api.post('/auth/login', { email, password, totp_code: totpCode });
+          const { accessToken, user, mfa_required, mfa_setup_required } = response.data;
+
+          if (mfa_required) {
+            set({ isLoading: false });
+            return response.data;
+          }
+
+          if (mfa_setup_required) {
+            set({
+              user,
+              accessToken,
+              isAuthenticated: true, // Allow access to Settings page
+              isLoading: false
+            });
+            return response.data;
+          }
+
           set({
             user,
             accessToken,
             isAuthenticated: true,
             isLoading: false
           });
+          return response.data;
         } catch (err: any) {
           set({
             error: err.response?.data?.error || 'Login failed',

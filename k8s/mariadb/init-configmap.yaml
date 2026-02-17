@@ -55,6 +55,7 @@ data:
         description TEXT,
         max_tokens_per_month BIGINT UNSIGNED DEFAULT 1000000,
         allowed_models JSON,
+        kanban_enabled BOOLEAN DEFAULT FALSE,
         is_active BOOLEAN DEFAULT TRUE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -72,6 +73,89 @@ data:
     ) ENGINE=InnoDB;
     
     -- ============================================
+    -- AI PROVIDERS & MODELS CONFIGURATION
+    -- ============================================
+    
+    -- Provider configurations (OpenAI, Anthropic, Google, Ollama, etc.)
+    CREATE TABLE ai_providers (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(50) NOT NULL UNIQUE,
+        display_name VARCHAR(100) NOT NULL,
+        provider_type ENUM('openai', 'anthropic', 'google', 'ollama', 'custom') NOT NULL,
+        is_enabled BOOLEAN DEFAULT FALSE,
+        is_local BOOLEAN DEFAULT FALSE,
+        config_schema JSON NOT NULL, -- JSON Schema for dynamic form generation
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_provider_type (provider_type),
+        INDEX idx_is_enabled (is_enabled)
+    ) ENGINE=InnoDB;
+    
+    -- Provider settings (API keys, endpoints, etc.) - encrypted sensitive data
+    CREATE TABLE ai_provider_settings (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        provider_id BIGINT UNSIGNED NOT NULL,
+        setting_key VARCHAR(100) NOT NULL,
+        setting_value TEXT, -- Encrypted for sensitive values
+        is_secret BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_provider_setting (provider_id, setting_key),
+        FOREIGN KEY (provider_id) REFERENCES ai_providers(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB;
+    
+    -- Available AI models
+    CREATE TABLE ai_models (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        provider_id BIGINT UNSIGNED NOT NULL,
+        model_id VARCHAR(100) NOT NULL, -- e.g., gpt-4, claude-3-opus
+        display_name VARCHAR(150) NOT NULL,
+        description TEXT,
+        model_type ENUM('chat', 'completion', 'embedding', 'image', 'audio') DEFAULT 'chat',
+        context_window INT UNSIGNED DEFAULT 4096,
+        max_output_tokens INT UNSIGNED DEFAULT 4096,
+        input_cost_per_1k DECIMAL(10, 6) DEFAULT 0, -- Cost per 1000 input tokens
+        output_cost_per_1k DECIMAL(10, 6) DEFAULT 0, -- Cost per 1000 output tokens
+        supports_streaming BOOLEAN DEFAULT TRUE,
+        supports_functions BOOLEAN DEFAULT FALSE,
+        supports_vision BOOLEAN DEFAULT FALSE,
+        is_enabled BOOLEAN DEFAULT TRUE,
+        is_default BOOLEAN DEFAULT FALSE,
+        sort_order INT DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_provider_model (provider_id, model_id),
+        FOREIGN KEY (provider_id) REFERENCES ai_providers(id) ON DELETE CASCADE,
+        INDEX idx_model_type (model_type),
+        INDEX idx_is_enabled (is_enabled)
+    ) ENGINE=InnoDB;
+    
+    -- Group model permissions (which models each group can use)
+    CREATE TABLE group_model_permissions (
+        group_id BIGINT UNSIGNED NOT NULL,
+        model_id BIGINT UNSIGNED NOT NULL,
+        max_tokens_per_request INT UNSIGNED DEFAULT 4096,
+        max_requests_per_day INT UNSIGNED DEFAULT 1000,
+        is_allowed BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (group_id, model_id),
+        FOREIGN KEY (group_id) REFERENCES `groups`(id) ON DELETE CASCADE,
+        FOREIGN KEY (model_id) REFERENCES ai_models(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB;
+    
+    -- System settings (global configuration)
+    CREATE TABLE system_settings (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        setting_key VARCHAR(100) NOT NULL UNIQUE,
+        setting_value TEXT,
+        setting_type ENUM('string', 'number', 'boolean', 'json') DEFAULT 'string',
+        description TEXT,
+        is_public BOOLEAN DEFAULT FALSE, -- Can be read by non-admin users
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB;
+    
+    -- ============================================
     -- CONVERSATIONS & MESSAGES
     -- ============================================
     
@@ -80,7 +164,7 @@ data:
         user_id BIGINT UNSIGNED NOT NULL,
         title VARCHAR(255),
         model VARCHAR(50) NOT NULL,
-        provider ENUM('openai', 'anthropic', 'google') NOT NULL,
+        provider ENUM('openai', 'anthropic', 'google', 'ollama', 'custom') NOT NULL,
         system_prompt TEXT,
         is_archived BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -112,7 +196,7 @@ data:
         id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
         user_id BIGINT UNSIGNED NOT NULL,
         conversation_id BIGINT UNSIGNED,
-        provider ENUM('openai', 'anthropic', 'google') NOT NULL,
+        provider ENUM('openai', 'anthropic', 'google', 'ollama', 'custom') NOT NULL,
         model VARCHAR(50) NOT NULL,
         tokens_input INT UNSIGNED NOT NULL,
         tokens_output INT UNSIGNED NOT NULL,
@@ -129,16 +213,16 @@ data:
     CREATE TABLE monthly_usage (
         id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
         user_id BIGINT UNSIGNED NOT NULL,
-        year_month CHAR(7) NOT NULL, -- YYYY-MM format
-        provider ENUM('openai', 'anthropic', 'google') NOT NULL,
+        `year_month` CHAR(7) NOT NULL, -- YYYY-MM format
+        provider ENUM('openai', 'anthropic', 'google', 'ollama', 'custom') NOT NULL,
         total_tokens_input BIGINT UNSIGNED DEFAULT 0,
         total_tokens_output BIGINT UNSIGNED DEFAULT 0,
         total_cost_usd DECIMAL(12, 6) DEFAULT 0,
         request_count INT UNSIGNED DEFAULT 0,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        UNIQUE KEY uk_user_month_provider (user_id, year_month, provider),
+        UNIQUE KEY uk_user_month_provider (user_id, `year_month`, provider),
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-        INDEX idx_year_month (year_month)
+        INDEX idx_year_month (`year_month`)
     ) ENGINE=InnoDB;
     
     -- ============================================
@@ -163,6 +247,25 @@ data:
     ) ENGINE=InnoDB;
     
     -- ============================================
+    -- ACTIVITY LOG (extension monitoring)
+    -- ============================================
+    
+    CREATE TABLE activity_log (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        user_id BIGINT UNSIGNED NOT NULL,
+        action VARCHAR(100) NOT NULL,
+        details JSON,
+        source VARCHAR(50) DEFAULT 'vscode-extension',
+        ip_address VARCHAR(45),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        INDEX idx_user_id (user_id),
+        INDEX idx_action (action),
+        INDEX idx_source (source),
+        INDEX idx_created_at (created_at)
+    ) ENGINE=InnoDB;
+    
+    -- ============================================
     -- API KEYS (for external integrations)
     -- ============================================
     
@@ -183,16 +286,860 @@ data:
     ) ENGINE=InnoDB;
     
     -- ============================================
+    -- SKILLS & PLUGINS MANAGEMENT
+    -- ============================================
+    
+    -- Plugin registry (available plugins)
+    CREATE TABLE plugins (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(100) NOT NULL UNIQUE,
+        display_name VARCHAR(200) NOT NULL,
+        description TEXT,
+        version VARCHAR(20) NOT NULL,
+        author VARCHAR(100),
+        category ENUM('tools', 'integrations', 'utilities', 'ai', 'data', 'other') DEFAULT 'other',
+        icon VARCHAR(100),
+        config_schema JSON, -- JSON Schema for plugin settings
+        is_system BOOLEAN DEFAULT FALSE, -- System plugins can't be disabled
+        is_enabled BOOLEAN DEFAULT TRUE,
+        install_path TEXT,
+        entry_point VARCHAR(255), -- Main module/file
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_category (category),
+        INDEX idx_is_enabled (is_enabled)
+    ) ENGINE=InnoDB;
+    
+    -- Plugin settings (global and per-user)
+    CREATE TABLE plugin_settings (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        plugin_id BIGINT UNSIGNED NOT NULL,
+        user_id BIGINT UNSIGNED NULL, -- NULL = global setting
+        setting_key VARCHAR(100) NOT NULL,
+        setting_value TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_plugin_user_key (plugin_id, user_id, setting_key),
+        FOREIGN KEY (plugin_id) REFERENCES plugins(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB;
+    
+    -- User plugin permissions
+    CREATE TABLE user_plugin_permissions (
+        user_id BIGINT UNSIGNED NOT NULL,
+        plugin_id BIGINT UNSIGNED NOT NULL,
+        is_enabled BOOLEAN DEFAULT TRUE,
+        settings_override JSON, -- User-specific settings override
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, plugin_id),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (plugin_id) REFERENCES plugins(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB;
+    
+    -- MCP (Model Context Protocol) Servers
+    CREATE TABLE mcp_servers (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(100) NOT NULL UNIQUE,
+        display_name VARCHAR(200) NOT NULL,
+        description TEXT,
+        transport_type ENUM('stdio', 'sse', 'websocket') DEFAULT 'stdio',
+        command TEXT, -- Command to run for stdio transport
+        url TEXT, -- URL for SSE/WebSocket transport
+        env_vars JSON, -- Environment variables
+        is_enabled BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_is_enabled (is_enabled)
+    ) ENGINE=InnoDB;
+    
+    -- MCP Server user permissions
+    CREATE TABLE user_mcp_permissions (
+        user_id BIGINT UNSIGNED NOT NULL,
+        mcp_server_id BIGINT UNSIGNED NOT NULL,
+        is_enabled BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, mcp_server_id),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (mcp_server_id) REFERENCES mcp_servers(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB;
+    
+    -- Skills (AI capabilities per user)
+    CREATE TABLE skills (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(100) NOT NULL UNIQUE,
+        display_name VARCHAR(200) NOT NULL,
+        description TEXT,
+        category ENUM('coding', 'writing', 'analysis', 'research', 'creative', 'technical', 'communication', 'other') DEFAULT 'other',
+        system_prompt TEXT, -- Additional system prompt for this skill
+        example_prompts JSON, -- Example prompts to show users
+        required_tools JSON, -- Tools/plugins required for this skill
+        is_default BOOLEAN DEFAULT FALSE, -- Enabled by default for new users
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_category (category),
+        INDEX idx_is_active (is_active)
+    ) ENGINE=InnoDB;
+    
+    -- User skill assignments
+    CREATE TABLE user_skills (
+        user_id BIGINT UNSIGNED NOT NULL,
+        skill_id BIGINT UNSIGNED NOT NULL,
+        is_enabled BOOLEAN DEFAULT TRUE,
+        proficiency_level ENUM('beginner', 'intermediate', 'advanced', 'expert') DEFAULT 'intermediate',
+        custom_prompt_addition TEXT, -- User's custom addition to skill prompt
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, skill_id),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (skill_id) REFERENCES skills(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB;
+    
+    -- Skill templates (pre-configured skill sets)
+    CREATE TABLE skill_templates (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(100) NOT NULL UNIQUE,
+        display_name VARCHAR(200) NOT NULL,
+        description TEXT,
+        skill_ids JSON, -- Array of skill IDs
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB;
+    
+    -- Tool definitions (function calling capabilities)
+    CREATE TABLE tools (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        plugin_id BIGINT UNSIGNED NULL, -- Associated plugin (if any)
+        name VARCHAR(100) NOT NULL UNIQUE,
+        display_name VARCHAR(200) NOT NULL,
+        description TEXT,
+        tool_type ENUM('function', 'api', 'mcp', 'system') DEFAULT 'function',
+        input_schema JSON NOT NULL, -- JSON Schema for tool input
+        output_schema JSON, -- JSON Schema for tool output
+        handler_config JSON, -- Configuration for how to execute the tool
+        requires_approval BOOLEAN DEFAULT FALSE, -- Requires user approval before execution
+        is_enabled BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (plugin_id) REFERENCES plugins(id) ON DELETE SET NULL,
+        INDEX idx_tool_type (tool_type),
+        INDEX idx_is_enabled (is_enabled)
+    ) ENGINE=InnoDB;
+    
+    -- User tool permissions
+    CREATE TABLE user_tool_permissions (
+        user_id BIGINT UNSIGNED NOT NULL,
+        tool_id BIGINT UNSIGNED NOT NULL,
+        is_enabled BOOLEAN DEFAULT TRUE,
+        auto_approve BOOLEAN DEFAULT FALSE, -- Skip approval for this user
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, tool_id),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (tool_id) REFERENCES tools(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB;
+    
+    -- Tool execution log
+    CREATE TABLE tool_executions (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        user_id BIGINT UNSIGNED NOT NULL,
+        tool_id BIGINT UNSIGNED NOT NULL,
+        conversation_id BIGINT UNSIGNED NULL,
+        input_data JSON,
+        output_data JSON,
+        status ENUM('pending', 'approved', 'rejected', 'running', 'success', 'error') DEFAULT 'pending',
+        error_message TEXT,
+        execution_time_ms INT UNSIGNED,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        completed_at TIMESTAMP NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (tool_id) REFERENCES tools(id) ON DELETE CASCADE,
+        FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE SET NULL,
+        INDEX idx_user_id (user_id),
+        INDEX idx_status (status),
+        INDEX idx_created_at (created_at)
+    ) ENGINE=InnoDB;
+    
+    -- ============================================
+    -- KANBAN / PROJECT MANAGEMENT
+    -- ============================================
+    
+    -- Projects
+    CREATE TABLE projects (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(200) NOT NULL,
+        description TEXT,
+        owner_id BIGINT UNSIGNED NOT NULL,
+        color VARCHAR(7) DEFAULT '#3B82F6', -- Hex color
+        icon VARCHAR(50) DEFAULT 'folder',
+        is_archived BOOLEAN DEFAULT FALSE,
+        is_public BOOLEAN DEFAULT FALSE, -- Visible to all users in same groups
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE,
+        INDEX idx_owner_id (owner_id),
+        INDEX idx_is_archived (is_archived)
+    ) ENGINE=InnoDB;
+    
+    -- Project members
+    CREATE TABLE project_members (
+        project_id BIGINT UNSIGNED NOT NULL,
+        user_id BIGINT UNSIGNED NOT NULL,
+        role ENUM('viewer', 'member', 'admin') DEFAULT 'member',
+        joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (project_id, user_id),
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB;
+    
+    -- Kanban boards (a project can have multiple boards)
+    CREATE TABLE kanban_boards (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        project_id BIGINT UNSIGNED NOT NULL,
+        name VARCHAR(200) NOT NULL,
+        description TEXT,
+        is_default BOOLEAN DEFAULT FALSE,
+        sort_order INT DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+        INDEX idx_project_id (project_id)
+    ) ENGINE=InnoDB;
+    
+    -- Kanban columns (e.g., To Do, In Progress, Done)
+    CREATE TABLE kanban_columns (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        board_id BIGINT UNSIGNED NOT NULL,
+        name VARCHAR(100) NOT NULL,
+        color VARCHAR(7) DEFAULT '#6B7280',
+        wip_limit INT UNSIGNED DEFAULT 0, -- Work-in-progress limit (0 = no limit)
+        sort_order INT DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (board_id) REFERENCES kanban_boards(id) ON DELETE CASCADE,
+        INDEX idx_board_id (board_id)
+    ) ENGINE=InnoDB;
+    
+    -- Kanban cards (tasks/items)
+    CREATE TABLE kanban_cards (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        column_id BIGINT UNSIGNED NOT NULL,
+        title VARCHAR(500) NOT NULL,
+        description TEXT,
+        priority ENUM('low', 'medium', 'high', 'urgent') DEFAULT 'medium',
+        due_date DATE NULL,
+        estimated_hours DECIMAL(5,2) DEFAULT 0,
+        actual_hours DECIMAL(5,2) DEFAULT 0,
+        cover_color VARCHAR(7) NULL, -- Card header color
+        cover_image_url TEXT NULL,
+        created_by BIGINT UNSIGNED NOT NULL,
+        assigned_to BIGINT UNSIGNED NULL,
+        sort_order INT DEFAULT 0,
+        is_archived BOOLEAN DEFAULT FALSE,
+        completed_at TIMESTAMP NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (column_id) REFERENCES kanban_columns(id) ON DELETE CASCADE,
+        FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (assigned_to) REFERENCES users(id) ON DELETE SET NULL,
+        INDEX idx_column_id (column_id),
+        INDEX idx_assigned_to (assigned_to),
+        INDEX idx_priority (priority),
+        INDEX idx_due_date (due_date),
+        INDEX idx_is_archived (is_archived)
+    ) ENGINE=InnoDB;
+    
+    -- Card labels/tags
+    CREATE TABLE kanban_labels (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        project_id BIGINT UNSIGNED NOT NULL,
+        name VARCHAR(50) NOT NULL,
+        color VARCHAR(7) NOT NULL DEFAULT '#3B82F6',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+        UNIQUE KEY uk_project_label (project_id, name)
+    ) ENGINE=InnoDB;
+    
+    -- Card-Label relationships
+    CREATE TABLE kanban_card_labels (
+        card_id BIGINT UNSIGNED NOT NULL,
+        label_id BIGINT UNSIGNED NOT NULL,
+        PRIMARY KEY (card_id, label_id),
+        FOREIGN KEY (card_id) REFERENCES kanban_cards(id) ON DELETE CASCADE,
+        FOREIGN KEY (label_id) REFERENCES kanban_labels(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB;
+    
+    -- Card comments
+    CREATE TABLE kanban_card_comments (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        card_id BIGINT UNSIGNED NOT NULL,
+        user_id BIGINT UNSIGNED NOT NULL,
+        content TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (card_id) REFERENCES kanban_cards(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        INDEX idx_card_id (card_id)
+    ) ENGINE=InnoDB;
+    
+    -- Card attachments
+    CREATE TABLE kanban_card_attachments (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        card_id BIGINT UNSIGNED NOT NULL,
+        user_id BIGINT UNSIGNED NOT NULL,
+        file_name VARCHAR(255) NOT NULL,
+        file_path TEXT NOT NULL,
+        file_size BIGINT UNSIGNED NOT NULL,
+        mime_type VARCHAR(100),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (card_id) REFERENCES kanban_cards(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        INDEX idx_card_id (card_id)
+    ) ENGINE=InnoDB;
+    
+    -- Card checklists
+    CREATE TABLE kanban_checklists (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        card_id BIGINT UNSIGNED NOT NULL,
+        name VARCHAR(200) NOT NULL,
+        sort_order INT DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (card_id) REFERENCES kanban_cards(id) ON DELETE CASCADE,
+        INDEX idx_card_id (card_id)
+    ) ENGINE=InnoDB;
+    
+    -- Checklist items
+    CREATE TABLE kanban_checklist_items (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        checklist_id BIGINT UNSIGNED NOT NULL,
+        content VARCHAR(500) NOT NULL,
+        is_checked BOOLEAN DEFAULT FALSE,
+        sort_order INT DEFAULT 0,
+        checked_by BIGINT UNSIGNED NULL,
+        checked_at TIMESTAMP NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (checklist_id) REFERENCES kanban_checklists(id) ON DELETE CASCADE,
+        FOREIGN KEY (checked_by) REFERENCES users(id) ON DELETE SET NULL,
+        INDEX idx_checklist_id (checklist_id)
+    ) ENGINE=InnoDB;
+    
+    -- Card activity log
+    CREATE TABLE kanban_card_activity (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        card_id BIGINT UNSIGNED NOT NULL,
+        user_id BIGINT UNSIGNED NOT NULL,
+        action VARCHAR(50) NOT NULL, -- created, moved, assigned, commented, etc.
+        details JSON,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (card_id) REFERENCES kanban_cards(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        INDEX idx_card_id (card_id),
+        INDEX idx_created_at (created_at)
+    ) ENGINE=InnoDB;
+    
+    -- Link conversations to cards (AI-assisted project management)
+    CREATE TABLE kanban_card_conversations (
+        card_id BIGINT UNSIGNED NOT NULL,
+        conversation_id BIGINT UNSIGNED NOT NULL,
+        linked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (card_id, conversation_id),
+        FOREIGN KEY (card_id) REFERENCES kanban_cards(id) ON DELETE CASCADE,
+        FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB;
+    
+    -- ============================================
     -- INITIAL DATA
     -- ============================================
     
     -- Default admin user (password: admin123 - CHANGE IN PRODUCTION!)
     INSERT INTO users (email, password_hash, name, role) VALUES
-    ('admin@enterprise.local', '$2b$10$rQZ8K1KHCqVnUkPYnQQOXOQlZqKBYIUgGXUvMGqDfVWN5bPBzBqYe', 'Administrator', 'admin');
+    ('admin@enterprise.local', '$2b$10$ytKtSoYrw9giANrh/AVfCOGPDxWmVhMKY0z4MJyUsbOggyGXch74a', 'Administrator', 'admin');
     
     -- Default group
-    INSERT INTO `groups` (name, description, allowed_models) VALUES
-    ('Default', 'Default user group', '["gpt-4", "gpt-4o", "claude-3-5-sonnet", "claude-3-opus", "gemini-pro", "gemini-ultra"]');
+    INSERT INTO `groups` (name, description, allowed_models, max_tokens_per_month, kanban_enabled) VALUES
+    ('Default', 'Default user group', '["gpt-4", "gpt-4o", "claude-3-5-sonnet", "claude-3-opus", "gemini-pro"]', 5000000, TRUE),
+    ('Premium', 'Premium users with extended limits', '["gpt-4", "gpt-4o", "gpt-4-turbo", "claude-3-5-sonnet", "claude-3-opus", "gemini-pro", "gemini-ultra"]', 20000000, TRUE);
     
     -- Assign admin to default group
     INSERT INTO user_groups (user_id, group_id) VALUES (1, 1);
+    
+    -- ============================================
+    -- AI PROVIDERS CONFIGURATION
+    -- ============================================
+    
+    -- OpenAI Provider
+    INSERT INTO ai_providers (name, display_name, provider_type, is_enabled, is_local, config_schema) VALUES
+    ('openai', 'OpenAI', 'openai', FALSE, FALSE, '{
+      "type": "object",
+      "required": ["api_key"],
+      "properties": {
+        "api_key": {
+          "type": "string",
+          "title": "API Key",
+          "description": "Your OpenAI API key",
+          "format": "password"
+        },
+        "organization_id": {
+          "type": "string",
+          "title": "Organization ID",
+          "description": "Optional organization ID"
+        },
+        "base_url": {
+          "type": "string",
+          "title": "Base URL",
+          "description": "Custom API endpoint (leave empty for default)",
+          "default": "https://api.openai.com/v1"
+        }
+      }
+    }');
+    
+    -- Anthropic Provider
+    INSERT INTO ai_providers (name, display_name, provider_type, is_enabled, is_local, config_schema) VALUES
+    ('anthropic', 'Anthropic (Claude)', 'anthropic', FALSE, FALSE, '{
+      "type": "object",
+      "required": ["api_key"],
+      "properties": {
+        "api_key": {
+          "type": "string",
+          "title": "API Key",
+          "description": "Your Anthropic API key",
+          "format": "password"
+        },
+        "base_url": {
+          "type": "string",
+          "title": "Base URL",
+          "description": "Custom API endpoint (leave empty for default)",
+          "default": "https://api.anthropic.com"
+        }
+      }
+    }');
+    
+    -- Google Provider
+    INSERT INTO ai_providers (name, display_name, provider_type, is_enabled, is_local, config_schema) VALUES
+    ('google', 'Google (Gemini)', 'google', FALSE, FALSE, '{
+      "type": "object",
+      "required": ["api_key"],
+      "properties": {
+        "api_key": {
+          "type": "string",
+          "title": "API Key",
+          "description": "Your Google AI API key",
+          "format": "password"
+        },
+        "project_id": {
+          "type": "string",
+          "title": "Project ID",
+          "description": "Google Cloud Project ID (optional)"
+        }
+      }
+    }');
+    
+    -- Ollama Provider (Local)
+    INSERT INTO ai_providers (name, display_name, provider_type, is_enabled, is_local, config_schema) VALUES
+    ('ollama', 'Ollama (Local)', 'ollama', FALSE, TRUE, '{
+      "type": "object",
+      "required": ["base_url"],
+      "properties": {
+        "base_url": {
+          "type": "string",
+          "title": "Base URL",
+          "description": "Ollama server URL",
+          "default": "http://localhost:11434"
+        },
+        "timeout": {
+          "type": "number",
+          "title": "Timeout (seconds)",
+          "description": "Request timeout in seconds",
+          "default": 120
+        },
+        "keep_alive": {
+          "type": "string",
+          "title": "Keep Alive",
+          "description": "How long to keep model loaded (e.g., 5m, 1h)",
+          "default": "5m"
+        }
+      }
+    }');
+    
+    -- Custom OpenAI-compatible Provider
+    INSERT INTO ai_providers (name, display_name, provider_type, is_enabled, is_local, config_schema) VALUES
+    ('custom', 'Custom (OpenAI Compatible)', 'custom', FALSE, FALSE, '{
+      "type": "object",
+      "required": ["base_url"],
+      "properties": {
+        "api_key": {
+          "type": "string",
+          "title": "API Key",
+          "description": "API key (if required)",
+          "format": "password"
+        },
+        "base_url": {
+          "type": "string",
+          "title": "Base URL",
+          "description": "API endpoint URL"
+        },
+        "custom_headers": {
+          "type": "string",
+          "title": "Custom Headers",
+          "description": "Additional headers as JSON object"
+        }
+      }
+    }');
+    
+    -- ============================================
+    -- AI MODELS CONFIGURATION
+    -- ============================================
+    
+    -- OpenAI Models
+    INSERT INTO ai_models (provider_id, model_id, display_name, description, context_window, max_output_tokens, input_cost_per_1k, output_cost_per_1k, supports_streaming, supports_functions, supports_vision, is_enabled, is_default, sort_order) VALUES
+    ((SELECT id FROM ai_providers WHERE name = 'openai'), 'gpt-4o', 'GPT-4o', 'Most capable GPT-4 model with vision', 128000, 16384, 0.005, 0.015, TRUE, TRUE, TRUE, TRUE, TRUE, 1),
+    ((SELECT id FROM ai_providers WHERE name = 'openai'), 'gpt-4o-mini', 'GPT-4o Mini', 'Smaller, faster, cheaper GPT-4o', 128000, 16384, 0.00015, 0.0006, TRUE, TRUE, TRUE, TRUE, FALSE, 2),
+    ((SELECT id FROM ai_providers WHERE name = 'openai'), 'gpt-4-turbo', 'GPT-4 Turbo', 'GPT-4 Turbo with vision', 128000, 4096, 0.01, 0.03, TRUE, TRUE, TRUE, TRUE, FALSE, 3),
+    ((SELECT id FROM ai_providers WHERE name = 'openai'), 'gpt-4', 'GPT-4', 'Original GPT-4 model', 8192, 8192, 0.03, 0.06, TRUE, TRUE, FALSE, TRUE, FALSE, 4),
+    ((SELECT id FROM ai_providers WHERE name = 'openai'), 'gpt-3.5-turbo', 'GPT-3.5 Turbo', 'Fast and cost-effective', 16385, 4096, 0.0005, 0.0015, TRUE, TRUE, FALSE, TRUE, FALSE, 5);
+    
+    -- Anthropic Models
+    INSERT INTO ai_models (provider_id, model_id, display_name, description, context_window, max_output_tokens, input_cost_per_1k, output_cost_per_1k, supports_streaming, supports_functions, supports_vision, is_enabled, is_default, sort_order) VALUES
+    ((SELECT id FROM ai_providers WHERE name = 'anthropic'), 'claude-sonnet-4-20250514', 'Claude Sonnet 4', 'Latest Claude Sonnet - excellent balance of intelligence and speed', 200000, 8192, 0.003, 0.015, TRUE, TRUE, TRUE, TRUE, TRUE, 1),
+    ((SELECT id FROM ai_providers WHERE name = 'anthropic'), 'claude-3-5-sonnet-20241022', 'Claude 3.5 Sonnet', 'Excellent balance of intelligence and speed', 200000, 8192, 0.003, 0.015, TRUE, TRUE, TRUE, TRUE, FALSE, 2),
+    ((SELECT id FROM ai_providers WHERE name = 'anthropic'), 'claude-3-opus-20240229', 'Claude 3 Opus', 'Most powerful Claude model', 200000, 4096, 0.015, 0.075, TRUE, TRUE, TRUE, TRUE, FALSE, 3),
+    ((SELECT id FROM ai_providers WHERE name = 'anthropic'), 'claude-3-haiku-20240307', 'Claude 3 Haiku', 'Fastest and most compact', 200000, 4096, 0.00025, 0.00125, TRUE, TRUE, TRUE, TRUE, FALSE, 4);
+    
+    -- Google Models
+    INSERT INTO ai_models (provider_id, model_id, display_name, description, context_window, max_output_tokens, input_cost_per_1k, output_cost_per_1k, supports_streaming, supports_functions, supports_vision, is_enabled, is_default, sort_order) VALUES
+    ((SELECT id FROM ai_providers WHERE name = 'google'), 'gemini-2.0-flash', 'Gemini 2.0 Flash', 'Latest Gemini with multimodal capabilities', 1000000, 8192, 0.000075, 0.0003, TRUE, TRUE, TRUE, TRUE, TRUE, 1),
+    ((SELECT id FROM ai_providers WHERE name = 'google'), 'gemini-1.5-pro', 'Gemini 1.5 Pro', 'Most capable Gemini model', 2000000, 8192, 0.00125, 0.005, TRUE, TRUE, TRUE, TRUE, FALSE, 2),
+    ((SELECT id FROM ai_providers WHERE name = 'google'), 'gemini-1.5-flash', 'Gemini 1.5 Flash', 'Fast and versatile', 1000000, 8192, 0.000075, 0.0003, TRUE, TRUE, TRUE, TRUE, FALSE, 3);
+    
+    -- Ollama Models (common ones - user can add more)
+    INSERT INTO ai_models (provider_id, model_id, display_name, description, context_window, max_output_tokens, input_cost_per_1k, output_cost_per_1k, supports_streaming, supports_functions, supports_vision, is_enabled, is_default, sort_order) VALUES
+    ((SELECT id FROM ai_providers WHERE name = 'ollama'), 'llama3.2', 'Llama 3.2', 'Meta Llama 3.2 - Latest open source model', 131072, 4096, 0, 0, TRUE, FALSE, FALSE, TRUE, TRUE, 1),
+    ((SELECT id FROM ai_providers WHERE name = 'ollama'), 'llama3.1', 'Llama 3.1', 'Meta Llama 3.1 - Powerful open source model', 131072, 4096, 0, 0, TRUE, FALSE, FALSE, TRUE, FALSE, 2),
+    ((SELECT id FROM ai_providers WHERE name = 'ollama'), 'mistral', 'Mistral 7B', 'Fast and efficient model from Mistral AI', 32768, 4096, 0, 0, TRUE, FALSE, FALSE, TRUE, FALSE, 3),
+    ((SELECT id FROM ai_providers WHERE name = 'ollama'), 'mixtral', 'Mixtral 8x7B', 'Mixture of experts model', 32768, 4096, 0, 0, TRUE, FALSE, FALSE, TRUE, FALSE, 4),
+    ((SELECT id FROM ai_providers WHERE name = 'ollama'), 'codellama', 'Code Llama', 'Optimized for code generation', 16384, 4096, 0, 0, TRUE, FALSE, FALSE, TRUE, FALSE, 5),
+    ((SELECT id FROM ai_providers WHERE name = 'ollama'), 'deepseek-coder-v2', 'DeepSeek Coder V2', 'Advanced coding model', 131072, 4096, 0, 0, TRUE, FALSE, FALSE, TRUE, FALSE, 6),
+    ((SELECT id FROM ai_providers WHERE name = 'ollama'), 'qwen2.5', 'Qwen 2.5', 'Alibaba Qwen 2.5 model', 131072, 4096, 0, 0, TRUE, FALSE, FALSE, TRUE, FALSE, 7),
+    ((SELECT id FROM ai_providers WHERE name = 'ollama'), 'phi3', 'Phi-3', 'Microsoft Phi-3 - Small but capable', 4096, 4096, 0, 0, TRUE, FALSE, FALSE, TRUE, FALSE, 8),
+    ((SELECT id FROM ai_providers WHERE name = 'ollama'), 'llava', 'LLaVA', 'Vision-enabled model', 4096, 4096, 0, 0, TRUE, FALSE, TRUE, TRUE, FALSE, 9);
+    
+    -- ============================================
+    -- SYSTEM SETTINGS
+    -- ============================================
+    
+    INSERT INTO system_settings (setting_key, setting_value, setting_type, description, is_public) VALUES
+    ('default_system_prompt', 'You are a helpful AI assistant.', 'string', 'Default system prompt for new conversations', TRUE),
+    ('max_conversation_history', '50', 'number', 'Maximum number of messages to include in context', FALSE),
+    ('enable_streaming', 'true', 'boolean', 'Enable streaming responses by default', TRUE),
+    ('rate_limit_requests_per_minute', '60', 'number', 'Maximum requests per minute per user', FALSE),
+    ('allow_user_registration', 'false', 'boolean', 'Allow new users to self-register', FALSE),
+    ('default_model', 'gpt-4o', 'string', 'Default model for new conversations', TRUE),
+    ('maintenance_mode', 'false', 'boolean', 'Enable maintenance mode', FALSE);
+    
+    -- ============================================
+    -- DEFAULT SKILLS
+    -- ============================================
+    
+    INSERT INTO skills (name, display_name, description, category, system_prompt, example_prompts, is_default, is_active) VALUES
+    ('coding_assistant', 'Coding Assistant', 'Help with programming tasks, code review, debugging, and software development', 'coding',
+    'You are an expert software developer. Help users with coding tasks, explain code, debug issues, and provide best practices. Always provide clean, well-documented code with explanations.',
+    '["Write a Python function to parse JSON files", "Review this code for bugs", "Explain how async/await works", "Help me refactor this class"]',
+    TRUE, TRUE),
+    
+    ('technical_writer', 'Technical Writer', 'Create documentation, tutorials, and technical content', 'writing',
+    'You are a skilled technical writer. Help users create clear, concise documentation, tutorials, API references, and technical guides. Focus on clarity and accuracy.',
+    '["Write API documentation for this endpoint", "Create a user guide for this feature", "Write a README for this project", "Explain this concept for beginners"]',
+    TRUE, TRUE),
+    
+    ('data_analyst', 'Data Analyst', 'Analyze data, create queries, and provide insights', 'analysis',
+    'You are a data analyst expert. Help users analyze data, write SQL queries, create visualizations, and derive meaningful insights from datasets.',
+    '["Write a SQL query to find top customers", "Analyze this dataset for trends", "Create a data visualization plan", "Explain these statistics"]',
+    TRUE, TRUE),
+    
+    ('research_assistant', 'Research Assistant', 'Help with research tasks, summarization, and information gathering', 'research',
+    'You are a research assistant. Help users gather information, summarize documents, find relevant sources, and organize research materials.',
+    '["Summarize this research paper", "Compare these approaches", "Find relevant information about this topic", "Create a literature review outline"]',
+    FALSE, TRUE),
+    
+    ('creative_writer', 'Creative Writer', 'Assist with creative writing, storytelling, and content creation', 'creative',
+    'You are a creative writing assistant. Help users with storytelling, content creation, copywriting, and creative projects. Focus on engaging and compelling content.',
+    '["Help me write a blog post about AI", "Create a product description", "Write a compelling headline", "Help brainstorm story ideas"]',
+    FALSE, TRUE),
+    
+    ('system_admin', 'System Administrator', 'Help with DevOps, system administration, and infrastructure', 'technical',
+    'You are a system administrator and DevOps expert. Help users with server management, containerization, CI/CD pipelines, cloud infrastructure, and automation scripts.',
+    '["Write a Dockerfile for this application", "Create a Kubernetes deployment", "Debug this shell script", "Set up a CI/CD pipeline"]',
+    FALSE, TRUE),
+    
+    ('code_reviewer', 'Code Reviewer', 'Review code for quality, security, and best practices', 'coding',
+    'You are a senior code reviewer. Analyze code for bugs, security vulnerabilities, performance issues, and adherence to best practices. Provide constructive feedback.',
+    '["Review this code for security issues", "Check this function for edge cases", "Suggest improvements for this class", "Analyze code complexity"]',
+    FALSE, TRUE),
+    
+    ('api_designer', 'API Designer', 'Design and document RESTful and GraphQL APIs', 'technical',
+    'You are an API design expert. Help users design clean, RESTful APIs, GraphQL schemas, and API documentation. Focus on consistency, usability, and standards compliance.',
+    '["Design an API for user management", "Create OpenAPI specification", "Design GraphQL schema for this data", "Review this API design"]',
+    FALSE, TRUE);
+    
+    -- Assign default skills to admin user
+    INSERT INTO user_skills (user_id, skill_id, is_enabled, proficiency_level)
+    SELECT 1, id, TRUE, 'expert' FROM skills WHERE is_default = TRUE;
+    
+    -- ============================================
+    -- DEFAULT SKILL TEMPLATES
+    -- ============================================
+    
+    INSERT INTO skill_templates (name, display_name, description, skill_ids, is_active) VALUES
+    ('developer', 'Software Developer', 'Complete skill set for software developers',
+    '[1, 7, 8]', TRUE),
+    ('writer', 'Technical Writer', 'Skills for documentation and content creation',
+    '[2, 4, 5]', TRUE),
+    ('analyst', 'Data Analyst', 'Skills for data analysis and research',
+    '[3, 4]', TRUE),
+    ('devops', 'DevOps Engineer', 'Skills for system administration and automation',
+    '[1, 6, 7]', TRUE);
+    
+    -- ============================================
+    -- DEFAULT PLUGINS
+    -- ============================================
+    
+    INSERT INTO plugins (name, display_name, description, version, author, category, icon, config_schema, is_system, is_enabled) VALUES
+    ('web_search', 'Web Search', 'Search the web for information using various search engines', '1.0.0', 'System', 'tools', 'search',
+    '{
+      "type": "object",
+      "properties": {
+        "default_engine": {
+          "type": "string",
+          "title": "Default Search Engine",
+          "enum": ["google", "bing", "duckduckgo"],
+          "default": "duckduckgo"
+        },
+        "max_results": {
+          "type": "number",
+          "title": "Maximum Results",
+          "default": 10,
+          "minimum": 1,
+          "maximum": 50
+        }
+      }
+    }', TRUE, TRUE),
+    
+    ('file_manager', 'File Manager', 'Read, write, and manage files in designated directories', '1.0.0', 'System', 'tools', 'folder',
+    '{
+      "type": "object",
+      "properties": {
+        "allowed_paths": {
+          "type": "array",
+          "title": "Allowed Paths",
+          "items": {"type": "string"},
+          "default": ["/tmp", "/home"]
+        },
+        "max_file_size_mb": {
+          "type": "number",
+          "title": "Max File Size (MB)",
+          "default": 10
+        }
+      }
+    }', TRUE, FALSE),
+    
+    ('code_executor', 'Code Executor', 'Execute code in isolated sandboxed environments', '1.0.0', 'System', 'tools', 'terminal',
+    '{
+      "type": "object",
+      "properties": {
+        "allowed_languages": {
+          "type": "array",
+          "title": "Allowed Languages",
+          "items": {"type": "string", "enum": ["python", "javascript", "bash", "ruby"]},
+          "default": ["python", "javascript"]
+        },
+        "timeout_seconds": {
+          "type": "number",
+          "title": "Execution Timeout (seconds)",
+          "default": 30
+        },
+        "memory_limit_mb": {
+          "type": "number",
+          "title": "Memory Limit (MB)",
+          "default": 256
+        }
+      }
+    }', TRUE, FALSE),
+    
+    ('git_integration', 'Git Integration', 'Interact with Git repositories for version control operations', '1.0.0', 'System', 'integrations', 'git-branch',
+    '{
+      "type": "object",
+      "properties": {
+        "default_branch": {
+          "type": "string",
+          "title": "Default Branch",
+          "default": "main"
+        },
+        "allow_push": {
+          "type": "boolean",
+          "title": "Allow Push Operations",
+          "default": false
+        }
+      }
+    }', FALSE, FALSE),
+    
+    ('database_query', 'Database Query', 'Execute read-only queries on connected databases', '1.0.0', 'System', 'data', 'database',
+    '{
+      "type": "object",
+      "properties": {
+        "allowed_operations": {
+          "type": "array",
+          "title": "Allowed Operations",
+          "items": {"type": "string", "enum": ["SELECT", "DESCRIBE", "SHOW", "EXPLAIN"]},
+          "default": ["SELECT", "DESCRIBE"]
+        },
+        "max_rows": {
+          "type": "number",
+          "title": "Maximum Rows",
+          "default": 1000
+        }
+      }
+    }', FALSE, FALSE),
+    
+    ('http_client', 'HTTP Client', 'Make HTTP requests to external APIs', '1.0.0', 'System', 'integrations', 'globe',
+    '{
+      "type": "object",
+      "properties": {
+        "allowed_domains": {
+          "type": "array",
+          "title": "Allowed Domains",
+          "items": {"type": "string"},
+          "default": []
+        },
+        "timeout_seconds": {
+          "type": "number",
+          "title": "Request Timeout (seconds)",
+          "default": 30
+        },
+        "max_response_size_kb": {
+          "type": "number",
+          "title": "Max Response Size (KB)",
+          "default": 1024
+        }
+      }
+    }', TRUE, FALSE);
+    
+    -- ============================================
+    -- DEFAULT MCP SERVERS
+    -- ============================================
+    
+    INSERT INTO mcp_servers (name, display_name, description, transport_type, command, url, env_vars, is_enabled) VALUES
+    ('filesystem', 'Filesystem', 'Access and manage local filesystem', 'stdio',
+    'npx -y @modelcontextprotocol/server-filesystem /tmp', NULL, '{}', FALSE),
+    
+    ('puppeteer', 'Puppeteer', 'Browser automation and web scraping', 'stdio',
+    'npx -y @anthropic/mcp-server-puppeteer', NULL, '{}', FALSE),
+    
+    ('sqlite', 'SQLite', 'Query SQLite databases', 'stdio',
+    'npx -y @anthropic/mcp-server-sqlite --db-path /data/db.sqlite', NULL, '{}', FALSE),
+    
+    ('fetch', 'Fetch', 'Fetch and process web content', 'stdio',
+    'npx -y @anthropic/mcp-server-fetch', NULL, '{}', FALSE),
+    
+    ('memory', 'Memory', 'Persistent memory for conversations', 'stdio',
+    'npx -y @anthropic/mcp-server-memory', NULL, '{}', FALSE),
+    
+    ('github', 'GitHub', 'GitHub repository management', 'stdio',
+    'npx -y @anthropic/mcp-server-github', NULL, '{"GITHUB_TOKEN": ""}', FALSE),
+    
+    ('postgres', 'PostgreSQL', 'Query PostgreSQL databases', 'stdio',
+    'npx -y @anthropic/mcp-server-postgres', NULL, '{"DATABASE_URL": ""}', FALSE),
+    
+    ('slack', 'Slack', 'Slack workspace integration', 'stdio',
+    'npx -y @anthropic/mcp-server-slack', NULL, '{"SLACK_TOKEN": ""}', FALSE);
+    
+    -- ============================================
+    -- DEFAULT TOOLS (Function calling definitions)
+    -- ============================================
+    
+    INSERT INTO tools (plugin_id, name, display_name, description, tool_type, input_schema, requires_approval, is_enabled) VALUES
+    (1, 'search_web', 'Search Web', 'Search the web for information', 'function',
+    '{
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "Search query"
+        },
+        "num_results": {
+          "type": "number",
+          "description": "Number of results to return",
+          "default": 5
+        }
+      }
+    }', FALSE, TRUE),
+    
+    (2, 'read_file', 'Read File', 'Read contents of a file', 'function',
+    '{
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Path to the file"
+        }
+      }
+    }', TRUE, TRUE),
+    
+    (2, 'write_file', 'Write File', 'Write contents to a file', 'function',
+    '{
+      "type": "object",
+      "required": ["path", "content"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Path to the file"
+        },
+        "content": {
+          "type": "string",
+          "description": "Content to write"
+        }
+      }
+    }', TRUE, TRUE),
+    
+    (3, 'execute_code', 'Execute Code', 'Execute code in a sandboxed environment', 'function',
+    '{
+      "type": "object",
+      "required": ["language", "code"],
+      "properties": {
+        "language": {
+          "type": "string",
+          "description": "Programming language",
+          "enum": ["python", "javascript", "bash"]
+        },
+        "code": {
+          "type": "string",
+          "description": "Code to execute"
+        }
+      }
+    }', TRUE, FALSE),
+    
+    (6, 'http_request', 'HTTP Request', 'Make an HTTP request to an external API', 'function',
+    '{
+      "type": "object",
+      "required": ["url", "method"],
+      "properties": {
+        "url": {
+          "type": "string",
+          "description": "URL to request"
+        },
+        "method": {
+          "type": "string",
+          "description": "HTTP method",
+          "enum": ["GET", "POST", "PUT", "DELETE"]
+        },
+        "headers": {
+          "type": "object",
+          "description": "Request headers"
+        },
+        "body": {
+          "type": "string",
+          "description": "Request body"
+        }
+      }
+    }', TRUE, FALSE);
+    
