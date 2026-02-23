@@ -3,9 +3,9 @@
  * Handles OCR, Office extraction, and PDF-to-DOCX conversion
  */
 
-import { createWorker, Worker } from 'tesseract.js';
+import { createWorker, createScheduler, Worker } from 'tesseract.js';
 import mammoth from 'mammoth';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { Document, Packer, Paragraph, TextRun } from 'docx';
 import fs from 'fs/promises';
 import path from 'path';
@@ -42,22 +42,69 @@ export async function extractWithOCR(
 }
 
 /**
- * Extract text from a scanned PDF by first converting pages to images
- * Falls back to OCR when pdf-parse returns empty text
+ * Extract text from a scanned PDF by converting pages to PNG images
+ * using pdftoppm (poppler-utils), then running OCR on each page in parallel.
  */
 export async function extractPdfWithOCR(
     buffer: Buffer,
     lang: string = 'ita+eng'
 ): Promise<string> {
-    // Tesseract.js can accept PDF buffers directly in newer versions
-    // For scanned PDFs, we treat the whole buffer as an image-like input
+    const crypto = await import('crypto');
+    const os = await import('os');
+    const { promisify } = await import('util');
+    const { exec: execCb } = await import('child_process');
+    const execAsync = promisify(execCb);
+
+    const tmpId = crypto.randomBytes(8).toString('hex');
+    const tmpDir = path.join(os.tmpdir(), `pdf_ocr_${tmpId}`);
+    const tmpPdf = path.join(tmpDir, 'input.pdf');
+
+    console.log(`[DocumentProcessor] PDF OCR: creating temp dir ${tmpDir}`);
+    await fs.mkdir(tmpDir, { recursive: true });
+    await fs.writeFile(tmpPdf, buffer);
+
     try {
-        const worker = await getOCRWorker(lang);
-        const { data } = await worker.recognize(buffer);
-        return data.text || '';
+        // Convert PDF pages to PNG images at 300 DPI using pdftoppm
+        console.log(`[DocumentProcessor] PDF OCR: running pdftoppm for ${buffer.length} bytes`);
+        await execAsync(`pdftoppm -png -r 300 "${tmpPdf}" "${tmpDir}/page"`, { timeout: 120000 });
+
+        // Find generated page images
+        const files = await fs.readdir(tmpDir);
+        const pageImages = files.filter(f => f.startsWith('page-') && f.endsWith('.png')).sort();
+
+        if (pageImages.length === 0) {
+            throw new Error('pdftoppm produced no page images');
+        }
+
+        console.log(`[DocumentProcessor] PDF OCR: ${pageImages.length} page images generated, starting parallel OCR`);
+
+        // Setup parallel workers using a scheduler
+        const scheduler = createScheduler();
+        const numWorkers = Math.min(pageImages.length, 2); // Use up to 2 workers to avoid overloading the container
+        for (let i = 0; i < numWorkers; i++) {
+            const worker = await createWorker(lang);
+            scheduler.addWorker(worker);
+        }
+
+        // Process all pages in parallel
+        const pageResults = await Promise.all(pageImages.map(async (img, idx) => {
+            console.log(`[DocumentProcessor] PDF OCR: scheduling page ${idx + 1}/${pageImages.length}`);
+            const imgBuffer = await fs.readFile(path.join(tmpDir, img));
+            const { data } = await scheduler.addJob('recognize', imgBuffer);
+            return data.text || '';
+        }));
+
+        await scheduler.terminate();
+
+        const result = pageResults.join('\n\n--- Page Break ---\n\n');
+        console.log(`[DocumentProcessor] PDF OCR: extracted ${result.length} chars from ${pageImages.length} pages`);
+        return result;
     } catch (error: any) {
         console.error(`[DocumentProcessor] PDF OCR error: ${error.message}`);
         throw new Error(`PDF OCR extraction failed: ${error.message}`);
+    } finally {
+        // Cleanup temp directory
+        await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => { });
     }
 }
 
@@ -83,19 +130,19 @@ export async function extractDocxContent(buffer: Buffer): Promise<string> {
  */
 export async function extractExcelContent(buffer: Buffer): Promise<string> {
     try {
-        const workbook = XLSX.read(buffer, { type: 'buffer' });
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.load(buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer);
         const parts: string[] = [];
 
-        for (const sheetName of workbook.SheetNames) {
-            const sheet = workbook.Sheets[sheetName];
-            if (!sheet) continue;
-
-            parts.push(`--- Foglio: ${sheetName} ---`);
-
-            // Convert to CSV for readable text output
-            const csv = XLSX.utils.sheet_to_csv(sheet, { blankrows: false });
-            parts.push(csv);
-        }
+        workbook.eachSheet((worksheet) => {
+            parts.push(`--- Foglio: ${worksheet.name} ---`);
+            const rows: string[] = [];
+            worksheet.eachRow((row) => {
+                const values = (row.values as any[]).slice(1); // ExcelJS row.values is 1-indexed
+                rows.push(values.map(v => v != null ? String(v) : '').join(','));
+            });
+            parts.push(rows.join('\n'));
+        });
 
         return parts.join('\n\n');
     } catch (error: any) {
@@ -108,17 +155,27 @@ export async function extractExcelContent(buffer: Buffer): Promise<string> {
  * Extract text from a PowerPoint file (basic — extracts text from XML)
  */
 export async function extractPptxContent(buffer: Buffer): Promise<string> {
-    // PPTX is a ZIP of XML files; we use xlsx's ZIP capabilities
+    // PPTX is a ZIP of XML files; extract text from slide XML
     try {
-        const workbook = XLSX.read(buffer, { type: 'buffer' });
-        // If xlsx can parse it (sometimes works for PPTX tables), use that
+        const JSZip = (await import('jszip')).default;
+        const zip = await JSZip.loadAsync(buffer);
         const parts: string[] = [];
-        for (const sheetName of workbook.SheetNames) {
-            const sheet = workbook.Sheets[sheetName];
-            if (!sheet) continue;
-            const csv = XLSX.utils.sheet_to_csv(sheet, { blankrows: false });
-            if (csv.trim()) parts.push(csv);
+
+        // Extract text from slide XML files
+        const slideFiles = Object.keys(zip.files)
+            .filter(f => f.startsWith('ppt/slides/slide') && f.endsWith('.xml'))
+            .sort();
+
+        for (const slideFile of slideFiles) {
+            const xml = await zip.files[slideFile].async('text');
+            // Extract text between <a:t> tags
+            const textMatches = xml.match(/<a:t[^>]*>([^<]*)<\/a:t>/g);
+            if (textMatches) {
+                const texts = textMatches.map(m => m.replace(/<[^>]+>/g, '').trim()).filter(Boolean);
+                if (texts.length > 0) parts.push(texts.join(' '));
+            }
         }
+
         if (parts.length > 0) return parts.join('\n\n');
         return '[Presentazione PowerPoint - estrazione testo limitata. Per risultati migliori, convertire in PDF.]';
     } catch {
@@ -234,10 +291,21 @@ export async function generateExcelBuffer(
     sheetName: string = 'Sheet1'
 ): Promise<Buffer> {
     try {
-        const workbook = XLSX.utils.book_new();
-        const worksheet = XLSX.utils.json_to_sheet(data);
-        XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
-        return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet(sheetName);
+
+        if (data.length > 0) {
+            // Add headers from first object's keys
+            const columns = Object.keys(data[0]).map(key => ({ header: key, key }));
+            worksheet.columns = columns;
+            // Add rows
+            for (const row of data) {
+                worksheet.addRow(row);
+            }
+        }
+
+        const arrayBuffer = await workbook.xlsx.writeBuffer();
+        return Buffer.from(arrayBuffer);
     } catch (error: any) {
         console.error(`[DocumentProcessor] Excel generation error: ${error.message}`);
         throw new Error(`Excel generation failed: ${error.message}`);
@@ -388,7 +456,7 @@ export async function processDocument(
     // PDF -> pdf-parse (with OCR fallback)
     if (mimeType === 'application/pdf') {
         const { extractPdfText } = await import('../modules/attachments/routes.js');
-        let text = await extractPdfText(buffer);
+        let text: string = await extractPdfText(buffer);
 
         // Check if text is too sparse or just markers
         const markerPattern = /-- \d+ of \d+ --/g;

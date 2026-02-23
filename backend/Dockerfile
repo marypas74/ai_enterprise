@@ -1,7 +1,10 @@
 # Build stage
-FROM node:20-alpine AS builder
+FROM node:20-bullseye-slim AS builder
 
 WORKDIR /app
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
 
 # Install dependencies
 COPY package.json package-lock.json* ./
@@ -14,22 +17,26 @@ COPY src/modules/tools /app/src/modules/tools
 RUN npm run build
 
 # Production stage
-FROM node:20-alpine AS production
+FROM node:20-bullseye-slim AS production
 
 WORKDIR /app
 
 # Create non-root user
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nodejs -u 1001
+RUN groupadd -g 1001 nodejs && \
+    useradd -u 1001 --create-home --shell /bin/bash -g nodejs nodejs
 
-# Install LibreOffice and fonts for document conversion
-RUN apk add --no-cache \
+# Install LibreOffice, poppler-utils and fonts
+RUN apt-get update && apt-get install -y \
     libreoffice \
-    ttf-dejavu \
-    ttf-droid \
-    ttf-freefont \
-    ttf-liberation \
-    openjdk11-jre
+    fonts-dejavu \
+    fonts-droid-fallback \
+    fonts-freefont-ttf \
+    fonts-liberation \
+    default-jre \
+    poppler-utils \
+    wget \
+    procps \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy package files
 COPY package.json package-lock.json* ./
@@ -53,7 +60,7 @@ ENV PORT=3000
 # Expose port
 EXPOSE 3000
 
-# Health check
+# Health check (wget is in the debian image now)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
 

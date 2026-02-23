@@ -28,7 +28,8 @@ import {
   LayoutDashboard,
   Activity,
   Bug,
-  Wifi
+  Wifi,
+  BookMarked
 } from 'lucide-react';
 import clsx from 'clsx';
 import { format } from 'date-fns';
@@ -42,6 +43,7 @@ import SystemMonitorPage from './admin/SystemMonitorPage';
 import UsersGroupsPage from './admin/UsersGroupsPage';
 import DebugPage from './admin/DebugPage';
 import SessionsPage from './admin/SessionsPage';
+import MemoryPage from './admin/MemoryPage';
 
 interface User {
   id: number;
@@ -86,6 +88,7 @@ const NAV_ITEMS = [
   { path: '/admin/agents', icon: Bot, label: 'Agents' },
   { path: '/admin/skills', icon: Brain, label: 'Skills' },
   { path: '/admin/plugins', icon: Puzzle, label: 'Plugins & MCP' },
+  { path: '/admin/memory', icon: BookMarked, label: 'Memory' },
   { path: '/admin/kanban', icon: LayoutDashboard, label: 'Kanban' },
   { path: '/admin/users', icon: Users, label: 'Users' },
   { path: '/admin/sessions', icon: Wifi, label: 'Sessioni Attive' },
@@ -626,6 +629,7 @@ export default function AdminPage() {
           <Route path="/agents" element={<AgentsPage />} />
           <Route path="/skills" element={<SkillsPage />} />
           <Route path="/plugins" element={<PluginsPage />} />
+          <Route path="/memory" element={<MemoryPage />} />
           <Route path="/kanban" element={<KanbanPage />} />
           <Route path="/users" element={<UsersGroupsPage />} />
           <Route path="/sessions" element={<SessionsPage />} />

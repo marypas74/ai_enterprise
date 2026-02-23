@@ -28,7 +28,11 @@ data:
   RATE_LIMIT_WINDOW_MS: "60000"
 
   # CORS - Update with your domain
-  CORS_ORIGIN: "https://chat.yourdomain.com"
+  CORS_ORIGIN: "https://plane.lushlolli.com"
 
-  # Ollama (local LLM server)
-  OLLAMA_BASE_URL: "http://ollama:11434"
+  # Ollama (external Docker container on host, HTTP + header auth)
+  OLLAMA_BASE_URL: "http://10.0.1.1:8086/ollama"
+  OLLAMA_AUTH_KEY: "mTLS-k8s-backend-2026"
+
+  # Public metrics — allowed IPs (comma-separated)
+  METRICS_ALLOWED_IPS: "217.198.133.248"

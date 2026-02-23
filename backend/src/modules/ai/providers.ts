@@ -281,14 +281,22 @@ export class AnthropicProvider implements AIProvider {
     const systemMessage = options.messages.find(m => m.role === 'system');
     const conversationMessages = options.messages.filter(m => m.role !== 'system');
 
-    const requestBody = {
+    // Format tools for Anthropic API if provided
+    const anthropicTools = options.tools?.map((t: any) => ({
+      name: t.name,
+      description: t.description,
+      input_schema: t.input_schema
+    }));
+
+    const requestBody: any = {
       model: options.model,
       max_tokens: options.maxTokens || 4096,
       system: systemMessage?.content,
       messages: conversationMessages.map(m => ({
         role: m.role as 'user' | 'assistant',
         content: m.content
-      }))
+      })),
+      tools: anthropicTools && anthropicTools.length > 0 ? anthropicTools : undefined
     };
 
     // Use OAuth if available
@@ -299,6 +307,10 @@ export class AnthropicProvider implements AIProvider {
 
       const decoder = new TextDecoder();
       let buffer = '';
+
+      // Track tool_use blocks being streamed
+      let currentToolUse: { id: string; name: string; inputJson: string } | null = null;
+      const accumulatedToolCalls: any[] = [];
 
       while (true) {
         const { done, value } = await reader.read();
@@ -314,22 +326,50 @@ export class AnthropicProvider implements AIProvider {
             if (data === '[DONE]') continue;
 
             try {
-              const event = JSON.parse(data) as {
-                type: string;
-                delta?: { type: string; text?: string };
-              };
+              const event = JSON.parse(data) as any;
 
-              if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
+              if (event.type === 'content_block_start' && event.content_block?.type === 'tool_use') {
+                // Start of a tool_use block
+                currentToolUse = {
+                  id: event.content_block.id,
+                  name: event.content_block.name,
+                  inputJson: ''
+                };
+              } else if (event.type === 'content_block_delta' && event.delta?.type === 'input_json_delta') {
+                // Accumulate tool input JSON
+                if (currentToolUse) {
+                  currentToolUse.inputJson += event.delta.partial_json || '';
+                }
+              } else if (event.type === 'content_block_stop' && currentToolUse) {
+                // End of tool_use block — emit accumulated tool call
+                accumulatedToolCalls.push({
+                  id: currentToolUse.id,
+                  type: 'function',
+                  function: {
+                    name: currentToolUse.name,
+                    arguments: currentToolUse.inputJson
+                  }
+                });
+                currentToolUse = null;
+              } else if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
                 yield { content: event.delta.text || '', done: false };
-              }
-              if (event.type === 'message_stop') {
-                yield { content: '', done: true };
+              } else if (event.type === 'message_stop') {
+                yield {
+                  content: '',
+                  done: true,
+                  toolCalls: accumulatedToolCalls.length > 0 ? accumulatedToolCalls : undefined
+                };
               }
             } catch {
               // Skip invalid JSON
             }
           }
         }
+      }
+
+      // If stream ended without message_stop but we have tool calls, yield them
+      if (accumulatedToolCalls.length > 0) {
+        yield { content: '', done: true, toolCalls: accumulatedToolCalls };
       }
       return;
     }
@@ -341,12 +381,39 @@ export class AnthropicProvider implements AIProvider {
 
     const stream = this.client.messages.stream(requestBody as any);
 
+    // Track tool_use blocks being streamed (SDK path)
+    let currentToolUse: { id: string; name: string; inputJson: string } | null = null;
+    const accumulatedToolCalls: any[] = [];
+
     for await (const event of stream) {
-      if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
-        yield { content: event.delta.text, done: false };
-      }
-      if (event.type === 'message_stop') {
-        yield { content: '', done: true };
+      if (event.type === 'content_block_start' && (event as any).content_block?.type === 'tool_use') {
+        currentToolUse = {
+          id: (event as any).content_block.id,
+          name: (event as any).content_block.name,
+          inputJson: ''
+        };
+      } else if (event.type === 'content_block_delta' && (event as any).delta?.type === 'input_json_delta') {
+        if (currentToolUse) {
+          currentToolUse.inputJson += (event as any).delta.partial_json || '';
+        }
+      } else if (event.type === 'content_block_stop' && currentToolUse) {
+        accumulatedToolCalls.push({
+          id: currentToolUse.id,
+          type: 'function',
+          function: {
+            name: currentToolUse.name,
+            arguments: currentToolUse.inputJson
+          }
+        });
+        currentToolUse = null;
+      } else if (event.type === 'content_block_delta' && (event as any).delta?.type === 'text_delta') {
+        yield { content: (event as any).delta.text, done: false };
+      } else if (event.type === 'message_stop') {
+        yield {
+          content: '',
+          done: true,
+          toolCalls: accumulatedToolCalls.length > 0 ? accumulatedToolCalls : undefined
+        };
       }
     }
   }
@@ -388,42 +455,88 @@ export class GoogleProvider implements AIProvider {
     const conversationMessages = options.messages.filter(m => m.role !== 'system');
     const lastMessage = conversationMessages[conversationMessages.length - 1];
 
-    const response = await this.client.models.generateContent({
+    const response = await (this.client.models as any).generateContent({
       model: options.model,
-      contents: lastMessage.content,
+      contents: conversationMessages.map(m => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: m.content }]
+      })),
       config: {
         systemInstruction: systemMessage?.content,
         maxOutputTokens: options.maxTokens || 4096,
         temperature: options.temperature || 0.7
-      }
+      },
+      tools: options.tools ? [{
+        function_declarations: options.tools.map((t: any) => ({
+          name: t.name,
+          description: t.description,
+          parameters: t.input_schema
+        }))
+      }] : undefined
     });
 
+    const candidate = response.candidates?.[0];
+    const content = candidate?.content?.parts?.map((p: any) => p.text).join('') || '';
+    const toolCalls = candidate?.content?.parts
+      ?.filter((p: any) => p.functionCall)
+      ?.map((p: any) => ({
+        id: `call_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        type: 'function',
+        function: {
+          name: p.functionCall?.name,
+          arguments: JSON.stringify(p.functionCall?.args)
+        }
+      }));
+
     return {
-      content: response.text || '',
+      content,
       tokensInput: response.usageMetadata?.promptTokenCount || 0,
       tokensOutput: response.usageMetadata?.candidatesTokenCount || 0,
       model: options.model,
-      provider: 'google'
+      provider: 'google',
+      toolCalls
     };
   }
 
-  async *streamComplete(options: CompletionOptions): AsyncGenerator<StreamChunk> {
+  async * streamComplete(options: CompletionOptions): AsyncGenerator<StreamChunk> {
     const systemMessage = options.messages.find(m => m.role === 'system');
     const conversationMessages = options.messages.filter(m => m.role !== 'system');
-    const lastMessage = conversationMessages[conversationMessages.length - 1];
 
-    const stream = await this.client.models.generateContentStream({
+    const stream = await (this.client.models as any).generateContentStream({
       model: options.model,
-      contents: lastMessage.content,
+      contents: conversationMessages.map(m => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: m.content }]
+      })),
       config: {
         systemInstruction: systemMessage?.content,
         maxOutputTokens: options.maxTokens || 4096,
         temperature: options.temperature || 0.7
-      }
+      },
+      tools: options.tools ? [{
+        function_declarations: options.tools.map((t: any) => ({
+          name: t.name,
+          description: t.description,
+          parameters: t.input_schema
+        }))
+      }] : undefined
     });
 
     for await (const chunk of stream) {
-      yield { content: chunk.text || '', done: false };
+      const parts = chunk.candidates?.[0]?.content?.parts || [];
+      const content = parts.map((p: any) => p.text).join('') || '';
+      const toolCalls = parts
+        .filter((p: any) => p.functionCall)
+        .map((p: any) => ({
+          id: `call_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          type: 'function',
+          function: {
+            name: p.functionCall?.name,
+            arguments: JSON.stringify(p.functionCall?.args)
+          }
+        }));
+
+      yield { content, done: false, toolCalls: toolCalls.length > 0 ? toolCalls : undefined };
     }
     yield { content: '', done: true };
   }
@@ -456,7 +569,10 @@ export class OllamaProvider implements AIProvider {
 
     const response = await fetch(`${this.baseUrl}/api/chat`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Ollama-Key': process.env.OLLAMA_AUTH_KEY || ''
+      },
       body: JSON.stringify({
         model: targetModel,
         messages: options.messages,
@@ -510,7 +626,10 @@ export class OllamaProvider implements AIProvider {
     try {
       const response = await fetch(`${this.baseUrl}/api/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Ollama-Key': process.env.OLLAMA_AUTH_KEY || ''
+        },
         body: JSON.stringify({
           model: targetModel,
           messages: options.messages,
@@ -683,7 +802,7 @@ export class AIProviderFactory {
     if (model.startsWith('claude-')) return 'anthropic';
     if (model.startsWith('gemini-')) return 'google';
     // Check for common Ollama model patterns
-    if (model.match(/^(llama|mistral|mixtral|codellama|phi|qwen|deepseek|vicuna|orca|neural|dolphin|openhermes|starling|yi|solar|glm|glm4|glm-)/i)) {
+    if (model.match(/^(llama|mistral|mixtral|codellama|phi|qwen|gemma|deepseek|vicuna|orca|neural|dolphin|openhermes|starling|yi|solar|glm|glm4|glm-)/i)) {
       return 'ollama';
     }
     // Default to custom for unknown models

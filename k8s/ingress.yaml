@@ -13,16 +13,20 @@ metadata:
     # Rate limiting
     nginx.ingress.kubernetes.io/limit-rps: "10"
     nginx.ingress.kubernetes.io/limit-rpm: "300"
-    # cert-manager for TLS
-    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    # SSL redirect disabled — Cloudflare handles TLS termination
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
+    # NOTE: whitelist-source-range removed — incompatible with Cloudflare Tunnel
+    # (all requests arrive from ::1/localhost). IP restriction is handled at
+    # application level by reading the CF-Connecting-IP header.
 spec:
-  ingressClassName: nginx
+  ingressClassName: public
   tls:
     - hosts:
-        - chat.yourdomain.com  # Replace with your domain
+        - plane.lushlolli.com
       secretName: enterprise-ai-chat-tls
   rules:
-    - host: chat.yourdomain.com  # Replace with your domain
+    - host: plane.lushlolli.com
       http:
         paths:
           # API routes
@@ -41,37 +45,3 @@ spec:
                 name: frontend
                 port:
                   number: 80
-
----
-# ClusterIssuer for Let's Encrypt
-apiVersion: cert-manager.io/v1
-kind: ClusterIssuer
-metadata:
-  name: letsencrypt-prod
-spec:
-  acme:
-    server: https://acme-v02.api.letsencrypt.org/directory
-    email: admin@yourdomain.com  # Replace with your email
-    privateKeySecretRef:
-      name: letsencrypt-prod-key
-    solvers:
-      - http01:
-          ingress:
-            class: nginx
-
----
-# Alternative: ClusterIssuer for Let's Encrypt Staging (for testing)
-apiVersion: cert-manager.io/v1
-kind: ClusterIssuer
-metadata:
-  name: letsencrypt-staging
-spec:
-  acme:
-    server: https://acme-staging-v02.api.letsencrypt.org/directory
-    email: admin@yourdomain.com  # Replace with your email
-    privateKeySecretRef:
-      name: letsencrypt-staging-key
-    solvers:
-      - http01:
-          ingress:
-            class: nginx

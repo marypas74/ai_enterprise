@@ -24,13 +24,32 @@ print_step() { echo -e "\n${BLUE}==> $1${NC}"; }
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$BASE_DIR"
 
-# Estrai versioni dai package.json
-BACKEND_VERSION=$(grep '"version":' backend/package.json | head -1 | awk -F: '{ print $2 }' | sed 's/[", ]//g')
-FRONTEND_VERSION=$(grep '"version":' frontend/package.json | head -1 | awk -F: '{ print $2 }' | sed 's/[", ]//g')
+# Estrai versione dal backend/package.json (fonte unica di verità)
+VERSION=$(grep '"version":' backend/package.json | head -1 | awk -F: '{ print $2 }' | sed 's/[", ]//g')
 
-echo -e "${BLUE}Versioni rilevate:${NC}"
-echo -e "  Backend: ${BACKEND_VERSION}"
-echo -e "  Frontend: ${FRONTEND_VERSION}"
+echo -e "${BLUE}Versione: ${VERSION}${NC}"
+
+# Sincronizza la versione in tutti i package.json e nei manifest K8s
+print_step "0. Sincronizzazione versione ${VERSION} in tutti i componenti..."
+
+# Aggiorna frontend/package.json
+sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"${VERSION}\"/" frontend/package.json
+print_status "frontend/package.json -> ${VERSION}"
+
+# Aggiorna vscode-extension/package.json (se presente)
+if [ -f "vscode-extension/package.json" ]; then
+    sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"${VERSION}\"/" vscode-extension/package.json
+    print_status "vscode-extension/package.json -> ${VERSION}"
+fi
+
+# Aggiorna K8s deployment manifests
+sed -i "s|enterprise-ai-chat-backend:[0-9.]*|enterprise-ai-chat-backend:${VERSION}|g" k8s/backend/deployment.yaml
+sed -i "s|enterprise-ai-chat-frontend:[0-9.]*|enterprise-ai-chat-frontend:${VERSION}|g" k8s/frontend/deployment.yaml
+print_status "K8s manifests -> ${VERSION}"
+
+# Usa la stessa versione per backend e frontend
+BACKEND_VERSION="${VERSION}"
+FRONTEND_VERSION="${VERSION}"
 
 # 1. Installa dipendenze Backend
 print_step "1. Installazione dipendenze Backend..."
@@ -73,6 +92,24 @@ docker build -t localhost:32000/enterprise-ai-chat-frontend:latest ./frontend
 docker build -t localhost:32000/enterprise-ai-chat-frontend:${FRONTEND_VERSION} ./frontend
 print_status "Immagine frontend creata (latest e ${FRONTEND_VERSION})"
 
+# 4b. Build Docker Doc-Processor (microservizio elaborazione documenti)
+DOC_PROCESSOR_VERSION="1.0.0"
+print_step "4b. Build immagine Docker doc-processor..."
+if [ -d "doc-processor" ]; then
+    cd doc-processor
+    if [ ! -d "node_modules" ]; then
+        npm install
+        print_status "Dipendenze doc-processor installate"
+    fi
+    npm run build
+    cd ..
+    docker build -t localhost:32000/doc-processor:latest ./doc-processor
+    docker build -t localhost:32000/doc-processor:${DOC_PROCESSOR_VERSION} ./doc-processor
+    print_status "Immagine doc-processor creata (latest e ${DOC_PROCESSOR_VERSION})"
+else
+    print_warning "Directory doc-processor non trovata, skip"
+fi
+
 # 5. Import in MicroK8s
 print_step "5. Import immagini in MicroK8s..."
 docker save localhost:32000/enterprise-ai-chat-backend:${BACKEND_VERSION} > /tmp/backend.tar
@@ -80,6 +117,15 @@ docker save localhost:32000/enterprise-ai-chat-frontend:${FRONTEND_VERSION} > /t
 microk8s ctr image import /tmp/backend.tar
 microk8s ctr image import /tmp/frontend.tar
 rm /tmp/backend.tar /tmp/frontend.tar
+
+# Import doc-processor se disponibile
+if docker image inspect localhost:32000/doc-processor:${DOC_PROCESSOR_VERSION} >/dev/null 2>&1; then
+    docker save localhost:32000/doc-processor:${DOC_PROCESSOR_VERSION} > /tmp/doc-processor.tar
+    microk8s ctr image import /tmp/doc-processor.tar
+    rm /tmp/doc-processor.tar
+    print_status "Immagine doc-processor importata in MicroK8s"
+fi
+
 print_status "Immagini versionate importate in MicroK8s"
 
 # 6. Copia schema database nel ConfigMap
@@ -112,7 +158,27 @@ microk8s kubectl wait --for=condition=ready pod -l app=mariadb -n enterprise-ai-
 
 microk8s kubectl apply -f k8s/backend/deployment.yaml
 microk8s kubectl apply -f k8s/frontend/deployment.yaml
+
+# Deploy doc-processor se il manifest esiste
+if [ -f "k8s/doc-processor/deployment.yaml" ]; then
+    microk8s kubectl apply -f k8s/doc-processor/deployment.yaml
+    print_status "doc-processor deployato"
+fi
+
 microk8s kubectl apply -f k8s/ingress.yaml
+
+# Aggiorna la versione nel database (unica fonte di verità)
+print_step "7b. Aggiornamento versione nel database..."
+MARIADB_POD=$(microk8s kubectl get pod -l app=mariadb -n enterprise-ai-chat -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+if [ -n "$MARIADB_POD" ]; then
+    microk8s kubectl exec -n enterprise-ai-chat "$MARIADB_POD" -- \
+        mysql -u root -p"${MYSQL_ROOT_PASSWORD:-enterprise_root_pwd}" enterprise_ai_chat \
+        -e "INSERT INTO system_settings (setting_key, setting_value, setting_type, description, is_public) VALUES ('app_version', '${VERSION}', 'string', 'Versione corrente dell''applicazione', TRUE) ON DUPLICATE KEY UPDATE setting_value = '${VERSION}';" 2>/dev/null \
+        && print_status "Versione ${VERSION} aggiornata nel database" \
+        || print_warning "Impossibile aggiornare la versione nel DB (verrà aggiornata al prossimo init)"
+else
+    print_warning "Pod MariaDB non trovato, la versione sarà impostata dall'init.sql"
+fi
 
 print_status "Deploy completato!"
 

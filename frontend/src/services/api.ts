@@ -212,12 +212,15 @@ export async function streamChat(
     return;
   }
 
+  let buffer = '';
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
 
-    const chunk = decoder.decode(value);
-    const lines = chunk.split('\n');
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    // Keep the last potentially incomplete line in the buffer
+    buffer = lines.pop() || '';
 
     for (const line of lines) {
       if (line.startsWith('data: ')) {
@@ -240,4 +243,22 @@ export async function streamChat(
       }
     }
   }
+}
+
+/**
+ * Generate a document from a chat conversation's assistant response
+ */
+export async function generateDocument(
+  conversationId: number,
+  format: 'docx' | 'xlsx' | 'pptx' | 'pdf',
+  content?: string,
+  title?: string
+): Promise<{ success: boolean; url: string; filename: string }> {
+  const response = await api.post('/tools/generate-from-chat', {
+    conversationId,
+    format,
+    content,
+    title: title || 'Documento_Chat'
+  });
+  return response.data;
 }

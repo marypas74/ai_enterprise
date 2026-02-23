@@ -11,7 +11,7 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-    - host: ai.yourdomain.com
+    - host: ai.plane.lushlolli.com
       http:
         paths:
           - path: /

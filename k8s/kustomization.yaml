@@ -13,6 +13,8 @@ resources:
   - frontend/deployment.yaml
   - ingress.yaml
 
-commonLabels:
-  app.kubernetes.io/name: enterprise-ai-chat
-  app.kubernetes.io/version: "1.0.0"
+# NOTE: commonLabels removed — it injects labels into Service selectors,
+# breaking selector matching when pods don't have the same labels.
+# Use metadata labels directly in each resource instead.
+commonAnnotations:
+  app.kubernetes.io/version: "1.5.29"

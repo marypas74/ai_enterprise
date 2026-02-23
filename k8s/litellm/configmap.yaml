@@ -6,60 +6,60 @@ metadata:
 data:
   config.yaml: |
     model_list:
-      - model_name: llama3
+      # === Anthropic Claude Models ===
+      - model_name: Claude Opus 4
         litellm_params:
-          model: ollama/llama3.2:3b
-          api_base: http://ollama.enterprise-ai-chat.svc.cluster.local:11434
-          request_timeout: 300
-          num_ctx: 8192
-      - model_name: gpt-3.5-turbo
+          model: anthropic/claude-opus-4-20250514
+          api_key: os.environ/ANTHROPIC_API_KEY
+          max_tokens: 8192
+      - model_name: Claude Sonnet 4.5
         litellm_params:
-          model: ollama/llama3.2:3b
-          api_base: http://ollama.enterprise-ai-chat.svc.cluster.local:11434
-          request_timeout: 300
-          num_ctx: 8192
-      - model_name: llama3.2
+          model: anthropic/claude-sonnet-4-5-20250514
+          api_key: os.environ/ANTHROPIC_API_KEY
+          max_tokens: 8192
+      - model_name: Claude Haiku 3.5
         litellm_params:
-          model: ollama/llama3.2:3b
-          api_base: http://ollama.enterprise-ai-chat.svc.cluster.local:11434
-          request_timeout: 300
-          num_ctx: 8192
-      - model_name: gemma2
+          model: anthropic/claude-3-5-haiku-20241022
+          api_key: os.environ/ANTHROPIC_API_KEY
+          max_tokens: 8192
+
+      # === OpenAI Models ===
+      - model_name: GPT-4o
         litellm_params:
-          model: ollama/gemma2:2b
-          api_base: http://ollama.enterprise-ai-chat.svc.cluster.local:11434
-          request_timeout: 300
-          num_ctx: 8192
-      - model_name: gemma2:2b
+          model: openai/gpt-4o
+          api_key: os.environ/OPENAI_API_KEY
+      - model_name: GPT-4o Mini
         litellm_params:
-          model: ollama/gemma2:2b
-          api_base: http://ollama.enterprise-ai-chat.svc.cluster.local:11434
-          request_timeout: 300
-          num_ctx: 8192
-      - model_name: phi3
+          model: openai/gpt-4o-mini
+          api_key: os.environ/OPENAI_API_KEY
+      - model_name: o3-mini
         litellm_params:
-          model: ollama/phi3:mini
-          api_base: http://ollama.enterprise-ai-chat.svc.cluster.local:11434
-          request_timeout: 300
-          num_ctx: 8192
-      - model_name: phi3:mini
+          model: openai/o3-mini
+          api_key: os.environ/OPENAI_API_KEY
+
+      # === Ollama Local Models (via Antigravity proxy) ===
+      - model_name: phi4
         litellm_params:
-          model: ollama/phi3:mini
-          api_base: http://ollama.enterprise-ai-chat.svc.cluster.local:11434
+          model: ollama/phi4
+          api_base: "http://10.0.1.1:8086/ollama"
+          headers:
+            X-Ollama-Key: "mTLS-k8s-backend-2026"
           request_timeout: 300
-          num_ctx: 8192
-      - model_name: qwen2.5
+      - model_name: mistral
         litellm_params:
-          model: ollama/qwen2.5:3b
-          api_base: http://ollama.enterprise-ai-chat.svc.cluster.local:11434
+          model: ollama/mistral
+          api_base: "http://10.0.1.1:8086/ollama"
+          headers:
+            X-Ollama-Key: "mTLS-k8s-backend-2026"
           request_timeout: 300
-          num_ctx: 8192
-      - model_name: qwen2.5:3b
+      - model_name: mixtral
         litellm_params:
-          model: ollama/qwen2.5:3b
-          api_base: http://ollama.enterprise-ai-chat.svc.cluster.local:11434
+          model: ollama/mixtral
+          api_base: "http://10.0.1.1:8086/ollama"
+          headers:
+            X-Ollama-Key: "mTLS-k8s-backend-2026"
           request_timeout: 300
-          num_ctx: 8192
+
     general_settings:
       master_key: sk-1234
     litellm_settings:

@@ -17,8 +17,24 @@ const SEARCH_TRIGGER_KEYWORDS = [
   // Sports
   'score', 'risultato', 'match', 'partita', 'game', 'classifica',
   // Search intent
-  'search', 'cerca', 'find', 'trova', 'look up', 'google', 'ricerca'
+  'search', 'cerca', 'find', 'trova', 'look up', 'google', 'ricerca',
+  // Specialized sources
+  'reddit', 'stackoverflow', 'huggingface', 'discord', 'github', 'arxiv'
 ];
+
+interface SpecializedSource {
+  domain: string;
+  trigger: string[];
+}
+
+const SPECIALIZED_SOURCES: Record<string, SpecializedSource> = {
+  reddit: { domain: 'reddit.com', trigger: ['reddit', 'u/', 'r/'] },
+  stackoverflow: { domain: 'stackoverflow.com', trigger: ['stackoverflow', 'stack overflow', 'error code'] },
+  huggingface: { domain: 'huggingface.co', trigger: ['huggingface', 'hf', 'models', 'datasets'] },
+  discord: { domain: 'discord.com', trigger: ['discord', 'server'] },
+  github: { domain: 'github.com', trigger: ['github', 'repo', 'repository', 'source code'] },
+  arxiv: { domain: 'arxiv.org', trigger: ['arxiv', 'paper', 'research'] }
+};
 
 // Patterns that suggest time-sensitive queries
 const DATE_PATTERNS = [
@@ -96,7 +112,16 @@ export function extractSearchQuery(message: string): string {
     query = query.substring(0, 100);
   }
 
-  return query;
+  // Detect specialized sources
+  let siteFilter = '';
+  for (const [key, source] of Object.entries(SPECIALIZED_SOURCES)) {
+    if (source.trigger.some(trigger => message.toLowerCase().includes(trigger))) {
+      siteFilter = ` site:${source.domain}`;
+      break;
+    }
+  }
+
+  return query + siteFilter;
 }
 
 /**

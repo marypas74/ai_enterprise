@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: parlant
+  namespace: enterprise-ai-chat
+  labels:
+    app: parlant
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: parlant
+  template:
+    metadata:
+      labels:
+        app: parlant
+    spec:
+      containers:
+        - name: parlant
+          image: localhost:32000/enterprise-ai-chat/parlant:1.0.3
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8800
+              name: http
+          env:
+            - name: PARLANT_HOST
+              value: "0.0.0.0"
+            - name: PARLANT_PORT
+              value: "8800"
+            - name: PARLANT_DATA_DIR
+              value: "/app/data"
+            # OpenAI API Key (from app-secrets - needs to be updated with real key)
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: OPENAI_API_KEY
+                  optional: true
+            # Anthropic API Key (from app-secrets - needs to be updated with real key)
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: ANTHROPIC_API_KEY
+                  optional: true
+          volumeMounts:
+            - name: parlant-data
+              mountPath: /app/data
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "2Gi"
+              cpu: "1000m"
+          # Health probes disabled - Parlant SDK handles its own lifecycle
+      volumes:
+        - name: parlant-data
+          persistentVolumeClaim:
+            claimName: parlant-data-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: parlant
+  namespace: enterprise-ai-chat
+  labels:
+    app: parlant
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8800
+      targetPort: 8800
+      protocol: TCP
+      name: http
+  selector:
+    app: parlant

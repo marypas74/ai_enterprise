@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../hooks/useAuthStore';
 import { MessageSquare, Mail, Lock, AlertCircle } from 'lucide-react';
@@ -10,9 +10,18 @@ export default function LoginPage() {
   const [totpCode, setTotpCode] = useState('');
   const [showMfa, setShowMfa] = useState(false);
   const [mfaSetupRequired, setMfaSetupRequired] = useState(false);
+  const [backendVersion, setBackendVersion] = useState<string | null>(null);
 
   const { login, isLoading, error, clearError } = useAuthStore();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    // Fetch backend version dynamically
+    fetch(`${import.meta.env.VITE_API_BASE_URL || ''}/version`)
+      .then(res => res.json())
+      .then(data => setBackendVersion(data.version))
+      .catch(() => setBackendVersion(APP_VERSION));
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -178,7 +187,7 @@ export default function LoginPage() {
             Multi-provider AI Chat Platform
           </p>
           <p className="text-xs text-surface-400 font-mono">
-            v{APP_VERSION}
+            v{backendVersion || APP_VERSION}
           </p>
         </div>
       </div>

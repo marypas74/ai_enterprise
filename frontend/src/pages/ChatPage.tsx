@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '../hooks/useAuthStore';
-import { api, streamChat } from '../services/api';
+import { api, streamChat, generateDocument } from '../services/api';
 import {
   Send,
   Plus,
@@ -22,8 +22,11 @@ import {
   File,
   Loader2,
   Archive,
-  History,
-  ArchiveRestore
+  History as HistoryIcon,
+  Search,
+  RotateCcw,
+  ArchiveRestore,
+  Brain
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -36,6 +39,7 @@ interface Message {
   id?: number;
   role: 'user' | 'assistant' | 'system';
   content: string;
+  timestamp?: string;
 }
 
 interface Conversation {
@@ -89,9 +93,33 @@ export default function ChatPage() {
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [hasMoreConversations, setHasMoreConversations] = useState(true);
   const [conversationsOffset, setConversationsOffset] = useState(0);
+  const [showMemoryPanel, setShowMemoryPanel] = useState(false);
+  const [memoryObservations, setMemoryObservations] = useState<Array<{ id: number; observation_type: string; content: string; importance: number; created_at: string }>>([]);
+  const [memoryContextActive, setMemoryContextActive] = useState(false);
+  const [generatingDoc, setGeneratingDoc] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Load memory context status
+  useEffect(() => {
+    const loadMemoryStatus = async () => {
+      try {
+        const res = await api.get('/memory/context');
+        setMemoryContextActive(res.data.has_context);
+      } catch { /* memory module may not be ready */ }
+    };
+    loadMemoryStatus();
+  }, [currentConversationId]);
+
+  const loadMemoryObservations = async () => {
+    try {
+      const res = await api.get('/memory/observations?limit=15&archived=false');
+      setMemoryObservations(res.data.observations || []);
+    } catch (err) {
+      console.error('Failed to load memory observations:', err);
+    }
+  };
 
   // Load available models from configured providers
   useEffect(() => {
@@ -217,12 +245,16 @@ export default function ChatPage() {
         formData.append('files', att.file);
       });
 
+      // Remove default Content-Type: application/json — let browser set multipart/form-data with boundary
       const response = await api.post('/attachments/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+        headers: { 'Content-Type': undefined }
       });
+
+      console.log('[Upload] Response:', JSON.stringify(response.data));
 
       if (response.data.attachments) {
         uploadedIds.push(...response.data.attachments.map((a: any) => a.id));
+        console.log('[Upload] Attachment IDs:', uploadedIds);
       }
 
       // Clear attachments after upload
@@ -231,8 +263,9 @@ export default function ChatPage() {
       });
       setAttachments([]);
 
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to upload attachments:', err);
+      console.error('[Upload] Error details:', err?.response?.data || err?.message || err);
     } finally {
       setIsUploading(false);
     }
@@ -268,6 +301,28 @@ export default function ChatPage() {
     }
   };
 
+  const archiveAllConversations = async (archive: boolean) => {
+    if (!confirm(archive ? 'Archive all conversations?' : 'Unarchive all conversations?')) return;
+    try {
+      await api.patch('/chat/conversations/archive', { all: true, archived: archive });
+      setConversations([]);
+      startNewConversation();
+    } catch (err) {
+      console.error('Failed to bulk archive:', err);
+    }
+  };
+
+  const deleteAllConversations = async () => {
+    if (!confirm('PERMANENTLY delete ALL conversations? This cannot be undone.')) return;
+    try {
+      await api.delete('/chat/conversations', { data: { all: true } });
+      setConversations([]);
+      startNewConversation();
+    } catch (err) {
+      console.error('Failed to bulk delete:', err);
+    }
+  };
+
   const sendMessage = async () => {
     if ((!input.trim() && attachments.length === 0) || isStreaming || isUploading) return;
 
@@ -282,17 +337,18 @@ export default function ChatPage() {
       ? `${userMessage}\n\n📎 Allegati: ${attachmentNames.join(', ')}`
       : userMessage;
 
-    setMessages(prev => [...prev, { role: 'user', content: displayMessage }]);
+    setMessages(prev => [...prev, { role: 'user', content: displayMessage, timestamp: new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) }]);
     setIsStreaming(true);
 
     // Add empty assistant message for streaming
-    setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
+    setMessages(prev => [...prev, { role: 'assistant', content: '', timestamp: new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) }]);
 
     try {
       // Upload attachments first (works with or without conversationId)
       let attachmentIds: number[] = [];
       if (hasAttachments) {
         attachmentIds = await uploadAttachments(currentConversationId || undefined);
+        console.log(`[SendMessage] Upload complete. attachmentIds: ${JSON.stringify(attachmentIds)}`);
       }
 
       // Build message with attachment context
@@ -316,6 +372,7 @@ export default function ChatPage() {
             const lastMessage = newMessages[newMessages.length - 1];
             if (lastMessage.role === 'assistant') {
               lastMessage.content += content;
+              lastMessage.timestamp = new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
             }
             return newMessages;
           });
@@ -345,6 +402,64 @@ export default function ChatPage() {
     } catch (err) {
       setIsStreaming(false);
       console.error('Send message error:', err);
+    }
+  };
+
+  const undoLastMessage = async () => {
+    if (!currentConversationId || isStreaming || messages.length === 0) return;
+
+    try {
+      const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
+
+      await api.delete(`/chat/conversations/${currentConversationId}/undo`);
+
+      // Update local state: remove the last pair (or last message if only one)
+      setMessages(prev => {
+        const newMessages = [...prev];
+        // Remove assistant message if it's the last one
+        if (newMessages.length > 0 && newMessages[newMessages.length - 1].role === 'assistant') {
+          newMessages.pop();
+        }
+        // Remove user message
+        if (newMessages.length > 0 && newMessages[newMessages.length - 1].role === 'user') {
+          // Store the content of the user message to restore it to input
+          const userContent = newMessages[newMessages.length - 1].content;
+          // If it had attachment indicators, try to clean them up for the input
+          const cleanedContent = userContent.split('\n\n📎 Allegati:')[0];
+          setInput(cleanedContent);
+          newMessages.pop();
+        }
+        return newMessages;
+      });
+    } catch (err) {
+      console.error('Undo error:', err);
+      alert('Failed to undo last message');
+    }
+  };
+
+  const handleGenerateDocument = async (msgIndex: number, format: 'docx' | 'pdf') => {
+    if (!currentConversationId || generatingDoc !== null) return;
+    setGeneratingDoc(msgIndex);
+    try {
+      const result = await generateDocument(
+        currentConversationId,
+        format,
+        messages[msgIndex]?.content,
+        `Chat_${format.toUpperCase()}`
+      );
+      if (result.success && result.url) {
+        // Trigger download
+        const link = document.createElement('a');
+        link.href = result.url;
+        link.setAttribute('download', result.filename);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      }
+    } catch (err) {
+      console.error('Failed to generate document:', err);
+    } finally {
+      setGeneratingDoc(null);
     }
   };
 
@@ -418,7 +533,7 @@ export default function ChatPage() {
                   className="p-1 hover:bg-surface-800 rounded transition-colors"
                   title={showArchived ? 'Show current chats' : 'Show archived chats'}
                 >
-                  {showArchived ? <History className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
+                  {showArchived ? <HistoryIcon className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
                 </button>
               </div>
 
@@ -443,8 +558,8 @@ export default function ChatPage() {
                     )}
                   >
                     <MessageSquare className="w-4 h-4 flex-shrink-0 text-surface-400" />
-                    <span className="flex-1 truncate text-sm">{conv.title}</span>
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span className="flex-1 truncate text-sm mr-2">{conv.title}</span>
+                    <div className="flex items-center gap-1 transition-opacity">
                       <button
                         onClick={(e) => toggleArchive(conv.id, conv.is_archived, e)}
                         className="p-1 hover:bg-surface-700 rounded transition-all"
@@ -477,6 +592,29 @@ export default function ChatPage() {
                   {isLoadingHistory ? 'Loading...' : 'Load older chats...'}
                 </button>
               )}
+            </div>
+
+            {/* Bulk Actions */}
+            <div className="px-4 pb-2">
+              <div className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-2">Gestione</div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => archiveAllConversations(!showArchived)}
+                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-surface-700 hover:bg-surface-800 transition-colors text-xs"
+                  title={showArchived ? "Unarchive All" : "Archive All"}
+                >
+                  <Archive className="w-3.5 h-3.5" />
+                  <span>{showArchived ? "Ripristina" : "Archivia"} Tutti</span>
+                </button>
+                <button
+                  onClick={() => deleteAllConversations()}
+                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-red-900/30 hover:bg-red-900/20 text-red-400 transition-colors text-xs"
+                  title="Delete All"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Elimina Tutti</span>
+                </button>
+              </div>
             </div>
 
             {/* VS Code Extension Download */}
@@ -584,6 +722,33 @@ export default function ChatPage() {
           <div className="flex items-center gap-2">
             <IconSelector onIconChange={setSelectedBotIcon} />
 
+            {currentConversationId && messages.length > 0 && (
+              <button
+                onClick={undoLastMessage}
+                disabled={isStreaming}
+                className="p-2 hover:bg-surface-100 dark:hover:bg-surface-800 rounded-lg transition-colors text-surface-500 hover:text-primary-500"
+                title="Annulla ultimo messaggio e rifai"
+              >
+                <RotateCcw className={clsx("w-5 h-5", isStreaming && "animate-spin")} />
+              </button>
+            )}
+
+            <button
+              onClick={() => { setShowMemoryPanel(!showMemoryPanel); if (!showMemoryPanel) loadMemoryObservations(); }}
+              className={clsx(
+                "relative p-2 rounded-lg transition-colors",
+                showMemoryPanel
+                  ? "bg-purple-500/20 text-purple-400"
+                  : "hover:bg-surface-100 dark:hover:bg-surface-800 text-surface-500 hover:text-purple-400"
+              )}
+              title="Memory"
+            >
+              <Brain className="w-5 h-5" />
+              {memoryContextActive && (
+                <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-purple-500 rounded-full" />
+              )}
+            </button>
+
             {user?.role === 'admin' && (
               <a
                 href="/admin"
@@ -595,6 +760,42 @@ export default function ChatPage() {
             )}
           </div>
         </header>
+
+        {/* Memory Panel Overlay */}
+        {showMemoryPanel && (
+          <div className="absolute right-4 top-16 z-40 w-80 max-h-[60vh] bg-surface-900 border border-surface-700 rounded-lg shadow-xl overflow-hidden">
+            <div className="px-4 py-3 border-b border-surface-700 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Brain className="w-4 h-4 text-purple-400" />
+                <span className="text-sm font-medium text-white">Memory</span>
+                {memoryContextActive && (
+                  <span className="text-xs px-1.5 py-0.5 bg-purple-500/20 text-purple-400 rounded">active</span>
+                )}
+              </div>
+              <button onClick={() => setShowMemoryPanel(false)} className="text-surface-500 hover:text-white">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="overflow-y-auto max-h-[calc(60vh-48px)] p-2 space-y-1.5">
+              {memoryObservations.length === 0 ? (
+                <p className="text-center text-xs text-surface-500 py-6">No observations yet</p>
+              ) : (
+                memoryObservations.map(obs => (
+                  <div key={obs.id} className="px-3 py-2 bg-surface-800 rounded-lg">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-700 text-surface-300">{obs.observation_type}</span>
+                      <span className="text-[10px] text-yellow-400">{'*'.repeat(Math.min(obs.importance, 5))}</span>
+                      <span className="text-[10px] text-surface-500 ml-auto">
+                        {new Date(obs.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <p className="text-xs text-surface-300 line-clamp-3">{obs.content}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto">
@@ -633,37 +834,83 @@ export default function ChatPage() {
                         <BotIcon type={selectedBotIcon} size={20} className="text-white" />
                       )}
                     </div>
-                    <div className="flex-1 min-w-0 prose dark:prose-invert prose-sm max-w-none">
-                      {message.role === 'assistant' && message.content === '' ? (
-                        <div className="typing-indicator">
-                          <span></span>
-                          <span></span>
-                          <span></span>
+                    <div className="flex-1 min-w-0">
+                      <div className="prose dark:prose-invert prose-sm max-w-none">
+                        {message.role === 'assistant' && message.content === '' ? (
+                          <div className="typing-indicator">
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                          </div>
+                        ) : (
+                          <ReactMarkdown
+                            components={{
+                              code({ className, children, ...props }) {
+                                const match = /language-(\w+)/.exec(className || '');
+                                const inline = !match;
+                                return inline ? (
+                                  <code className={className} {...props}>
+                                    {children}
+                                  </code>
+                                ) : (
+                                  <SyntaxHighlighter
+                                    style={oneDark as any}
+                                    language={match[1]}
+                                    PreTag="div"
+                                  >
+                                    {String(children).replace(/\n$/, '')}
+                                  </SyntaxHighlighter>
+                                );
+                              },
+                              a({ href, children, ...props }) {
+                                // Render download links as styled buttons
+                                if (href && href.includes('/api/tools/download/')) {
+                                  return (
+                                    <a
+                                      href={href}
+                                      download
+                                      className="inline-flex items-center gap-2 px-4 py-2 my-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-white no-underline transition-colors text-sm font-medium"
+                                      {...props}
+                                    >
+                                      <Download className="w-4 h-4" />
+                                      {children}
+                                    </a>
+                                  );
+                                }
+                                return <a href={href} target="_blank" rel="noopener noreferrer" {...props}>{children}</a>;
+                              }
+                            }}
+                          >
+                            {message.content}
+                          </ReactMarkdown>
+                        )}
+                      </div>
+                      {message.timestamp && (
+                        <div className="mt-1 text-xs text-surface-400 flex items-center gap-3">
+                          <span>{message.timestamp}</span>
+                          {message.role === 'assistant' && message.content.length > 50 && !isStreaming && currentConversationId && (
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => handleGenerateDocument(index, 'docx')}
+                                disabled={generatingDoc !== null}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-surface-100 dark:bg-surface-800 hover:bg-primary-100 dark:hover:bg-primary-900/30 text-surface-600 dark:text-surface-400 hover:text-primary-700 dark:hover:text-primary-400 transition-colors disabled:opacity-50"
+                                title="Scarica come Word"
+                              >
+                                {generatingDoc === index ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileText className="w-3 h-3" />}
+                                Word
+                              </button>
+                              <button
+                                onClick={() => handleGenerateDocument(index, 'pdf')}
+                                disabled={generatingDoc !== null}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-surface-100 dark:bg-surface-800 hover:bg-red-100 dark:hover:bg-red-900/30 text-surface-600 dark:text-surface-400 hover:text-red-700 dark:hover:text-red-400 transition-colors disabled:opacity-50"
+                                title="Scarica come PDF"
+                              >
+                                {generatingDoc === index ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileText className="w-3 h-3" />}
+                                PDF
+                              </button>
+                            </div>
+                          )}
                         </div>
-                      ) : (
-                        <ReactMarkdown
-                          components={{
-                            code({ className, children, ...props }) {
-                              const match = /language-(\w+)/.exec(className || '');
-                              const inline = !match;
-                              return inline ? (
-                                <code className={className} {...props}>
-                                  {children}
-                                </code>
-                              ) : (
-                                <SyntaxHighlighter
-                                  style={oneDark as any}
-                                  language={match[1]}
-                                  PreTag="div"
-                                >
-                                  {String(children).replace(/\n$/, '')}
-                                </SyntaxHighlighter>
-                              );
-                            }
-                          }}
-                        >
-                          {message.content}
-                        </ReactMarkdown>
                       )}
                     </div>
                   </div>

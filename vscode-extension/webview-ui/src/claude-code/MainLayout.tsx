@@ -64,7 +64,7 @@ interface VSCodeAPI {
 // Get VS Code API
 const vscode: VSCodeAPI = (window as any).acquireVsCodeApi
   ? (window as any).acquireVsCodeApi()
-  : { postMessage: () => {}, getState: () => ({}), setState: () => {} };
+  : { postMessage: () => { }, getState: () => ({}), setState: () => { } };
 
 type ActiveTab = 'chat' | 'kanban';
 
@@ -143,7 +143,7 @@ const MainLayout: React.FC = () => {
   const [versionInfo, setVersionInfo] = useState<{
     extension: string;
     backend?: { version: string; buildTime: string };
-  }>({ extension: '2.9.21' });
+  }>({ extension: '1.5.29' });
 
   const streamingRef = useRef('');
   const generateId = () => `msg-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
@@ -403,7 +403,7 @@ const MainLayout: React.FC = () => {
 
         case 'versionInfo':
           setVersionInfo({
-            extension: payload?.extension || '2.9.21',
+            extension: payload?.extension || '1.5.29',
             backend: payload?.backend
           });
           break;
@@ -674,18 +674,18 @@ Please analyze this task and help me implement it. When generating code, use the
       <div className="login-screen">
         <div className="login-logo">
           <svg width="80" height="60" viewBox="0 0 64 48">
-            <path d="M52 28c5.5 0 10-4.5 10-10s-4.5-10-10-10c-1 0-2 .1-3 .4C47 4 42.5 0 37 0c-6.5 0-12 5-12.5 11.5C20 12 16 16.5 16 22c0 6 5 11 11 11h25z" fill="#2196F3"/>
-            <path d="M48 32c4 0 7.5-3 8-7H10c.5 4 4 7 8 7h30z" fill="#1976D2"/>
-            <circle cx="32" cy="24" r="10" fill="#7C4DFF"/>
-            <circle cx="32" cy="24" r="2" fill="white"/>
-            <circle cx="26" cy="20" r="1.5" fill="white"/>
-            <circle cx="38" cy="20" r="1.5" fill="white"/>
-            <circle cx="26" cy="28" r="1.5" fill="white"/>
-            <circle cx="38" cy="28" r="1.5" fill="white"/>
-            <line x1="32" y1="24" x2="26" y2="20" stroke="white" strokeWidth="1.5"/>
-            <line x1="32" y1="24" x2="38" y2="20" stroke="white" strokeWidth="1.5"/>
-            <line x1="32" y1="24" x2="26" y2="28" stroke="white" strokeWidth="1.5"/>
-            <line x1="32" y1="24" x2="38" y2="28" stroke="white" strokeWidth="1.5"/>
+            <path d="M52 28c5.5 0 10-4.5 10-10s-4.5-10-10-10c-1 0-2 .1-3 .4C47 4 42.5 0 37 0c-6.5 0-12 5-12.5 11.5C20 12 16 16.5 16 22c0 6 5 11 11 11h25z" fill="#2196F3" />
+            <path d="M48 32c4 0 7.5-3 8-7H10c.5 4 4 7 8 7h30z" fill="#1976D2" />
+            <circle cx="32" cy="24" r="10" fill="#7C4DFF" />
+            <circle cx="32" cy="24" r="2" fill="white" />
+            <circle cx="26" cy="20" r="1.5" fill="white" />
+            <circle cx="38" cy="20" r="1.5" fill="white" />
+            <circle cx="26" cy="28" r="1.5" fill="white" />
+            <circle cx="38" cy="28" r="1.5" fill="white" />
+            <line x1="32" y1="24" x2="26" y2="20" stroke="white" strokeWidth="1.5" />
+            <line x1="32" y1="24" x2="38" y2="20" stroke="white" strokeWidth="1.5" />
+            <line x1="32" y1="24" x2="26" y2="28" stroke="white" strokeWidth="1.5" />
+            <line x1="32" y1="24" x2="38" y2="28" stroke="white" strokeWidth="1.5" />
           </svg>
         </div>
         <h1 className="login-title">Enterprise AI</h1>
@@ -723,14 +723,14 @@ Please analyze this task and help me implement it. When generating code, use the
         {/* Center: Title */}
         <div className="claude-header-center">
           <svg width="28" height="20" viewBox="0 0 64 48" style={{ marginRight: 8 }}>
-            <path d="M52 28c5.5 0 10-4.5 10-10s-4.5-10-10-10c-1 0-2 .1-3 .4C47 4 42.5 0 37 0c-6.5 0-12 5-12.5 11.5C20 12 16 16.5 16 22c0 6 5 11 11 11h25z" fill="#2196F3"/>
-            <path d="M48 32c4 0 7.5-3 8-7H10c.5 4 4 7 8 7h30z" fill="#1976D2"/>
-            <circle cx="32" cy="24" r="10" fill="#7C4DFF"/>
-            <circle cx="32" cy="24" r="2" fill="white"/>
-            <circle cx="26" cy="20" r="1.5" fill="white"/>
-            <circle cx="38" cy="20" r="1.5" fill="white"/>
-            <circle cx="26" cy="28" r="1.5" fill="white"/>
-            <circle cx="38" cy="28" r="1.5" fill="white"/>
+            <path d="M52 28c5.5 0 10-4.5 10-10s-4.5-10-10-10c-1 0-2 .1-3 .4C47 4 42.5 0 37 0c-6.5 0-12 5-12.5 11.5C20 12 16 16.5 16 22c0 6 5 11 11 11h25z" fill="#2196F3" />
+            <path d="M48 32c4 0 7.5-3 8-7H10c.5 4 4 7 8 7h30z" fill="#1976D2" />
+            <circle cx="32" cy="24" r="10" fill="#7C4DFF" />
+            <circle cx="32" cy="24" r="2" fill="white" />
+            <circle cx="26" cy="20" r="1.5" fill="white" />
+            <circle cx="38" cy="20" r="1.5" fill="white" />
+            <circle cx="26" cy="28" r="1.5" fill="white" />
+            <circle cx="38" cy="28" r="1.5" fill="white" />
           </svg>
           <span className="claude-title">Enterprise AI</span>
           <span className="version-badge" title={`Ext: v${versionInfo.extension}${versionInfo.backend ? ` | API: v${versionInfo.backend.version}` : ''}`}>

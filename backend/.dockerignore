@@ -1,0 +1,9 @@
+node_modules
+dist
+.git
+*.log
+npm-debug.log*
+.env
+.env.*
+attachments
+public/generated

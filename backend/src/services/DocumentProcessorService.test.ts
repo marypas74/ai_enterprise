@@ -21,19 +21,39 @@ vi.mock('mammoth', () => ({
     },
 }));
 
-// Mock xlsx
-vi.mock('xlsx', () => ({
-    read: vi.fn().mockReturnValue({
-        SheetNames: ['Sheet1', 'Sheet2'],
-        Sheets: {
-            Sheet1: { A1: { v: 'Header' }, B1: { v: 'Data' } },
-            Sheet2: { A1: { v: 'Other' } },
+// Mock exceljs
+vi.mock('exceljs', () => {
+    const mockWorksheet = {
+        name: 'Sheet1',
+        eachRow: vi.fn((cb: any) => {
+            cb({ values: [null, 'Header', 'Data'] }, 1);
+            cb({ values: [null, 'Row1', 'Value1'] }, 2);
+        }),
+        columns: null as any,
+        addRow: vi.fn(),
+    };
+    const mockWorksheet2 = {
+        name: 'Sheet2',
+        eachRow: vi.fn((cb: any) => {
+            cb({ values: [null, 'Other'] }, 1);
+        }),
+    };
+    return {
+        default: {
+            Workbook: vi.fn().mockImplementation(() => ({
+                xlsx: {
+                    load: vi.fn().mockResolvedValue(undefined),
+                    writeBuffer: vi.fn().mockResolvedValue(Buffer.from('mock-xlsx')),
+                },
+                eachSheet: vi.fn((cb: any) => {
+                    cb(mockWorksheet, 1);
+                    cb(mockWorksheet2, 2);
+                }),
+                addWorksheet: vi.fn().mockReturnValue(mockWorksheet),
+            })),
         },
-    }),
-    utils: {
-        sheet_to_csv: vi.fn().mockImplementation((_sheet: any) => 'Header,Data\nRow1,Value1'),
-    },
-}));
+    };
+});
 
 // Mock docx
 vi.mock('docx', () => {

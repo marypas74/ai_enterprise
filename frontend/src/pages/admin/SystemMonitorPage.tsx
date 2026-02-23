@@ -10,7 +10,9 @@ import {
   Container,
   RefreshCw,
   Clock,
-  Gauge
+  Gauge,
+  Zap,
+  Box
 } from 'lucide-react';
 
 interface SystemData {
@@ -64,6 +66,27 @@ interface SystemData {
     restarts: string;
     age: string;
   }>;
+  gpu?: Array<{
+    index: number;
+    name: string;
+    utilization: number;
+    memoryUsed: number;
+    memoryTotal: number;
+    memoryUsagePercent: number;
+    temperature: number;
+    powerDraw: number;
+  }>;
+  ollama?: {
+    activeModels: Array<{
+      name: string;
+      model: string;
+      size: number;
+      digest: string;
+      details: any;
+      expires_at: string;
+      size_vram: number;
+    }>;
+  };
 }
 
 function formatBytes(bytes: number): string {
@@ -215,16 +238,15 @@ export default function SystemMonitorPage() {
                     strokeDasharray={`${(data?.cpu.usage || 0) * 1.41} 141`}
                     className={
                       (data?.cpu.usage || 0) > 90 ? 'text-red-500' :
-                      (data?.cpu.usage || 0) > 70 ? 'text-amber-500' :
-                      (data?.cpu.usage || 0) > 50 ? 'text-yellow-500' : 'text-green-500'
+                        (data?.cpu.usage || 0) > 70 ? 'text-amber-500' :
+                          (data?.cpu.usage || 0) > 50 ? 'text-yellow-500' : 'text-green-500'
                     }
                   />
                 </svg>
                 {/* Usage percentage in center */}
                 <div className="absolute inset-0 flex items-end justify-center pb-1">
-                  <span className={`text-2xl font-bold ${
-                    (data?.cpu.usage || 0) > 80 ? 'text-red-400' : 'text-green-400'
-                  }`}>
+                  <span className={`text-2xl font-bold ${(data?.cpu.usage || 0) > 80 ? 'text-red-400' : 'text-green-400'
+                    }`}>
                     {data?.cpu.usage?.toFixed(1) || '0'}%
                   </span>
                 </div>
@@ -279,7 +301,7 @@ export default function SystemMonitorPage() {
                 <span>Current Usage</span>
                 <span className={
                   (data?.cpu.usage || 0) > 90 ? 'text-red-400 animate-pulse' :
-                  (data?.cpu.usage || 0) > 70 ? 'text-amber-400' : 'text-green-400'
+                    (data?.cpu.usage || 0) > 70 ? 'text-amber-400' : 'text-green-400'
                 }>
                   {data?.cpu.usage?.toFixed(1) || '0'}%
                 </span>
@@ -316,7 +338,7 @@ export default function SystemMonitorPage() {
               <span className="text-amber-400 font-semibold">DISK</span>
             </div>
             <div className="space-y-3">
-              {data?.disk.slice(0, 4).map((d, i) => (
+              {data?.disk?.slice(0, 4).map((d, i) => (
                 <div key={i}>
                   <div className="flex justify-between text-xs mb-1">
                     <span className="text-surface-400 truncate max-w-[120px]" title={d.mountPoint}>
@@ -337,18 +359,85 @@ export default function SystemMonitorPage() {
               <span className="text-cyan-400 font-semibold">NETWORK</span>
             </div>
             <div className="space-y-2 text-xs">
-              {data?.network.interfaces.slice(0, 4).map((iface, i) => (
+              {data?.network?.interfaces?.slice(0, 4).map((iface, i) => (
                 <div key={i} className="flex justify-between">
                   <span className="text-surface-400">{iface.name}</span>
                   <span>{iface.address}</span>
                 </div>
               ))}
-              {data?.network.stats.slice(0, 4).map((stat, i) => (
+              {data?.network?.stats?.slice(0, 4).map((stat, i) => (
                 <div key={i} className="flex justify-between text-surface-500">
                   <span>{stat.interface}</span>
                   <span>RX: {formatBytes(stat.rxBytes)} TX: {formatBytes(stat.txBytes)}</span>
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+
+        {/* GPU & Ollama Section */}
+        <div className="col-span-4 space-y-4">
+          {/* GPU Monitoring */}
+          <div className="bg-surface-900 rounded-lg p-3 border border-surface-700">
+            <div className="flex items-center gap-2 mb-3">
+              <Zap className="w-4 h-4 text-yellow-400" />
+              <span className="text-yellow-400 font-semibold">GPU (RTX 5090)</span>
+            </div>
+            {data?.gpu && data.gpu.length > 0 ? (
+              <div className="space-y-4">
+                {data.gpu.map((gpu, i) => (
+                  <div key={i} className="space-y-2">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-surface-400">{gpu.name}</span>
+                      <span className="text-yellow-400">{gpu.utilization}% Util</span>
+                    </div>
+                    <ProgressBar value={gpu.utilization} color="yellow" showLabel={false} />
+
+                    <div className="flex justify-between text-[10px] text-surface-500 mt-1">
+                      <span>Temp: {gpu.temperature}°C</span>
+                      <span>Power: {gpu.powerDraw}W</span>
+                    </div>
+
+                    <div className="pt-2">
+                      <div className="flex justify-between text-xs mb-1">
+                        <span className="text-surface-400">VRAM Usage</span>
+                        <span className={gpu.memoryUsagePercent > 80 ? 'text-red-400' : 'text-green-400'}>
+                          {formatBytes(gpu.memoryUsed)} / {formatBytes(gpu.memoryTotal)}
+                        </span>
+                      </div>
+                      <ProgressBar value={gpu.memoryUsagePercent} color="green" showLabel={true} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-4 text-surface-500 text-xs">No GPU data available</div>
+            )}
+          </div>
+
+          {/* Ollama Models */}
+          <div className="bg-surface-900 rounded-lg p-3 border border-surface-700">
+            <div className="flex items-center gap-2 mb-3">
+              <Box className="w-4 h-4 text-orange-400" />
+              <span className="text-orange-400 font-semibold">OLLAMA (Active Models)</span>
+            </div>
+            <div className="space-y-3">
+              {data?.ollama?.activeModels && data.ollama.activeModels.length > 0 ? (
+                data.ollama.activeModels.map((model, i) => (
+                  <div key={i} className="bg-surface-800 rounded p-2 border border-surface-700">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-cyan-300 font-medium truncate max-w-[150px]">{model.name}</span>
+                      <span className="text-[10px] text-surface-500">{formatBytes(model.size)}</span>
+                    </div>
+                    <div className="flex justify-between text-[10px]">
+                      <span className="text-purple-400">{model.details?.parameter_size} | {model.details?.quantization_level}</span>
+                      <span className="text-green-400">VRAM: {formatBytes(model.size_vram)}</span>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-4 text-surface-500 text-xs">No models currently loaded</div>
+              )}
             </div>
           </div>
         </div>
@@ -386,16 +475,15 @@ export default function SystemMonitorPage() {
                         <div className="flex items-center justify-end gap-1">
                           <div className="w-12 h-1.5 bg-surface-700 rounded overflow-hidden">
                             <div
-                              className={`h-full rounded ${
-                                (c.cpu || 0) > 80 ? 'bg-red-500' :
-                                (c.cpu || 0) > 50 ? 'bg-amber-500' : 'bg-green-500'
-                              }`}
+                              className={`h-full rounded ${(c.cpu || 0) > 80 ? 'bg-red-500' :
+                                  (c.cpu || 0) > 50 ? 'bg-amber-500' : 'bg-green-500'
+                                }`}
                               style={{ width: `${Math.min(c.cpu || 0, 100)}%` }}
                             />
                           </div>
                           <span className={
                             (c.cpu || 0) > 80 ? 'text-red-400' :
-                            (c.cpu || 0) > 50 ? 'text-amber-400' : 'text-green-400'
+                              (c.cpu || 0) > 50 ? 'text-amber-400' : 'text-green-400'
                           }>
                             {(c.cpu || 0).toFixed(1)}%
                           </span>
@@ -427,10 +515,9 @@ export default function SystemMonitorPage() {
                   <div key={i} className="bg-surface-800 rounded p-2 hover:bg-surface-750">
                     <div className="flex items-center justify-between mb-1">
                       <div className="flex items-center gap-2">
-                        <span className={`w-2 h-2 rounded-full ${
-                          pod.status === 'Running' ? 'bg-green-500' :
-                          pod.status === 'Pending' ? 'bg-yellow-500 animate-pulse' : 'bg-red-500'
-                        }`} />
+                        <span className={`w-2 h-2 rounded-full ${pod.status === 'Running' ? 'bg-green-500' :
+                            pod.status === 'Pending' ? 'bg-yellow-500 animate-pulse' : 'bg-red-500'
+                          }`} />
                         <span className="text-cyan-300 font-medium">{pod.name}</span>
                       </div>
                       <span className="text-surface-500 text-[10px]">{pod.age}</span>
@@ -441,7 +528,7 @@ export default function SystemMonitorPage() {
                         <span className="text-surface-400">Ready: {pod.ready}</span>
                         <span className={
                           pod.status === 'Running' ? 'text-green-400' :
-                          pod.status === 'Pending' ? 'text-yellow-400' : 'text-red-400'
+                            pod.status === 'Pending' ? 'text-yellow-400' : 'text-red-400'
                         }>
                           {pod.status}
                         </span>

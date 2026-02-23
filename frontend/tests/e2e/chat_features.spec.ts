@@ -63,7 +63,7 @@ test.describe('Chat History and Archiving Features', () => {
         await toggleButton.click();
 
         // 4. Check if archived view is shown
-        await expect(page.locator('text=Archived')).toBeVisible();
+        await expect(page.getByText('Archived', { exact: true })).toBeVisible();
         await expect(page.locator('text=Archived Chat 1')).toBeVisible();
         await expect(page.locator('button[title="Show current chats"]')).toBeVisible();
     });

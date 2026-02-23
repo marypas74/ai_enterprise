@@ -1,0 +1,91 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: enterprise-ai-chat
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+        - name: backend
+          image: localhost:32000/enterprise-ai-chat-backend:v1.3.6
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: app-config
+            - secretRef:
+                name: app-secrets
+          env:
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mariadb-secrets
+                  key: MYSQL_PASSWORD
+            - name: STORAGE_ROOT
+              value: "/app/projects"
+            - name: PROJECTS_PATH
+              value: "/app/projects"
+            - name: EXTENSION_DIR
+              value: "/app/projects/extensions"
+          volumeMounts:
+            - name: shared-projects
+              mountPath: /app/projects
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "200m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: shared-projects
+          hostPath:
+            path: /data/shared-projects
+            type: DirectoryOrCreate
+      initContainers:
+        - name: wait-for-db
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z mariadb 3306; do
+                echo "Waiting for MariaDB..."
+                sleep 2
+              done
+              echo "MariaDB is ready"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: enterprise-ai-chat
+spec:
+  selector:
+    app: backend
+  ports:
+    - port: 3000
+      targetPort: 3000
+  type: ClusterIP

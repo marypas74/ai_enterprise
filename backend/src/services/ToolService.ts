@@ -11,6 +11,7 @@ import {
   getProjectFolder,
 } from './StorageService.js';
 import { convertTextToDocx, convertDataToXlsx, convertSlidesToPptx } from './DocumentProcessorService.js';
+import { findOne } from '../database/index.js';
 import path from 'path';
 
 // Tool definitions for Anthropic API
@@ -178,6 +179,34 @@ export function getToolDefinitions(): ToolDefinition[] {
         },
         required: ['path', 'slides']
       }
+    },
+    {
+      name: 'get_attachment_text',
+      description: 'Get the full processed text content of an attachment (PDF, Word, etc.). Use this if the initial context was truncated or if you need to read the full content of a file.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          attachment_id: {
+            type: 'number',
+            description: 'The ID of the attachment to read'
+          }
+        },
+        required: ['attachment_id']
+      }
+    },
+    {
+      name: 'web_search',
+      description: 'Search the internet for real-time information (news, weather, latest data). Use this when your internal knowledge is insufficient or you need the most up-to-date information.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          query: {
+            type: 'string',
+            description: 'The search query (e.g., " Firenze weather today", "latest AI news February 2026")'
+          }
+        },
+        required: ['query']
+      }
     }
   ];
 }
@@ -275,8 +304,17 @@ export async function executeTool(
           return { success: false, error: 'Missing required parameters: path and content' };
         }
 
+        // Path traversal protection
+        if (relativePath.includes('..')) {
+          return { success: false, error: 'Invalid path: directory traversal not allowed' };
+        }
+
         const projectPath = getProjectFolder(context.userName, context.projectName);
         const fullPath = path.join(projectPath, relativePath);
+        const normalizedPath = path.normalize(fullPath);
+        if (!normalizedPath.startsWith(projectPath)) {
+          return { success: false, error: 'Invalid path: outside project directory' };
+        }
 
         // Ensure parent directory exists
         const fs = await import('fs');
@@ -287,12 +325,24 @@ export async function executeTool(
 
         await convertTextToDocx(content, fullPath, title || relativePath);
 
+        // Also copy to public/generated for download via /api/tools/download/
+        const generatedDir = path.join(process.cwd(), 'public', 'generated');
+        if (!fs.default.existsSync(generatedDir)) {
+          fs.default.mkdirSync(generatedDir, { recursive: true });
+        }
+        const downloadFilename = `${path.basename(relativePath, '.docx')}_${Date.now()}.docx`;
+        const downloadPath = path.join(generatedDir, downloadFilename);
+        fs.default.copyFileSync(fullPath, downloadPath);
+        const downloadUrl = `/api/tools/download/${downloadFilename}`;
+
         return {
           success: true,
           output: {
             message: `Word document generated successfully`,
             path: relativePath,
-            fullPath
+            fullPath,
+            downloadUrl,
+            downloadFilename
           }
         };
       }
@@ -303,8 +353,17 @@ export async function executeTool(
           return { success: false, error: 'Missing required parameters: path and data' };
         }
 
+        // Path traversal protection
+        if (relativePath.includes('..')) {
+          return { success: false, error: 'Invalid path: directory traversal not allowed' };
+        }
+
         const projectPath = getProjectFolder(context.userName, context.projectName);
         const fullPath = path.join(projectPath, relativePath);
+        const normalizedPath = path.normalize(fullPath);
+        if (!normalizedPath.startsWith(projectPath)) {
+          return { success: false, error: 'Invalid path: outside project directory' };
+        }
 
         // Ensure parent directory exists
         const fs = await import('fs');
@@ -315,12 +374,24 @@ export async function executeTool(
 
         await convertDataToXlsx(data, fullPath, sheetName);
 
+        // Copy to public/generated for download
+        const generatedDir = path.join(process.cwd(), 'public', 'generated');
+        if (!fs.default.existsSync(generatedDir)) {
+          fs.default.mkdirSync(generatedDir, { recursive: true });
+        }
+        const downloadFilename = `${path.basename(relativePath, '.xlsx')}_${Date.now()}.xlsx`;
+        const downloadPath = path.join(generatedDir, downloadFilename);
+        fs.default.copyFileSync(fullPath, downloadPath);
+        const downloadUrl = `/api/tools/download/${downloadFilename}`;
+
         return {
           success: true,
           output: {
             message: `Excel spreadsheet generated successfully`,
             path: relativePath,
-            fullPath
+            fullPath,
+            downloadUrl,
+            downloadFilename
           }
         };
       }
@@ -331,8 +402,17 @@ export async function executeTool(
           return { success: false, error: 'Missing required parameters: path and slides' };
         }
 
+        // Path traversal protection
+        if (relativePath.includes('..')) {
+          return { success: false, error: 'Invalid path: directory traversal not allowed' };
+        }
+
         const projectPath = getProjectFolder(context.userName, context.projectName);
         const fullPath = path.join(projectPath, relativePath);
+        const normalizedPath = path.normalize(fullPath);
+        if (!normalizedPath.startsWith(projectPath)) {
+          return { success: false, error: 'Invalid path: outside project directory' };
+        }
 
         // Ensure parent directory exists
         const fs = await import('fs');
@@ -343,14 +423,89 @@ export async function executeTool(
 
         await convertSlidesToPptx(slides, fullPath, title);
 
+        // Copy to public/generated for download
+        const generatedDir = path.join(process.cwd(), 'public', 'generated');
+        if (!fs.default.existsSync(generatedDir)) {
+          fs.default.mkdirSync(generatedDir, { recursive: true });
+        }
+        const downloadFilename = `${path.basename(relativePath, '.pptx')}_${Date.now()}.pptx`;
+        const downloadPath = path.join(generatedDir, downloadFilename);
+        fs.default.copyFileSync(fullPath, downloadPath);
+        const downloadUrl = `/api/tools/download/${downloadFilename}`;
+
         return {
           success: true,
           output: {
             message: `PowerPoint presentation generated successfully`,
             path: relativePath,
-            fullPath
+            fullPath,
+            downloadUrl,
+            downloadFilename
           }
         };
+      }
+
+      case 'get_attachment_text': {
+        const { attachment_id } = toolInput;
+        if (!attachment_id) {
+          return { success: false, error: 'Missing required parameter: attachment_id' };
+        }
+
+        const attachment = await findOne<any>(
+          (global as any).fastifyDb,
+          'SELECT processed_content, original_name FROM chat_attachments WHERE id = ?',
+          [attachment_id]
+        );
+
+        if (!attachment) {
+          return { success: false, error: `Attachment not found: ${attachment_id}` };
+        }
+
+        return {
+          success: true,
+          output: {
+            attachment_id,
+            original_name: attachment.original_name,
+            content: attachment.processed_content || 'No content found or processing not complete',
+            size: attachment.processed_content?.length || 0
+          }
+        };
+      }
+
+      case 'web_search': {
+        const { query } = toolInput;
+        if (!query) {
+          return { success: false, error: 'Missing required parameter: query' };
+        }
+
+        console.log(`[ToolService] Performing real web search for: ${query}`);
+
+        try {
+          const { performWebSearch } = await import('./WebSearchService.js');
+          const searchResponse = await performWebSearch(query);
+
+          if (!searchResponse.searchPerformed || searchResponse.results.length === 0) {
+            return {
+              success: true,
+              output: {
+                query,
+                results: [],
+                message: "No relevant search results found."
+              }
+            };
+          }
+
+          return {
+            success: true,
+            output: {
+              query,
+              results: searchResponse.results,
+              message: `Found ${searchResponse.results.length} search results.`
+            }
+          };
+        } catch (error: any) {
+          return { success: false, error: `Web search tool failed: ${error.message}` };
+        }
       }
 
       default:

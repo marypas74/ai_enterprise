@@ -106,6 +106,58 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
     },
     {
+      name: 'memory_observations',
+      sql: `CREATE TABLE IF NOT EXISTS memory_observations (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        user_id BIGINT UNSIGNED NOT NULL,
+        conversation_id BIGINT UNSIGNED NULL,
+        observation_type ENUM('insight', 'decision', 'pattern', 'error', 'preference', 'fact', 'manual') DEFAULT 'insight',
+        content TEXT NOT NULL,
+        source_message_id BIGINT UNSIGNED NULL,
+        tags JSON,
+        importance TINYINT UNSIGNED DEFAULT 5,
+        is_archived BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE SET NULL,
+        FULLTEXT INDEX ft_content (content),
+        INDEX idx_user_type (user_id, observation_type),
+        INDEX idx_user_created (user_id, created_at DESC),
+        INDEX idx_importance (importance DESC)
+      ) ENGINE=InnoDB`
+    },
+    {
+      name: 'memory_summaries',
+      sql: `CREATE TABLE IF NOT EXISTS memory_summaries (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        user_id BIGINT UNSIGNED NOT NULL,
+        conversation_id BIGINT UNSIGNED NOT NULL,
+        summary TEXT NOT NULL,
+        key_observations JSON,
+        tokens_saved INT UNSIGNED DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+        FULLTEXT INDEX ft_summary (summary),
+        INDEX idx_user_created (user_id, created_at DESC)
+      ) ENGINE=InnoDB`
+    },
+    {
+      name: 'memory_settings',
+      sql: `CREATE TABLE IF NOT EXISTS memory_settings (
+        user_id BIGINT UNSIGNED PRIMARY KEY,
+        auto_capture BOOLEAN DEFAULT TRUE,
+        inject_context BOOLEAN DEFAULT TRUE,
+        max_context_observations INT DEFAULT 10,
+        importance_threshold TINYINT DEFAULT 3,
+        retention_days INT DEFAULT 365,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB`
+    },
+    {
       name: 'vector_index_status',
       sql: `CREATE TABLE IF NOT EXISTS vector_index_status (
         id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

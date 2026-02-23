@@ -5,6 +5,7 @@ import fs from 'fs';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { findOne, findMany, insertOne, updateOne } from '../../database/index.js';
+import { MetricsService } from '../../services/MetricsService.js';
 
 const execAsync = promisify(exec);
 
@@ -613,32 +614,19 @@ export async function adminRoutes(fastify: FastifyInstance) {
     return findMany<AuditLog>(fastify.db, sql, params);
   });
 
-  // ==================== SYSTEM MONITORING ====================
+  // ==================== SYSTEM MONITOR & METRICS ====================
 
-  const PROMETHEUS_URL = process.env.PROMETHEUS_URL || 'http://kube-prom-stack-kube-prome-prometheus.observability.svc.cluster.local:9090';
-  const K8S_API_URL = process.env.K8S_API_URL || 'https://kubernetes.default.svc';
-
-  // Helper to query Prometheus
-  async function queryPrometheus(query: string): Promise<PrometheusResponse['data']['result']> {
-    try {
-      const response = await fetch(`${PROMETHEUS_URL}/api/v1/query?query=${encodeURIComponent(query)}`);
-      const data = await response.json() as PrometheusResponse;
-      return data.status === 'success' ? data.data.result : [];
-    } catch {
-      return [];
+  // Public metrics (Legacy - redirected to /api/public/metrics)
+  fastify.get('/public/metrics', {
+    schema: {
+      description: 'Public system metrics console (exhaustive) - Legacy redirect',
+      tags: ['public']
     }
-  }
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    return MetricsService.getExhaustiveMetrics(fastify.db);
+  });
 
-  // Helper to get Kubernetes API token
-  function getK8sToken(): string {
-    try {
-      return fs.readFileSync('/var/run/secrets/kubernetes.io/serviceaccount/token', 'utf8');
-    } catch {
-      return '';
-    }
-  }
-
-  // Get real-time system metrics from Prometheus
+  // System Monitor (admin)
   fastify.get('/system-monitor', {
     schema: {
       description: 'Get real-time system monitoring data from Prometheus (admin)',
@@ -646,292 +634,65 @@ export async function adminRoutes(fastify: FastifyInstance) {
       security: [{ bearerAuth: [] }]
     }
   }, async () => {
-    // Basic info from container
-    const cpus = os.cpus();
-    const loadAvg = os.loadavg();
-
-    // Query Prometheus for metrics
-    const [
-      cpuUsageResult,
-      memTotalResult,
-      memAvailResult,
-      diskSizeResult,
-      diskAvailResult,
-      networkRxResult,
-      networkTxResult,
-      containerCpuResult,
-      containerMemResult,
-      nodeUptimeResult
-    ] = await Promise.all([
-      queryPrometheus('100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)'),
-      queryPrometheus('node_memory_MemTotal_bytes'),
-      queryPrometheus('node_memory_MemAvailable_bytes'),
-      queryPrometheus('node_filesystem_size_bytes{mountpoint="/",fstype!="rootfs"}'),
-      queryPrometheus('node_filesystem_avail_bytes{mountpoint="/",fstype!="rootfs"}'),
-      queryPrometheus('sum by (device) (rate(node_network_receive_bytes_total{device!="lo"}[5m]))'),
-      queryPrometheus('sum by (device) (rate(node_network_transmit_bytes_total{device!="lo"}[5m]))'),
-      queryPrometheus('sum by (container, namespace, pod) (rate(container_cpu_usage_seconds_total{container!="",container!="POD"}[5m])) * 100'),
-      queryPrometheus('sum by (container, namespace, pod) (container_memory_usage_bytes{container!="",container!="POD"})'),
-      queryPrometheus('node_time_seconds - node_boot_time_seconds')
-    ]);
-
-    // Parse CPU usage
-    const cpuUsage = cpuUsageResult[0]?.value?.[1] ? parseFloat(cpuUsageResult[0].value[1]) : 0;
-
-    // Parse Memory
-    const memTotal = memTotalResult[0]?.value?.[1] ? parseInt(memTotalResult[0].value[1]) : os.totalmem();
-    const memAvail = memAvailResult[0]?.value?.[1] ? parseInt(memAvailResult[0].value[1]) : os.freemem();
-    const memUsed = memTotal - memAvail;
-    const memUsagePercent = Math.round((memUsed / memTotal) * 100 * 10) / 10;
-
-    // Parse Disk info
-    const diskInfo: any[] = [];
-    if (diskSizeResult.length > 0) {
-      for (let i = 0; i < diskSizeResult.length; i++) {
-        const size = parseInt(diskSizeResult[i]?.value?.[1] || '0');
-        const avail = parseInt(diskAvailResult[i]?.value?.[1] || '0');
-        const used = size - avail;
-        const mountpoint = diskSizeResult[i]?.metric?.mountpoint || '/';
-        const device = diskSizeResult[i]?.metric?.device || '/dev/sda';
-        diskInfo.push({
-          device,
-          size: formatBytes(size),
-          used: formatBytes(used),
-          available: formatBytes(avail),
-          usePercent: size > 0 ? Math.round((used / size) * 100) : 0,
-          mountPoint: mountpoint
-        });
-      }
-    }
-
-    // Parse Network stats
-    const networkStats: any[] = [];
-    for (const rx of networkRxResult) {
-      const device = rx.metric?.device || 'eth0';
-      const rxRate = parseFloat(rx.value?.[1] || '0');
-      const txItem = networkTxResult.find((t: any) => t.metric?.device === device);
-      const txRate = parseFloat(txItem?.value?.[1] || '0');
-      networkStats.push({
-        interface: device,
-        rxBytesPerSec: Math.round(rxRate),
-        txBytesPerSec: Math.round(txRate),
-        rxBytes: Math.round(rxRate),
-        txBytes: Math.round(txRate)
-      });
-    }
-
-    // Parse Container metrics
-    const containers: any[] = [];
-    for (const cpu of containerCpuResult) {
-      const name = cpu.metric?.container || 'unknown';
-      const namespace = cpu.metric?.namespace || '';
-      const pod = cpu.metric?.pod || '';
-      const cpuPercent = parseFloat(cpu.value?.[1] || '0');
-      const memItem = containerMemResult.find((m: any) =>
-        m.metric?.container === name && m.metric?.namespace === namespace
-      );
-      const memBytes = parseInt(memItem?.value?.[1] || '0');
-      containers.push({
-        id: pod.substring(0, 12),
-        name: `${namespace}/${name}`,
-        status: 'Running',
-        image: '-',
-        cpu: Math.round(cpuPercent * 100) / 100,
-        memory: formatBytes(memBytes),
-        memoryBytes: memBytes
-      });
-    }
-    // Sort by CPU and take top 15
-    containers.sort((a, b) => b.cpu - a.cpu);
-
-    // Get Kubernetes pods via API using native https module
-    let k8sPods: any[] = [];
-    const k8sToken = getK8sToken();
-
-    if (k8sToken) {
-      try {
-        const https = await import('https');
-        const podsData = await new Promise<any>((resolve, reject) => {
-          const url = new URL(`${K8S_API_URL}/api/v1/pods?limit=50`);
-          const options = {
-            hostname: url.hostname,
-            port: url.port || 443,
-            path: url.pathname + url.search,
-            method: 'GET',
-            rejectUnauthorized: false, // Skip cert validation for internal K8s API
-            headers: {
-              'Authorization': `Bearer ${k8sToken}`,
-              'Accept': 'application/json'
-            }
-          };
-
-          const req = https.request(options, (res) => {
-            let data = '';
-            res.on('data', (chunk) => data += chunk);
-            res.on('end', () => {
-              try {
-                resolve(JSON.parse(data));
-              } catch {
-                reject(new Error('Invalid JSON'));
-              }
-            });
-          });
-
-          req.on('error', reject);
-          req.setTimeout(10000, () => {
-            req.destroy();
-            reject(new Error('Timeout'));
-          });
-          req.end();
-        });
-
-        if (podsData.items) {
-          k8sPods = podsData.items.map((pod: any) => ({
-            namespace: pod.metadata?.namespace || '',
-            name: pod.metadata?.name || '',
-            ready: `${pod.status?.containerStatuses?.filter((c: any) => c.ready).length || 0}/${pod.status?.containerStatuses?.length || 0}`,
-            status: pod.status?.phase || 'Unknown',
-            restarts: pod.status?.containerStatuses?.[0]?.restartCount || 0,
-            age: getAge(pod.metadata?.creationTimestamp)
-          }));
-        }
-      } catch (err) {
-        fastify.log.warn(`K8s API error: ${err}`);
-        // K8s API not available
-      }
-    }
-
-    // Uptime
-    const uptimeSeconds = nodeUptimeResult[0]?.value?.[1] ? parseFloat(nodeUptimeResult[0].value[1]) : os.uptime();
-    const uptimeDays = Math.floor(uptimeSeconds / 86400);
-    const uptimeHours = Math.floor((uptimeSeconds % 86400) / 3600);
-    const uptimeMinutes = Math.floor((uptimeSeconds % 3600) / 60);
-
-    return {
-      timestamp: new Date().toISOString(),
-      hostname: os.hostname(),
-      platform: os.platform(),
-      arch: os.arch(),
-      source: 'prometheus',
-      uptime: { days: uptimeDays, hours: uptimeHours, minutes: uptimeMinutes, totalSeconds: uptimeSeconds },
-      cpu: {
-        model: cpus[0]?.model || 'Unknown',
-        cores: cpus.length,
-        speed: cpus[0]?.speed || 0,
-        usage: Math.round(cpuUsage * 10) / 10,
-        loadAvg: { '1m': loadAvg[0], '5m': loadAvg[1], '15m': loadAvg[2] }
-      },
-      memory: {
-        total: memTotal,
-        used: memUsed,
-        free: memAvail,
-        usagePercent: memUsagePercent
-      },
-      disk: diskInfo,
-      network: {
-        interfaces: [],
-        stats: networkStats
-      },
-      containers: containers.slice(0, 20),
-      processes: await getTopProcesses(),
-      k8sPods
-    };
+    return MetricsService.getExhaustiveMetrics(fastify.db);
   });
 
-  // Get top processes by reading /proc filesystem directly (works with hostPID)
-  async function getTopProcesses(): Promise<any[]> {
-    const processes: any[] = [];
+  // ==================== OLLAMA MANAGEMENT ====================
+
+  // Pull a model
+  fastify.post('/ollama/pull', {
+    schema: {
+      description: 'Pull an Ollama model (admin)',
+      tags: ['admin'],
+      security: [{ bearerAuth: [] }]
+    }
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { model } = request.body as { model: string };
+    if (!model) return reply.status(400).send({ error: 'Model name is required' });
 
     try {
-      // Try GNU ps first (works on full Linux), then fallback to reading /proc
-      const { stdout } = await execAsync(
-        'ps -eo pid,user,%cpu,%mem,vsz,rss,stat,time,comm --sort=-%cpu 2>/dev/null | head -16 | tail -15',
-        { timeout: 5000 }
-      );
+      const baseUrl = process.env.OLLAMA_BASE_URL || 'http://10.0.1.1:8086/ollama';
+      // Start pull in background (Ollama handles this)
+      fetch(`${baseUrl}/api/pull`, {
+        method: 'POST',
+        headers: { 'X-Ollama-Key': process.env.OLLAMA_AUTH_KEY || '' },
+        body: JSON.stringify({ name: model, stream: false })
+      }).catch(err => console.error(`[Ollama] Pull background error: ${err.message}`));
 
-      const lines = stdout.trim().split('\n');
-      for (const line of lines) {
-        const parts = line.trim().split(/\s+/);
-        if (parts.length >= 9) {
-          const [pid, user, cpu, mem, vsz, rss, stat, time, ...cmdParts] = parts;
-          processes.push({
-            pid: pid, // string as frontend expects
-            user,
-            cpu: parseFloat(cpu) || 0,
-            mem: parseFloat(mem) || 0, // 'mem' not 'memory' - matches frontend
-            vsz: vsz, // string
-            rss: rss, // string
-            stat: stat,
-            command: cmdParts.join(' ').substring(0, 50),
-            time
-          });
-        }
-      }
-      if (processes.length > 0) return processes;
-    } catch {
-      // GNU ps not available, try reading /proc directly
+      return { message: `Started pulling model: ${model}. This may take some time.` };
+    } catch (error: any) {
+      return reply.status(500).send({ error: error.message });
     }
+  });
 
-    // Fallback: Read /proc filesystem directly (works with BusyBox and hostPID)
+  // Delete a model
+  fastify.delete('/ollama/models/:model', {
+    schema: {
+      description: 'Delete an Ollama model (admin)',
+      tags: ['admin'],
+      security: [{ bearerAuth: [] }]
+    }
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { model } = request.params as { model: string };
+
     try {
-      const procPath = fs.existsSync('/host/proc') ? '/host/proc' : '/proc';
-      const dirs = fs.readdirSync(procPath).filter(d => /^\d+$/.test(d));
-      const totalMem = os.totalmem();
+      const baseUrl = process.env.OLLAMA_BASE_URL || 'http://10.0.1.1:8086/ollama';
+      const response = await fetch(`${baseUrl}/api/delete`, {
+        method: 'DELETE',
+        headers: { 'X-Ollama-Key': process.env.OLLAMA_AUTH_KEY || '' },
+        body: JSON.stringify({ name: model })
+      });
 
-      for (const pid of dirs.slice(0, 50)) {
-        try {
-          const statPath = `${procPath}/${pid}/stat`;
-          const cmdlinePath = `${procPath}/${pid}/cmdline`;
-          const statusPath = `${procPath}/${pid}/status`;
-
-          if (!fs.existsSync(statPath)) continue;
-
-          const stat = fs.readFileSync(statPath, 'utf8');
-          const cmdline = fs.existsSync(cmdlinePath) ? fs.readFileSync(cmdlinePath, 'utf8').replace(/\0/g, ' ').trim() : '';
-          const status = fs.existsSync(statusPath) ? fs.readFileSync(statusPath, 'utf8') : '';
-
-          // Parse stat file: pid (comm) state ppid pgrp session tty_nr tpgid flags ...
-          const statMatch = stat.match(/^(\d+)\s+\(([^)]+)\)\s+(\S+)\s+/);
-          if (!statMatch) continue;
-
-          // Get user from status file
-          const uidMatch = status.match(/Uid:\s+(\d+)/);
-          const uid = uidMatch ? uidMatch[1] : '0';
-          const user = uid === '0' ? 'root' : `user${uid}`;
-
-          // Get memory from status file (VmRSS in KB)
-          const vmRssMatch = status.match(/VmRSS:\s+(\d+)/);
-          const rss = vmRssMatch ? parseInt(vmRssMatch[1]) * 1024 : 0;
-          const memPercent = totalMem > 0 ? (rss / totalMem) * 100 : 0;
-
-          // Get VmSize from status file
-          const vmSizeMatch = status.match(/VmSize:\s+(\d+)/);
-          const vsz = vmSizeMatch ? parseInt(vmSizeMatch[1]) : 0;
-
-          processes.push({
-            pid: pid, // string as frontend expects
-            user,
-            cpu: 0, // CPU requires sampling over time, skip for now
-            mem: Math.round(memPercent * 10) / 10, // 'mem' not 'memory' - matches frontend
-            vsz: String(vsz),
-            rss: String(Math.round(rss / 1024)),
-            stat: '-',
-            command: (cmdline || statMatch[2]).substring(0, 50),
-            time: '-'
-          });
-        } catch {
-          // Skip this process
-        }
+      if (!response.ok) {
+        const err = await response.text();
+        throw new Error(err || 'Failed to delete model');
       }
 
-      // Sort by memory usage and return top 15
-      processes.sort((a, b) => b.mem - a.mem);
-      return processes.slice(0, 15);
-    } catch (error) {
-      fastify.log.warn(`Failed to read processes: ${error}`);
-      return [];
+      return { message: `Model ${model} deleted successfully` };
+    } catch (error: any) {
+      return reply.status(500).send({ error: error.message });
     }
-  }
+  });
 
   // Helper functions
   function formatBytes(bytes: number): string {

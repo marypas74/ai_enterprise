@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { generateDocxBuffer, generateExcelBuffer, generatePptxBuffer, convertOfficeToPdf } from '../../services/DocumentProcessorService.js';
+import { findOne, findMany } from '../../database/index.js';
 import fs from 'fs/promises';
 import { existsSync, mkdirSync } from 'fs';
 import path from 'path';
@@ -45,9 +46,9 @@ export async function toolsRoutes(fastify: FastifyInstance) {
 
             // Construct public URL. We assume Ingress maps /api to backend.
             // So /api/tools/download/:filename is accessible.
-            const publicUrl = `http://chat.yourdomain.com/api/tools/download/${filename}`;
+            const downloadUrl = `/api/tools/download/${filename}`;
 
-            return { success: true, url: publicUrl, filename };
+            return { success: true, url: downloadUrl, filename };
         } catch (error: any) {
             request.log.error(`[Tools] Error generating DOCX: ${error.message}`);
             return reply.status(500).send({ error: 'Failed to generate document' });
@@ -85,9 +86,9 @@ export async function toolsRoutes(fastify: FastifyInstance) {
 
             await fs.writeFile(filePath, buffer);
 
-            const publicUrl = `http://chat.yourdomain.com/api/tools/download/${filename}`;
+            const downloadUrl = `/api/tools/download/${filename}`;
 
-            return { success: true, url: publicUrl, filename };
+            return { success: true, url: downloadUrl, filename };
         } catch (error: any) {
             request.log.error(`[Tools] Error generating Excel: ${error.message}`);
             return reply.status(500).send({ error: 'Failed to generate spreadsheet' });
@@ -127,8 +128,8 @@ export async function toolsRoutes(fastify: FastifyInstance) {
             const filePath = path.join(GENERATED_DIR, filename);
             await fs.writeFile(filePath, buffer);
 
-            const publicUrl = `http://chat.yourdomain.com/api/tools/download/${filename}`;
-            return { success: true, url: publicUrl, filename };
+            const downloadUrl = `/api/tools/download/${filename}`;
+            return { success: true, url: downloadUrl, filename };
         } catch (error: any) {
             fastify.log.error(`[Tools] Error generating PPTX: ${error.message}`);
             return reply.status(500).send({ error: error.message });
@@ -196,6 +197,134 @@ export async function toolsRoutes(fastify: FastifyInstance) {
         }
     });
 
+    // POST: Generate document from chat conversation content
+    // Works independently of AI tool calling — any model's response can be exported
+    fastify.post('/tools/generate-from-chat', {
+        onRequest: [(fastify as any).authenticate],
+        schema: {
+            tags: ['Tools'],
+            description: 'Generate a document from the last assistant message in a conversation',
+            body: {
+                type: 'object',
+                properties: {
+                    conversationId: { type: 'integer' },
+                    format: { type: 'string', enum: ['docx', 'xlsx', 'pptx', 'pdf'] },
+                    content: { type: 'string' },
+                    title: { type: 'string' }
+                },
+                required: ['format']
+            }
+        }
+    }, async (request, reply) => {
+        try {
+            const user = request.user as { id: number };
+            const body = z.object({
+                conversationId: z.number().optional(),
+                format: z.enum(['docx', 'xlsx', 'pptx', 'pdf']),
+                content: z.string().optional(),
+                title: z.string().optional().default('Documento_Chat')
+            }).parse(request.body);
+
+            let textContent = body.content || '';
+
+            // If no content provided, get the last assistant message from conversation
+            if (!textContent && body.conversationId) {
+                const lastMessage = await findOne<{ content: string }>(
+                    fastify.db,
+                    `SELECT content FROM messages
+                     WHERE conversation_id = ? AND role = 'assistant'
+                     ORDER BY created_at DESC LIMIT 1`,
+                    [body.conversationId]
+                );
+
+                if (!lastMessage) {
+                    return reply.status(404).send({ error: 'No assistant message found in conversation' });
+                }
+
+                // Verify conversation belongs to user
+                const conv = await findOne<{ id: number }>(
+                    fastify.db,
+                    'SELECT id FROM conversations WHERE id = ? AND user_id = ?',
+                    [body.conversationId, user.id]
+                );
+                if (!conv) {
+                    return reply.status(403).send({ error: 'Conversation not found or access denied' });
+                }
+
+                textContent = lastMessage.content;
+            }
+
+            if (!textContent) {
+                return reply.status(400).send({ error: 'No content to generate document from. Provide content or conversationId.' });
+            }
+
+            // Strip markdown formatting artifacts for cleaner documents
+            const cleanContent = textContent
+                .replace(/```[\s\S]*?```/g, (match) => match.replace(/```\w*\n?/g, '').replace(/```/g, ''))
+                .replace(/\*\*(.*?)\*\*/g, '$1')
+                .replace(/\*(.*?)\*/g, '$1');
+
+            let buffer: Buffer;
+            let filename: string;
+
+            switch (body.format) {
+                case 'docx': {
+                    buffer = await generateDocxBuffer(cleanContent, body.title);
+                    filename = `${body.title.replace(/[^a-z0-9]/gi, '_')}_${Date.now()}.docx`;
+                    break;
+                }
+                case 'pdf': {
+                    // Generate DOCX first, then convert to PDF via LibreOffice
+                    const docxBuffer = await generateDocxBuffer(cleanContent, body.title);
+                    const tmpDocx = path.join(GENERATED_DIR, `_tmp_${Date.now()}.docx`);
+                    await fs.writeFile(tmpDocx, docxBuffer);
+                    const pdfPath = await convertOfficeToPdf(docxBuffer, GENERATED_DIR, `_tmp_${Date.now()}.docx`);
+                    buffer = await fs.readFile(pdfPath);
+                    filename = `${body.title.replace(/[^a-z0-9]/gi, '_')}_${Date.now()}.pdf`;
+                    // Clean up temp files
+                    await fs.unlink(tmpDocx).catch(() => {});
+                    await fs.unlink(pdfPath).catch(() => {});
+                    break;
+                }
+                case 'xlsx': {
+                    // Try to parse content as table data; fallback to single-column
+                    const lines = cleanContent.split('\n').filter(l => l.trim());
+                    const data = lines.map((line, i) => ({ riga: i + 1, contenuto: line.trim() }));
+                    buffer = await generateExcelBuffer(data, body.title);
+                    filename = `${body.title.replace(/[^a-z0-9]/gi, '_')}_${Date.now()}.xlsx`;
+                    break;
+                }
+                case 'pptx': {
+                    // Split content into slides by double newlines or headings
+                    const sections = cleanContent.split(/\n#{1,3}\s+|\n\n\n/).filter(s => s.trim());
+                    const slides = sections.map((section, i) => {
+                        const lines = section.trim().split('\n');
+                        return {
+                            title: lines[0]?.substring(0, 100) || `Slide ${i + 1}`,
+                            content: lines.slice(1).join('\n').trim() || lines[0] || ''
+                        };
+                    });
+                    buffer = await generatePptxBuffer(slides.length > 0 ? slides : [{ title: body.title, content: cleanContent }], body.title);
+                    filename = `${body.title.replace(/[^a-z0-9]/gi, '_')}_${Date.now()}.pptx`;
+                    break;
+                }
+                default:
+                    return reply.status(400).send({ error: `Unsupported format: ${body.format}` });
+            }
+
+            // Save to generated directory
+            const filePath = path.join(GENERATED_DIR, filename);
+            await fs.writeFile(filePath, buffer);
+
+            const downloadUrl = `/api/tools/download/${filename}`;
+            return { success: true, url: downloadUrl, filename, format: body.format };
+
+        } catch (error: any) {
+            fastify.log.error(`[Tools] Error generating from chat: ${error.message}`);
+            return reply.status(500).send({ error: 'Failed to generate document' });
+        }
+    });
+
     // GET: Download file
     fastify.get('/tools/download/:filename', {
         schema: {
@@ -226,6 +355,7 @@ export async function toolsRoutes(fastify: FastifyInstance) {
             if (ext === '.docx') contentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
             else if (ext === '.xlsx') contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
             else if (ext === '.pptx') contentType = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+            else if (ext === '.pdf') contentType = 'application/pdf';
 
             reply.header('Content-Type', contentType);
             reply.header('Content-Disposition', `attachment; filename="${filename}"`);

@@ -1,6 +1,6 @@
 {
   "name": "enterprise-ai-chat-backend",
-  "version": "1.5.5",
+  "version": "1.5.31",
   "description": "Enterprise AI Chat Platform - Backend API",
   "main": "dist/index.js",
   "type": "module",
@@ -29,6 +29,7 @@
     "bcrypt": "^6.0.0",
     "docx": "^9.5.1",
     "dotenv": "^16.4.0",
+    "exceljs": "^4.4.0",
     "fastify": "^5.7.4",
     "google-auth-library": "^10.5.0",
     "mammoth": "^1.11.0",
@@ -43,21 +44,24 @@
     "qrcode": "^1.5.4",
     "tesseract.js": "^7.0.0",
     "tiktoken": "^1.0.0",
-    "xlsx": "^0.18.5",
     "zod": "^3.23.0"
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.0",
     "@types/node": "^22.0.0",
     "@types/pdf-parse": "^1.1.5",
-    "@typescript-eslint/eslint-plugin": "^8.0.0",
-    "@typescript-eslint/parser": "^8.0.0",
-    "eslint": "^9.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.56.0",
+    "@typescript-eslint/parser": "^8.56.0",
+    "eslint": "^10.0.1",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0",
     "vitest": "^4.0.18"
   },
   "engines": {
     "node": ">=20.0.0"
+  },
+  "overrides": {
+    "minimatch": "^10.2.1",
+    "bn.js": "^5.2.3"
   }
 }

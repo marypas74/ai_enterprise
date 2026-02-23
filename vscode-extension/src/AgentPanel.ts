@@ -1,5 +1,8 @@
 import * as vscode from 'vscode';
 import axios, { AxiosInstance } from 'axios';
+import * as https from 'https';
+
+const selfSignedAgent = new https.Agent({ rejectUnauthorized: false });
 
 // ============================================
 // TYPES
@@ -51,7 +54,8 @@ export class AgentSessionsProvider implements vscode.TreeDataProvider<AgentSessi
     constructor(private serverUrl: string, private accessToken: string | null) {
         this.api = axios.create({
             baseURL: serverUrl,
-            headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {}
+            headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+            httpsAgent: selfSignedAgent
         });
     }
 
@@ -60,7 +64,8 @@ export class AgentSessionsProvider implements vscode.TreeDataProvider<AgentSessi
         this.accessToken = accessToken;
         this.api = axios.create({
             baseURL: serverUrl,
-            headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {}
+            headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+            httpsAgent: selfSignedAgent
         });
         this.refresh();
     }
@@ -149,7 +154,8 @@ export class TerminalSlotsProvider implements vscode.TreeDataProvider<TerminalSl
     constructor(private serverUrl: string, private accessToken: string | null) {
         this.api = axios.create({
             baseURL: serverUrl,
-            headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {}
+            headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+            httpsAgent: selfSignedAgent
         });
     }
 
@@ -158,7 +164,8 @@ export class TerminalSlotsProvider implements vscode.TreeDataProvider<TerminalSl
         this.accessToken = accessToken;
         this.api = axios.create({
             baseURL: serverUrl,
-            headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {}
+            headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+            httpsAgent: selfSignedAgent
         });
         this.refresh();
     }
@@ -242,7 +249,8 @@ export class AgentDashboardProvider implements vscode.WebviewViewProvider {
     ) {
         this.api = axios.create({
             baseURL: serverUrl,
-            headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {}
+            headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+            httpsAgent: selfSignedAgent
         });
     }
 
@@ -251,7 +259,8 @@ export class AgentDashboardProvider implements vscode.WebviewViewProvider {
         this.accessToken = accessToken;
         this.api = axios.create({
             baseURL: serverUrl,
-            headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {}
+            headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+            httpsAgent: selfSignedAgent
         });
         this.refresh();
     }
@@ -419,7 +428,8 @@ export class AgentApiService {
     constructor(private serverUrl: string, private accessToken: string | null) {
         this.api = axios.create({
             baseURL: serverUrl,
-            headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {}
+            headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+            httpsAgent: selfSignedAgent
         });
     }
 
@@ -428,7 +438,8 @@ export class AgentApiService {
         this.accessToken = accessToken;
         this.api = axios.create({
             baseURL: serverUrl,
-            headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {}
+            headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+            httpsAgent: selfSignedAgent
         });
     }
 

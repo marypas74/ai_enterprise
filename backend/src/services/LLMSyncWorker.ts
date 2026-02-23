@@ -2,26 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { findAll, findOne } from '../database/index.js';
 import { AIProviderFactory, ProviderType } from '../modules/ai/providers.js';
 import { fetchAllModels } from './ModelFetcher.js';
-import crypto from 'crypto';
-
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'default-key-change-in-production!!';
-
-/**
- * Decrypt a secret value from the database
- */
-function decryptSecret(text: string): string {
-    try {
-        const [ivHex, encrypted] = text.split(':');
-        const iv = Buffer.from(ivHex, 'hex');
-        const key = crypto.scryptSync(ENCRYPTION_KEY, 'salt', 32);
-        const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
-        let decrypted = decipher.update(encrypted, 'hex', 'utf8');
-        decrypted += decipher.final('utf8');
-        return decrypted;
-    } catch {
-        return text;
-    }
-}
+import { decrypt as decryptSecret } from '../utils/crypto.js';
 
 export class LLMSyncWorker {
     private fastify: FastifyInstance;

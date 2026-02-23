@@ -1,0 +1,26 @@
+model_list:
+  - model_name: phi4
+    litellm_params:
+      model: ollama/phi4
+      api_base: "http://10.0.1.1:8086/ollama"
+      headers:
+        X-Ollama-Key: "mTLS-k8s-backend-2026"
+  - model_name: mistral
+    litellm_params:
+      model: ollama/mistral
+      api_base: "http://10.0.1.1:8086/ollama"
+      headers:
+        X-Ollama-Key: "mTLS-k8s-backend-2026"
+  - model_name: mixtral
+    litellm_params:
+      model: ollama/mixtral
+      api_base: "http://10.0.1.1:8086/ollama"
+      headers:
+        X-Ollama-Key: "mTLS-k8s-backend-2026"
+
+router_settings:
+  routing_strategy: simple-shuffle
+  set_verbose: true
+
+general_settings:
+  master_key: sk-1234 # Placeholder, change later if needed

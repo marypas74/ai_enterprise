@@ -9,6 +9,9 @@ import { findOne, findAll, findMany, insertOne, updateOne } from '../../database
 import path from 'path';
 import fs from 'fs/promises';
 import crypto from 'crypto';
+import { execFile, exec } from 'child_process';
+import { promisify } from 'util';
+import os from 'os';
 import { PDFParse } from 'pdf-parse';
 import {
   extractWithOCR,
@@ -21,19 +24,52 @@ import { chunkDocument } from '../../services/ChunkingService.js';
 import { indexChunks } from '../../services/VectorStoreService.js';
 import { searchSimilar } from '../../services/VectorStoreService.js';
 
+const execAsync = promisify(exec);
+
 export async function extractPdfText(buffer: Buffer): Promise<string> {
+  console.log(`[Attachments] Starting PDF extraction, size: ${buffer.length}`);
+
+  // Method 1: pdf-parse library (primary — works everywhere)
   try {
-    const pdfParse = new PDFParse({ data: buffer });
-    try {
-      const data = await pdfParse.getText();
-      return data.text || '';
-    } finally {
-      await pdfParse.destroy();
+    console.log(`[Attachments] Trying pdf-parse library...`);
+    const pdfParser = new PDFParse({ data: new Uint8Array(buffer) });
+    const result = await pdfParser.getText();
+    const text = result.text || '';
+    await pdfParser.destroy().catch(() => { });
+
+    if (text.trim().length > 0) {
+      console.log(`[Attachments] pdf-parse extracted ${text.length} chars`);
+      return text;
     }
-  } catch (err: any) {
-    console.error(`[Attachments] PDF extraction error: ${err.message}`);
-    return '';
+    console.log(`[Attachments] pdf-parse returned empty text, trying fallback...`);
+  } catch (parseErr: any) {
+    console.warn(`[Attachments] pdf-parse failed: ${parseErr.message}, trying pdftotext fallback...`);
   }
+
+  // Method 2: pdftotext CLI fallback (available in Docker with poppler-utils)
+  const tmpId = crypto.randomBytes(8).toString('hex');
+  const tmpFile = path.join(os.tmpdir(), `pdf_${tmpId}.pdf`);
+  const txtFile = path.join(os.tmpdir(), `pdf_${tmpId}.txt`);
+
+  try {
+    await fs.writeFile(tmpFile, buffer);
+    console.log(`[Attachments] Trying pdftotext CLI fallback...`);
+    await execAsync(`pdftotext -layout "${tmpFile}" "${txtFile}"`, { timeout: 30000 });
+
+    const text = await fs.readFile(txtFile, 'utf-8');
+    if (text.trim().length > 0) {
+      console.log(`[Attachments] pdftotext extracted ${text.length} chars`);
+      return text;
+    }
+  } catch (execErr: any) {
+    console.warn(`[Attachments] pdftotext CLI not available or failed: ${execErr.message}`);
+  } finally {
+    await fs.unlink(tmpFile).catch(() => { });
+    await fs.unlink(txtFile).catch(() => { });
+  }
+
+  console.log(`[Attachments] All text extraction methods returned empty`);
+  return '';
 }
 
 // Storage path for attachments
@@ -559,209 +595,221 @@ export async function attachmentRoutes(fastify: FastifyInstance) {
   });
 }
 
+
 /**
  * Queue attachment for async processing
  * This is a simplified in-process queue - for production use BullMQ with Redis
  */
 async function queueAttachmentProcessing(fastify: FastifyInstance, attachmentId: number, processor: string) {
-  // Process asynchronously
-  setImmediate(async () => {
-    try {
-      // Mark as processing
-      await updateOne(
-        fastify.db,
-        'UPDATE chat_attachments SET processing_status = ? WHERE id = ?',
-        ['processing', attachmentId]
-      );
+  // Process asynchronously — wrap the async IIFE with .catch() to prevent silent failures
+  console.log(`[Attachments] queueAttachmentProcessing called: id=${attachmentId}, processor=${processor}`);
+  setImmediate(() => {
+    (async () => {
 
-      // Get attachment
-      const attachment = await findOne<ChatAttachment>(
-        fastify.db,
-        'SELECT * FROM chat_attachments WHERE id = ?',
-        [attachmentId]
-      );
+      try {
+        // Mark as processing
+        await updateOne(
+          fastify.db,
+          'UPDATE chat_attachments SET processing_status = ? WHERE id = ?',
+          ['processing', attachmentId]
+        );
 
-      if (!attachment) return;
+        // Get attachment
+        const attachment = await findOne<ChatAttachment>(
+          fastify.db,
+          'SELECT * FROM chat_attachments WHERE id = ?',
+          [attachmentId]
+        );
 
-      // Process based on type
-      let content: string | null = null;
+        if (!attachment) return;
 
-      switch (processor) {
-        case 'text-read':
-        case 'code-read':
-          content = await fs.readFile(attachment.file_path, 'utf-8');
-          // Limit content size for context
-          if (content.length > 50000) {
-            content = content.substring(0, 50000) + '\n... [contenuto troncato per dimensione]';
-          }
-          break;
+        // Process based on type
+        let content: string | null = null;
 
-        case 'json-parse':
-          const jsonContent = await fs.readFile(attachment.file_path, 'utf-8');
-          try {
-            const parsed = JSON.parse(jsonContent);
-            content = JSON.stringify(parsed, null, 2);
+        switch (processor) {
+          case 'text-read':
+          case 'code-read':
+            content = await fs.readFile(attachment.file_path, 'utf-8');
+            // Limit content size for context
             if (content.length > 50000) {
-              content = content.substring(0, 50000) + '\n... [JSON troncato]';
+              content = content.substring(0, 50000) + '\n... [contenuto troncato per dimensione]';
             }
-          } catch {
-            content = jsonContent.substring(0, 50000);
-          }
-          break;
+            break;
 
-        case 'csv-parse':
-          const csvContent = await fs.readFile(attachment.file_path, 'utf-8');
-          const lines = csvContent.split('\n').slice(0, 100); // First 100 rows
-          content = lines.join('\n');
-          if (csvContent.split('\n').length > 100) {
-            content += '\n... [altre righe omesse]';
-          }
-          break;
-
-        case 'image-ocr':
-          // Real OCR via tesseract.js
-          try {
-            const imgBuffer = await fs.readFile(attachment.file_path);
-            let ocrText = await extractWithOCR(imgBuffer);
-            if (ocrText.length > 50000) {
-              ocrText = ocrText.substring(0, 50000) + '\n... [testo OCR troncato per dimensione]';
-            }
-            content = ocrText.trim()
-              ? `[OCR da immagine: ${attachment.original_name}]\n${ocrText}`
-              : `[Immagine: ${attachment.original_name}] - Nessun testo rilevato dall'OCR.`;
-          } catch (ocrError: any) {
-            content = `[Immagine: ${attachment.original_name}] - Errore OCR: ${ocrError.message}`;
-          }
-          break;
-
-        case 'pdf-extract':
-          try {
-            const pdfBuffer = await fs.readFile(attachment.file_path);
-            let pdfText = await extractPdfText(pdfBuffer);
-
-            // Robust check: If pdf-parse returns empty text or only markers (e.g. "-- 1 of 4 --")
-            // with very little actual content, fall back to OCR.
-            const markerPattern = /-- \d+ of \d+ --/g;
-            const cleanedText = pdfText.replace(markerPattern, '').trim();
-
-            if (cleanedText.length < 20) {
-              fastify.log.info(`[Attachments] PDF text too sparse (${cleanedText.length} chars) for ${attachment.original_name}, trying OCR...`);
-              try {
-                pdfText = await extractPdfWithOCR(pdfBuffer);
-              } catch (ocrFallbackError: any) {
-                fastify.log.warn(`[Attachments] OCR fallback failed: ${ocrFallbackError.message}`);
+          case 'json-parse':
+            const jsonContent = await fs.readFile(attachment.file_path, 'utf-8');
+            try {
+              const parsed = JSON.parse(jsonContent);
+              content = JSON.stringify(parsed, null, 2);
+              if (content.length > 50000) {
+                content = content.substring(0, 50000) + '\n... [JSON troncato]';
               }
+            } catch {
+              content = jsonContent.substring(0, 50000);
             }
+            break;
 
-            if (pdfText.length > 50000) {
-              pdfText = pdfText.substring(0, 50000) + '\n... [contenuto PDF troncato per dimensione]';
+          case 'csv-parse':
+            const csvContent = await fs.readFile(attachment.file_path, 'utf-8');
+            const lines = csvContent.split('\n').slice(0, 100); // First 100 rows
+            content = lines.join('\n');
+            if (csvContent.split('\n').length > 100) {
+              content += '\n... [altre righe omesse]';
             }
-            content = pdfText.trim()
-              ? pdfText
-              : `[Documento PDF: ${attachment.original_name}] - Il PDF non contiene testo estraibile.`;
-          } catch (pdfError: any) {
-            content = `[Documento PDF: ${attachment.original_name}] - Errore estrazione testo: ${pdfError.message}`;
-          }
-          break;
+            break;
 
-        case 'office-extract':
-          try {
-            const officeBuffer = await fs.readFile(attachment.file_path);
-            let officeText = await extractOfficeContent(officeBuffer, attachment.mime_type);
-            if (officeText.length > 50000) {
-              officeText = officeText.substring(0, 50000) + '\n... [contenuto troncato per dimensione]';
-            }
-            content = officeText.trim()
-              ? officeText
-              : `[Documento Office: ${attachment.original_name}] - Nessun testo estraibile.`;
-          } catch (officeError: any) {
-            content = `[Documento Office: ${attachment.original_name}] - Errore estrazione: ${officeError.message}`;
-          }
-          break;
-
-        case 'excel-extract':
-          try {
-            const xlsBuffer = await fs.readFile(attachment.file_path);
-            let xlsText = await extractExcelContent(xlsBuffer);
-            if (xlsText.length > 50000) {
-              xlsText = xlsText.substring(0, 50000) + '\n... [dati Excel troncati per dimensione]';
-            }
-            content = xlsText.trim()
-              ? xlsText
-              : `[Excel: ${attachment.original_name}] - Nessun dato estraibile.`;
-          } catch (xlsError: any) {
-            content = `[Excel: ${attachment.original_name}] - Errore estrazione: ${xlsError.message}`;
-          }
-          break;
-
-        case 'audio-transcribe':
-          content = `[File audio: ${attachment.original_name}]\nDimensione: ${Math.round(attachment.file_size / 1024)} KB\n[Per trascrizione audio, integrare Whisper o servizio esterno]`;
-          break;
-
-        default:
-          content = `[File: ${attachment.original_name}]\nTipo: ${attachment.mime_type}\nDimensione: ${Math.round(attachment.file_size / 1024)} KB`;
-      }
-
-      // Update with processed content
-      await updateOne(
-        fastify.db,
-        'UPDATE chat_attachments SET processing_status = ?, processed_content = ?, processed_at = NOW() WHERE id = ?',
-        ['completed', content, attachmentId]
-      );
-
-      // Chunk the document for smart retrieval (Layer 2)
-      if (content && content.length > 100) {
-        try {
-          const chunks = chunkDocument(content, {
-            chunkSize: 1000,
-            overlap: 200,
-            minChunkSize: 50
-          });
-
-          if (chunks.length > 0) {
-            // Delete any previous chunks for this attachment
-            await fastify.db.execute(
-              'DELETE FROM document_chunks WHERE attachment_id = ?',
-              [attachmentId]
-            );
-
-            // Insert chunks in batch
-            for (const chunk of chunks) {
-              await insertOne(
-                fastify.db,
-                'INSERT INTO document_chunks (attachment_id, chunk_index, content, char_count, metadata) VALUES (?, ?, ?, ?, ?)',
-                [attachmentId, chunk.index, chunk.content, chunk.charCount, JSON.stringify(chunk.metadata)]
-              );
-            }
-
-            fastify.log.info(`[Attachments] Chunked ${attachment.original_name}: ${chunks.length} chunks`);
-
-            // Attempt vector indexing (Layer 3) — async, non-blocking
-            indexChunks(fastify.db, attachmentId, chunks).then(indexed => {
-              if (indexed) {
-                fastify.log.info(`[Attachments] Vector indexed ${attachment.original_name}`);
+          case 'image-ocr':
+            // Real OCR via tesseract.js
+            try {
+              const imgBuffer = await fs.readFile(attachment.file_path);
+              let ocrText = await extractWithOCR(imgBuffer);
+              if (ocrText.length > 50000) {
+                ocrText = ocrText.substring(0, 50000) + '\n... [testo OCR troncato per dimensione]';
               }
-            }).catch(vecErr => {
-              fastify.log.warn(`[Attachments] Vector indexing skipped/failed: ${vecErr.message}`);
-            });
-          }
-        } catch (chunkError: any) {
-          // Chunking failure should not prevent processing from completing
-          fastify.log.warn(`[Attachments] Chunking failed for ${attachment.original_name}: ${chunkError.message}`);
+              content = ocrText.trim()
+                ? `[OCR da immagine: ${attachment.original_name}]\n${ocrText}`
+                : `[Immagine: ${attachment.original_name}] - Nessun testo rilevato dall'OCR.`;
+            } catch (ocrError: any) {
+              content = `[Immagine: ${attachment.original_name}] - Errore OCR: ${ocrError.message}`;
+            }
+            break;
+
+          case 'pdf-extract':
+            try {
+              const pdfBuffer = await fs.readFile(attachment.file_path);
+              let pdfText = await extractPdfText(pdfBuffer);
+
+              // Robust check: If pdf-parse returns empty text or only markers (e.g. "-- 1 of 4 --")
+              // with very little actual content, fall back to OCR.
+              const markerPattern = /-- \d+ of \d+ --/g;
+              const cleanedText = pdfText.replace(markerPattern, '').trim();
+
+              if (cleanedText.length < 20) {
+                fastify.log.info(`[Attachments] PDF text too sparse (${cleanedText.length} chars) for ${attachment.original_name}, trying OCR...`);
+                try {
+                  pdfText = await extractPdfWithOCR(pdfBuffer);
+                } catch (ocrFallbackError: any) {
+                  fastify.log.warn(`[Attachments] OCR fallback failed: ${ocrFallbackError.message}`);
+                }
+              }
+
+              if (pdfText.length > 50000) {
+                pdfText = pdfText.substring(0, 50000) + '\n... [contenuto PDF troncato per dimensione]';
+              }
+              content = pdfText.trim()
+                ? pdfText
+                : `[Documento PDF: ${attachment.original_name}] - Il PDF non contiene testo estraibile.`;
+            } catch (pdfError: any) {
+              content = `[Documento PDF: ${attachment.original_name}] - Errore estrazione testo: ${pdfError.message}`;
+            }
+            break;
+
+          case 'office-extract':
+            try {
+              const officeBuffer = await fs.readFile(attachment.file_path);
+              let officeText = await extractOfficeContent(officeBuffer, attachment.mime_type);
+              if (officeText.length > 50000) {
+                officeText = officeText.substring(0, 50000) + '\n... [contenuto troncato per dimensione]';
+              }
+              content = officeText.trim()
+                ? officeText
+                : `[Documento Office: ${attachment.original_name}] - Nessun testo estraibile.`;
+            } catch (officeError: any) {
+              content = `[Documento Office: ${attachment.original_name}] - Errore estrazione: ${officeError.message}`;
+            }
+            break;
+
+          case 'excel-extract':
+            try {
+              const xlsBuffer = await fs.readFile(attachment.file_path);
+              let xlsText = await extractExcelContent(xlsBuffer);
+              if (xlsText.length > 50000) {
+                xlsText = xlsText.substring(0, 50000) + '\n... [dati Excel troncati per dimensione]';
+              }
+              content = xlsText.trim()
+                ? xlsText
+                : `[Excel: ${attachment.original_name}] - Nessun dato estraibile.`;
+            } catch (xlsError: any) {
+              content = `[Excel: ${attachment.original_name}] - Errore estrazione: ${xlsError.message}`;
+            }
+            break;
+
+          case 'audio-transcribe':
+            content = `[File audio: ${attachment.original_name}]\nDimensione: ${Math.round(attachment.file_size / 1024)} KB\n[Per trascrizione audio, integrare Whisper o servizio esterno]`;
+            break;
+
+          default:
+            content = `[File: ${attachment.original_name}]\nTipo: ${attachment.mime_type}\nDimensione: ${Math.round(attachment.file_size / 1024)} KB`;
         }
+
+        // Update with processed content
+        await updateOne(
+          fastify.db,
+          'UPDATE chat_attachments SET processing_status = ?, processed_content = ?, processed_at = NOW() WHERE id = ?',
+          ['completed', content, attachmentId]
+        );
+
+        // Chunk the document for smart retrieval (Layer 2)
+        if (content && content.length > 100) {
+          try {
+            const chunks = chunkDocument(content, {
+              chunkSize: 1000,
+              overlap: 200,
+              minChunkSize: 50
+            });
+
+            if (chunks.length > 0) {
+              // Delete any previous chunks for this attachment
+              await fastify.db.execute(
+                'DELETE FROM document_chunks WHERE attachment_id = ?',
+                [attachmentId]
+              );
+
+              // Insert chunks in batch
+              for (const chunk of chunks) {
+                await insertOne(
+                  fastify.db,
+                  'INSERT INTO document_chunks (attachment_id, chunk_index, content, char_count, metadata) VALUES (?, ?, ?, ?, ?)',
+                  [attachmentId, chunk.index, chunk.content, chunk.charCount, JSON.stringify(chunk.metadata)]
+                );
+              }
+
+              fastify.log.info(`[Attachments] Chunked ${attachment.original_name}: ${chunks.length} chunks`);
+
+              // Attempt vector indexing (Layer 3) — async, non-blocking
+              indexChunks(fastify.db, attachmentId, chunks).then(indexed => {
+                if (indexed) {
+                  fastify.log.info(`[Attachments] Vector indexed ${attachment.original_name}`);
+                }
+              }).catch(vecErr => {
+                fastify.log.warn(`[Attachments] Vector indexing skipped/failed: ${vecErr.message}`);
+              });
+            }
+          } catch (chunkError: any) {
+            // Chunking failure should not prevent processing from completing
+            fastify.log.warn(`[Attachments] Chunking failed for ${attachment.original_name}: ${chunkError.message}`);
+          }
+        }
+
+        fastify.log.info(`[Attachments] Processed: ${attachment.original_name} with ${processor}`);
+
+      } catch (error: any) {
+        fastify.log.error(`[Attachments] Processing error: ${error.message}`);
+
+        await updateOne(
+          fastify.db,
+          'UPDATE chat_attachments SET processing_status = ?, processing_error = ? WHERE id = ?',
+          ['failed', error.message, attachmentId]
+        );
       }
-
-      fastify.log.info(`[Attachments] Processed: ${attachment.original_name} with ${processor}`);
-
-    } catch (error: any) {
-      fastify.log.error(`[Attachments] Processing error: ${error.message}`);
-
-      await updateOne(
+    })().catch((fatalErr: any) => {
+      console.error(`[Attachments] FATAL unhandled error processing attachment ${attachmentId}: ${fatalErr.message}`, fatalErr.stack);
+      updateOne(
         fastify.db,
         'UPDATE chat_attachments SET processing_status = ?, processing_error = ? WHERE id = ?',
-        ['failed', error.message, attachmentId]
-      );
-    }
+        ['failed', `Unhandled: ${fatalErr.message}`, attachmentId]
+      ).catch(() => { });
+    });
   });
 }
 

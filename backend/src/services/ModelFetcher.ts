@@ -142,22 +142,38 @@ async function fetchGoogleModels(apiKey: string): Promise<AvailableModel[]> {
 async function fetchOllamaModels(baseUrl: string): Promise<AvailableModel[]> {
   try {
     const url = baseUrl || 'http://localhost:11434';
-    const response = await fetch(`${url}/api/tags`);
 
-    if (!response.ok) {
-      console.error(`Ollama API error: ${response.status}`);
-      return [];
+    // Attempt Ollama-native tags endpoint first
+    let response = await fetch(`${url}/api/tags`);
+
+    if (response.ok) {
+      const data = await response.json() as { models: Array<{ name: string; size: number }> };
+      if (data.models && data.models.length > 0) {
+        return data.models.map(m => ({
+          id: m.name,
+          name: m.name.split(':')[0].charAt(0).toUpperCase() + m.name.split(':')[0].slice(1),
+          provider: 'ollama'
+        }));
+      }
     }
 
-    const data = await response.json() as { models: Array<{ name: string; size: number }> };
+    // Fallback: Attempt OpenAI-compatible models endpoint (for proxies like LiteLLM)
+    console.log(`[ModelFetcher] Ollama /api/tags failed or empty, trying /v1/models fallback at ${url}`);
+    response = await fetch(`${url}/v1/models`);
 
-    return data.models.map(m => ({
-      id: m.name,
-      name: m.name.split(':')[0].charAt(0).toUpperCase() + m.name.split(':')[0].slice(1),
-      provider: 'ollama'
-    }));
+    if (response.ok) {
+      const data = await response.json() as { data: Array<{ id: string }> };
+      return data.data.map(m => ({
+        id: m.id,
+        name: m.id.split(':')[0].charAt(0).toUpperCase() + m.id.split(':')[0].slice(1),
+        provider: 'ollama' // Keep as ollama for backend compatibility
+      }));
+    }
+
+    console.error(`Ollama/LiteLLM API error: ${response.status}`);
+    return [];
   } catch (error) {
-    console.error('Failed to fetch Ollama models:', error);
+    console.error('Failed to fetch Ollama/LiteLLM models:', error);
     return [];
   }
 }

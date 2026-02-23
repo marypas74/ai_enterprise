@@ -8,6 +8,7 @@ import ProjectsPage from './pages/ProjectsPage';
 import AutoClaudePage from './pages/AutoClaudePage';
 import ParlantPage from './pages/ParlantPage';
 import SettingsPage from './pages/SettingsPage';
+import PublicMonitorPage from './pages/PublicMonitorPage';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
@@ -28,6 +29,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-surface-50 dark:bg-surface-950">
       <Routes>
+        <Route path="/metrics" element={<PublicMonitorPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route
           path="/"

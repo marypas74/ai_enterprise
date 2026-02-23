@@ -12,9 +12,9 @@ import {
     registerAgentCommands
 } from './AgentPanel';
 
-// Disable SSL certificate verification for self-signed certificates
-// This must be set BEFORE any axios calls
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+// Self-signed certificate support: use httpsAgent per-instance instead of disabling globally
+// The httpsAgent with rejectUnauthorized:false is applied only to the enterprise server axios instance
+const selfSignedHttpsAgent = new https.Agent({ rejectUnauthorized: false });
 
 // Claude OAuth Configuration (for Pro/Max subscriptions)
 const CLAUDE_OAUTH_CLIENT_ID = '9d1c250a-e61b-44d9-88ed-5944d1962f5e'; // Official Claude Code client
@@ -720,7 +720,7 @@ REMEMBER: Always USE THE TOOLS. Never just print code without saving it.`,
                     try {
                         const parsed = JSON.parse(errorBody);
                         errorMsg = parsed.error || parsed.message || errorMsg;
-                    } catch {}
+                    } catch { }
                     panel.streamError(errorMsg);
                 });
                 return;
@@ -1463,7 +1463,7 @@ Output only the modified code, nothing else:`
 
         // Get version info - for debugging deployments
         vscode.commands.registerCommand('enterprise-ai-chat.getVersionInfo', async () => {
-            const extensionVersion = '2.9.21';
+            const extensionVersion = '1.5.29';
             let backendVersion = null;
 
             try {
@@ -1603,7 +1603,7 @@ Output only the modified code, nothing else:`
             // CIRCUIT BREAKER: Check if still tripped
             if (circuitBreakerTripped) {
                 const remainingMs = CIRCUIT_BREAKER_RESET_MS - (now - circuitBreakerTripTime);
-                outputChannel.appendLine(`[Kanban] CIRCUIT BREAKER ACTIVE - resets in ${Math.ceil(remainingMs/1000)}s`);
+                outputChannel.appendLine(`[Kanban] CIRCUIT BREAKER ACTIVE - resets in ${Math.ceil(remainingMs / 1000)}s`);
                 return;
             }
 
@@ -1619,7 +1619,7 @@ Output only the modified code, nothing else:`
             if (projectLoadCallCount > CIRCUIT_BREAKER_MAX_CALLS) {
                 circuitBreakerTripped = true;
                 circuitBreakerTripTime = now;
-                outputChannel.appendLine(`[Kanban] CIRCUIT BREAKER TRIGGERED: ${projectLoadCallCount} calls in ${CIRCUIT_BREAKER_WINDOW_MS/1000}s - auto-resets in 30s`);
+                outputChannel.appendLine(`[Kanban] CIRCUIT BREAKER TRIGGERED: ${projectLoadCallCount} calls in ${CIRCUIT_BREAKER_WINDOW_MS / 1000}s - auto-resets in 30s`);
                 return;
             }
 
@@ -2901,7 +2901,7 @@ REMEMBER: Always USE THE TOOLS. Never just print code without saving it.`,
                 outputChannel.appendLine(`[moveCard] Card ${cardId} moved to "${columnName}"`);
 
                 // Background refresh - don't await
-                this._loadKanbanColumns(projectId).then(() => this._updateView()).catch(() => {});
+                this._loadKanbanColumns(projectId).then(() => this._updateView()).catch(() => { });
 
                 // Notify webview (non-blocking)
                 this._view?.webview.postMessage({
@@ -3708,9 +3708,9 @@ REMEMBER: Always USE THE TOOLS. Never just print code without saving it.`,
             outputChannel.appendLine('  useDirectClaude: ' + useDirectClaude);
             outputChannel.appendLine('  claudeAuthMode: ' + claudeAuthMode);
 
-        // If using direct Claude with Pro mode, show Claude Pro login
-        if (useDirectClaude && claudeAuthMode === 'pro' && !this._isClaudeProAuthenticated) {
-            return `<!DOCTYPE html>
+            // If using direct Claude with Pro mode, show Claude Pro login
+            if (useDirectClaude && claudeAuthMode === 'pro' && !this._isClaudeProAuthenticated) {
+                return `<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
@@ -3750,13 +3750,13 @@ REMEMBER: Always USE THE TOOLS. Never just print code without saving it.`,
     </script>
 </body>
 </html>`;
-        }
+            }
 
-        // If using backend server mode, check backend auth
-        if (!useDirectClaude && !this._isAuthenticated) {
-            outputChannel.appendLine('Showing login screen (backend mode, not authenticated)');
-            const nonce = getNonce();
-            return `<!DOCTYPE html>
+            // If using backend server mode, check backend auth
+            if (!useDirectClaude && !this._isAuthenticated) {
+                outputChannel.appendLine('Showing login screen (backend mode, not authenticated)');
+                const nonce = getNonce();
+                return `<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
@@ -3779,9 +3779,9 @@ REMEMBER: Always USE THE TOOLS. Never just print code without saving it.`,
     </script>
 </body>
 </html>`;
-        }
+            }
 
-        return `<!DOCTYPE html>
+            return `<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">

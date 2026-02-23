@@ -1,1 +1,2 @@
-export const APP_VERSION = '1.3.21';
+// Fallback version — la versione reale viene letta dal DB via GET /version
+export const APP_VERSION = '1.5.31';

@@ -458,60 +458,92 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     }
   },
 
-  // WebSocket
+  // WebSocket with auto-reconnect and exponential backoff
   connectWebSocket: (sessionId) => {
-    const wsUrl = import.meta.env.VITE_WS_URL || `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`;
-    const path = sessionId ? `/ws/agents/${sessionId}` : '/ws/orchestrator';
+    let reconnectAttempts = 0;
+    const maxReconnectAttempts = 10;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let intentionalClose = false;
 
-    const ws = new WebSocket(`${wsUrl}${path}`);
+    const connect = () => {
+      const wsUrl = import.meta.env.VITE_WS_URL || `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`;
+      const path = sessionId ? `/ws/agents/${sessionId}` : '/ws/orchestrator';
 
-    ws.onopen = () => {
-      console.log('[WS] Connected to', path);
-    };
+      const ws = new WebSocket(`${wsUrl}${path}`);
 
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
+      ws.onopen = () => {
+        console.log('[WS] Connected to', path);
+        reconnectAttempts = 0; // Reset on successful connection
+      };
 
-        // Handle different event types
-        switch (data.type) {
-          case 'log_added':
-            set(state => ({
-              sessionLogs: [...state.sessionLogs, data.log]
-            }));
-            break;
-          case 'session_updated':
-          case 'session_completed':
-          case 'session_failed':
-            // Refresh session data
-            if (sessionId) {
-              get().fetchSession(sessionId);
-            }
-            get().fetchSessions();
-            break;
-          case 'terminal_assigned':
-          case 'terminal_released':
-            get().fetchTerminalSlots();
-            break;
-          case 'initial':
-            set({ orchestratorMetrics: data });
-            break;
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+
+          // Handle different event types
+          switch (data.type) {
+            case 'log_added':
+              set(state => ({
+                sessionLogs: [...state.sessionLogs, data.log]
+              }));
+              break;
+            case 'session_updated':
+            case 'session_completed':
+            case 'session_failed':
+              // Refresh session data
+              if (sessionId) {
+                get().fetchSession(sessionId);
+              }
+              get().fetchSessions();
+              break;
+            case 'terminal_assigned':
+            case 'terminal_released':
+              get().fetchTerminalSlots();
+              break;
+            case 'initial':
+              set({ orchestratorMetrics: data });
+              break;
+          }
+        } catch (err) {
+          console.error('[WS] Failed to parse message:', err);
         }
-      } catch (err) {
-        console.error('[WS] Failed to parse message:', err);
+      };
+
+      ws.onclose = () => {
+        console.log('[WS] Disconnected');
+        set({ wsConnection: null });
+
+        // Auto-reconnect with exponential backoff (unless intentionally closed)
+        if (!intentionalClose && reconnectAttempts < maxReconnectAttempts) {
+          const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
+          reconnectAttempts++;
+          console.log(`[WS] Reconnecting in ${delay}ms (attempt ${reconnectAttempts}/${maxReconnectAttempts})`);
+          reconnectTimer = setTimeout(connect, delay);
+        }
+      };
+
+      ws.onerror = (error) => {
+        console.error('[WS] Error:', error);
+      };
+
+      set({ wsConnection: ws });
+    };
+
+    connect();
+
+    // Store cleanup function for intentional disconnect
+    const originalDisconnect = get().disconnectWebSocket;
+    set({
+      disconnectWebSocket: () => {
+        intentionalClose = true;
+        if (reconnectTimer) clearTimeout(reconnectTimer);
+        const { wsConnection } = get();
+        if (wsConnection) {
+          wsConnection.close();
+          set({ wsConnection: null });
+        }
       }
-    };
-
-    ws.onclose = () => {
-      console.log('[WS] Disconnected');
-      set({ wsConnection: null });
-    };
-
-    ws.onerror = (error) => {
-      console.error('[WS] Error:', error);
-    };
-
-    set({ wsConnection: ws });
+    });
   },
 
   disconnectWebSocket: () => {

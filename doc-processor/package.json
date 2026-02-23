@@ -1,0 +1,26 @@
+{
+  "name": "doc-processor",
+  "version": "1.0.0",
+  "description": "Document processing microservice for enterprise-ai-chat",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts"
+  },
+  "dependencies": {
+    "fastify": "^5.7.4",
+    "@fastify/multipart": "^9.0.3",
+    "jszip": "^3.10.1",
+    "docx": "^9.5.1",
+    "exceljs": "^4.4.0",
+    "pptxgenjs": "^4.0.1",
+    "pdf-parse": "^2.4.5"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0"
+  }
+}

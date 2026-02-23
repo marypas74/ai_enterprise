@@ -12,6 +12,7 @@ import { databasePlugin } from './database/index.js';
 import { redisPlugin } from './cache/index.js';
 import { geoPlugin } from './modules/geo/index.js';
 import { authRoutes } from './modules/auth/routes.js';
+import { publicRoutes } from './modules/public/routes.js';
 import { chatRoutes } from './modules/chat/routes.js';
 import { adminRoutes } from './modules/admin/routes.js';
 import { providerRoutes } from './modules/admin/providers.js';
@@ -32,28 +33,19 @@ import { ralphRoutes } from './modules/ralph/routes.js';
 import fileRoutes from './modules/files/routes.js';
 import attachmentRoutes from './modules/attachments/routes.js';
 import { toolsRoutes } from './modules/tools/routes.js';
+import { memoryRoutes } from './modules/memory/routes.js';
 import { AIProviderFactory } from './modules/ai/providers.js';
 import { AgentOrchestrator } from './services/AgentOrchestrator.js';
 import { AgentEventEmitter } from './services/AgentEventEmitter.js';
 import { LLMSyncWorker } from './services/LLMSyncWorker.js';
 import websocket from '@fastify/websocket';
-import { findAll } from './database/index.js';
-import crypto from 'crypto';
+import { findAll, findOne } from './database/index.js';
+import { decryptSecret } from './utils/crypto.js';
 
-// Helper to decrypt secrets
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'default-key-change-in-production!!';
-function decryptSecret(text: string): string {
-  try {
-    const [ivHex, encrypted] = text.split(':');
-    const iv = Buffer.from(ivHex, 'hex');
-    const key = crypto.scryptSync(ENCRYPTION_KEY, 'salt', 32);
-    const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
-    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-    return decrypted;
-  } catch {
-    return text;
-  }
+// Validate ENCRYPTION_KEY is set
+if (!process.env.ENCRYPTION_KEY) {
+  console.error('FATAL: ENCRYPTION_KEY environment variable is required. Set it before starting the server.');
+  process.exit(1);
 }
 
 const fastify = Fastify({
@@ -89,7 +81,14 @@ async function bootstrap() {
 
   // JWT
   await fastify.register(jwt, {
-    secret: process.env.JWT_SECRET || 'change-me-in-production',
+    secret: (() => {
+      const jwtSecret = process.env.JWT_SECRET;
+      if (!jwtSecret) {
+        console.error('FATAL: JWT_SECRET environment variable is required. Set it before starting the server.');
+        process.exit(1);
+      }
+      return jwtSecret;
+    })(),
     sign: { expiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '15m' }
   });
 
@@ -143,6 +142,9 @@ async function bootstrap() {
 
   // Database & Cache
   await fastify.register(databasePlugin);
+
+
+
   await fastify.register(redisPlugin);
 
   // Geo-Referencing Middleware
@@ -242,6 +244,7 @@ async function bootstrap() {
   });
 
   // Routes
+  await fastify.register(publicRoutes, { prefix: '/api/public' });
   await fastify.register(authRoutes, { prefix: '/api/auth' });
   await fastify.register(chatRoutes, { prefix: '/api/chat' });
   await fastify.register(adminRoutes, { prefix: '/api/admin' });
@@ -263,6 +266,7 @@ async function bootstrap() {
   await fastify.register(fileRoutes, { prefix: '/api/files' });
   await fastify.register(attachmentRoutes, { prefix: '/api/attachments' });
   await fastify.register(toolsRoutes, { prefix: '/api' });
+  await fastify.register(memoryRoutes, { prefix: '/api/memory' });
 
   // Initialize Agent Orchestrator
   try {
@@ -285,10 +289,32 @@ async function bootstrap() {
     fastify.log.warn('Could not initialize LLM Sync Worker: ' + String(err));
   }
 
+  // WebSocket JWT authentication helper
+  const authenticateWs = async (request: any): Promise<boolean> => {
+    try {
+      // Check token from query string (?token=xxx) since WebSocket doesn't support custom headers
+      const url = new URL(request.url, `http://${request.headers.host}`);
+      const token = url.searchParams.get('token');
+      if (token) {
+        request.headers.authorization = `Bearer ${token}`;
+      }
+      await request.jwtVerify();
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   // WebSocket routes for real-time agent updates
   fastify.register(async function (fastify) {
     // WebSocket for specific session
     fastify.get('/ws/agents/:sessionId', { websocket: true }, async (socket, request) => {
+      if (!(await authenticateWs(request))) {
+        socket.send(JSON.stringify({ error: 'Unauthorized' }));
+        socket.close();
+        return;
+      }
+
       const params = request.params as { sessionId: string };
       const sessionId = parseInt(params.sessionId);
 
@@ -311,7 +337,13 @@ async function bootstrap() {
     });
 
     // WebSocket for orchestrator updates
-    fastify.get('/ws/orchestrator', { websocket: true }, async (socket) => {
+    fastify.get('/ws/orchestrator', { websocket: true }, async (socket, request) => {
+      if (!(await authenticateWs(request))) {
+        socket.send(JSON.stringify({ error: 'Unauthorized' }));
+        socket.close();
+        return;
+      }
+
       // Send initial metrics
       try {
         const metrics = await AgentOrchestrator.getDashboardMetrics(fastify.db);
@@ -342,6 +374,12 @@ async function bootstrap() {
 
   fastify.register(async function (fastify) {
     fastify.get('/ws/debug', { websocket: true }, async (socket, request) => {
+      if (!(await authenticateWs(request))) {
+        socket.send(JSON.stringify({ error: 'Unauthorized' }));
+        socket.close();
+        return;
+      }
+
       debugClients.add(socket);
 
       socket.on('close', () => {
@@ -386,27 +424,44 @@ async function bootstrap() {
   // Health check
   fastify.get('/health', async () => ({ status: 'ok', timestamp: new Date().toISOString() }));
 
-  // Version endpoint - returns build info for debugging
+  // Version endpoint - reads app_version from system_settings (single source of truth)
   const BUILD_TIME = new Date().toISOString();
-  fastify.get('/version', async () => ({
-    name: 'enterprise-ai-chat-backend',
-    version: '1.5.5',
-    buildTime: BUILD_TIME,
-    nodeVersion: process.version,
-    environment: process.env.NODE_ENV || 'development'
-  }));
-
-  fastify.get('/api/version', async () => ({
-    name: 'enterprise-ai-chat-backend',
-    version: '1.5.5',
-    buildTime: BUILD_TIME,
-    nodeVersion: process.version,
-    environment: process.env.NODE_ENV || 'development'
-  }));
+  const versionHandler = async () => {
+    let version = '0.0.0';
+    try {
+      const row = await findOne<{ setting_value: string }>(
+        fastify.db,
+        "SELECT setting_value FROM system_settings WHERE setting_key = 'app_version'",
+        []
+      );
+      if (row) version = row.setting_value;
+    } catch { /* DB not ready yet */ }
+    return {
+      name: 'enterprise-ai-chat-backend',
+      version,
+      buildTime: BUILD_TIME,
+      nodeVersion: process.version,
+      environment: process.env.NODE_ENV || 'development'
+    };
+  };
+  fastify.get('/version', versionHandler);
+  fastify.get('/api/version', versionHandler);
 
   // Start server
   const port = parseInt(process.env.PORT || '3000');
   const host = process.env.HOST || '0.0.0.0';
+
+  // Cleanup stuck processing jobs (After all plugins/decorators are loaded)
+  fastify.ready().then(async () => {
+    try {
+      await fastify.db.execute(
+        "UPDATE chat_attachments SET processing_status = 'failed', processing_error = 'Server restarted during processing' WHERE processing_status = 'processing'"
+      );
+      fastify.log.info('[Startup] Cleaned up stuck processing jobs');
+    } catch (err) {
+      fastify.log.warn('[Startup] Failed to cleanup stuck jobs: ' + err);
+    }
+  });
 
   try {
     await fastify.listen({ port, host });
