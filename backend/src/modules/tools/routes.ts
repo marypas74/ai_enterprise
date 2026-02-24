@@ -11,7 +11,7 @@ const generateDocxSchema = z.object({
     title: z.string().optional().default('Documento Generato')
 });
 
-const GENERATED_DIR = path.join(process.cwd(), 'public', 'generated');
+const GENERATED_DIR = path.join(process.env.STORAGE_ROOT || process.cwd(), 'generated');
 
 // Ensure directory exists synchronously on load
 if (!existsSync(GENERATED_DIR)) {

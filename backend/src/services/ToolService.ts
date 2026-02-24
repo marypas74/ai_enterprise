@@ -326,7 +326,7 @@ export async function executeTool(
         await convertTextToDocx(content, fullPath, title || relativePath);
 
         // Also copy to public/generated for download via /api/tools/download/
-        const generatedDir = path.join(process.cwd(), 'public', 'generated');
+        const generatedDir = path.join(process.env.STORAGE_ROOT || process.cwd(), 'generated');
         if (!fs.default.existsSync(generatedDir)) {
           fs.default.mkdirSync(generatedDir, { recursive: true });
         }
@@ -375,7 +375,7 @@ export async function executeTool(
         await convertDataToXlsx(data, fullPath, sheetName);
 
         // Copy to public/generated for download
-        const generatedDir = path.join(process.cwd(), 'public', 'generated');
+        const generatedDir = path.join(process.env.STORAGE_ROOT || process.cwd(), 'generated');
         if (!fs.default.existsSync(generatedDir)) {
           fs.default.mkdirSync(generatedDir, { recursive: true });
         }
@@ -424,7 +424,7 @@ export async function executeTool(
         await convertSlidesToPptx(slides, fullPath, title);
 
         // Copy to public/generated for download
-        const generatedDir = path.join(process.cwd(), 'public', 'generated');
+        const generatedDir = path.join(process.env.STORAGE_ROOT || process.cwd(), 'generated');
         if (!fs.default.existsSync(generatedDir)) {
           fs.default.mkdirSync(generatedDir, { recursive: true });
         }

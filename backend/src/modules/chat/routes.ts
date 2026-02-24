@@ -714,7 +714,7 @@ Quando l'utente chiede di tradurre, creare o elaborare un documento:
 
               const fsImport = await import('fs');
               const pathImport = await import('path');
-              const generatedDir = pathImport.default.join(process.cwd(), 'public', 'generated');
+              const generatedDir = pathImport.default.join(process.env.STORAGE_ROOT || process.cwd(), 'generated');
               if (!fsImport.default.existsSync(generatedDir)) {
                 fsImport.default.mkdirSync(generatedDir, { recursive: true });
               }
