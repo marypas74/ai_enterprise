@@ -1,7 +1,7 @@
 /**
  * HyDE Service — Hypothetical Document Embeddings
  *
- * Implements the HyDE pattern from the Cheshire Cat's `cat_recall_query` hook:
+ * Implements the HyDE pattern via the `cat_recall_query` hook:
  * instead of embedding the raw user query for retrieval, the LLM first generates
  * a hypothetical answer, and THAT is embedded for semantic search.
  *

@@ -1,7 +1,7 @@
 /**
  * Rabbit Hole Service — Enhanced Document Ingestion Pipeline
  *
- * Hookable multi-format document ingestion modeled after Cheshire Cat's Rabbit Hole.
+ * Hookable multi-format document ingestion pipeline.
  *
  * Pipeline:
  *   Upload/URL → Parse → hook:before_splits_text → Chunk → hook:after_splits_text

@@ -1,7 +1,6 @@
 /**
  * Classification Service — Zero-shot text classification
  *
- * Ported from Cheshire Cat's StrayCat.classify() pattern.
  * Uses embeddings to compare input text against labeled example sets,
  * returning the best matching label if above threshold.
  *

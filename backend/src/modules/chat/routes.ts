@@ -524,7 +524,6 @@ Quando l'utente chiede di tradurre, creare o elaborare un documento:
       }
 
       // Agent Chain: memory recall + prompt templates + hookable pipeline
-      // Replaces the old manual Auto-RAG block with the full Cheshire Cat-style agent chain
       try {
         const { AgentChainService } = await import('../../services/AgentChainService.js');
         const agentChain = new AgentChainService(fastify, fastify.db);

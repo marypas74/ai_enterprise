@@ -13,7 +13,7 @@ export type HookName =
   | 'after_llm_response'
   | 'before_message_send'
   | 'after_message_send'
-  // Memory recall (Cheshire Cat)
+  // Memory recall
   | 'cat_recall_query'
   | 'before_cat_recalls_memories'
   | 'before_cat_recalls_episodic_memories'
@@ -26,7 +26,7 @@ export type HookName =
   | 'after_rag_recall'
   // Memory store
   | 'before_memory_store'
-  // Agent chain (Cheshire Cat)
+  // Agent chain
   | 'before_agent_starts'
   | 'agent_fast_reply'
   | 'agent_prompt_prefix'
@@ -216,7 +216,7 @@ class EventBusService {
       { name: 'after_llm_response', description: 'Modify LLM output after response', type: 'pipe' },
       { name: 'before_message_send', description: 'Before sending response to user', type: 'pipe' },
       { name: 'after_message_send', description: 'After response sent (logging/analytics)', type: 'emit' },
-      // Memory recall (Cheshire Cat)
+      // Memory recall
       { name: 'cat_recall_query', description: 'Edit the semantic search query before recall', type: 'pipe' },
       { name: 'before_cat_recalls_memories', description: 'Intercept before any memory search', type: 'emit' },
       { name: 'before_cat_recalls_episodic_memories', description: 'Configure episodic recall params (k, threshold)', type: 'pipe' },
@@ -229,7 +229,7 @@ class EventBusService {
       { name: 'after_rag_recall', description: 'After recall — modify context (legacy)', type: 'pipe' },
       // Memory store
       { name: 'before_memory_store', description: 'Before storing to episodic memory', type: 'pipe' },
-      // Agent chain (Cheshire Cat)
+      // Agent chain
       { name: 'before_agent_starts', description: 'Edit agent input before chain execution', type: 'pipe' },
       { name: 'agent_fast_reply', description: 'Short-circuit after recall, before agent chain', type: 'pipe' },
       { name: 'agent_prompt_prefix', description: 'Edit system prompt personality section', type: 'pipe' },

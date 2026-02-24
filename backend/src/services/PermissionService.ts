@@ -1,7 +1,6 @@
 /**
  * Permission Service — Resource-based permissions
  *
- * Ported from Cheshire Cat's permission system.
  * Each user can have per-resource permissions: read, write, edit, delete, list.
  * Admins bypass all permission checks.
  *

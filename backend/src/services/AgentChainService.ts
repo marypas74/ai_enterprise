@@ -1,5 +1,5 @@
 /**
- * Agent Chain Service — Multi-agent pipeline modeled after Cheshire Cat
+ * Agent Chain Service — Multi-agent hookable pipeline
  *
  * Pipeline:
  *   MainAgent.execute(context)

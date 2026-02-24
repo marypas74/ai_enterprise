@@ -2,7 +2,7 @@
  * Working Memory Service — Per-session volatile state in Redis
  *
  * Stores per-user, per-conversation state that persists across turns
- * but is volatile (TTL-based). Modeled after Cheshire Cat's working memory.
+ * but is volatile (TTL-based).
  *
  * Stored state:
  *   - recall_query: the query used for memory retrieval

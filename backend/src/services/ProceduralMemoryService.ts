@@ -122,7 +122,7 @@ export class ProceduralMemoryService {
   }
 
   /**
-   * Build the Cheshire Cat-style tool selection prompt from recalled procedural memories
+   * Build the tool selection prompt from recalled procedural memories
    */
   buildToolSelectionPrompt(
     proceduralMatches: MemoryPoint[],

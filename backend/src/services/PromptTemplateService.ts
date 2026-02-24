@@ -136,7 +136,7 @@ export class PromptTemplateService {
   async buildToolPrompt(availableTools: string, examples?: string): Promise<string> {
     const template = await this.getByType('tool_prompt');
     if (!template) {
-      // Fallback hardcoded tool prompt (Cheshire Cat style)
+      // Fallback hardcoded tool prompt
       return `Create a JSON with the correct "action" and "action_input" to help the user.
 
 Available actions:
@@ -254,7 +254,7 @@ Output a JSON object: {"action": "action_name", "action_input": "input for the a
 Return ONLY the JSON, nothing else.`,
     is_default: true,
     is_active: true,
-    description: 'Tool/form selection prompt template (Cheshire Cat style)',
+    description: 'Tool/form selection prompt template',
     variables: ['availableTools', 'customContext'],
   },
 ];
