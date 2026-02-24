@@ -39,6 +39,13 @@ export type HookName =
   // Document pipeline
   | 'on_document_upload'
   | 'on_document_chunked'
+  // Rabbit Hole (hookable ingestion)
+  | 'before_splits_text'
+  | 'after_splits_text'
+  | 'before_stores_documents'
+  | 'after_stored_documents'
+  // White Rabbit (scheduler)
+  | 'on_scheduled_action'
   // System
   | 'on_bootstrap'
   | 'fast_reply';
@@ -209,6 +216,13 @@ class EventBusService {
       // Document pipeline
       { name: 'on_document_upload', description: 'When a document is uploaded', type: 'emit' },
       { name: 'on_document_chunked', description: 'After document chunking', type: 'emit' },
+      // Rabbit Hole (hookable ingestion)
+      { name: 'before_splits_text', description: 'Edit text before chunking in ingestion pipeline', type: 'pipe' },
+      { name: 'after_splits_text', description: 'Edit chunks after splitting in ingestion pipeline', type: 'pipe' },
+      { name: 'before_stores_documents', description: 'Edit chunks before embedding/storing in vector memory', type: 'pipe' },
+      { name: 'after_stored_documents', description: 'After documents stored in vector memory', type: 'emit' },
+      // White Rabbit (scheduler)
+      { name: 'on_scheduled_action', description: 'Plugin action triggered by scheduler', type: 'emit' },
       // System
       { name: 'on_bootstrap', description: 'Server startup', type: 'emit' },
       { name: 'fast_reply', description: 'Short-circuit opportunity for immediate reply', type: 'pipe' },

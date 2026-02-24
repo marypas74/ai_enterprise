@@ -191,4 +191,67 @@ export class WorkingMemoryService {
       { input: 0, output: 0 },
     );
   }
+
+  /** List all active working memory sessions for a user */
+  async listUserSessions(userId: number): Promise<{ conversationId: number; updatedAt: string; tokenUsage: { input: number; output: number } }[]> {
+    const pattern = `${WORKING_MEMORY_PREFIX}${userId}:*`;
+    const keys = await this.redis.keys(pattern);
+    const sessions: { conversationId: number; updatedAt: string; tokenUsage: { input: number; output: number } }[] = [];
+
+    for (const key of keys) {
+      try {
+        const raw = await this.redis.get(key);
+        if (!raw) continue;
+        const state = JSON.parse(raw) as WorkingMemoryState;
+        sessions.push({
+          conversationId: state.conversationId,
+          updatedAt: state.updatedAt,
+          tokenUsage: this.getSessionTokens(state),
+        });
+      } catch {
+        // skip corrupt entries
+      }
+    }
+
+    return sessions.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  }
+
+  /** Clear all working memory sessions for a user */
+  async clearAllUserSessions(userId: number): Promise<number> {
+    const pattern = `${WORKING_MEMORY_PREFIX}${userId}:*`;
+    const keys = await this.redis.keys(pattern);
+    if (keys.length === 0) return 0;
+    await this.redis.del(...keys);
+    return keys.length;
+  }
+
+  /** Get summary stats across all active sessions */
+  async getStats(): Promise<{ totalSessions: number; totalTokensInput: number; totalTokensOutput: number; uniqueUsers: number }> {
+    const pattern = `${WORKING_MEMORY_PREFIX}*`;
+    const keys = await this.redis.keys(pattern);
+    const userIds = new Set<number>();
+    let totalTokensInput = 0;
+    let totalTokensOutput = 0;
+
+    for (const key of keys) {
+      try {
+        const raw = await this.redis.get(key);
+        if (!raw) continue;
+        const state = JSON.parse(raw) as WorkingMemoryState;
+        userIds.add(state.userId);
+        const tokens = this.getSessionTokens(state);
+        totalTokensInput += tokens.input;
+        totalTokensOutput += tokens.output;
+      } catch {
+        // skip
+      }
+    }
+
+    return {
+      totalSessions: keys.length,
+      totalTokensInput,
+      totalTokensOutput,
+      uniqueUsers: userIds.size,
+    };
+  }
 }

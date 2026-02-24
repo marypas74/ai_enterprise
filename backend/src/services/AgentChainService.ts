@@ -25,8 +25,9 @@ import type mysql from 'mysql2/promise';
 import { eventBus, type HookContext } from './EventBusService.js';
 import { WorkingMemoryService, type WorkingMemoryState, type AgentOutput } from './WorkingMemoryService.js';
 import { PromptTemplateService, type TemplateContext } from './PromptTemplateService.js';
-import { recall, buildWorkingMemory, getUserRecallSettings, type MemoryPoint } from './VectorMemoryService.js';
+import { recall, getUserRecallSettings, type MemoryPoint } from './VectorMemoryService.js';
 import { ConversationalFormService } from './ConversationalFormService.js';
+import { ProceduralMemoryService } from './ProceduralMemoryService.js';
 import type { Message } from '../modules/ai/providers.js';
 
 export interface AgentChainInput {
@@ -132,7 +133,7 @@ export class AgentChainService {
    */
   private async runMemoryRecall(
     userId: number,
-    conversationId: number,
+    _conversationId: number,
     userMessage: string,
     hookCtx: HookContext,
   ): Promise<{ episodic: MemoryPoint[]; declarative: MemoryPoint[]; procedural: MemoryPoint[] }> {
@@ -220,16 +221,20 @@ export class AgentChainService {
     const filteredTools = (await eventBus.pipe('agent_allowed_tools', toolsData, hookCtx)).data || toolsData;
     if (filteredTools.length === 0) return null;
 
-    // Build tool selection prompt — this is informational only.
-    // Actual tool execution still happens via the existing tool_choice pipeline.
-    // We return the procedural results so the chat pipeline can use them.
-    const toolDescriptions = filteredTools.map((t: any) =>
-      `- "${t.name}": ${t.description} (confidence: ${(t.score * 100).toFixed(0)}%)`
-    ).join('\n');
-
     this.fastify.log.info(`[AgentChain] ProceduresAgent found ${filteredTools.length} matching procedures: ${filteredTools.map((t: any) => t.name).join(', ')}`);
 
-    // For now, return the best match as a suggestion (not auto-executing)
+    // Use ProceduralMemoryService to build structured tool selection prompt
+    const proceduralService = new ProceduralMemoryService(this.fastify, this.db);
+    const toolSelectionPrompt = proceduralService.buildToolSelectionPrompt(
+      recallResults.procedural, userMessage,
+    );
+
+    // Store the tool selection prompt in working memory for the Memory Agent to use
+    if (toolSelectionPrompt) {
+      await this.wmService.setCustomData(userId, conversationId, 'toolSelectionPrompt', toolSelectionPrompt);
+    }
+
+    // Return the best match as a suggestion (threshold-based, not auto-executing)
     const bestMatch = filteredTools[0];
     if (bestMatch.score >= 0.85) {
       return {
@@ -245,16 +250,14 @@ export class AgentChainService {
    * Step 3: Memory Agent — Build final system prompt with templates + recalled context
    */
   private async runMemoryAgent(
-    userId: number,
-    conversationId: number,
+    _userId: number,
+    _conversationId: number,
     messages: Message[],
     recallResults: { episodic: MemoryPoint[]; declarative: MemoryPoint[]; procedural: MemoryPoint[] },
     proceduresResult: { selectedAction: string; actionInput: string | null } | null,
     hookCtx: HookContext,
   ): Promise<Message[]> {
     // Build context strings from recall results
-    const workingMem = buildWorkingMemory(recallResults, []);
-
     const episodicContext = recallResults.episodic.length > 0
       ? '## Relevant past conversations\n' + recallResults.episodic
           .map(m => `- (score ${m.score.toFixed(2)}) ${m.content.substring(0, 300)}`)

@@ -262,6 +262,67 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
         INDEX idx_type_active (template_type, is_active),
         INDEX idx_default (is_default)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+    },
+    {
+      name: 'scheduled_jobs',
+      sql: `CREATE TABLE IF NOT EXISTS scheduled_jobs (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(200) NOT NULL,
+        description TEXT,
+        job_type ENUM('one_shot', 'interval', 'cron') NOT NULL,
+        action_type ENUM('scheduled_message', 'webhook', 'hook', 'plugin_action') NOT NULL,
+        action_config JSON NOT NULL,
+        schedule_config JSON NOT NULL,
+        status ENUM('active', 'paused', 'completed', 'failed', 'cancelled') DEFAULT 'active',
+        user_id BIGINT UNSIGNED NOT NULL,
+        next_run_at TIMESTAMP NULL,
+        last_run_at TIMESTAMP NULL,
+        run_count INT UNSIGNED DEFAULT 0,
+        max_runs INT UNSIGNED NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        INDEX idx_status (status),
+        INDEX idx_user (user_id),
+        INDEX idx_next_run (next_run_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+    },
+    {
+      name: 'job_executions',
+      sql: `CREATE TABLE IF NOT EXISTS job_executions (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        job_id BIGINT UNSIGNED NOT NULL,
+        started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        completed_at TIMESTAMP NULL,
+        status ENUM('success', 'failed') DEFAULT 'success',
+        result TEXT,
+        error TEXT,
+        FOREIGN KEY (job_id) REFERENCES scheduled_jobs(id) ON DELETE CASCADE,
+        INDEX idx_job (job_id),
+        INDEX idx_started (started_at DESC)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+    },
+    {
+      name: 'resource_permissions',
+      sql: `CREATE TABLE IF NOT EXISTS resource_permissions (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        user_id BIGINT UNSIGNED NOT NULL,
+        resource ENUM(
+          'memory', 'conversation', 'settings', 'plugins',
+          'hooks', 'tools', 'forms', 'models', 'providers',
+          'users', 'scheduler'
+        ) NOT NULL,
+        can_read BOOLEAN DEFAULT TRUE,
+        can_write BOOLEAN DEFAULT FALSE,
+        can_edit BOOLEAN DEFAULT FALSE,
+        can_delete BOOLEAN DEFAULT FALSE,
+        can_list BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        UNIQUE KEY uniq_user_resource (user_id, resource),
+        INDEX idx_user (user_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
     }
   ];
 

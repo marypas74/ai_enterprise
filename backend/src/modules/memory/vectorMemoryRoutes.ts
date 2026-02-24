@@ -7,6 +7,8 @@ import {
   getUserRecallSettings,
   type MemoryCollection,
 } from '../../services/VectorMemoryService.js';
+import { HyDEService } from '../../services/HyDEService.js';
+import { ClassificationService } from '../../services/ClassificationService.js';
 
 export async function vectorMemoryRoutes(fastify: FastifyInstance) {
   fastify.addHook('onRequest', (fastify as any).authenticate);
@@ -151,5 +153,62 @@ export async function vectorMemoryRoutes(fastify: FastifyInstance) {
 
     const settings = await getUserRecallSettings(fastify.db, user.id);
     return { settings, message: 'Settings updated' };
+  });
+
+  // ==========================================
+  // HyDE (Hypothetical Document Embeddings)
+  // ==========================================
+
+  // Get HyDE config
+  fastify.get('/hyde', {
+    onRequest: [adminOnly],
+  }, async () => {
+    const hyde = new HyDEService(fastify, fastify.db);
+    await hyde.loadConfig();
+    return { config: hyde.getConfig() };
+  });
+
+  // Update HyDE config
+  fastify.patch('/hyde', {
+    onRequest: [adminOnly],
+  }, async (request: FastifyRequest) => {
+    const body = request.body as { enabled?: boolean; maxTokens?: number; maxQueryLength?: number };
+    const hyde = new HyDEService(fastify, fastify.db);
+    await hyde.loadConfig();
+    await hyde.saveConfig(body);
+    // Re-register hook with new config
+    hyde.registerHook();
+    return { config: hyde.getConfig(), message: 'HyDE config updated' };
+  });
+
+  // ==========================================
+  // Classification
+  // ==========================================
+
+  // Classify text against labeled examples
+  fastify.post('/classify', async (request: FastifyRequest, reply: FastifyReply) => {
+    const body = request.body as {
+      text: string;
+      labels: Record<string, string[]>;
+      threshold?: number;
+      multi?: boolean;
+    };
+
+    if (!body.text?.trim()) {
+      return reply.status(400).send({ error: 'text is required' });
+    }
+    if (!body.labels || Object.keys(body.labels).length === 0) {
+      return reply.status(400).send({ error: 'labels object is required with at least one label' });
+    }
+
+    const classifier = new ClassificationService(fastify, fastify.db);
+
+    if (body.multi) {
+      const results = await classifier.classifyMulti(body.text, body.labels, body.threshold ?? 0.5);
+      return { results };
+    }
+
+    const result = await classifier.classify(body.text, body.labels, body.threshold ?? 0.5);
+    return result;
   });
 }

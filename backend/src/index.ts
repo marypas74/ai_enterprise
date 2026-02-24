@@ -38,7 +38,10 @@ import { vectorMemoryRoutes } from './modules/memory/vectorMemoryRoutes.js';
 import { hookRoutes } from './modules/admin/hooks.js';
 import { formRoutes } from './modules/forms/routes.js';
 import { ingestionRoutes } from './modules/ingestion/routes.js';
+import { schedulerRoutes } from './modules/scheduler/routes.js';
+import { permissionRoutes } from './modules/admin/permissions.js';
 import { eventBus } from './services/EventBusService.js';
+import { HyDEService } from './services/HyDEService.js';
 import { AIProviderFactory } from './modules/ai/providers.js';
 import { AgentOrchestrator } from './services/AgentOrchestrator.js';
 import { AgentEventEmitter } from './services/AgentEventEmitter.js';
@@ -276,6 +279,8 @@ async function bootstrap() {
   await fastify.register(hookRoutes, { prefix: '/api/admin' });
   await fastify.register(formRoutes, { prefix: '/api/forms' });
   await fastify.register(ingestionRoutes, { prefix: '/api/ingestion' });
+  await fastify.register(schedulerRoutes, { prefix: '/api/scheduler' });
+  await fastify.register(permissionRoutes, { prefix: '/api/permissions' });
 
   // Initialize Plugin Loader ("Mad Hatter")
   try {
@@ -489,6 +494,16 @@ async function bootstrap() {
     await fastify.listen({ port, host });
     fastify.log.info(`Server listening on ${host}:${port}`);
     fastify.log.info(`Documentation available at http://${host}:${port}/docs`);
+
+    // Initialize HyDE service and register hook
+    try {
+      const hydeService = new HyDEService(fastify, fastify.db);
+      await hydeService.loadConfig();
+      hydeService.registerHook();
+      fastify.log.info('[Startup] HyDE service initialized');
+    } catch (err) {
+      fastify.log.warn('[Startup] HyDE service initialization failed: ' + err);
+    }
 
     // Fire bootstrap event for hook system
     eventBus.emit('on_bootstrap', { port, host }, { userId: 0 }).catch(() => {});

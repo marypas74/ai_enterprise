@@ -25,6 +25,7 @@ import { join } from 'path';
 import { pathToFileURL } from 'url';
 import { findOne, findMany, insertOne, updateOne } from '../database/index.js';
 import { eventBus, type HookName, type HookHandler } from './EventBusService.js';
+import { ProceduralMemoryService } from './ProceduralMemoryService.js';
 import type mysql from 'mysql2/promise';
 
 // ---- Types ----
@@ -243,12 +244,24 @@ export class PluginLoaderService {
       }
     }
 
+    // Procedural memory service for embedding tools/forms
+    const proceduralMemory = new ProceduralMemoryService(this.fastify, this.db);
+
     // Register tools
     if (Array.isArray(mod.tools)) {
       for (const toolDef of mod.tools as ToolDefinition[]) {
         try {
           const toolId = await this.registerTool(plugin, toolDef);
           plugin.registeredToolIds.push(toolId);
+          // Embed tool into procedural memory for semantic retrieval
+          proceduralMemory.registerProcedural({
+            name: toolDef.name,
+            description: toolDef.description,
+            type: 'tool',
+            pluginId: plugin.id,
+            triggerType: 'description',
+            examples: toolDef.start_examples,
+          }).catch(err => this.fastify.log.warn(`[PluginLoader] Procedural embed failed for tool "${toolDef.name}": ${err.message}`));
         } catch (err: any) {
           this.fastify.log.warn(`[PluginLoader] Failed to register tool "${toolDef.name}": ${err.message}`);
         }
@@ -264,6 +277,15 @@ export class PluginLoaderService {
         try {
           const formId = await this.registerForm(plugin, formDef);
           plugin.registeredFormIds.push(formId);
+          // Embed form into procedural memory for semantic retrieval
+          proceduralMemory.registerProcedural({
+            name: formDef.name,
+            description: formDef.description,
+            type: 'form',
+            pluginId: plugin.id,
+            triggerType: 'description',
+            examples: formDef.start_examples,
+          }).catch(err => this.fastify.log.warn(`[PluginLoader] Procedural embed failed for form "${formDef.name}": ${err.message}`));
         } catch (err: any) {
           this.fastify.log.warn(`[PluginLoader] Failed to register form "${formDef.name}": ${err.message}`);
         }
@@ -300,6 +322,14 @@ export class PluginLoaderService {
     // Unregister hooks
     eventBus.unregisterPlugin(plugin.id);
     plugin.registeredHandlerIds = [];
+
+    // Remove procedural memory entries for this plugin
+    try {
+      const proceduralMemory = new ProceduralMemoryService(this.fastify, this.db);
+      await proceduralMemory.unregisterPlugin(plugin.id);
+    } catch (err: any) {
+      this.fastify.log.warn(`[PluginLoader] Procedural memory cleanup failed for "${pluginName}": ${err.message}`);
+    }
 
     // Call deactivate() lifecycle hook
     if (plugin.module && typeof plugin.module.deactivate === 'function') {

@@ -33,7 +33,10 @@ import {
   Zap,
   Database,
   ClipboardList,
-  FileText
+  FileText,
+  Clock,
+  PieChart,
+  Lock
 } from 'lucide-react';
 import clsx from 'clsx';
 import { format } from 'date-fns';
@@ -52,6 +55,9 @@ import HooksPage from './admin/HooksPage';
 import VectorMemoryPage from './admin/VectorMemoryPage';
 import FormsPage from './admin/FormsPage';
 import PromptTemplatesPage from './admin/PromptTemplatesPage';
+import SchedulerPage from './admin/SchedulerPage';
+import MemoryStatsPage from './admin/MemoryStatsPage';
+import PermissionsPage from './admin/PermissionsPage';
 
 interface User {
   id: number;
@@ -98,10 +104,13 @@ const NAV_ITEMS = [
   { path: '/admin/plugins', icon: Puzzle, label: 'Plugins & MCP' },
   { path: '/admin/memory', icon: BookMarked, label: 'Memory' },
   { path: '/admin/vector-memory', icon: Database, label: 'Vector Memory' },
+  { path: '/admin/memory-stats', icon: PieChart, label: 'Memory Stats' },
   { path: '/admin/hooks', icon: Zap, label: 'Hooks' },
   { path: '/admin/prompt-templates', icon: FileText, label: 'Prompt Templates' },
   { path: '/admin/forms', icon: ClipboardList, label: 'Forms' },
+  { path: '/admin/scheduler', icon: Clock, label: 'Scheduler' },
   { path: '/admin/kanban', icon: LayoutDashboard, label: 'Kanban' },
+  { path: '/admin/permissions', icon: Lock, label: 'Permessi' },
   { path: '/admin/users', icon: Users, label: 'Users' },
   { path: '/admin/sessions', icon: Wifi, label: 'Sessioni Attive' },
   { path: '/admin/audit', icon: Shield, label: 'Audit Log' },
@@ -643,10 +652,13 @@ export default function AdminPage() {
           <Route path="/plugins" element={<PluginsPage />} />
           <Route path="/memory" element={<MemoryPage />} />
           <Route path="/vector-memory" element={<VectorMemoryPage />} />
+          <Route path="/memory-stats" element={<MemoryStatsPage />} />
           <Route path="/hooks" element={<HooksPage />} />
           <Route path="/prompt-templates" element={<PromptTemplatesPage />} />
           <Route path="/forms" element={<FormsPage />} />
+          <Route path="/scheduler" element={<SchedulerPage />} />
           <Route path="/kanban" element={<KanbanPage />} />
+          <Route path="/permissions" element={<PermissionsPage />} />
           <Route path="/users" element={<UsersGroupsPage />} />
           <Route path="/sessions" element={<SessionsPage />} />
           <Route path="/audit" element={<AuditLog />} />

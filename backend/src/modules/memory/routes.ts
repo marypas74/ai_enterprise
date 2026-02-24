@@ -1,6 +1,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { MemoryService } from './service.js';
+import { WorkingMemoryService } from '../../services/WorkingMemoryService.js';
 
 // Validation schemas
 const createObservationSchema = z.object({
@@ -212,5 +213,58 @@ export async function memoryRoutes(fastify: FastifyInstance) {
     const user = request.user as { id: number };
     const stats = await memoryService.getStats(user.id);
     return reply.send({ stats });
+  });
+
+  // --- Working Memory ---
+
+  const wmService = new WorkingMemoryService(fastify);
+
+  // Get working memory for a specific conversation
+  fastify.get('/working/:conversationId', async (request: FastifyRequest, reply: FastifyReply) => {
+    const user = request.user as { id: number };
+    const { conversationId } = request.params as { conversationId: string };
+    const state = await wmService.get(user.id, parseInt(conversationId));
+    if (!state) {
+      return reply.status(404).send({ error: 'No active working memory for this conversation' });
+    }
+    return {
+      state,
+      tokenUsage: wmService.getSessionTokens(state),
+    };
+  });
+
+  // List all active working memory sessions for current user
+  fastify.get('/working', async (request: FastifyRequest) => {
+    const user = request.user as { id: number };
+    const sessions = await wmService.listUserSessions(user.id);
+    return { sessions };
+  });
+
+  // Clear working memory for a specific conversation
+  fastify.delete('/working/:conversationId', async (request: FastifyRequest) => {
+    const user = request.user as { id: number };
+    const { conversationId } = request.params as { conversationId: string };
+    await wmService.clear(user.id, parseInt(conversationId));
+    return { message: 'Working memory cleared' };
+  });
+
+  // Clear all working memory sessions for current user
+  fastify.delete('/working', async (request: FastifyRequest) => {
+    const user = request.user as { id: number };
+    const cleared = await wmService.clearAllUserSessions(user.id);
+    return { cleared, message: `${cleared} sessions cleared` };
+  });
+
+  // Admin: get working memory stats across all users
+  fastify.get('/working-stats', {
+    onRequest: [async (request: FastifyRequest, reply: FastifyReply) => {
+      const user = request.user as { role: string };
+      if (user.role !== 'admin') {
+        return reply.status(403).send({ error: 'Admin access required' });
+      }
+    }],
+  }, async () => {
+    const stats = await wmService.getStats();
+    return { stats };
   });
 }

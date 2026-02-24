@@ -1,23 +1,29 @@
 /**
- * URL Ingestion Routes — Scrape URLs and store in vector memory
+ * Ingestion Routes — Enhanced "Rabbit Hole" pipeline
+ *
+ * Scrape URLs, ingest files/text, export/import vector memory.
+ * Uses hookable pipeline via RabbitHoleService.
  */
 
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { findMany } from '../../database/index.js';
-import { ingestUrl } from '../../services/WebScraperService.js';
+import { scrapeUrl } from '../../services/WebScraperService.js';
+import { RabbitHoleService } from '../../services/RabbitHoleService.js';
 
 export async function ingestionRoutes(fastify: FastifyInstance) {
-  // Ingest a URL into declarative memory
+  // Ingest a URL into declarative memory (hookable pipeline)
   fastify.post('/url', {
     onRequest: [(fastify as any).authenticate],
     schema: {
-      description: 'Ingest a URL into vector memory',
+      description: 'Ingest a URL into vector memory via Rabbit Hole pipeline',
       tags: ['ingestion'],
       security: [{ bearerAuth: [] }],
     },
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const user = request.user as { id: number };
-    const { url, conversationId } = request.body as { url: string; conversationId?: number };
+    const { url, conversationId, chunkSize, chunkOverlap } = request.body as {
+      url: string; conversationId?: number; chunkSize?: number; chunkOverlap?: number;
+    };
 
     if (!url || typeof url !== 'string') {
       return reply.status(400).send({ error: 'URL is required' });
@@ -46,7 +52,51 @@ export async function ingestionRoutes(fastify: FastifyInstance) {
       return reply.status(400).send({ error: 'Private/internal URLs are not allowed' });
     }
 
-    const result = await ingestUrl(fastify.db, user.id, url, conversationId);
+    try {
+      // Scrape the URL
+      const scraped = await scrapeUrl(url);
+
+      // Ingest via Rabbit Hole pipeline
+      const rabbitHole = new RabbitHoleService(fastify, fastify.db);
+      const result = await rabbitHole.ingest(scraped.content, scraped.title, {
+        userId: user.id,
+        conversationId,
+        source: url,
+        sourceType: 'url',
+        chunkSize,
+        chunkOverlap,
+        metadata: { title: scraped.title, source_type: 'web' },
+      });
+
+      return result;
+    } catch (err: any) {
+      return reply.status(500).send({ error: err.message });
+    }
+  });
+
+  // Ingest raw text
+  fastify.post('/text', {
+    onRequest: [(fastify as any).authenticate],
+    schema: {
+      description: 'Ingest raw text into vector memory',
+      tags: ['ingestion'],
+      security: [{ bearerAuth: [] }],
+    },
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const user = request.user as { id: number };
+    const { text, title, conversationId } = request.body as {
+      text: string; title: string; conversationId?: number;
+    };
+
+    if (!text || text.length < 30) {
+      return reply.status(400).send({ error: 'Text must be at least 30 characters' });
+    }
+    if (!title) {
+      return reply.status(400).send({ error: 'Title is required' });
+    }
+
+    const rabbitHole = new RabbitHoleService(fastify, fastify.db);
+    const result = await rabbitHole.ingestText(text, title, user.id, conversationId);
     return result;
   });
 
@@ -70,5 +120,58 @@ export async function ingestionRoutes(fastify: FastifyInstance) {
        FROM web_ingestions WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`,
       [user.id, limit, offset],
     );
+  });
+
+  // ---- Memory Export/Import ----
+
+  // Export a collection
+  fastify.get('/memory/export/:collection', {
+    onRequest: [(fastify as any).authenticate],
+    schema: {
+      description: 'Export vector memory collection as JSON',
+      tags: ['ingestion'],
+      security: [{ bearerAuth: [] }],
+    },
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const user = request.user as { id: number };
+    const { collection } = request.params as { collection: string };
+
+    const valid = ['episodic_memory', 'declarative_memory', 'procedural_memory'];
+    if (!valid.includes(collection)) {
+      return reply.status(400).send({ error: `Invalid collection. Must be one of: ${valid.join(', ')}` });
+    }
+
+    const rabbitHole = new RabbitHoleService(fastify, fastify.db);
+    const exported = await rabbitHole.exportMemory(collection as any, user.id);
+
+    reply.header('Content-Disposition', `attachment; filename="${collection}_export.json"`);
+    reply.header('Content-Type', 'application/json');
+    return exported;
+  });
+
+  // Import into a collection
+  fastify.post('/memory/import/:collection', {
+    onRequest: [(fastify as any).authenticate],
+    schema: {
+      description: 'Import vector memory from JSON',
+      tags: ['ingestion'],
+      security: [{ bearerAuth: [] }],
+    },
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { collection } = request.params as { collection: string };
+    const body = request.body as { points?: any[] };
+
+    const valid = ['episodic_memory', 'declarative_memory', 'procedural_memory'];
+    if (!valid.includes(collection)) {
+      return reply.status(400).send({ error: `Invalid collection. Must be one of: ${valid.join(', ')}` });
+    }
+
+    if (!body.points || !Array.isArray(body.points) || body.points.length === 0) {
+      return reply.status(400).send({ error: 'Request body must contain a "points" array' });
+    }
+
+    const rabbitHole = new RabbitHoleService(fastify, fastify.db);
+    const result = await rabbitHole.importMemory(collection as any, body.points);
+    return { ...result, collection };
   });
 }
