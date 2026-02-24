@@ -40,6 +40,8 @@ exports.AgentApiService = exports.AgentDashboardProvider = exports.TerminalSlots
 exports.registerAgentCommands = registerAgentCommands;
 const vscode = __importStar(require("vscode"));
 const axios_1 = __importDefault(require("axios"));
+const https = __importStar(require("https"));
+const selfSignedAgent = new https.Agent({ rejectUnauthorized: false });
 // ============================================
 // AGENT SESSIONS TREE PROVIDER
 // ============================================
@@ -55,7 +57,8 @@ class AgentSessionsProvider {
         this.accessToken = accessToken;
         this.api = axios_1.default.create({
             baseURL: serverUrl,
-            headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {}
+            headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+            httpsAgent: selfSignedAgent
         });
     }
     updateCredentials(serverUrl, accessToken) {
@@ -63,7 +66,8 @@ class AgentSessionsProvider {
         this.accessToken = accessToken;
         this.api = axios_1.default.create({
             baseURL: serverUrl,
-            headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {}
+            headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+            httpsAgent: selfSignedAgent
         });
         this.refresh();
     }
@@ -145,7 +149,8 @@ class TerminalSlotsProvider {
         this.accessToken = accessToken;
         this.api = axios_1.default.create({
             baseURL: serverUrl,
-            headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {}
+            headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+            httpsAgent: selfSignedAgent
         });
     }
     updateCredentials(serverUrl, accessToken) {
@@ -153,7 +158,8 @@ class TerminalSlotsProvider {
         this.accessToken = accessToken;
         this.api = axios_1.default.create({
             baseURL: serverUrl,
-            headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {}
+            headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+            httpsAgent: selfSignedAgent
         });
         this.refresh();
     }
@@ -229,7 +235,8 @@ class AgentDashboardProvider {
         this.accessToken = accessToken;
         this.api = axios_1.default.create({
             baseURL: serverUrl,
-            headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {}
+            headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+            httpsAgent: selfSignedAgent
         });
     }
     updateCredentials(serverUrl, accessToken) {
@@ -237,7 +244,8 @@ class AgentDashboardProvider {
         this.accessToken = accessToken;
         this.api = axios_1.default.create({
             baseURL: serverUrl,
-            headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {}
+            headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+            httpsAgent: selfSignedAgent
         });
         this.refresh();
     }
@@ -397,7 +405,8 @@ class AgentApiService {
         this.accessToken = accessToken;
         this.api = axios_1.default.create({
             baseURL: serverUrl,
-            headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {}
+            headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+            httpsAgent: selfSignedAgent
         });
     }
     updateCredentials(serverUrl, accessToken) {
@@ -405,7 +414,8 @@ class AgentApiService {
         this.accessToken = accessToken;
         this.api = axios_1.default.create({
             baseURL: serverUrl,
-            headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {}
+            headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+            httpsAgent: selfSignedAgent
         });
     }
     async createSession(data) {
