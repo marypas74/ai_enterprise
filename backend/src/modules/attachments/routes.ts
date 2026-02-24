@@ -23,6 +23,7 @@ import {
 import { chunkDocument } from '../../services/ChunkingService.js';
 import { indexChunks } from '../../services/VectorStoreService.js';
 import { searchSimilar } from '../../services/VectorStoreService.js';
+import { eventBus } from '../../services/EventBusService.js';
 
 const execAsync = promisify(exec);
 
@@ -250,6 +251,12 @@ export async function attachmentRoutes(fastify: FastifyInstance) {
         });
 
         fastify.log.info(`[Attachments] Uploaded: ${file.filename} -> ${filePath}`);
+
+        // Hook: on_document_upload
+        eventBus.emit('on_document_upload', {
+          attachmentId: insertedId, originalName: file.filename, mimeType: file.mimetype,
+          contentType: config.content_type, size: file.buffer.length, userId,
+        }, { userId }).catch(() => {});
 
         // Queue for processing (async)
         queueAttachmentProcessing(fastify, insertedId, config.processor);
@@ -775,6 +782,12 @@ async function queueAttachmentProcessing(fastify: FastifyInstance, attachmentId:
               }
 
               fastify.log.info(`[Attachments] Chunked ${attachment.original_name}: ${chunks.length} chunks`);
+
+              // Hook: on_document_chunked
+              eventBus.emit('on_document_chunked', {
+                attachmentId, originalName: attachment.original_name,
+                chunksCount: chunks.length, userId: attachment.user_id,
+              }, { userId: attachment.user_id }).catch(() => {});
 
               // Attempt vector indexing (Layer 3) — async, non-blocking
               indexChunks(fastify.db, attachmentId, chunks).then(indexed => {

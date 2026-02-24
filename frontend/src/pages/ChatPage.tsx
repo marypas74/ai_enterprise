@@ -26,7 +26,8 @@ import {
   Search,
   RotateCcw,
   ArchiveRestore,
-  Brain
+  Brain,
+  Database
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -34,6 +35,8 @@ import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import clsx from 'clsx';
 import { BotIcon, BotIconType } from '../components/BotIcon';
 import { IconSelector, useSelectedIcon } from '../components/IconSelector';
+import ConversationalFormIndicator from '../components/ConversationalFormIndicator';
+import MemoryPanel from '../components/MemoryPanel';
 
 interface Message {
   id?: number;
@@ -97,9 +100,59 @@ export default function ChatPage() {
   const [memoryObservations, setMemoryObservations] = useState<Array<{ id: number; observation_type: string; content: string; importance: number; created_at: string }>>([]);
   const [memoryContextActive, setMemoryContextActive] = useState(false);
   const [generatingDoc, setGeneratingDoc] = useState<number | null>(null);
+  const [activeFormSession, setActiveFormSession] = useState<{
+    id: number; formName: string; state: 'incomplete' | 'complete' | 'wait_confirm' | 'closed';
+    collectedFields: string[]; missingFields: string[]; lastQuestion: string | null;
+  } | null>(null);
+  const [vectorMemories, setVectorMemories] = useState<{
+    episodic: any[]; declarative: any[]; procedural: any[];
+  } | null>(null);
+  const [showVectorMemory, setShowVectorMemory] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Load active form session when conversation changes
+  useEffect(() => {
+    if (!currentConversationId) { setActiveFormSession(null); return; }
+    const loadFormSession = async () => {
+      try {
+        const res = await api.get(`/forms/sessions/active?conversation_id=${currentConversationId}`);
+        const s = res.data.session;
+        if (s) {
+          const form = res.data.form;
+          const schema = typeof form?.json_schema === 'string' ? JSON.parse(form.json_schema) : form?.json_schema;
+          const allFields = Object.keys(schema?.properties || {});
+          const collected = Object.keys(typeof s.collected_data === 'string' ? JSON.parse(s.collected_data) : (s.collected_data || {}));
+          const missing = typeof s.missing_fields === 'string' ? JSON.parse(s.missing_fields) : (s.missing_fields || allFields.filter((f: string) => !collected.includes(f)));
+          setActiveFormSession({
+            id: s.id, formName: form?.display_name || 'Form', state: s.state,
+            collectedFields: collected, missingFields: missing, lastQuestion: null,
+          });
+        } else {
+          setActiveFormSession(null);
+        }
+      } catch { setActiveFormSession(null); }
+    };
+    loadFormSession();
+  }, [currentConversationId]);
+
+  const handleFormCancel = async () => {
+    if (!activeFormSession) return;
+    try {
+      await api.post(`/forms/sessions/${activeFormSession.id}/cancel`);
+      setActiveFormSession(null);
+    } catch (err) { console.error('Failed to cancel form:', err); }
+  };
+
+  const handleFormConfirm = async (confirmed: boolean) => {
+    if (!activeFormSession) return;
+    try {
+      await api.post(`/forms/sessions/${activeFormSession.id}/confirm`, { confirmed });
+      if (confirmed) setActiveFormSession(null);
+      else setActiveFormSession(prev => prev ? { ...prev, state: 'incomplete' } : null);
+    } catch (err) { console.error('Failed to confirm form:', err); }
+  };
 
   // Load memory context status
   useEffect(() => {
@@ -734,6 +787,19 @@ export default function ChatPage() {
             )}
 
             <button
+              onClick={() => setShowVectorMemory(!showVectorMemory)}
+              className={clsx(
+                "relative p-2 rounded-lg transition-colors",
+                showVectorMemory
+                  ? "bg-cyan-500/20 text-cyan-400"
+                  : "hover:bg-surface-100 dark:hover:bg-surface-800 text-surface-500 hover:text-cyan-400"
+              )}
+              title="Vector Memory"
+            >
+              <Database className="w-5 h-5" />
+            </button>
+
+            <button
               onClick={() => { setShowMemoryPanel(!showMemoryPanel); if (!showMemoryPanel) loadMemoryObservations(); }}
               className={clsx(
                 "relative p-2 rounded-lg transition-colors",
@@ -921,6 +987,13 @@ export default function ChatPage() {
           )}
         </div>
 
+        {/* Conversational Form Indicator */}
+        <ConversationalFormIndicator
+          session={activeFormSession}
+          onCancel={handleFormCancel}
+          onConfirm={handleFormConfirm}
+        />
+
         {/* Input */}
         <div className="border-t border-surface-200 dark:border-surface-800 p-4">
           <div className="max-w-3xl mx-auto">
@@ -1012,6 +1085,14 @@ export default function ChatPage() {
           </div>
         </div>
       </main>
+
+      {/* Vector Memory Sidebar */}
+      {showVectorMemory && (
+        <MemoryPanel
+          memories={vectorMemories}
+          onClose={() => setShowVectorMemory(false)}
+        />
+      )}
     </div>
   );
 }

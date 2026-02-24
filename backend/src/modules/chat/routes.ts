@@ -12,6 +12,7 @@ import { getProjectFolder } from '../../services/StorageService.js';
 import { decryptSecret } from '../../utils/crypto.js';
 import { eventBus } from '../../services/EventBusService.js';
 import { recall, buildWorkingMemory, storeEpisodic, getUserRecallSettings } from '../../services/VectorMemoryService.js';
+import { ConversationalFormService } from '../../services/ConversationalFormService.js';
 
 // Validation schemas
 const completionSchema = z.object({
@@ -232,6 +233,45 @@ export async function chatRoutes(fastify: FastifyInstance) {
       // Hook: before_message_read — pre-process user message
       const msgHook = await eventBus.pipe('before_message_read', userMessage, hookCtx);
       userMessage = msgHook.data || userMessage;
+
+      // Hook: after_message_read — post-process user message
+      await eventBus.emit('after_message_read', { message: userMessage, userId: user.id, conversationId: conversationId! }, hookCtx);
+
+      // Conversational Form: check for active session and inject extraction context
+      let activeFormSession: any = null;
+      try {
+        if (conversationId) {
+          const formService = new ConversationalFormService(fastify.db);
+          activeFormSession = await formService.getActiveSession(user.id, conversationId);
+          if (activeFormSession && activeFormSession.state !== 'closed') {
+            const formDef = await findOne<any>(fastify.db, 'SELECT * FROM conversational_forms WHERE id = ?', [activeFormSession.form_id]);
+            if (formDef) {
+              // Parse JSON fields if needed
+              const parsedForm = {
+                ...formDef,
+                json_schema: typeof formDef.json_schema === 'string' ? JSON.parse(formDef.json_schema) : formDef.json_schema,
+              };
+              const parsedSession = {
+                ...activeFormSession,
+                collected_data: typeof activeFormSession.collected_data === 'string' ? JSON.parse(activeFormSession.collected_data) : activeFormSession.collected_data,
+                missing_fields: typeof activeFormSession.missing_fields === 'string' ? JSON.parse(activeFormSession.missing_fields) : activeFormSession.missing_fields,
+              };
+              const extractionPrompt = formService.buildExtractionPrompt(parsedForm, parsedSession, userMessage);
+              // Inject extraction context as a system-level instruction for the LLM
+              const formSystemMsg = `[ACTIVE FORM SESSION]\n${extractionPrompt}\n\nAfter extracting form data, ALSO respond naturally to the user. If you extracted data, mention what you captured. If fields are still missing, ask about the next missing field conversationally.`;
+              const systemIndex = messages.findIndex(m => m.role === 'system');
+              if (systemIndex >= 0) {
+                messages[systemIndex].content += '\n\n' + formSystemMsg;
+              } else {
+                messages.unshift({ role: 'system', content: formSystemMsg });
+              }
+              fastify.log.info(`[Form] Active form session ${activeFormSession.id} for conversation ${conversationId}, injected extraction prompt`);
+            }
+          }
+        }
+      } catch (formErr: any) {
+        fastify.log.warn(`[Form] Form check failed: ${formErr.message}`);
+      }
 
       // Handle attachments if present
       if (body.attachmentIds && body.attachmentIds.length > 0) {
@@ -593,7 +633,13 @@ Quando l'utente chiede di tradurre, creare o elaborare un documento:
                   const args = JSON.parse(tc.arguments);
                   fastify.log.info(`[Chat] Auto-executing tool in chat: ${tc.name}`);
 
+                  // Hook: before_tool_execute
+                  await eventBus.emit('before_tool_execute', { tool: tc.name, args, toolContext }, hookCtx);
+
                   const result = await executeTool(tc.name, args, toolContext);
+
+                  // Hook: after_tool_execute
+                  await eventBus.emit('after_tool_execute', { tool: tc.name, args, result, toolContext }, hookCtx);
 
                   if (result.success) {
                     // Build notification with download link if available
@@ -758,6 +804,29 @@ Quando l'utente chiede di tradurre, creare o elaborare un documento:
         }
       } catch (hookErr: any) {
         fastify.log.warn(`[Hook] after_llm_response failed: ${hookErr.message}`);
+      }
+
+      // Conversational Form: try to extract JSON from LLM response and update session
+      if (activeFormSession && activeFormSession.state !== 'closed') {
+        try {
+          const formService = new ConversationalFormService(fastify.db);
+          // Try to find JSON in the response (LLM might wrap it in markdown code block)
+          const jsonMatch = fullResponse.match(/```(?:json)?\s*([\s\S]*?)```/) || fullResponse.match(/(\{[\s\S]*?\})/);
+          if (jsonMatch) {
+            const extracted = JSON.parse(jsonMatch[1].trim());
+            const formResult = await formService.updateWithExtraction(activeFormSession.id, extracted);
+            fastify.log.info(`[Form] Updated session ${activeFormSession.id}: state=${formResult.state}, missing=${formResult.missing_fields.length}`);
+
+            // If form just completed, send a notification via SSE
+            if (formResult.completed) {
+              const completeNotice = `\n\n---\n**Form "${activeFormSession.form_name || 'form'}" completed.** Data collected successfully.`;
+              reply.raw.write(`data: ${JSON.stringify({ content: completeNotice, done: false, formCompleted: true })}\n\n`);
+              fullResponse += completeNotice;
+            }
+          }
+        } catch (formErr: any) {
+          fastify.log.warn(`[Form] Extraction from LLM response failed: ${formErr.message}`);
+        }
       }
 
       // Hook: before_message_send — last chance to modify before saving/sending

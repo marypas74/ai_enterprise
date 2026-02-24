@@ -45,8 +45,8 @@ export default function HooksPage() {
     try {
       const res = await fetch('/api/admin/hooks', { headers });
       const data = await res.json();
-      setHandlers(data.handlers || {});
-      setAvailableHooks(data.availableHooks || []);
+      setHandlers(data.registered_handlers || {});
+      setAvailableHooks(data.available_hooks || []);
     } catch (err) {
       console.error('Failed to fetch hooks:', err);
     } finally {

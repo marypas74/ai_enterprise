@@ -89,7 +89,7 @@ export default function VectorMemoryPage() {
     try {
       const res = await fetch('/api/memory/vector/recall-settings', { headers });
       const data = await res.json();
-      setRecallSettings(data);
+      setRecallSettings(data.settings ?? data);
     } catch { /* empty */ }
   }, [token]);
 
@@ -133,9 +133,9 @@ export default function VectorMemoryPage() {
     if (!recallQuery.trim()) return;
     setRecalling(true);
     try {
-      const res = await fetch(`/api/memory/vector/recall?query=${encodeURIComponent(recallQuery)}`, { headers });
+      const res = await fetch(`/api/memory/vector/recall?text=${encodeURIComponent(recallQuery)}`, { headers });
       const data = await res.json();
-      setRecallResults(data);
+      setRecallResults(data.results ?? data);
     } catch {
       showNotification('error', 'Recall failed');
     } finally {
@@ -177,7 +177,7 @@ export default function VectorMemoryPage() {
       });
       if (res.ok) {
         const data = await res.json();
-        setRecallSettings(data);
+        setRecallSettings(data.settings ?? data);
         showNotification('success', 'Settings updated');
       }
     } catch {

@@ -58,7 +58,7 @@ export default function FormsPage() {
     try {
       const res = await fetch('/api/forms/definitions', { headers });
       const data = await res.json();
-      setForms(Array.isArray(data) ? data : []);
+      setForms(Array.isArray(data.forms) ? data.forms : []);
     } catch { /* empty */ } finally {
       setLoading(false);
     }
