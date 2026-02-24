@@ -6,19 +6,40 @@
 
 // Hook names - all the interception points in the pipeline
 export type HookName =
+  // Message pipeline
   | 'before_message_read'
   | 'after_message_read'
   | 'before_llm_call'
   | 'after_llm_response'
-  | 'before_rag_recall'
-  | 'after_rag_recall'
-  | 'before_memory_store'
   | 'before_message_send'
   | 'after_message_send'
+  // Memory recall (Cheshire Cat)
+  | 'cat_recall_query'
+  | 'before_cat_recalls_memories'
+  | 'before_cat_recalls_episodic_memories'
+  | 'before_cat_recalls_declarative_memories'
+  | 'before_cat_recalls_procedural_memories'
+  | 'after_cat_recalls_memories'
+  | 'before_cat_stores_episodic_memory'
+  // Legacy recall aliases
+  | 'before_rag_recall'
+  | 'after_rag_recall'
+  // Memory store
+  | 'before_memory_store'
+  // Agent chain (Cheshire Cat)
+  | 'before_agent_starts'
+  | 'agent_fast_reply'
+  | 'agent_prompt_prefix'
+  | 'agent_prompt_suffix'
+  | 'agent_prompt_instructions'
+  | 'agent_allowed_tools'
+  // Tool execution
   | 'before_tool_execute'
   | 'after_tool_execute'
+  // Document pipeline
   | 'on_document_upload'
   | 'on_document_chunked'
+  // System
   | 'on_bootstrap'
   | 'fast_reply';
 
@@ -155,19 +176,40 @@ class EventBusService {
 
   getAvailableHooks(): { name: string; description: string; type: 'pipe' | 'emit' }[] {
     return [
+      // Message pipeline
       { name: 'before_message_read', description: 'Pre-process user message before pipeline', type: 'pipe' },
-      { name: 'after_message_read', description: 'Post-process user message after reading', type: 'pipe' },
+      { name: 'after_message_read', description: 'Post-process user message after reading', type: 'emit' },
       { name: 'before_llm_call', description: 'Modify prompt/parameters before LLM call', type: 'pipe' },
       { name: 'after_llm_response', description: 'Modify LLM output after response', type: 'pipe' },
-      { name: 'before_rag_recall', description: 'Before vector memory recall', type: 'pipe' },
-      { name: 'after_rag_recall', description: 'After recall — modify context', type: 'pipe' },
-      { name: 'before_memory_store', description: 'Before storing to episodic memory', type: 'pipe' },
       { name: 'before_message_send', description: 'Before sending response to user', type: 'pipe' },
       { name: 'after_message_send', description: 'After response sent (logging/analytics)', type: 'emit' },
+      // Memory recall (Cheshire Cat)
+      { name: 'cat_recall_query', description: 'Edit the semantic search query before recall', type: 'pipe' },
+      { name: 'before_cat_recalls_memories', description: 'Intercept before any memory search', type: 'emit' },
+      { name: 'before_cat_recalls_episodic_memories', description: 'Configure episodic recall params (k, threshold)', type: 'pipe' },
+      { name: 'before_cat_recalls_declarative_memories', description: 'Configure declarative recall params (k, threshold)', type: 'pipe' },
+      { name: 'before_cat_recalls_procedural_memories', description: 'Configure procedural recall params (k, threshold)', type: 'pipe' },
+      { name: 'after_cat_recalls_memories', description: 'After all memory searches complete', type: 'emit' },
+      { name: 'before_cat_stores_episodic_memory', description: 'Edit document before episodic storage', type: 'pipe' },
+      // Legacy aliases
+      { name: 'before_rag_recall', description: 'Before vector memory recall (legacy)', type: 'pipe' },
+      { name: 'after_rag_recall', description: 'After recall — modify context (legacy)', type: 'pipe' },
+      // Memory store
+      { name: 'before_memory_store', description: 'Before storing to episodic memory', type: 'pipe' },
+      // Agent chain (Cheshire Cat)
+      { name: 'before_agent_starts', description: 'Edit agent input before chain execution', type: 'pipe' },
+      { name: 'agent_fast_reply', description: 'Short-circuit after recall, before agent chain', type: 'pipe' },
+      { name: 'agent_prompt_prefix', description: 'Edit system prompt personality section', type: 'pipe' },
+      { name: 'agent_prompt_suffix', description: 'Edit system prompt context section', type: 'pipe' },
+      { name: 'agent_prompt_instructions', description: 'Edit tool/form selection instructions', type: 'pipe' },
+      { name: 'agent_allowed_tools', description: 'Filter which tools reach the agent prompt', type: 'pipe' },
+      // Tool execution
       { name: 'before_tool_execute', description: 'Before tool execution', type: 'pipe' },
       { name: 'after_tool_execute', description: 'After tool execution', type: 'pipe' },
+      // Document pipeline
       { name: 'on_document_upload', description: 'When a document is uploaded', type: 'emit' },
       { name: 'on_document_chunked', description: 'After document chunking', type: 'emit' },
+      // System
       { name: 'on_bootstrap', description: 'Server startup', type: 'emit' },
       { name: 'fast_reply', description: 'Short-circuit opportunity for immediate reply', type: 'pipe' },
     ];

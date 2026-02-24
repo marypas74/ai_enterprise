@@ -244,6 +244,24 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
         ADD COLUMN IF NOT EXISTS declarative_recall_threshold DECIMAL(3,2) DEFAULT 0.70,
         ADD COLUMN IF NOT EXISTS procedural_recall_k INT DEFAULT 3,
         ADD COLUMN IF NOT EXISTS procedural_recall_threshold DECIMAL(3,2) DEFAULT 0.70`
+    },
+    {
+      name: 'prompt_templates',
+      sql: `CREATE TABLE IF NOT EXISTS prompt_templates (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(100) NOT NULL UNIQUE,
+        display_name VARCHAR(200) NOT NULL,
+        template_type ENUM('prefix', 'suffix', 'instructions', 'tool_prompt', 'custom') NOT NULL,
+        content TEXT NOT NULL,
+        is_default BOOLEAN DEFAULT FALSE,
+        is_active BOOLEAN DEFAULT TRUE,
+        description TEXT,
+        variables JSON,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_type_active (template_type, is_active),
+        INDEX idx_default (is_default)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
     }
   ];
 
@@ -254,5 +272,28 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
     } catch (err) {
       fastify.log.warn({ err }, `[Migration] Table ${migration.name} migration skipped (may already exist)`);
     }
+  }
+
+  // Seed default prompt templates
+  await seedPromptTemplates(pool, fastify);
+}
+
+async function seedPromptTemplates(pool: mysql.Pool, fastify: FastifyInstance): Promise<void> {
+  try {
+    const [rows] = await pool.execute('SELECT COUNT(*) as cnt FROM prompt_templates');
+    const count = (rows as any[])[0]?.cnt || 0;
+    if (count > 0) return; // Already seeded
+
+    const { DEFAULT_TEMPLATES } = await import('../services/PromptTemplateService.js');
+    for (const t of DEFAULT_TEMPLATES) {
+      await pool.execute(
+        `INSERT INTO prompt_templates (name, display_name, template_type, content, is_default, is_active, description, variables)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [t.name, t.display_name, t.template_type, t.content, t.is_default, t.is_active, t.description, JSON.stringify(t.variables)]
+      );
+    }
+    fastify.log.info(`[Migration] Seeded ${DEFAULT_TEMPLATES.length} default prompt templates`);
+  } catch (err) {
+    fastify.log.warn({ err }, '[Migration] Prompt templates seeding skipped');
   }
 }

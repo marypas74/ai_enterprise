@@ -11,7 +11,7 @@ import { MemoryService } from '../memory/service.js';
 import { getProjectFolder } from '../../services/StorageService.js';
 import { decryptSecret } from '../../utils/crypto.js';
 import { eventBus } from '../../services/EventBusService.js';
-import { recall, buildWorkingMemory, storeEpisodic, getUserRecallSettings } from '../../services/VectorMemoryService.js';
+import { storeEpisodic } from '../../services/VectorMemoryService.js';
 import { ConversationalFormService } from '../../services/ConversationalFormService.js';
 
 // Validation schemas
@@ -216,8 +216,10 @@ export async function chatRoutes(fastify: FastifyInstance) {
         }
       }
 
-      // Hook: fast_reply — short-circuit opportunity
+      // Hook context (frozen for safety)
       const hookCtx = Object.freeze({ userId: user.id, conversationId: conversationId! });
+
+      // Hook: fast_reply — short-circuit opportunity (legacy, kept for backward compat)
       const fastReplyResult = await eventBus.pipe('fast_reply', null, hookCtx);
       if (fastReplyResult.short_circuited && fastReplyResult.data) {
         reply.raw.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive', 'X-Conversation-Id': conversationId!.toString() });
@@ -246,7 +248,6 @@ export async function chatRoutes(fastify: FastifyInstance) {
           if (activeFormSession && activeFormSession.state !== 'closed') {
             const formDef = await findOne<any>(fastify.db, 'SELECT * FROM conversational_forms WHERE id = ?', [activeFormSession.form_id]);
             if (formDef) {
-              // Parse JSON fields if needed
               const parsedForm = {
                 ...formDef,
                 json_schema: typeof formDef.json_schema === 'string' ? JSON.parse(formDef.json_schema) : formDef.json_schema,
@@ -257,7 +258,6 @@ export async function chatRoutes(fastify: FastifyInstance) {
                 missing_fields: typeof activeFormSession.missing_fields === 'string' ? JSON.parse(activeFormSession.missing_fields) : activeFormSession.missing_fields,
               };
               const extractionPrompt = formService.buildExtractionPrompt(parsedForm, parsedSession, userMessage);
-              // Inject extraction context as a system-level instruction for the LLM
               const formSystemMsg = `[ACTIVE FORM SESSION]\n${extractionPrompt}\n\nAfter extracting form data, ALSO respond naturally to the user. If you extracted data, mention what you captured. If fields are still missing, ask about the next missing field conversationally.`;
               const systemIndex = messages.findIndex(m => m.role === 'system');
               if (systemIndex >= 0) {
@@ -523,44 +523,40 @@ Quando l'utente chiede di tradurre, creare o elaborare un documento:
         fastify.log.warn(`[Memory] Context injection failed: ${memErr.message}`);
       }
 
-      // Auto-RAG: vector memory recall injection
+      // Agent Chain: memory recall + prompt templates + hookable pipeline
+      // Replaces the old manual Auto-RAG block with the full Cheshire Cat-style agent chain
       try {
-        const recallSettings = await getUserRecallSettings(fastify.db, user.id);
-        if (recallSettings.autoRagEnabled) {
-          // Hook: before_rag_recall
-          const ragQuery = (await eventBus.pipe('before_rag_recall', body.message, hookCtx)).data || body.message;
+        const { AgentChainService } = await import('../../services/AgentChainService.js');
+        const agentChain = new AgentChainService(fastify, fastify.db);
+        const chainResult = await agentChain.execute({
+          userId: user.id,
+          conversationId: conversationId!,
+          userMessage: body.message,
+          messages,
+          model: body.model,
+          hookCtx,
+        });
 
-          const recalled = await recall(fastify.db, {
-            userId: user.id,
-            query: ragQuery,
-            episodicK: recallSettings.episodicK,
-            episodicThreshold: recallSettings.episodicThreshold,
-            declarativeK: recallSettings.declarativeK,
-            declarativeThreshold: recallSettings.declarativeThreshold,
-            proceduralK: recallSettings.proceduralK,
-            proceduralThreshold: recallSettings.proceduralThreshold,
-          });
-
-          const totalResults = recalled.episodic.length + recalled.declarative.length + recalled.procedural.length;
-          if (totalResults > 0) {
-            const workingMem = buildWorkingMemory(recalled, []);
-            // Hook: after_rag_recall
-            const ragResult = await eventBus.pipe('after_rag_recall', workingMem.injectedContext, hookCtx);
-            const ragContext = ragResult.data || workingMem.injectedContext;
-
-            if (ragContext) {
-              const systemIndex = messages.findIndex(m => m.role === 'system');
-              if (systemIndex >= 0) {
-                messages[systemIndex].content += '\n\n[Vector Memory]\n' + ragContext;
-              } else {
-                messages.unshift({ role: 'system', content: '[Vector Memory]\n' + ragContext });
-              }
-              fastify.log.info(`[AutoRAG] Injected ${totalResults} memory results for user ${user.id}`);
-            }
-          }
+        // If agent chain short-circuited via agent_fast_reply, send reply and return
+        if (chainResult.skippedByFastReply && chainResult.fastReplyContent) {
+          reply.raw.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive', 'X-Conversation-Id': conversationId!.toString() });
+          reply.raw.write(`data: ${JSON.stringify({ content: chainResult.fastReplyContent })}\n\n`);
+          reply.raw.write('data: [DONE]\n\n');
+          reply.raw.end();
+          return;
         }
-      } catch (ragErr: any) {
-        fastify.log.warn(`[AutoRAG] Recall failed: ${ragErr.message}`);
+
+        // Use the messages from the agent chain (includes template prompts + memory context)
+        messages = chainResult.messages;
+
+        const totalRecalled = (chainResult.workingMemory.episodicMemories?.length || 0)
+          + (chainResult.workingMemory.declarativeMemories?.length || 0)
+          + (chainResult.workingMemory.proceduralMemories?.length || 0);
+        if (totalRecalled > 0) {
+          fastify.log.info(`[AgentChain] Injected ${totalRecalled} memory results via agent chain for user ${user.id}`);
+        }
+      } catch (chainErr: any) {
+        fastify.log.warn(`[AgentChain] Agent chain failed, continuing without: ${chainErr.message}`);
       }
 
       // Set up SSE streaming

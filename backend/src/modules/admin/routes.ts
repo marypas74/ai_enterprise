@@ -715,4 +715,100 @@ export async function adminRoutes(fastify: FastifyInstance) {
     if (diffHours > 0) return `${diffHours}h`;
     return `${diffMinutes}m`;
   }
+
+  // ========== Prompt Templates ==========
+
+  // GET /admin/prompt-templates — List all templates
+  fastify.get('/prompt-templates', {
+    onRequest: [(fastify as any).authenticate, adminOnly],
+    schema: { description: 'List all prompt templates', tags: ['admin'], security: [{ bearerAuth: [] }] }
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { PromptTemplateService } = await import('../../services/PromptTemplateService.js');
+    const service = new PromptTemplateService(fastify.db);
+    const templates = await service.getAllTemplates();
+    return { templates };
+  });
+
+  // GET /admin/prompt-templates/:id — Get single template
+  fastify.get('/prompt-templates/:id', {
+    onRequest: [(fastify as any).authenticate, adminOnly],
+    schema: { description: 'Get a single prompt template', tags: ['admin'], security: [{ bearerAuth: [] }] }
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { id } = request.params as { id: string };
+    const template = await findOne<any>(fastify.db, 'SELECT * FROM prompt_templates WHERE id = ?', [id]);
+    if (!template) return reply.status(404).send({ error: 'Template not found' });
+    if (typeof template.variables === 'string') template.variables = JSON.parse(template.variables);
+    return template;
+  });
+
+  // POST /admin/prompt-templates — Create template
+  fastify.post('/prompt-templates', {
+    onRequest: [(fastify as any).authenticate, adminOnly],
+    schema: { description: 'Create a new prompt template', tags: ['admin'], security: [{ bearerAuth: [] }] }
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const body = request.body as any;
+    const { PromptTemplateService } = await import('../../services/PromptTemplateService.js');
+    const service = new PromptTemplateService(fastify.db);
+    const id = await service.create({
+      name: body.name,
+      display_name: body.display_name,
+      template_type: body.template_type,
+      content: body.content,
+      is_default: body.is_default || false,
+      is_active: body.is_active !== false,
+      description: body.description || null,
+      variables: body.variables || null,
+    });
+    return { id, message: 'Template created' };
+  });
+
+  // PATCH /admin/prompt-templates/:id — Update template
+  fastify.patch('/prompt-templates/:id', {
+    onRequest: [(fastify as any).authenticate, adminOnly],
+    schema: { description: 'Update a prompt template', tags: ['admin'], security: [{ bearerAuth: [] }] }
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { id } = request.params as { id: string };
+    const body = request.body as any;
+    const { PromptTemplateService } = await import('../../services/PromptTemplateService.js');
+    const service = new PromptTemplateService(fastify.db);
+    const affected = await service.updateTemplate(parseInt(id), body);
+    if (affected === 0) return reply.status(404).send({ error: 'Template not found or no changes' });
+    return { message: 'Template updated' };
+  });
+
+  // DELETE /admin/prompt-templates/:id — Delete non-default template
+  fastify.delete('/prompt-templates/:id', {
+    onRequest: [(fastify as any).authenticate, adminOnly],
+    schema: { description: 'Delete a prompt template (non-default only)', tags: ['admin'], security: [{ bearerAuth: [] }] }
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { id } = request.params as { id: string };
+    const { PromptTemplateService } = await import('../../services/PromptTemplateService.js');
+    const service = new PromptTemplateService(fastify.db);
+    const affected = await service.deleteTemplate(parseInt(id));
+    if (affected === 0) return reply.status(400).send({ error: 'Cannot delete default template or template not found' });
+    return { message: 'Template deleted' };
+  });
+
+  // POST /admin/prompt-templates/preview — Preview rendered template
+  fastify.post('/prompt-templates/preview', {
+    onRequest: [(fastify as any).authenticate, adminOnly],
+    schema: { description: 'Preview a rendered prompt template', tags: ['admin'], security: [{ bearerAuth: [] }] }
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const body = request.body as { content: string; context?: Record<string, string> };
+    const { PromptTemplateService } = await import('../../services/PromptTemplateService.js');
+    const service = new PromptTemplateService(fastify.db);
+    const sampleContext = {
+      currentDate: new Date().toLocaleDateString('it-IT', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
+      userName: 'Test User',
+      episodicContext: '## Relevant past conversations\n- (score 0.92) User asked about project setup...',
+      declarativeContext: '## Relevant knowledge\n- [docs] (score 0.88) API documentation for /users endpoint...',
+      proceduralContext: '## Available tools/procedures\n- search_web: Search the web for information',
+      toolOutput: '',
+      formContext: '',
+      availableTools: '- "search_web": Search the web\n- "generate_document": Generate a document',
+      ...body.context,
+    };
+    const rendered = service.renderTemplate(body.content, sampleContext);
+    return { rendered };
+  });
 }

@@ -32,7 +32,8 @@ import {
   BookMarked,
   Zap,
   Database,
-  ClipboardList
+  ClipboardList,
+  FileText
 } from 'lucide-react';
 import clsx from 'clsx';
 import { format } from 'date-fns';
@@ -50,6 +51,7 @@ import MemoryPage from './admin/MemoryPage';
 import HooksPage from './admin/HooksPage';
 import VectorMemoryPage from './admin/VectorMemoryPage';
 import FormsPage from './admin/FormsPage';
+import PromptTemplatesPage from './admin/PromptTemplatesPage';
 
 interface User {
   id: number;
@@ -97,6 +99,7 @@ const NAV_ITEMS = [
   { path: '/admin/memory', icon: BookMarked, label: 'Memory' },
   { path: '/admin/vector-memory', icon: Database, label: 'Vector Memory' },
   { path: '/admin/hooks', icon: Zap, label: 'Hooks' },
+  { path: '/admin/prompt-templates', icon: FileText, label: 'Prompt Templates' },
   { path: '/admin/forms', icon: ClipboardList, label: 'Forms' },
   { path: '/admin/kanban', icon: LayoutDashboard, label: 'Kanban' },
   { path: '/admin/users', icon: Users, label: 'Users' },
@@ -641,6 +644,7 @@ export default function AdminPage() {
           <Route path="/memory" element={<MemoryPage />} />
           <Route path="/vector-memory" element={<VectorMemoryPage />} />
           <Route path="/hooks" element={<HooksPage />} />
+          <Route path="/prompt-templates" element={<PromptTemplatesPage />} />
           <Route path="/forms" element={<FormsPage />} />
           <Route path="/kanban" element={<KanbanPage />} />
           <Route path="/users" element={<UsersGroupsPage />} />
