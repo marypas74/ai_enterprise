@@ -6,6 +6,7 @@ import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
+import fp from 'fastify-plugin';
 import 'dotenv/config';
 
 import { databasePlugin } from './database/index.js';
@@ -66,97 +67,14 @@ const fastify = Fastify({
   bodyLimit: 50 * 1024 * 1024 // 50MB limit for JSON bodies (needed for large document generation)
 });
 
-async function bootstrap() {
-  // CORS
-  await fastify.register(cors, {
-    origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
-    credentials: true
-  });
-
-  // Rate Limiting
-  await fastify.register(rateLimit, {
-    max: parseInt(process.env.RATE_LIMIT_MAX || '100'),
-    timeWindow: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000'),
-    allowList: (request) => {
-      // Exclude health, version, admin, and WebSocket endpoints from rate limiting
-      const url = request.url;
-      if (url === '/health' || url === '/version' || url.startsWith('/api/version')) return true;
-      if (url.startsWith('/api/admin')) return true;  // All admin endpoints
-      if (url.startsWith('/ws/')) return true;  // WebSocket connections
-      return false;
-    }
-  });
-
-  // JWT
-  await fastify.register(jwt, {
-    secret: (() => {
-      const jwtSecret = process.env.JWT_SECRET;
-      if (!jwtSecret) {
-        console.error('FATAL: JWT_SECRET environment variable is required. Set it before starting the server.');
-        process.exit(1);
-      }
-      return jwtSecret;
-    })(),
-    sign: { expiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '15m' }
-  });
-
-  // Cookies
-  await fastify.register(cookie);
-
-  // Multipart for file uploads
-  await fastify.register(multipart, {
-    limits: {
-      fileSize: 50 * 1024 * 1024, // 50MB max
-      files: 10, // Max 10 files per request
-    },
-  });
-
-  // WebSocket support for real-time updates
-  await fastify.register(websocket);
-
-  // Swagger Documentation
-  await fastify.register(swagger, {
-    openapi: {
-      info: {
-        title: 'Enterprise AI Chat API',
-        description: 'Multi-provider AI chat platform API',
-        version: '1.0.0'
-      },
-      servers: [{ url: `http://localhost:${process.env.PORT || 3000}` }],
-      components: {
-        securitySchemes: {
-          bearerAuth: {
-            type: 'http',
-            scheme: 'bearer',
-            bearerFormat: 'JWT'
-          }
-        }
-      }
-    }
-  });
-
-  await fastify.register(swaggerUi, {
-    routePrefix: '/docs'
-  });
-
-  // Global no-cache headers on all API responses
-  fastify.addHook('onSend', (request, reply, payload, done) => {
-    reply.header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
-    reply.header('Pragma', 'no-cache');
-    reply.header('Expires', '0');
-    reply.header('Surrogate-Control', 'no-store');
-    done();
-  });
-
-  // Database & Cache
-  await fastify.register(databasePlugin);
-
-
-
-  await fastify.register(redisPlugin);
-
-  // Geo-Referencing Middleware
-  await fastify.register(geoPlugin);
+// ─── Application plugin ───────────────────────────────────────────────
+// Everything that needs register/addHook/decorate MUST live inside this
+// plugin so that avvio keeps the boot phase open while async DB queries
+// and provider configuration run.  Without this wrapper, any non-register
+// `await` at root level causes avvio to finalise boot prematurely and all
+// subsequent register()/addHook()/get() calls throw
+// AVV_ERR_ROOT_PLG_BOOTED or FST_ERR_INSTANCE_ALREADY_LISTENING.
+const appPlugin = fp(async function (fastify) {
 
   // Load AI provider configurations from database
   try {
@@ -282,39 +200,37 @@ async function bootstrap() {
   await fastify.register(schedulerRoutes, { prefix: '/api/scheduler' });
   await fastify.register(permissionRoutes, { prefix: '/api/permissions' });
 
-  // Initialize Plugin Loader ("Mad Hatter")
-  try {
-    const { PluginLoaderService } = await import('./services/PluginLoaderService.js');
-    const pluginLoader = PluginLoaderService.getInstance(fastify, fastify.db);
-    await pluginLoader.discoverAndLoad();
-    const loadedCount = pluginLoader.getLoadedPlugins().filter(p => p.active).length;
-    if (loadedCount > 0) {
-      fastify.log.info(`[PluginLoader] ${loadedCount} plugins activated`);
-    }
-  } catch (err) {
-    fastify.log.warn('Could not initialize Plugin Loader: ' + String(err));
-  }
+  // Debug WebSocket clients set (defined early so addHook can reference it)
+  const debugClients = new Set<any>();
 
-  // Initialize Agent Orchestrator
-  try {
-    await AgentOrchestrator.initialize(fastify.db);
-    fastify.log.info('Agent Orchestrator initialized');
-  } catch (err) {
-    fastify.log.warn('Could not initialize Agent Orchestrator: ' + String(err));
-  }
+  // Hook to capture all request logs
+  fastify.addHook('onResponse', (request, reply, done) => {
+    const log = {
+      type: 'log',
+      level: reply.statusCode >= 400 ? 'error' : 'info',
+      msg: `${request.method} ${request.url} - ${reply.statusCode}`,
+      method: request.method,
+      url: request.url,
+      statusCode: reply.statusCode,
+      responseTime: reply.elapsedTime,
+      timestamp: new Date().toISOString()
+    };
 
-  // Initialize and start LLM Sync Worker
-  try {
-    console.log('[DEBUG] Starting LLMSyncWorker...');
-    const syncWorker = new LLMSyncWorker(fastify);
-    syncWorker.start();
+    // Add to buffer
+    addToLogBuffer(log);
 
-    fastify.addHook('onClose', async () => {
-      syncWorker.stop();
+    // Broadcast to debug WebSocket clients
+    const message = JSON.stringify(log);
+    debugClients.forEach(client => {
+      try {
+        client.send(message);
+      } catch {
+        debugClients.delete(client);
+      }
     });
-  } catch (err) {
-    fastify.log.warn('Could not initialize LLM Sync Worker: ' + String(err));
-  }
+
+    done();
+  });
 
   // WebSocket JWT authentication helper
   const authenticateWs = async (request: any): Promise<boolean> => {
@@ -397,8 +313,6 @@ async function bootstrap() {
   });
 
   // Debug WebSocket for real-time logs
-  const debugClients = new Set<any>();
-
   fastify.register(async function (fastify) {
     fastify.get('/ws/debug', { websocket: true }, async (socket, request) => {
       if (!(await authenticateWs(request))) {
@@ -417,35 +331,6 @@ async function bootstrap() {
         debugClients.delete(socket);
       });
     });
-  });
-
-  // Hook to capture all request logs
-  fastify.addHook('onResponse', (request, reply, done) => {
-    const log = {
-      type: 'log',
-      level: reply.statusCode >= 400 ? 'error' : 'info',
-      msg: `${request.method} ${request.url} - ${reply.statusCode}`,
-      method: request.method,
-      url: request.url,
-      statusCode: reply.statusCode,
-      responseTime: reply.elapsedTime,
-      timestamp: new Date().toISOString()
-    };
-
-    // Add to buffer
-    addToLogBuffer(log);
-
-    // Broadcast to debug WebSocket clients
-    const message = JSON.stringify(log);
-    debugClients.forEach(client => {
-      try {
-        client.send(message);
-      } catch {
-        debugClients.delete(client);
-      }
-    });
-
-    done();
   });
 
   // Health check
@@ -473,6 +358,100 @@ async function bootstrap() {
   };
   fastify.get('/version', versionHandler);
   fastify.get('/api/version', versionHandler);
+});
+
+async function bootstrap() {
+  // CORS
+  await fastify.register(cors, {
+    origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+    credentials: true
+  });
+
+  // Rate Limiting
+  await fastify.register(rateLimit, {
+    max: parseInt(process.env.RATE_LIMIT_MAX || '100'),
+    timeWindow: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000'),
+    allowList: (request) => {
+      // Exclude health, version, admin, and WebSocket endpoints from rate limiting
+      const url = request.url;
+      if (url === '/health' || url === '/version' || url.startsWith('/api/version')) return true;
+      if (url.startsWith('/api/admin')) return true;  // All admin endpoints
+      if (url.startsWith('/ws/')) return true;  // WebSocket connections
+      return false;
+    }
+  });
+
+  // JWT
+  await fastify.register(jwt, {
+    secret: (() => {
+      const jwtSecret = process.env.JWT_SECRET;
+      if (!jwtSecret) {
+        console.error('FATAL: JWT_SECRET environment variable is required. Set it before starting the server.');
+        process.exit(1);
+      }
+      return jwtSecret;
+    })(),
+    sign: { expiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '15m' }
+  });
+
+  // Cookies
+  await fastify.register(cookie);
+
+  // Multipart for file uploads
+  await fastify.register(multipart, {
+    limits: {
+      fileSize: 50 * 1024 * 1024, // 50MB max
+      files: 10, // Max 10 files per request
+    },
+  });
+
+  // WebSocket support for real-time updates
+  await fastify.register(websocket);
+
+  // Swagger Documentation
+  await fastify.register(swagger, {
+    openapi: {
+      info: {
+        title: 'Enterprise AI Chat API',
+        description: 'Multi-provider AI chat platform API',
+        version: '1.0.0'
+      },
+      servers: [{ url: `http://localhost:${process.env.PORT || 3000}` }],
+      components: {
+        securitySchemes: {
+          bearerAuth: {
+            type: 'http',
+            scheme: 'bearer',
+            bearerFormat: 'JWT'
+          }
+        }
+      }
+    }
+  });
+
+  await fastify.register(swaggerUi, {
+    routePrefix: '/docs'
+  });
+
+  // Global no-cache headers on all API responses
+  fastify.addHook('onSend', (request, reply, payload, done) => {
+    reply.header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+    reply.header('Pragma', 'no-cache');
+    reply.header('Expires', '0');
+    reply.header('Surrogate-Control', 'no-store');
+    done();
+  });
+
+  // Database & Cache
+  await fastify.register(databasePlugin);
+
+  await fastify.register(redisPlugin);
+
+  // Geo-Referencing Middleware
+  await fastify.register(geoPlugin);
+
+  // ─── Application logic (wrapped in plugin to keep avvio boot open) ───
+  await fastify.register(appPlugin);
 
   // Start server
   const port = parseInt(process.env.PORT || '3000');
@@ -494,6 +473,43 @@ async function bootstrap() {
     await fastify.listen({ port, host });
     fastify.log.info(`Server listening on ${host}:${port}`);
     fastify.log.info(`Documentation available at http://${host}:${port}/docs`);
+
+    // ── Post-boot initialization (no register/addHook allowed after listen) ──
+
+    // Initialize Plugin Loader ("Mad Hatter")
+    try {
+      const { PluginLoaderService } = await import('./services/PluginLoaderService.js');
+      const pluginLoader = PluginLoaderService.getInstance(fastify, fastify.db);
+      await pluginLoader.discoverAndLoad();
+      const loadedCount = pluginLoader.getLoadedPlugins().filter(p => p.active).length;
+      if (loadedCount > 0) {
+        fastify.log.info(`[PluginLoader] ${loadedCount} plugins activated`);
+      }
+    } catch (err) {
+      fastify.log.warn('Could not initialize Plugin Loader: ' + String(err));
+    }
+
+    // Initialize Agent Orchestrator
+    try {
+      await AgentOrchestrator.initialize(fastify.db);
+      fastify.log.info('Agent Orchestrator initialized');
+    } catch (err) {
+      fastify.log.warn('Could not initialize Agent Orchestrator: ' + String(err));
+    }
+
+    // Initialize and start LLM Sync Worker
+    let syncWorker: LLMSyncWorker | null = null;
+    try {
+      syncWorker = new LLMSyncWorker(fastify);
+      syncWorker.start();
+    } catch (err) {
+      fastify.log.warn('Could not initialize LLM Sync Worker: ' + String(err));
+    }
+
+    // Graceful shutdown for sync worker
+    const stopSyncWorker = () => { syncWorker?.stop(); };
+    process.on('SIGTERM', stopSyncWorker);
+    process.on('SIGINT', stopSyncWorker);
 
     // Initialize HyDE service and register hook
     try {

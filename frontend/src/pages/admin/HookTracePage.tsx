@@ -48,8 +48,8 @@ export default function HookTracePage() {
   const loadTrace = async () => {
     try {
       const [statusRes, logRes] = await Promise.all([
-        api.get('/hooks/trace'),
-        api.get('/hooks/trace/log?limit=200'),
+        api.get('/admin/hooks/trace'),
+        api.get('/admin/hooks/trace/log?limit=200'),
       ]);
       setEnabled(statusRes.data.enabled);
       setStats(statusRes.data.stats);
@@ -63,7 +63,7 @@ export default function HookTracePage() {
 
   const toggleTracing = async () => {
     try {
-      const res = await api.post('/hooks/trace/toggle', { enabled: !enabled });
+      const res = await api.post('/admin/hooks/trace/toggle', { enabled: !enabled });
       setEnabled(res.data.enabled);
     } catch (err) {
       console.error('Failed to toggle tracing:', err);
@@ -72,7 +72,7 @@ export default function HookTracePage() {
 
   const clearLog = async () => {
     try {
-      await api.delete('/hooks/trace/log');
+      await api.delete('/admin/hooks/trace/log');
       setEntries([]);
       setStats(null);
     } catch (err) {

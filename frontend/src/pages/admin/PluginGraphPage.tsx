@@ -55,8 +55,8 @@ export default function PluginGraphPage() {
     setLoading(true);
     try {
       const [pluginsRes, hooksRes] = await Promise.all([
-        api.get('/admin/plugins').catch(() => ({ data: [] })),
-        api.get('/hooks').catch(() => ({ data: { registered_handlers: {} } })),
+        api.get('/plugins').catch(() => ({ data: [] })),
+        api.get('/admin/hooks').catch(() => ({ data: { registered_handlers: {} } })),
       ]);
       const pluginList = Array.isArray(pluginsRes.data) ? pluginsRes.data : pluginsRes.data.plugins || [];
       setPlugins(pluginList);

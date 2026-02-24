@@ -34,9 +34,9 @@ export default function MemoryStatsPage() {
     setLoading(true);
     try {
       const [colRes, wmRes, hydeRes] = await Promise.all([
-        api.get('/vector-memory/collections').catch(() => ({ data: { collections: [] } })),
+        api.get('/memory/vector/collections').catch(() => ({ data: { collections: [] } })),
         api.get('/memory/working-stats').catch(() => ({ data: { stats: null } })),
-        api.get('/vector-memory/hyde').catch(() => ({ data: { config: null } })),
+        api.get('/memory/vector/hyde').catch(() => ({ data: { config: null } })),
       ]);
       setCollections(colRes.data.collections || []);
       setWmStats(wmRes.data.stats || null);
@@ -49,7 +49,7 @@ export default function MemoryStatsPage() {
   const toggleHyDE = async () => {
     if (!hydeConfig) return;
     try {
-      const res = await api.patch('/vector-memory/hyde', { enabled: !hydeConfig.enabled });
+      const res = await api.patch('/memory/vector/hyde', { enabled: !hydeConfig.enabled });
       setHydeConfig(res.data.config);
     } catch (err) {
       console.error('Failed to toggle HyDE:', err);
@@ -59,7 +59,7 @@ export default function MemoryStatsPage() {
   const wipeCollection = async (name: string) => {
     if (!confirm(`Sei sicuro di voler cancellare la collezione "${name}"? Questa azione è irreversibile.`)) return;
     try {
-      await api.delete(`/vector-memory/collections/${name}`);
+      await api.delete(`/memory/vector/collections/${name}`);
       setWipeTarget(null);
       loadAll();
     } catch (err) {
