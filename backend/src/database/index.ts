@@ -175,6 +175,75 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
         CONSTRAINT fk_vector_attachment FOREIGN KEY (attachment_id)
             REFERENCES chat_attachments(id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+    },
+    {
+      name: 'conversational_forms',
+      sql: `CREATE TABLE IF NOT EXISTS conversational_forms (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        display_name VARCHAR(200) NOT NULL,
+        description TEXT,
+        json_schema JSON NOT NULL,
+        start_examples JSON,
+        stop_examples JSON,
+        ask_confirm BOOLEAN DEFAULT TRUE,
+        on_complete_action VARCHAR(50) DEFAULT 'save',
+        on_complete_config JSON,
+        plugin_id BIGINT UNSIGNED NULL,
+        is_enabled BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_enabled (is_enabled)
+      ) ENGINE=InnoDB`
+    },
+    {
+      name: 'form_sessions',
+      sql: `CREATE TABLE IF NOT EXISTS form_sessions (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        user_id BIGINT UNSIGNED NOT NULL,
+        conversation_id BIGINT UNSIGNED NOT NULL,
+        form_id BIGINT UNSIGNED NOT NULL,
+        state ENUM('incomplete', 'complete', 'wait_confirm', 'closed') DEFAULT 'incomplete',
+        collected_data JSON DEFAULT (JSON_OBJECT()),
+        missing_fields JSON,
+        last_question TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+        FOREIGN KEY (form_id) REFERENCES conversational_forms(id) ON DELETE CASCADE,
+        INDEX idx_user_conv (user_id, conversation_id),
+        INDEX idx_state (state)
+      ) ENGINE=InnoDB`
+    },
+    {
+      name: 'web_ingestions',
+      sql: `CREATE TABLE IF NOT EXISTS web_ingestions (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        user_id BIGINT UNSIGNED NOT NULL,
+        conversation_id BIGINT UNSIGNED NULL,
+        url VARCHAR(2048) NOT NULL,
+        title VARCHAR(500),
+        content_length INT DEFAULT 0,
+        chunks_count INT DEFAULT 0,
+        status ENUM('pending', 'fetching', 'chunking', 'indexing', 'completed', 'failed') DEFAULT 'pending',
+        error TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        INDEX idx_user (user_id),
+        INDEX idx_status (status)
+      ) ENGINE=InnoDB`
+    },
+    {
+      name: 'memory_settings_vector_columns',
+      sql: `ALTER TABLE memory_settings
+        ADD COLUMN IF NOT EXISTS auto_rag_enabled BOOLEAN DEFAULT FALSE,
+        ADD COLUMN IF NOT EXISTS episodic_recall_k INT DEFAULT 3,
+        ADD COLUMN IF NOT EXISTS episodic_recall_threshold DECIMAL(3,2) DEFAULT 0.70,
+        ADD COLUMN IF NOT EXISTS declarative_recall_k INT DEFAULT 3,
+        ADD COLUMN IF NOT EXISTS declarative_recall_threshold DECIMAL(3,2) DEFAULT 0.70,
+        ADD COLUMN IF NOT EXISTS procedural_recall_k INT DEFAULT 3,
+        ADD COLUMN IF NOT EXISTS procedural_recall_threshold DECIMAL(3,2) DEFAULT 0.70`
     }
   ];
 

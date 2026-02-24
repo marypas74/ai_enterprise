@@ -10,6 +10,8 @@ import { getToolDefinitions, executeTool } from '../../services/ToolService.js';
 import { MemoryService } from '../memory/service.js';
 import { getProjectFolder } from '../../services/StorageService.js';
 import { decryptSecret } from '../../utils/crypto.js';
+import { eventBus } from '../../services/EventBusService.js';
+import { recall, buildWorkingMemory, storeEpisodic, getUserRecallSettings } from '../../services/VectorMemoryService.js';
 
 // Validation schemas
 const completionSchema = z.object({
@@ -213,9 +215,23 @@ export async function chatRoutes(fastify: FastifyInstance) {
         }
       }
 
-      // Add user message
+      // Hook: fast_reply — short-circuit opportunity
+      const hookCtx = Object.freeze({ userId: user.id, conversationId: conversationId! });
+      const fastReplyResult = await eventBus.pipe('fast_reply', null, hookCtx);
+      if (fastReplyResult.short_circuited && fastReplyResult.data) {
+        reply.raw.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive', 'X-Conversation-Id': conversationId!.toString() });
+        reply.raw.write(`data: ${JSON.stringify({ content: fastReplyResult.data })}\n\n`);
+        reply.raw.write('data: [DONE]\n\n');
+        reply.raw.end();
+        return;
+      }
+
       // Add user message
       let userMessage = body.message;
+
+      // Hook: before_message_read — pre-process user message
+      const msgHook = await eventBus.pipe('before_message_read', userMessage, hookCtx);
+      userMessage = msgHook.data || userMessage;
 
       // Handle attachments if present
       if (body.attachmentIds && body.attachmentIds.length > 0) {
@@ -467,6 +483,46 @@ Quando l'utente chiede di tradurre, creare o elaborare un documento:
         fastify.log.warn(`[Memory] Context injection failed: ${memErr.message}`);
       }
 
+      // Auto-RAG: vector memory recall injection
+      try {
+        const recallSettings = await getUserRecallSettings(fastify.db, user.id);
+        if (recallSettings.autoRagEnabled) {
+          // Hook: before_rag_recall
+          const ragQuery = (await eventBus.pipe('before_rag_recall', body.message, hookCtx)).data || body.message;
+
+          const recalled = await recall(fastify.db, {
+            userId: user.id,
+            query: ragQuery,
+            episodicK: recallSettings.episodicK,
+            episodicThreshold: recallSettings.episodicThreshold,
+            declarativeK: recallSettings.declarativeK,
+            declarativeThreshold: recallSettings.declarativeThreshold,
+            proceduralK: recallSettings.proceduralK,
+            proceduralThreshold: recallSettings.proceduralThreshold,
+          });
+
+          const totalResults = recalled.episodic.length + recalled.declarative.length + recalled.procedural.length;
+          if (totalResults > 0) {
+            const workingMem = buildWorkingMemory(recalled, []);
+            // Hook: after_rag_recall
+            const ragResult = await eventBus.pipe('after_rag_recall', workingMem.injectedContext, hookCtx);
+            const ragContext = ragResult.data || workingMem.injectedContext;
+
+            if (ragContext) {
+              const systemIndex = messages.findIndex(m => m.role === 'system');
+              if (systemIndex >= 0) {
+                messages[systemIndex].content += '\n\n[Vector Memory]\n' + ragContext;
+              } else {
+                messages.unshift({ role: 'system', content: '[Vector Memory]\n' + ragContext });
+              }
+              fastify.log.info(`[AutoRAG] Injected ${totalResults} memory results for user ${user.id}`);
+            }
+          }
+        }
+      } catch (ragErr: any) {
+        fastify.log.warn(`[AutoRAG] Recall failed: ${ragErr.message}`);
+      }
+
       // Set up SSE streaming
       reply.raw.writeHead(200, {
         'Content-Type': 'text/event-stream',
@@ -480,6 +536,15 @@ Quando l'utente chiede di tradurre, creare o elaborare un documento:
       let fullResponse = '';
       let tokensInput = 0;
       let tokensOutput = 0;
+
+      // Hook: before_llm_call — modify prompt/params before LLM call
+      try {
+        const llmHookData = { messages, model: body.model, temperature: 0.7, maxTokens: 4096 };
+        const llmHookResult = await eventBus.pipe('before_llm_call', llmHookData, hookCtx);
+        if (llmHookResult.data?.messages) messages = llmHookResult.data.messages;
+      } catch (hookErr: any) {
+        fastify.log.warn(`[Hook] before_llm_call failed: ${hookErr.message}`);
+      }
 
       try {
         const stream = provider.streamComplete({
@@ -685,6 +750,26 @@ Quando l'utente chiede di tradurre, creare o elaborare un documento:
         return;
       }
 
+      // Hook: after_llm_response — modify LLM output
+      try {
+        const afterLlmResult = await eventBus.pipe('after_llm_response', fullResponse, hookCtx);
+        if (afterLlmResult.data && typeof afterLlmResult.data === 'string') {
+          fullResponse = afterLlmResult.data;
+        }
+      } catch (hookErr: any) {
+        fastify.log.warn(`[Hook] after_llm_response failed: ${hookErr.message}`);
+      }
+
+      // Hook: before_message_send — last chance to modify before saving/sending
+      try {
+        const sendHookResult = await eventBus.pipe('before_message_send', fullResponse, hookCtx);
+        if (sendHookResult.data && typeof sendHookResult.data === 'string') {
+          fullResponse = sendHookResult.data;
+        }
+      } catch (hookErr: any) {
+        fastify.log.warn(`[Hook] before_message_send failed: ${hookErr.message}`);
+      }
+
       // Save assistant message
       await insertOne(
         fastify.db,
@@ -728,6 +813,29 @@ Quando l'utente chiede di tradurre, creare o elaborare un documento:
       } catch (memErr: any) {
         fastify.log.warn(`[Memory] Auto-capture init failed: ${memErr.message}`);
       }
+
+      // Hook: before_memory_store + episodic vector memory store (async, non-blocking)
+      try {
+        const memData = { userMessage: body.message, assistantResponse: fullResponse };
+        const memHook = await eventBus.pipe('before_memory_store', memData, hookCtx);
+        const finalMem = memHook.data || memData;
+
+        storeEpisodic(fastify.db, user.id, conversationId!, finalMem.userMessage, finalMem.assistantResponse)
+          .catch(err => fastify.log.warn(`[VectorMemory] Episodic store failed: ${err.message}`));
+      } catch (memErr: any) {
+        fastify.log.warn(`[VectorMemory] Store hook failed: ${memErr.message}`);
+      }
+
+      // Hook: after_message_send (fire and forget)
+      eventBus.emit('after_message_send', {
+        userMessage: body.message,
+        assistantResponse: fullResponse,
+        model: body.model,
+        provider: providerName,
+        tokensInput,
+        tokensOutput,
+        cost,
+      }, hookCtx).catch(() => {});
 
       reply.raw.end();
 

@@ -34,6 +34,11 @@ import fileRoutes from './modules/files/routes.js';
 import attachmentRoutes from './modules/attachments/routes.js';
 import { toolsRoutes } from './modules/tools/routes.js';
 import { memoryRoutes } from './modules/memory/routes.js';
+import { vectorMemoryRoutes } from './modules/memory/vectorMemoryRoutes.js';
+import { hookRoutes } from './modules/admin/hooks.js';
+import { formRoutes } from './modules/forms/routes.js';
+import { ingestionRoutes } from './modules/ingestion/routes.js';
+import { eventBus } from './services/EventBusService.js';
 import { AIProviderFactory } from './modules/ai/providers.js';
 import { AgentOrchestrator } from './services/AgentOrchestrator.js';
 import { AgentEventEmitter } from './services/AgentEventEmitter.js';
@@ -267,6 +272,10 @@ async function bootstrap() {
   await fastify.register(attachmentRoutes, { prefix: '/api/attachments' });
   await fastify.register(toolsRoutes, { prefix: '/api' });
   await fastify.register(memoryRoutes, { prefix: '/api/memory' });
+  await fastify.register(vectorMemoryRoutes, { prefix: '/api/memory/vector' });
+  await fastify.register(hookRoutes, { prefix: '/api/admin' });
+  await fastify.register(formRoutes, { prefix: '/api/forms' });
+  await fastify.register(ingestionRoutes, { prefix: '/api/ingestion' });
 
   // Initialize Agent Orchestrator
   try {
@@ -467,6 +476,9 @@ async function bootstrap() {
     await fastify.listen({ port, host });
     fastify.log.info(`Server listening on ${host}:${port}`);
     fastify.log.info(`Documentation available at http://${host}:${port}/docs`);
+
+    // Fire bootstrap event for hook system
+    eventBus.emit('on_bootstrap', { port, host }, { userId: 0 }).catch(() => {});
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);
