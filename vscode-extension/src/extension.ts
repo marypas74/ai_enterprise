@@ -414,10 +414,34 @@ async function loginToBackend(context: vscode.ExtensionContext) {
         outputChannel.appendLine(`Attempting login for: ${email}`);
 
         // CRITICAL: Use /api prefix for Kubernetes Ingress routing
-        const response = await api.post('/api/auth/login', { email, password });
+        let response = await api.post('/api/auth/login', { email, password });
 
         outputChannel.appendLine(`Login response status: ${response.status}`);
         outputChannel.appendLine(`Response data keys: ${Object.keys(response.data).join(', ')}`);
+
+        // Handle MFA: backend returns { mfa_required: true } when TOTP code is needed
+        if (response.data.mfa_required) {
+            outputChannel.appendLine('MFA required, prompting for TOTP code');
+            const totpCode = await vscode.window.showInputBox({
+                prompt: 'Enter TOTP code from your authenticator app',
+                placeHolder: '000000',
+                validateInput: (v) => /^\d{6}$/.test(v) ? null : 'Enter a 6-digit code'
+            });
+            if (!totpCode) { return; }
+
+            response = await api.post('/api/auth/login', { email, password, totp_code: totpCode });
+            outputChannel.appendLine(`MFA login response status: ${response.status}`);
+        }
+
+        // Handle MFA setup required (first-time users)
+        if (response.data.mfa_setup_required) {
+            accessToken = response.data.accessToken;
+            api.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
+            vscode.window.showWarningMessage(
+                'MFA setup is mandatory. Please complete MFA setup in the web interface first.',
+            );
+            return;
+        }
 
         accessToken = response.data.accessToken;
         currentUser = response.data.user;
@@ -1906,10 +1930,15 @@ Output only the modified code, nothing else:`
 function initializeApi() {
     const config = vscode.workspace.getConfiguration('enterprise-ai-chat');
     const serverUrl = config.get<string>('serverUrl') || 'https://192.168.1.123';
+    const allowSelfSigned = config.get<boolean>('allowSelfSignedCerts', true);
 
-    // Create HTTPS agent that ignores self-signed certificates
+    if (allowSelfSigned) {
+        // Required for native fetch() and other modules that don't support per-request httpsAgent
+        process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+    }
+
     const httpsAgent = new https.Agent({
-        rejectUnauthorized: false
+        rejectUnauthorized: !allowSelfSigned
     });
 
     api = axios.create({
@@ -1943,7 +1972,24 @@ async function login(context: vscode.ExtensionContext, chatProvider: ChatViewPro
     if (!password) return;
 
     try {
-        const response = await api.post('/api/auth/login', { email, password });
+        let response = await api.post('/api/auth/login', { email, password });
+
+        // Handle MFA
+        if (response.data.mfa_required) {
+            const totpCode = await vscode.window.showInputBox({
+                prompt: 'Enter TOTP code from your authenticator app',
+                placeHolder: '000000',
+                validateInput: (v) => /^\d{6}$/.test(v) ? null : 'Enter a 6-digit code'
+            });
+            if (!totpCode) { return; }
+            response = await api.post('/api/auth/login', { email, password, totp_code: totpCode });
+        }
+
+        if (response.data.mfa_setup_required) {
+            vscode.window.showWarningMessage('MFA setup is mandatory. Please complete MFA setup in the web interface first.');
+            return;
+        }
+
         accessToken = response.data.accessToken;
         currentUser = response.data.user;
         api.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;

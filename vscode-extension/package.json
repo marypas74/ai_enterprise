@@ -319,6 +319,11 @@
           "default": "https://192.168.1.123",
           "description": "URL of the Enterprise AI Chat server (when not using direct Claude)"
         },
+        "enterprise-ai-chat.allowSelfSignedCerts": {
+          "type": "boolean",
+          "default": true,
+          "description": "Allow connections to servers with self-signed or untrusted TLS certificates"
+        },
         "enterprise-ai-chat.defaultModel": {
           "type": "string",
           "default": "gpt-4o",

@@ -73,12 +73,13 @@ class ApiService {
         // The Ingress routes /api/* to the backend service
         this.baseUrl = serverUrl.replace(/\/+$/, ''); // Remove trailing slashes
         this.log(`ApiService initialized with base URL: ${this.baseUrl}`);
-        // Create axios instance with self-signed certificate support
+        // Create axios instance with TLS certificate handling
+        const allowSelfSigned = config.get('allowSelfSignedCerts', true);
         this.axiosInstance = axios_1.default.create({
             baseURL: this.baseUrl,
             timeout: 30000,
             httpsAgent: new https.Agent({
-                rejectUnauthorized: false, // Allow self-signed certs
+                rejectUnauthorized: !allowSelfSigned,
             }),
             headers: {
                 'Content-Type': 'application/json',

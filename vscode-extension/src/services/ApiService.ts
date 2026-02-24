@@ -53,12 +53,13 @@ export class ApiService {
 
         this.log(`ApiService initialized with base URL: ${this.baseUrl}`);
 
-        // Create axios instance with self-signed certificate support
+        // Create axios instance with TLS certificate handling
+        const allowSelfSigned = config.get<boolean>('allowSelfSignedCerts', true);
         this.axiosInstance = axios.create({
             baseURL: this.baseUrl,
             timeout: 30000,
             httpsAgent: new https.Agent({
-                rejectUnauthorized: false, // Allow self-signed certs
+                rejectUnauthorized: !allowSelfSigned,
             }),
             headers: {
                 'Content-Type': 'application/json',
