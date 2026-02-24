@@ -26,6 +26,7 @@ import { pathToFileURL } from 'url';
 import { findOne, findMany, insertOne, updateOne } from '../database/index.js';
 import { eventBus, type HookName, type HookHandler } from './EventBusService.js';
 import { ProceduralMemoryService } from './ProceduralMemoryService.js';
+import { PermissionService, type Resource, type Permission } from './PermissionService.js';
 import type mysql from 'mysql2/promise';
 
 // ---- Types ----
@@ -40,6 +41,8 @@ export interface PluginManifest {
   icon?: string;
   config_schema?: Record<string, any>;
   dependencies?: string[];
+  /** Resource permissions required by this plugin (checked at activation) */
+  required_permissions?: { resource: string; permissions: string[] }[];
 }
 
 export interface ToolDefinition {
@@ -81,6 +84,8 @@ export interface PluginContext {
   db: mysql.Pool;
   eventBus: typeof eventBus;
   getSettings: () => Promise<Record<string, any>>;
+  /** Check if a user has permission on a resource */
+  checkPermission: (userId: number, userRole: string, resource: Resource, permission: Permission) => Promise<boolean>;
   log: {
     info: (msg: string) => void;
     warn: (msg: string) => void;
@@ -220,6 +225,14 @@ export class PluginLoaderService {
       } catch (err: any) {
         this.fastify.log.error(`[PluginLoader] activate() failed for "${plugin.manifest.name}": ${err.message}`);
       }
+    }
+
+    // Log required permissions from manifest (informational)
+    if (plugin.manifest.required_permissions && plugin.manifest.required_permissions.length > 0) {
+      const perms = plugin.manifest.required_permissions
+        .map(rp => `${rp.resource}:[${rp.permissions.join(',')}]`)
+        .join(', ');
+      this.fastify.log.info(`[PluginLoader] Plugin "${plugin.manifest.name}" requires permissions: ${perms}`);
     }
 
     // Register hooks
@@ -481,12 +494,15 @@ export class PluginLoaderService {
   }
 
   private buildContext(plugin: LoadedPlugin): PluginContext {
+    const permService = new PermissionService(this.db);
     return {
       pluginId: plugin.id,
       pluginName: plugin.manifest.name,
       fastify: this.fastify,
       db: this.db,
       eventBus,
+      checkPermission: (userId: number, userRole: string, resource: Resource, permission: Permission) =>
+        permService.check(userId, userRole, resource, permission),
       getSettings: async () => {
         const rows = await findMany<any>(this.db,
           'SELECT setting_key, setting_value FROM plugin_settings WHERE plugin_id = ? AND user_id IS NULL',

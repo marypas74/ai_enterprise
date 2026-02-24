@@ -36,7 +36,9 @@ import {
   FileText,
   Clock,
   PieChart,
-  Lock
+  Lock,
+  Radio,
+  GitBranch
 } from 'lucide-react';
 import clsx from 'clsx';
 import { format } from 'date-fns';
@@ -58,6 +60,8 @@ import PromptTemplatesPage from './admin/PromptTemplatesPage';
 import SchedulerPage from './admin/SchedulerPage';
 import MemoryStatsPage from './admin/MemoryStatsPage';
 import PermissionsPage from './admin/PermissionsPage';
+import HookTracePage from './admin/HookTracePage';
+import PluginGraphPage from './admin/PluginGraphPage';
 
 interface User {
   id: number;
@@ -102,10 +106,12 @@ const NAV_ITEMS = [
   { path: '/admin/agents', icon: Bot, label: 'Agents' },
   { path: '/admin/skills', icon: Brain, label: 'Skills' },
   { path: '/admin/plugins', icon: Puzzle, label: 'Plugins & MCP' },
+  { path: '/admin/plugin-graph', icon: GitBranch, label: 'Plugin Graph' },
   { path: '/admin/memory', icon: BookMarked, label: 'Memory' },
   { path: '/admin/vector-memory', icon: Database, label: 'Vector Memory' },
   { path: '/admin/memory-stats', icon: PieChart, label: 'Memory Stats' },
   { path: '/admin/hooks', icon: Zap, label: 'Hooks' },
+  { path: '/admin/hook-trace', icon: Radio, label: 'Hook Trace' },
   { path: '/admin/prompt-templates', icon: FileText, label: 'Prompt Templates' },
   { path: '/admin/forms', icon: ClipboardList, label: 'Forms' },
   { path: '/admin/scheduler', icon: Clock, label: 'Scheduler' },
@@ -650,10 +656,12 @@ export default function AdminPage() {
           <Route path="/agents" element={<AgentsPage />} />
           <Route path="/skills" element={<SkillsPage />} />
           <Route path="/plugins" element={<PluginsPage />} />
+          <Route path="/plugin-graph" element={<PluginGraphPage />} />
           <Route path="/memory" element={<MemoryPage />} />
           <Route path="/vector-memory" element={<VectorMemoryPage />} />
           <Route path="/memory-stats" element={<MemoryStatsPage />} />
           <Route path="/hooks" element={<HooksPage />} />
+          <Route path="/hook-trace" element={<HookTracePage />} />
           <Route path="/prompt-templates" element={<PromptTemplatesPage />} />
           <Route path="/forms" element={<FormsPage />} />
           <Route path="/scheduler" element={<SchedulerPage />} />

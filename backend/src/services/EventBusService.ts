@@ -73,9 +73,27 @@ export interface HookResult {
   short_circuited: boolean;
 }
 
+export interface HookTraceEntry {
+  id: number;
+  hookName: string;
+  type: 'pipe' | 'emit';
+  handlerId: string;
+  handlerName: string;
+  durationMs: number;
+  success: boolean;
+  error?: string;
+  timestamp: string;
+  userId?: number;
+  conversationId?: number;
+}
+
 class EventBusService {
   private handlers: Map<HookName, HookHandler[]> = new Map();
   private static instance: EventBusService;
+  private traceEnabled = false;
+  private traceBuffer: HookTraceEntry[] = [];
+  private traceMaxEntries = 500;
+  private traceIdCounter = 0;
 
   static getInstance(): EventBusService {
     if (!EventBusService.instance) {
@@ -137,6 +155,7 @@ class EventBusService {
     let currentData = data;
 
     for (const handler of handlers) {
+      const start = performance.now();
       try {
         const result = await this.runWithTimeout(
           () => handler.handler(currentData, context),
@@ -144,6 +163,7 @@ class EventBusService {
           handler.id,
         );
         executed.push(handler.id);
+        this.recordTrace(hookName, 'pipe', handler.id, handler.name, performance.now() - start, true, undefined, context);
 
         if (hookName === 'fast_reply' && result !== null && result !== undefined) {
           return { data: result, handlers_executed: executed, short_circuited: true };
@@ -153,6 +173,7 @@ class EventBusService {
           currentData = result;
         }
       } catch (error: any) {
+        this.recordTrace(hookName, 'pipe', handler.id, handler.name, performance.now() - start, false, error.message, context);
         console.error(`[EventBus] Hook ${hookName} handler ${handler.id} error:`, error.message);
       }
     }
@@ -163,11 +184,16 @@ class EventBusService {
   async emit(hookName: HookName, data: any, context: HookContext): Promise<void> {
     const handlers = (this.handlers.get(hookName) || []).filter(h => h.enabled);
     await Promise.allSettled(
-      handlers.map(h =>
-        Promise.resolve(h.handler(data, context)).catch(err =>
-          console.error(`[EventBus] Emit ${hookName} handler ${h.id} error:`, err.message)
-        )
-      )
+      handlers.map(async h => {
+        const start = performance.now();
+        try {
+          await Promise.resolve(h.handler(data, context));
+          this.recordTrace(hookName, 'emit', h.id, h.name, performance.now() - start, true, undefined, context);
+        } catch (err: any) {
+          this.recordTrace(hookName, 'emit', h.id, h.name, performance.now() - start, false, err.message, context);
+          console.error(`[EventBus] Emit ${hookName} handler ${h.id} error:`, err.message);
+        }
+      })
     );
   }
 
@@ -227,6 +253,85 @@ class EventBusService {
       { name: 'on_bootstrap', description: 'Server startup', type: 'emit' },
       { name: 'fast_reply', description: 'Short-circuit opportunity for immediate reply', type: 'pipe' },
     ];
+  }
+
+  // ---- Tracing ----
+
+  setTracing(enabled: boolean): void {
+    this.traceEnabled = enabled;
+    if (!enabled) this.traceBuffer = [];
+  }
+
+  isTracingEnabled(): boolean {
+    return this.traceEnabled;
+  }
+
+  getTraceLog(limit?: number): HookTraceEntry[] {
+    const entries = [...this.traceBuffer].reverse(); // newest first
+    return limit ? entries.slice(0, limit) : entries;
+  }
+
+  clearTraceLog(): void {
+    this.traceBuffer = [];
+    this.traceIdCounter = 0;
+  }
+
+  getTraceStats(): { totalExecutions: number; totalErrors: number; avgDurationMs: number; hookBreakdown: Record<string, { count: number; errors: number; avgMs: number }> } {
+    const breakdown: Record<string, { count: number; errors: number; totalMs: number }> = {};
+    let totalErrors = 0;
+    let totalMs = 0;
+
+    for (const entry of this.traceBuffer) {
+      if (!breakdown[entry.hookName]) {
+        breakdown[entry.hookName] = { count: 0, errors: 0, totalMs: 0 };
+      }
+      breakdown[entry.hookName].count++;
+      breakdown[entry.hookName].totalMs += entry.durationMs;
+      if (!entry.success) {
+        breakdown[entry.hookName].errors++;
+        totalErrors++;
+      }
+      totalMs += entry.durationMs;
+    }
+
+    const hookBreakdown: Record<string, { count: number; errors: number; avgMs: number }> = {};
+    for (const [hook, stats] of Object.entries(breakdown)) {
+      hookBreakdown[hook] = {
+        count: stats.count,
+        errors: stats.errors,
+        avgMs: stats.count > 0 ? Number((stats.totalMs / stats.count).toFixed(2)) : 0,
+      };
+    }
+
+    return {
+      totalExecutions: this.traceBuffer.length,
+      totalErrors,
+      avgDurationMs: this.traceBuffer.length > 0 ? Number((totalMs / this.traceBuffer.length).toFixed(2)) : 0,
+      hookBreakdown,
+    };
+  }
+
+  private recordTrace(hookName: string, type: 'pipe' | 'emit', handlerId: string, handlerName: string, durationMs: number, success: boolean, error: string | undefined, context: HookContext): void {
+    if (!this.traceEnabled) return;
+
+    this.traceBuffer.push({
+      id: ++this.traceIdCounter,
+      hookName,
+      type,
+      handlerId,
+      handlerName,
+      durationMs: Number(durationMs.toFixed(2)),
+      success,
+      error,
+      timestamp: new Date().toISOString(),
+      userId: context.userId,
+      conversationId: context.conversationId,
+    });
+
+    // Keep buffer bounded
+    if (this.traceBuffer.length > this.traceMaxEntries) {
+      this.traceBuffer = this.traceBuffer.slice(-this.traceMaxEntries);
+    }
   }
 
   clear(): void {

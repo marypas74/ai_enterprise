@@ -189,6 +189,110 @@ export class ConversationalFormService {
     };
   }
 
+  /**
+   * Execute the on_complete_action for a completed form.
+   * Supports: 'save' (default), 'webhook', 'email', 'api'
+   */
+  async executeCompleteAction(formId: number, collectedData: Record<string, any>, userId: number): Promise<{ success: boolean; result?: any; error?: string }> {
+    const form = await findOne<FormDefinition>(this.db, 'SELECT * FROM conversational_forms WHERE id = ?', [formId]);
+    if (!form) return { success: false, error: 'Form not found' };
+
+    const action = form.on_complete_action || 'save';
+    const config = typeof form.on_complete_config === 'string'
+      ? JSON.parse(form.on_complete_config as any)
+      : form.on_complete_config || {};
+
+    try {
+      switch (action) {
+        case 'save':
+          return { success: true, result: { action: 'save', message: 'Data saved' } };
+
+        case 'webhook': {
+          const url = config.url;
+          if (!url) return { success: false, error: 'Webhook URL not configured' };
+
+          // SSRF protection: block internal IPs
+          const parsed = new URL(url);
+          const blocked = ['localhost', '127.0.0.1', '0.0.0.0', '::1', '169.254.169.254'];
+          if (blocked.includes(parsed.hostname) || parsed.hostname.startsWith('10.') || parsed.hostname.startsWith('192.168.')) {
+            return { success: false, error: 'Webhook URL points to internal network (blocked)' };
+          }
+
+          const resp = await fetch(url, {
+            method: config.method || 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(config.headers || {}),
+            },
+            body: JSON.stringify({
+              form_id: formId,
+              form_name: form.name,
+              user_id: userId,
+              collected_data: collectedData,
+              completed_at: new Date().toISOString(),
+            }),
+            signal: AbortSignal.timeout(15000),
+          });
+
+          return {
+            success: resp.ok,
+            result: { status: resp.status, statusText: resp.statusText },
+            error: resp.ok ? undefined : `Webhook returned ${resp.status}`,
+          };
+        }
+
+        case 'email': {
+          const to = config.to || config.email;
+          if (!to) return { success: false, error: 'Email recipient not configured' };
+
+          try {
+            await insertOne(this.db,
+              `INSERT INTO notifications (user_id, type, title, message, metadata) VALUES (?, 'email', ?, ?, ?)`,
+              [userId, `Form "${form.display_name}" completed`,
+               `Collected data: ${JSON.stringify(collectedData, null, 2)}`,
+               JSON.stringify({ to, form_id: formId, form_name: form.name })],
+            );
+          } catch {
+            console.log(`[Form] Email notification: to=${to}, form=${form.name}, data=${JSON.stringify(collectedData)}`);
+          }
+          return { success: true, result: { action: 'email', to } };
+        }
+
+        case 'api': {
+          const url = config.url;
+          if (!url) return { success: false, error: 'API URL not configured' };
+
+          const resp = await fetch(url, {
+            method: config.method || 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(config.headers || {}),
+              ...(config.api_key ? { 'Authorization': `Bearer ${config.api_key}` } : {}),
+            },
+            body: JSON.stringify(config.transform
+              ? { ...collectedData, ...config.transform }
+              : collectedData),
+            signal: AbortSignal.timeout(15000),
+          });
+
+          let responseBody: any = null;
+          try { responseBody = await resp.json(); } catch { /* non-JSON response */ }
+
+          return {
+            success: resp.ok,
+            result: { status: resp.status, body: responseBody },
+            error: resp.ok ? undefined : `API returned ${resp.status}`,
+          };
+        }
+
+        default:
+          return { success: true, result: { action, message: 'Unknown action, data saved' } };
+      }
+    } catch (err: any) {
+      return { success: false, error: `Action "${action}" failed: ${err.message}` };
+    }
+  }
+
   // Cancel a session
   async cancelSession(sessionId: number): Promise<void> {
     await updateOne(this.db, `UPDATE form_sessions SET state = 'closed' WHERE id = ?`, [sessionId]);

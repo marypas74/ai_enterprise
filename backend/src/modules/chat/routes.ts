@@ -813,11 +813,22 @@ Quando l'utente chiede di tradurre, creare o elaborare un documento:
             const formResult = await formService.updateWithExtraction(activeFormSession.id, extracted);
             fastify.log.info(`[Form] Updated session ${activeFormSession.id}: state=${formResult.state}, missing=${formResult.missing_fields.length}`);
 
-            // If form just completed, send a notification via SSE
+            // If form just completed, execute on_complete_action and notify via SSE
             if (formResult.completed) {
               const completeNotice = `\n\n---\n**Form "${activeFormSession.form_name || 'form'}" completed.** Data collected successfully.`;
               reply.raw.write(`data: ${JSON.stringify({ content: completeNotice, done: false, formCompleted: true })}\n\n`);
               fullResponse += completeNotice;
+
+              // Execute the form's on_complete_action (webhook, email, API, etc.)
+              formService.executeCompleteAction(activeFormSession.form_id, formResult.collected_data, user.id)
+                .then(actionResult => {
+                  if (actionResult.success) {
+                    fastify.log.info(`[Form] on_complete_action executed: ${JSON.stringify(actionResult.result)}`);
+                  } else {
+                    fastify.log.warn(`[Form] on_complete_action failed: ${actionResult.error}`);
+                  }
+                })
+                .catch(err => fastify.log.warn(`[Form] on_complete_action error: ${err.message}`));
             }
           }
         } catch (formErr: any) {
