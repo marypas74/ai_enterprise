@@ -277,6 +277,19 @@ async function bootstrap() {
   await fastify.register(formRoutes, { prefix: '/api/forms' });
   await fastify.register(ingestionRoutes, { prefix: '/api/ingestion' });
 
+  // Initialize Plugin Loader ("Mad Hatter")
+  try {
+    const { PluginLoaderService } = await import('./services/PluginLoaderService.js');
+    const pluginLoader = PluginLoaderService.getInstance(fastify, fastify.db);
+    await pluginLoader.discoverAndLoad();
+    const loadedCount = pluginLoader.getLoadedPlugins().filter(p => p.active).length;
+    if (loadedCount > 0) {
+      fastify.log.info(`[PluginLoader] ${loadedCount} plugins activated`);
+    }
+  } catch (err) {
+    fastify.log.warn('Could not initialize Plugin Loader: ' + String(err));
+  }
+
   // Initialize Agent Orchestrator
   try {
     await AgentOrchestrator.initialize(fastify.db);
