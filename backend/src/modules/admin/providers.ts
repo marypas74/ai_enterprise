@@ -302,7 +302,9 @@ export async function providerRoutes(fastify: FastifyInstance) {
           break;
         }
         case 'ollama': {
-          const response = await fetch(`${config.base_url || 'http://localhost:11434'}/api/tags`);
+          const ollamaHeaders: Record<string, string> = {};
+          if (process.env.OLLAMA_AUTH_KEY) ollamaHeaders['X-Ollama-Key'] = process.env.OLLAMA_AUTH_KEY;
+          const response = await fetch(`${config.base_url || 'http://localhost:11434'}/api/tags`, { headers: ollamaHeaders });
           if (!response.ok) throw new Error(`Ollama API error: ${response.status}`);
           break;
         }
@@ -608,7 +610,9 @@ export async function providerRoutes(fastify: FastifyInstance) {
     const baseUrl = config.base_url || 'http://localhost:11434';
 
     try {
-      const response = await fetch(`${baseUrl}/api/tags`);
+      const ollamaSyncHeaders: Record<string, string> = {};
+      if (process.env.OLLAMA_AUTH_KEY) ollamaSyncHeaders['X-Ollama-Key'] = process.env.OLLAMA_AUTH_KEY;
+      const response = await fetch(`${baseUrl}/api/tags`, { headers: ollamaSyncHeaders });
       if (!response.ok) throw new Error(`Ollama API error: ${response.status}`);
 
       const data = await response.json() as { models: Array<{ name: string; details?: { family?: string; parameter_size?: string } }> };

@@ -142,9 +142,12 @@ async function fetchGoogleModels(apiKey: string): Promise<AvailableModel[]> {
 async function fetchOllamaModels(baseUrl: string): Promise<AvailableModel[]> {
   try {
     const url = baseUrl || 'http://localhost:11434';
+    const authKey = process.env.OLLAMA_AUTH_KEY || '';
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (authKey) headers['X-Ollama-Key'] = authKey;
 
     // Attempt Ollama-native tags endpoint first
-    let response = await fetch(`${url}/api/tags`);
+    let response = await fetch(`${url}/api/tags`, { headers });
 
     if (response.ok) {
       const data = await response.json() as { models: Array<{ name: string; size: number }> };
@@ -159,7 +162,7 @@ async function fetchOllamaModels(baseUrl: string): Promise<AvailableModel[]> {
 
     // Fallback: Attempt OpenAI-compatible models endpoint (for proxies like LiteLLM)
     console.log(`[ModelFetcher] Ollama /api/tags failed or empty, trying /v1/models fallback at ${url}`);
-    response = await fetch(`${url}/v1/models`);
+    response = await fetch(`${url}/v1/models`, { headers });
 
     if (response.ok) {
       const data = await response.json() as { data: Array<{ id: string }> };

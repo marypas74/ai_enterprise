@@ -557,12 +557,13 @@ export class OllamaProvider implements AIProvider {
   }
 
   async complete(options: CompletionOptions): Promise<CompletionResult> {
-    // Model mapping for Ollama (handles 'fast' aliases from DB)
+    // Model mapping for Ollama (handles aliases from DB → actual Ollama model names)
     const modelMapping: Record<string, string> = {
       'qwen-fast': 'qwen2.5:3b',
       'llama-fast': 'llama3.2:3b',
       'gemma-fast': 'gemma2:2b',
-      'phi-fast': 'phi3:mini'
+      'phi-fast': 'phi3:mini',
+      'glm-4.7-flash': 'glm4:latest',
     };
 
     const targetModel = modelMapping[options.model] || options.model;
@@ -610,12 +611,13 @@ export class OllamaProvider implements AIProvider {
   async *streamComplete(options: CompletionOptions): AsyncGenerator<StreamChunk> {
     const startTime = Date.now();
 
-    // Model mapping for Ollama (handles 'fast' aliases from DB)
+    // Model mapping for Ollama (handles aliases from DB → actual Ollama model names)
     const modelMapping: Record<string, string> = {
       'qwen-fast': 'qwen2.5:3b',
       'llama-fast': 'llama3.2:3b',
       'gemma-fast': 'gemma2:2b',
-      'phi-fast': 'phi3:mini'
+      'phi-fast': 'phi3:mini',
+      'glm-4.7-flash': 'glm4:latest',
     };
 
     const targetModel = modelMapping[options.model] || options.model;
@@ -623,8 +625,10 @@ export class OllamaProvider implements AIProvider {
     console.log(`[Ollama] Starting stream request: model=${targetModel} (orig=${options.model}), timeout=${this.timeout}ms`);
     console.log(`[Ollama] Messages count: ${options.messages.length}, last message length: ${options.messages[options.messages.length - 1]?.content?.length || 0} chars`);
 
-    try {
-      const response = await fetch(`${this.baseUrl}/api/chat`, {
+    // Helper to make the Ollama API call (may retry without tools)
+    let useTools = options.tools;
+    const makeRequest = async () => {
+      return fetch(`${this.baseUrl}/api/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -634,7 +638,7 @@ export class OllamaProvider implements AIProvider {
           model: targetModel,
           messages: options.messages,
           stream: true,
-          tools: options.tools,
+          tools: useTools,
           options: {
             num_predict: options.maxTokens || 4096,
             temperature: options.temperature || 0.7
@@ -643,9 +647,27 @@ export class OllamaProvider implements AIProvider {
         }),
         signal: AbortSignal.timeout(this.timeout)
       });
+    };
+
+    try {
+      let response = await makeRequest();
 
       const connectTime = Date.now() - startTime;
       console.log(`[Ollama] Connection established in ${connectTime}ms, status=${response.status}`);
+
+      // If model doesn't support tools, retry without them
+      if (!response.ok && useTools) {
+        const errorText = await response.text().catch(() => '');
+        if (errorText.includes('does not support tools') || errorText.includes('tools is not supported')) {
+          console.warn(`[Ollama] Model "${targetModel}" does not support tools, retrying without tools`);
+          useTools = undefined;
+          response = await makeRequest();
+          console.log(`[Ollama] Retry without tools: status=${response.status}`);
+        } else {
+          console.error(`[Ollama] API error: ${response.status} ${response.statusText} - ${errorText}`);
+          throw new Error(`Ollama API error: ${response.status} ${response.statusText}`);
+        }
+      }
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => 'Unable to read error');
