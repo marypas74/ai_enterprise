@@ -355,6 +355,86 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
   // Note: Groups routes are defined in settings.ts to avoid duplication
 
+  // ==================== ACTIVE SESSIONS ====================
+
+  // Get active sessions (for ActiveSessionsPage)
+  fastify.get('/active-sessions', {
+    schema: {
+      description: 'Get all active user sessions with geo data',
+      tags: ['admin'],
+      security: [{ bearerAuth: [] }]
+    }
+  }, async () => {
+    const sessions = await findMany<any>(
+      fastify.db,
+      `SELECT us.id, us.user_id, u.email, u.name, u.role, u.mfa_enabled,
+              us.ip_address, us.country, us.user_agent,
+              us.created_at as login_at, us.last_activity_at, us.expires_at
+       FROM user_sessions us
+       JOIN users u ON us.user_id = u.id
+       WHERE us.revoked_at IS NULL AND us.expires_at > NOW()
+       ORDER BY us.last_activity_at DESC`
+    );
+
+    const mapped = sessions.map((s: any) => ({
+      id: s.id,
+      userId: s.user_id,
+      email: s.email,
+      name: s.name,
+      role: s.role,
+      mfaEnabled: !!s.mfa_enabled,
+      ip: s.ip_address || 'N/A',
+      country: s.country || 'XX',
+      countryCode: s.country || 'XX',
+      city: '',
+      region: '',
+      isp: '',
+      userAgent: s.user_agent || '',
+      loginAt: s.login_at,
+      lastActivity: s.last_activity_at
+    }));
+
+    return { sessions: mapped, total: mapped.length };
+  });
+
+  // Disconnect user session
+  fastify.delete('/active-sessions/:userId', {
+    schema: {
+      description: 'Terminate all sessions for a user',
+      tags: ['admin'],
+      security: [{ bearerAuth: [] }]
+    }
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { userId } = request.params as { userId: string };
+    const admin = request.user as { id: number };
+
+    const result = await updateOne(
+      fastify.db,
+      'UPDATE user_sessions SET revoked_at = NOW() WHERE user_id = ? AND revoked_at IS NULL',
+      [userId]
+    );
+
+    if (result === 0) {
+      return reply.status(404).send({ error: 'No active sessions found' });
+    }
+
+    // Also revoke refresh tokens
+    await updateOne(
+      fastify.db,
+      'UPDATE refresh_tokens SET revoked_at = NOW() WHERE user_id = ? AND revoked_at IS NULL',
+      [userId]
+    );
+
+    // Audit log
+    await insertOne(
+      fastify.db,
+      'INSERT INTO audit_log (user_id, action, entity_type, entity_id, details, ip_address) VALUES (?, ?, ?, ?, ?, ?)',
+      [admin.id, 'force_disconnect', 'user', userId, JSON.stringify({ revoked_sessions: result }), request.ip]
+    );
+
+    return { success: true, message: `${result} session(s) terminated` };
+  });
+
   // ==================== USAGE & STATS ====================
 
   // Get usage statistics

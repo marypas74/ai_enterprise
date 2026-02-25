@@ -163,6 +163,15 @@ const appPlugin = fp(async function (fastify) {
     try {
       await request.jwtVerify();
       fastify.log.debug(`[Auth] OK for ${url} - User: ${request.user?.id}`);
+
+      // Update session last_activity_at on every authenticated request (fire & forget)
+      const userId = request.user?.id;
+      if (userId && fastify.db) {
+        fastify.db.execute(
+          'UPDATE user_sessions SET last_activity_at = NOW() WHERE user_id = ? AND revoked_at IS NULL AND expires_at > NOW() ORDER BY created_at DESC LIMIT 1',
+          [userId]
+        ).catch(() => { /* non-critical */ });
+      }
     } catch (err: any) {
       fastify.log.warn(`[Auth] JWT verify failed for ${url}: ${err.message}`);
       return reply.status(401).send({ error: 'Unauthorized', reason: err.message });
@@ -375,6 +384,7 @@ async function bootstrap() {
       // Exclude health, version, admin, and WebSocket endpoints from rate limiting
       const url = request.url;
       if (url === '/health' || url === '/version' || url.startsWith('/api/version')) return true;
+      if (url.startsWith('/api/public')) return true;  // Public metrics (polled every 3s)
       if (url.startsWith('/api/admin')) return true;  // All admin endpoints
       if (url.startsWith('/ws/')) return true;  // WebSocket connections
       return false;

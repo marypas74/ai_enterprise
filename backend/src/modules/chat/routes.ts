@@ -1352,6 +1352,81 @@ Quando l'utente chiede di tradurre, creare o elaborare un documento:
     return result;
   });
 
+  // Get recommended model based on server load (active sessions)
+  fastify.get('/models/recommended', {
+    onRequest: [(fastify as any).authenticate],
+    schema: {
+      description: 'Get recommended model based on current server load',
+      tags: ['chat'],
+      security: [{ bearerAuth: [] }]
+    }
+  }, async () => {
+    // Count active sessions (last 15 minutes)
+    const [countRows] = await fastify.db.execute(
+      `SELECT COUNT(*) as active_count FROM user_sessions
+       WHERE revoked_at IS NULL AND expires_at > NOW()
+         AND last_activity_at > DATE_SUB(NOW(), INTERVAL 15 MINUTE)`
+    ) as any;
+    const activeUsers = countRows[0]?.active_count || 0;
+
+    // Determine load tier
+    let tier: 'low' | 'medium' | 'high';
+    let tierLabel: string;
+    if (activeUsers <= 2) {
+      tier = 'low';
+      tierLabel = 'Basso';
+    } else if (activeUsers <= 5) {
+      tier = 'medium';
+      tierLabel = 'Medio';
+    } else {
+      tier = 'high';
+      tierLabel = 'Alto';
+    }
+
+    // Get all enabled models sorted by admin sort_order (ascending = lightest/fastest first)
+    const enabledModels = await findMany<{ model_id: string; display_name: string; provider_name: string; sort_order: number }>(
+      fastify.db,
+      `SELECT m.model_id, m.display_name, p.name as provider_name, m.sort_order
+       FROM ai_models m JOIN ai_providers p ON m.provider_id = p.id
+       WHERE m.is_enabled = TRUE AND p.is_enabled = TRUE
+       ORDER BY m.sort_order ASC, m.display_name ASC`
+    );
+
+    if (enabledModels.length === 0) {
+      return { recommended: null, load: { activeUsers, tier, tierLabel } };
+    }
+
+    // Use admin sort_order to pick model by load tier:
+    // low load → pick from bottom (highest sort_order = most powerful)
+    // medium load → pick from middle
+    // high load → pick from top (lowest sort_order = lightest/fastest)
+    let recommended;
+    const total = enabledModels.length;
+    if (tier === 'high') {
+      // Lightest model (first by sort_order)
+      recommended = enabledModels[0];
+    } else if (tier === 'low') {
+      // Most powerful model (last by sort_order)
+      recommended = enabledModels[total - 1];
+    } else {
+      // Medium: pick from the middle
+      recommended = enabledModels[Math.floor(total / 2)];
+    }
+
+    return {
+      recommended: {
+        id: recommended.model_id,
+        name: recommended.display_name,
+        provider: recommended.provider_name
+      },
+      load: {
+        activeUsers,
+        tier,
+        tierLabel
+      }
+    };
+  });
+
   // Clear models cache (useful when provider settings change)
   fastify.post('/models/refresh', {
     onRequest: [(fastify as any).authenticate],

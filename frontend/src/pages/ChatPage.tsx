@@ -96,6 +96,7 @@ export default function ChatPage() {
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [hasMoreConversations, setHasMoreConversations] = useState(true);
   const [conversationsOffset, setConversationsOffset] = useState(0);
+  const [recommendedModel, setRecommendedModel] = useState<{ id: string; name: string; provider: string; load: { activeUsers: number; tier: string; tierLabel: string } } | null>(null);
   const [showMemoryPanel, setShowMemoryPanel] = useState(false);
   const [memoryObservations, setMemoryObservations] = useState<Array<{ id: number; observation_type: string; content: string; importance: number; created_at: string }>>([]);
   const [memoryContextActive, setMemoryContextActive] = useState(false);
@@ -178,11 +179,19 @@ export default function ChatPage() {
   useEffect(() => {
     const loadModels = async () => {
       try {
-        const response = await api.get('/chat/models');
-        const availableModels = response.data as Model[];
+        const [modelsRes, recRes] = await Promise.all([
+          api.get('/chat/models'),
+          api.get('/chat/models/recommended').catch(() => null)
+        ]);
+        const availableModels = modelsRes.data as Model[];
         setModels(availableModels);
-        // Set first model as default if none selected
-        if (availableModels.length > 0 && !selectedModel) {
+        // Set recommended model as default, or first available
+        if (recRes?.data?.recommended && availableModels.some(m => m.id === recRes.data.recommended.id)) {
+          setRecommendedModel({ ...recRes.data.recommended, load: recRes.data.load });
+          if (!selectedModel) {
+            setSelectedModel(recRes.data.recommended.id);
+          }
+        } else if (availableModels.length > 0 && !selectedModel) {
           setSelectedModel(availableModels[0].id);
         }
       } catch (err) {
@@ -743,29 +752,42 @@ export default function ChatPage() {
                   ) : models.length === 0 ? (
                     <p className="px-3 py-2 text-sm text-surface-500">No models configured</p>
                   ) : (
-                    models.map((model) => (
-                      <button
-                        key={model.id}
-                        onClick={() => {
-                          setSelectedModel(model.id);
-                          setShowModelSelect(false);
-                        }}
-                        className={clsx(
-                          'w-full flex items-center justify-between px-3 py-2 rounded-lg text-left transition-colors',
-                          selectedModel === model.id
-                            ? 'bg-primary-50 dark:bg-primary-900/20'
-                            : 'hover:bg-surface-100 dark:hover:bg-surface-800'
-                        )}
-                      >
-                        <div>
-                          <p className="font-medium">{model.name}</p>
-                          <p className="text-xs text-surface-500">{model.provider}</p>
+                    <>
+                      {recommendedModel && (
+                        <div className="px-3 py-2 mb-1 text-xs text-surface-500 border-b border-surface-200 dark:border-surface-700 flex items-center gap-2">
+                          <Sparkles className="w-3 h-3 text-amber-500" />
+                          <span>Carico: <strong className={recommendedModel.load.tier === 'low' ? 'text-green-500' : recommendedModel.load.tier === 'medium' ? 'text-amber-500' : 'text-red-500'}>{recommendedModel.load.tierLabel}</strong> ({recommendedModel.load.activeUsers} utenti attivi)</span>
                         </div>
-                        {selectedModel === model.id && (
-                          <div className="w-2 h-2 rounded-full bg-primary-500" />
-                        )}
-                      </button>
-                    ))
+                      )}
+                      {models.map((model) => (
+                        <button
+                          key={model.id}
+                          onClick={() => {
+                            setSelectedModel(model.id);
+                            setShowModelSelect(false);
+                          }}
+                          className={clsx(
+                            'w-full flex items-center justify-between px-3 py-2 rounded-lg text-left transition-colors',
+                            selectedModel === model.id
+                              ? 'bg-primary-50 dark:bg-primary-900/20'
+                              : 'hover:bg-surface-100 dark:hover:bg-surface-800'
+                          )}
+                        >
+                          <div>
+                            <p className="font-medium">
+                              {model.name}
+                              {recommendedModel?.id === model.id && (
+                                <span className="ml-2 text-xs px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">Consigliato</span>
+                              )}
+                            </p>
+                            <p className="text-xs text-surface-500">{model.provider}</p>
+                          </div>
+                          {selectedModel === model.id && (
+                            <div className="w-2 h-2 rounded-full bg-primary-500" />
+                          )}
+                        </button>
+                      ))}
+                    </>
                   )}
                 </div>
               )}

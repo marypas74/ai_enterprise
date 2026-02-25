@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { api } from '../../services/api';
-import { Wifi, WifiOff, MapPin, Globe, RefreshCw, Monitor } from 'lucide-react';
+import { Wifi, WifiOff, MapPin, Globe, RefreshCw, Monitor, Shield, ShieldOff } from 'lucide-react';
 
 interface ActiveSession {
+  id: number;
   userId: number;
   email: string;
   name: string;
   role: string;
+  mfaEnabled: boolean;
   ip: string;
   country: string;
   countryCode: string;
@@ -15,6 +17,7 @@ interface ActiveSession {
   isp: string;
   userAgent: string;
   loginAt: string;
+  lastActivity: string;
 }
 
 export default function ActiveSessionsPage() {
@@ -50,13 +53,26 @@ export default function ActiveSessionsPage() {
   };
 
   const formatDate = (iso: string) => {
+    if (!iso) return 'N/A';
     return new Date(iso).toLocaleString('it-IT', {
       day: '2-digit', month: '2-digit', year: 'numeric',
       hour: '2-digit', minute: '2-digit'
     });
   };
 
+  const timeAgo = (iso: string) => {
+    if (!iso) return '';
+    const diff = Date.now() - new Date(iso).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'adesso';
+    if (mins < 60) return `${mins} min fa`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h fa`;
+    return `${Math.floor(hours / 24)}g fa`;
+  };
+
   const parseUserAgent = (ua: string) => {
+    if (!ua) return 'Sconosciuto';
     if (ua.includes('Firefox')) return 'Firefox';
     if (ua.includes('Edg/')) return 'Edge';
     if (ua.includes('Chrome')) return 'Chrome';
@@ -70,7 +86,7 @@ export default function ActiveSessionsPage() {
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Sessioni Attive</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            {sessions.length} utenti connessi
+            {sessions.length} sessioni attive
           </p>
         </div>
         <button
@@ -93,7 +109,7 @@ export default function ActiveSessionsPage() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {sessions.map((session) => (
-            <div key={session.userId} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5 border border-gray-200 dark:border-gray-700">
+            <div key={session.id} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5 border border-gray-200 dark:border-gray-700">
               {/* Header */}
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
@@ -105,35 +121,48 @@ export default function ActiveSessionsPage() {
                     <p className="text-xs text-gray-500">{session.email}</p>
                   </div>
                 </div>
-                <span className={`px-2 py-0.5 rounded-full text-xs ${
-                  session.role === 'admin'
-                    ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
-                    : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-                }`}>
-                  {session.role}
-                </span>
+                <div className="flex flex-col items-end gap-1">
+                  <span className={`px-2 py-0.5 rounded-full text-xs ${
+                    session.role === 'admin'
+                      ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
+                      : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                  }`}>
+                    {session.role}
+                  </span>
+                  <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${
+                    session.mfaEnabled
+                      ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                      : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+                  }`}>
+                    {session.mfaEnabled ? <Shield className="w-3 h-3" /> : <ShieldOff className="w-3 h-3" />}
+                    {session.mfaEnabled ? 'MFA' : 'No MFA'}
+                  </span>
+                </div>
               </div>
 
-              {/* Geo info */}
+              {/* Info */}
               <div className="space-y-2 text-sm text-gray-600 dark:text-gray-400 mb-4">
                 <div className="flex items-center gap-2">
-                  <MapPin className="w-4 h-4 text-red-500" />
-                  <span>{session.city}, {session.region} - {session.country}</span>
-                </div>
-                <div className="flex items-center gap-2">
                   <Globe className="w-4 h-4 text-blue-500" />
-                  <span>{session.ip} ({session.isp})</span>
+                  <span>{session.ip} ({session.country})</span>
                 </div>
+                {session.city && (
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-red-500" />
+                    <span>{session.city}{session.region ? `, ${session.region}` : ''}</span>
+                  </div>
+                )}
                 <div className="flex items-center gap-2">
                   <Monitor className="w-4 h-4 text-gray-400" />
                   <span>{parseUserAgent(session.userAgent)}</span>
                 </div>
               </div>
 
-              {/* Login time */}
-              <p className="text-xs text-gray-400 mb-4">
-                Connesso dal: {formatDate(session.loginAt)}
-              </p>
+              {/* Times */}
+              <div className="text-xs text-gray-400 mb-4 space-y-1">
+                <p>Connesso dal: {formatDate(session.loginAt)}</p>
+                <p>Ultima attività: <span className="text-gray-600 dark:text-gray-300 font-medium">{timeAgo(session.lastActivity)}</span></p>
+              </div>
 
               {/* Disconnect button */}
               <button
