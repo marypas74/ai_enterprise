@@ -100,6 +100,7 @@ interface UsageStats {
 
 const NAV_ITEMS = [
   { path: '/admin', icon: BarChart3, label: 'Overview' },
+  { path: '/admin/users', icon: Users, label: 'Utenti e Gruppi' },
   { path: '/admin/monitor', icon: Activity, label: 'System Monitor' },
   { path: '/admin/providers', icon: Cpu, label: 'AI Providers' },
   { path: '/admin/models', icon: Box, label: 'Models' },
@@ -117,7 +118,6 @@ const NAV_ITEMS = [
   { path: '/admin/scheduler', icon: Clock, label: 'Scheduler' },
   { path: '/admin/kanban', icon: LayoutDashboard, label: 'Kanban' },
   { path: '/admin/permissions', icon: Lock, label: 'Permessi' },
-  { path: '/admin/users', icon: Users, label: 'Users' },
   { path: '/admin/sessions', icon: Wifi, label: 'Sessioni Attive' },
   { path: '/admin/audit', icon: Shield, label: 'Audit Log' },
   { path: '/admin/debug', icon: Bug, label: 'Debug Console' },

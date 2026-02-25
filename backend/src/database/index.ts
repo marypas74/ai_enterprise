@@ -335,6 +335,29 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
     }
   }
 
+  // ALTER TABLE migrations for adding columns to existing tables
+  const alterMigrations = [
+    { name: 'users_add_phone', sql: `ALTER TABLE users ADD COLUMN phone VARCHAR(20) NULL` },
+    { name: 'users_add_company', sql: `ALTER TABLE users ADD COLUMN company VARCHAR(100) NULL` },
+    { name: 'users_add_department', sql: `ALTER TABLE users ADD COLUMN department VARCHAR(100) NULL` },
+    { name: 'users_add_job_title', sql: `ALTER TABLE users ADD COLUMN job_title VARCHAR(100) NULL` },
+    { name: 'users_add_notes', sql: `ALTER TABLE users ADD COLUMN notes TEXT NULL` },
+    { name: 'users_add_mfa_enabled', sql: `ALTER TABLE users ADD COLUMN mfa_enabled BOOLEAN DEFAULT FALSE` },
+    { name: 'users_add_mfa_secret', sql: `ALTER TABLE users ADD COLUMN mfa_secret VARCHAR(255) NULL` },
+  ];
+
+  for (const migration of alterMigrations) {
+    try {
+      await pool.execute(migration.sql);
+      fastify.log.info(`[Migration] Column ${migration.name} added`);
+    } catch (err: any) {
+      // Error 1060 = Duplicate column name (already exists) - expected, skip silently
+      if (err?.errno !== 1060) {
+        fastify.log.warn({ err }, `[Migration] Column ${migration.name} migration failed`);
+      }
+    }
+  }
+
   // Seed default prompt templates
   await seedPromptTemplates(pool, fastify);
 }
