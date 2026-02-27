@@ -11,6 +11,8 @@ import {
   getProjectFolder,
 } from './StorageService.js';
 import { convertTextToDocx, convertDataToXlsx, convertSlidesToPptx } from './DocumentProcessorService.js';
+import { BrowserService } from './BrowserService.js';
+import { MCPClientManager } from './MCPClientManager.js';
 import { findOne } from '../database/index.js';
 import path from 'path';
 
@@ -207,8 +209,98 @@ export function getToolDefinitions(): ToolDefinition[] {
         },
         required: ['query']
       }
+    },
+    {
+      name: 'browse_url',
+      description: 'Browse a web page and extract its text content, links, and tables. Use this to read articles, documentation, or any web page content.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          url: {
+            type: 'string',
+            description: 'The full URL to browse (e.g., "https://example.com/article")'
+          }
+        },
+        required: ['url']
+      }
+    },
+    {
+      name: 'take_screenshot',
+      description: 'Take a screenshot of a web page. Returns a PNG image. Use this when a visual representation of a page is needed.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          url: {
+            type: 'string',
+            description: 'The full URL to screenshot'
+          },
+          full_page: {
+            type: 'boolean',
+            description: 'Whether to capture the full page (default: false, captures viewport only)'
+          }
+        },
+        required: ['url']
+      }
+    },
+    {
+      name: 'extract_page_data',
+      description: 'Extract structured data from a web page including text, tables, and links. Returns a clean, formatted version of the page content.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          url: {
+            type: 'string',
+            description: 'The full URL to extract data from'
+          }
+        },
+        required: ['url']
+      }
+    },
+    {
+      name: 'analyze_screenshot',
+      description: 'Take a screenshot of a web page and analyze it using a vision AI model (LLaVA). Returns a detailed description of the visual content. Use this when you need to understand visual layout, images, charts, or design elements on a page.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          url: {
+            type: 'string',
+            description: 'The full URL to screenshot and analyze'
+          },
+          prompt: {
+            type: 'string',
+            description: 'Optional custom prompt for the vision model (e.g., "What charts are shown on this page?")'
+          }
+        },
+        required: ['url']
+      }
     }
   ];
+}
+
+/**
+ * Get MCP tool definitions from connected MCP servers.
+ * These are dynamically discovered from running MCP servers.
+ */
+export function getMCPToolDefinitions(): ToolDefinition[] {
+  const mcpManager = MCPClientManager.getInstance();
+  const mcpTools = mcpManager.getAllTools();
+
+  return mcpTools.map(tool => ({
+    name: `mcp_${tool.serverName}_${tool.name}`,
+    description: `[MCP:${tool.serverName}] ${tool.description}`,
+    input_schema: {
+      type: 'object' as const,
+      properties: tool.inputSchema?.properties || {},
+      required: tool.inputSchema?.required || [],
+    },
+  }));
+}
+
+/**
+ * Get all tool definitions — built-in + MCP
+ */
+export function getAllToolDefinitions(): ToolDefinition[] {
+  return [...getToolDefinitions(), ...getMCPToolDefinitions()];
 }
 
 /**
@@ -333,12 +425,13 @@ export async function executeTool(
         const downloadFilename = `${path.basename(relativePath, '.docx')}_${Date.now()}.docx`;
         const downloadPath = path.join(generatedDir, downloadFilename);
         fs.default.copyFileSync(fullPath, downloadPath);
-        const downloadUrl = `/api/tools/download/${downloadFilename}`;
+        const downloadUrl = `/api/tools/download/${encodeURIComponent(downloadFilename)}`;
+        const displayName = path.basename(relativePath);
 
         return {
           success: true,
           output: {
-            message: `Word document generated successfully`,
+            message: `Documento generato con successo!\n\n[Scarica ${displayName}](${downloadUrl})`,
             path: relativePath,
             fullPath,
             downloadUrl,
@@ -382,12 +475,13 @@ export async function executeTool(
         const downloadFilename = `${path.basename(relativePath, '.xlsx')}_${Date.now()}.xlsx`;
         const downloadPath = path.join(generatedDir, downloadFilename);
         fs.default.copyFileSync(fullPath, downloadPath);
-        const downloadUrl = `/api/tools/download/${downloadFilename}`;
+        const downloadUrl = `/api/tools/download/${encodeURIComponent(downloadFilename)}`;
+        const displayName = path.basename(relativePath);
 
         return {
           success: true,
           output: {
-            message: `Excel spreadsheet generated successfully`,
+            message: `Documento generato con successo!\n\n[Scarica ${displayName}](${downloadUrl})`,
             path: relativePath,
             fullPath,
             downloadUrl,
@@ -431,12 +525,13 @@ export async function executeTool(
         const downloadFilename = `${path.basename(relativePath, '.pptx')}_${Date.now()}.pptx`;
         const downloadPath = path.join(generatedDir, downloadFilename);
         fs.default.copyFileSync(fullPath, downloadPath);
-        const downloadUrl = `/api/tools/download/${downloadFilename}`;
+        const downloadUrl = `/api/tools/download/${encodeURIComponent(downloadFilename)}`;
+        const displayName = path.basename(relativePath);
 
         return {
           success: true,
           output: {
-            message: `PowerPoint presentation generated successfully`,
+            message: `Documento generato con successo!\n\n[Scarica ${displayName}](${downloadUrl})`,
             path: relativePath,
             fullPath,
             downloadUrl,
@@ -508,8 +603,135 @@ export async function executeTool(
         }
       }
 
-      default:
+      case 'browse_url': {
+        const { url } = toolInput;
+        if (!url) {
+          return { success: false, error: 'Missing required parameter: url' };
+        }
+
+        try {
+          const browser = BrowserService.getInstance();
+          const available = await browser.isAvailable();
+          if (!available) {
+            return { success: false, error: 'Browser service is not available' };
+          }
+
+          const page = await browser.navigateTo(url);
+          return {
+            success: true,
+            output: {
+              url: page.url,
+              title: page.title,
+              content: page.text.substring(0, 20000),
+              links: page.links.slice(0, 20),
+              tablesCount: page.tables.length,
+            }
+          };
+        } catch (error: any) {
+          return { success: false, error: `Browse failed: ${error.message}` };
+        }
+      }
+
+      case 'take_screenshot': {
+        const { url, full_page } = toolInput;
+        if (!url) {
+          return { success: false, error: 'Missing required parameter: url' };
+        }
+
+        try {
+          const browser = BrowserService.getInstance();
+          const available = await browser.isAvailable();
+          if (!available) {
+            return { success: false, error: 'Browser service is not available' };
+          }
+
+          const screenshot = await browser.takeScreenshot(url, { fullPage: full_page || false });
+
+          // Save screenshot to generated folder for download
+          const fs = await import('fs');
+          const generatedDir = path.join(process.env.STORAGE_ROOT || process.cwd(), 'generated');
+          if (!fs.default.existsSync(generatedDir)) {
+            fs.default.mkdirSync(generatedDir, { recursive: true });
+          }
+          const filename = `screenshot_${Date.now()}.png`;
+          const filePath = path.join(generatedDir, filename);
+          fs.default.writeFileSync(filePath, screenshot);
+          const downloadUrl = `/api/tools/download/${filename}`;
+
+          return {
+            success: true,
+            output: {
+              url,
+              screenshotSize: screenshot.length,
+              downloadUrl,
+              filename,
+              message: 'Screenshot captured successfully'
+            }
+          };
+        } catch (error: any) {
+          return { success: false, error: `Screenshot failed: ${error.message}` };
+        }
+      }
+
+      case 'extract_page_data': {
+        const { url } = toolInput;
+        if (!url) {
+          return { success: false, error: 'Missing required parameter: url' };
+        }
+
+        try {
+          const browser = BrowserService.getInstance();
+          const available = await browser.isAvailable();
+          if (!available) {
+            return { success: false, error: 'Browser service is not available' };
+          }
+
+          const content = await browser.extractContent(url);
+          return {
+            success: true,
+            output: {
+              url,
+              content,
+              message: 'Page data extracted successfully'
+            }
+          };
+        } catch (error: any) {
+          return { success: false, error: `Extraction failed: ${error.message}` };
+        }
+      }
+
+      case 'analyze_screenshot': {
+        const { url, prompt } = toolInput;
+        if (!url) {
+          return { success: false, error: 'Missing required parameter: url' };
+        }
+
+        try {
+          const { VisionService } = await import('./VisionService.js');
+          const vision = VisionService.getInstance();
+          const analysis = await vision.analyzeUrl(url, prompt);
+          return {
+            success: true,
+            output: {
+              url: analysis.url,
+              description: analysis.description,
+              model: analysis.model,
+              screenshotSize: analysis.screenshotSize,
+              message: 'Screenshot analyzed successfully with vision model'
+            }
+          };
+        } catch (error: any) {
+          return { success: false, error: `Vision analysis failed: ${error.message}` };
+        }
+      }
+
+      default: {
+        // Check if it's an MCP tool (prefixed with mcp_)
+        if (toolName.startsWith('mcp_')) {
+          return executeMCPTool(toolName, toolInput);
+        }
         return { success: false, error: `Unknown tool: ${toolName}` };
+      }
     }
   } catch (error: any) {
     console.error(`[ToolService] Tool execution error:`, error);
@@ -517,7 +739,43 @@ export async function executeTool(
   }
 }
 
+/**
+ * Execute an MCP tool by parsing the prefixed name and routing to the right server
+ */
+async function executeMCPTool(
+  toolName: string,
+  toolInput: Record<string, any>,
+): Promise<ToolResult> {
+  const mcpManager = MCPClientManager.getInstance();
+  const allTools = mcpManager.getAllTools();
+
+  // toolName format: mcp_{serverName}_{toolName}
+  // Find matching tool by checking all connected tools
+  const matchingTool = allTools.find(t => `mcp_${t.serverName}_${t.name}` === toolName);
+  if (!matchingTool) {
+    return { success: false, error: `MCP tool not found: ${toolName}` };
+  }
+
+  console.log(`[ToolService] Executing MCP tool: ${matchingTool.serverName}/${matchingTool.name}`);
+  const result = await mcpManager.callTool(matchingTool.serverId, matchingTool.name, toolInput);
+
+  if (!result.success) {
+    return { success: false, error: result.error || 'MCP tool execution failed' };
+  }
+
+  return {
+    success: true,
+    output: {
+      server: matchingTool.serverName,
+      tool: matchingTool.name,
+      result: result.result,
+    }
+  };
+}
+
 export default {
   getToolDefinitions,
+  getAllToolDefinitions,
+  getMCPToolDefinitions,
   executeTool,
 };

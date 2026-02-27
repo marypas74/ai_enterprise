@@ -344,13 +344,45 @@ export async function toolsRoutes(fastify: FastifyInstance) {
             return reply.status(400).send({ error: 'Invalid filename' });
         }
 
-        const filePath = path.join(GENERATED_DIR, filename);
+        let filePath = path.join(GENERATED_DIR, filename);
+        const ext = path.extname(filename).toLowerCase();
 
         try {
             await fs.access(filePath);
-            const buffer = await fs.readFile(filePath);
+        } catch {
+            // Fuzzy match: AI models often hallucinate filenames but keep the timestamp.
+            // Extract timestamp from requested filename and find the real file.
+            const tsMatch = filename.match(/(\d{13})/);
+            if (tsMatch) {
+                const timestamp = tsMatch[1];
+                try {
+                    const files = await fs.readdir(GENERATED_DIR);
+                    // Find file with same extension and similar timestamp (within ±5ms)
+                    const ts = parseInt(timestamp);
+                    const match = files.find(f => {
+                        if (path.extname(f).toLowerCase() !== ext) return false;
+                        const ftsMatch = f.match(/(\d{13})/);
+                        if (!ftsMatch) return false;
+                        return Math.abs(parseInt(ftsMatch[1]) - ts) <= 5;
+                    });
+                    if (match) {
+                        filePath = path.join(GENERATED_DIR, match);
+                        request.log.info(`[Download] Fuzzy match: "${filename}" → "${match}"`);
+                    } else {
+                        return reply.status(404).send({ error: 'File not found' });
+                    }
+                } catch {
+                    return reply.status(404).send({ error: 'File not found' });
+                }
+            } else {
+                return reply.status(404).send({ error: 'File not found' });
+            }
+        }
 
-            const ext = path.extname(filename).toLowerCase();
+        try {
+            const buffer = await fs.readFile(filePath);
+            const actualFilename = path.basename(filePath);
+
             let contentType = 'application/octet-stream';
             if (ext === '.docx') contentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
             else if (ext === '.xlsx') contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -358,7 +390,7 @@ export async function toolsRoutes(fastify: FastifyInstance) {
             else if (ext === '.pdf') contentType = 'application/pdf';
 
             reply.header('Content-Type', contentType);
-            reply.header('Content-Disposition', `attachment; filename="${filename}"`);
+            reply.header('Content-Disposition', `attachment; filename="${actualFilename}"`);
             return reply.send(buffer);
         } catch {
             return reply.status(404).send({ error: 'File not found' });
