@@ -37,6 +37,15 @@ export class LLMSyncWorker {
     }
 
     /**
+     * Trigger an immediate config + model sync (e.g., after admin enables/disables a provider)
+     */
+    public async triggerSync(): Promise<void> {
+        this.fastify.log.info('[LLMSyncWorker] Triggered immediate sync (admin action)');
+        await this.syncConfigs();
+        await this.syncModels();
+    }
+
+    /**
      * Sync provider configurations from database to AIProviderFactory
      */
     private async syncConfigs() {
@@ -241,7 +250,12 @@ export class LLMSyncWorker {
             "SELECT id, name, display_name, provider_type FROM ai_providers WHERE is_enabled = TRUE AND provider_type != 'ollama'"
         );
 
-        if (providers.length === 0) return;
+        if (providers.length === 0) {
+            this.fastify.log.debug('[LLMSyncWorker] No enabled API providers found');
+            return;
+        }
+
+        this.fastify.log.info(`[LLMSyncWorker] Syncing ${providers.length} API provider(s): ${providers.map((p: any) => p.provider_type).join(', ')}`);
 
         const providerConfigs: any[] = [];
         for (const p of providers) {
@@ -260,12 +274,19 @@ export class LLMSyncWorker {
 
             if (config.apiKey || config.baseUrl) {
                 providerConfigs.push(config);
+                this.fastify.log.info(`[LLMSyncWorker] Provider "${p.provider_type}" has apiKey=${!!config.apiKey}, baseUrl=${config.baseUrl || 'default'}`);
+            } else {
+                this.fastify.log.warn(`[LLMSyncWorker] Provider "${p.provider_type}" has no apiKey or baseUrl configured, skipping`);
             }
         }
 
-        if (providerConfigs.length === 0) return;
+        if (providerConfigs.length === 0) {
+            this.fastify.log.warn('[LLMSyncWorker] No API providers with valid config found');
+            return;
+        }
 
         const availableModels = await fetchAllModels(providerConfigs);
+        this.fastify.log.info(`[LLMSyncWorker] fetchAllModels returned ${availableModels.length} model(s): ${availableModels.map(m => `${m.provider}/${m.id}`).join(', ')}`);
         let addedCount = 0;
 
         for (const model of availableModels) {
@@ -274,23 +295,72 @@ export class LLMSyncWorker {
 
             const existing = await findOne<any>(
                 this.fastify.db,
-                'SELECT id FROM ai_models WHERE provider_id = ? AND model_id = ?',
+                'SELECT id, is_enabled FROM ai_models WHERE provider_id = ? AND model_id = ?',
                 [provider.id, model.id]
             );
 
             if (!existing) {
+                // Before inserting, check if there's an obsolete version of this model
+                // e.g., DB has "claude-opus-4-6-20250610" but fetcher now returns "claude-opus-4-6"
+                const obsolete = await this.findObsoleteModel(provider.id, model.id);
+                if (obsolete) {
+                    await this.fastify.db.execute(
+                        'UPDATE ai_models SET model_id = ?, display_name = ? WHERE id = ?',
+                        [model.id, model.name, obsolete.id]
+                    );
+                    this.fastify.log.info(`[LLMSyncWorker] Updated obsolete model ID: "${obsolete.model_id}" → "${model.id}" (${model.name})`);
+                } else {
+                    await this.fastify.db.execute(
+                        `INSERT INTO ai_models (provider_id, model_id, display_name, description, model_type, supports_streaming, supports_functions, is_enabled)
+                         VALUES (?, ?, ?, ?, 'chat', TRUE, TRUE, TRUE)`,
+                        [provider.id, model.id, model.name, model.description || `From ${model.provider}`]
+                    );
+                    addedCount++;
+                    this.fastify.log.info(`[LLMSyncWorker] Added new model: ${model.provider}/${model.id} (${model.name})`);
+                }
+            } else if (!existing.is_enabled) {
+                // Re-enable models that were disabled when their provider was off
                 await this.fastify.db.execute(
-                    `INSERT INTO ai_models (provider_id, model_id, display_name, description, model_type, supports_streaming, is_enabled)
-                     VALUES (?, ?, ?, ?, 'chat', TRUE, TRUE)`,
-                    [provider.id, model.id, model.name, model.description || `From ${model.provider}`]
+                    'UPDATE ai_models SET is_enabled = TRUE WHERE id = ?',
+                    [existing.id]
                 );
-                addedCount++;
+                this.fastify.log.info(`[LLMSyncWorker] Re-enabled model: ${model.provider}/${model.id} (provider is active)`);
             }
         }
 
         if (addedCount > 0) {
-            this.fastify.log.info(`[LLMSyncWorker] Added ${addedCount} new API models`);
+            this.fastify.log.info(`[LLMSyncWorker] Added ${addedCount} new API models total`);
         }
+    }
+
+    /**
+     * Find an obsolete model in DB that matches a new model ID.
+     * Matches models with date-stamped IDs to their alias versions.
+     * E.g., "claude-opus-4-6-20250610" matches "claude-opus-4-6"
+     */
+    private async findObsoleteModel(providerId: number, newModelId: string): Promise<{ id: number; model_id: string } | null> {
+        // Look for models with the same base name plus a date suffix (-YYYYMMDD)
+        const obsolete = await findOne<any>(
+            this.fastify.db,
+            `SELECT id, model_id FROM ai_models
+             WHERE provider_id = ? AND model_id LIKE ? AND model_id != ?`,
+            [providerId, `${newModelId}-%`, newModelId]
+        );
+        if (obsolete) return obsolete;
+
+        // Also check reverse: new ID has date but DB has alias (less common)
+        const dateMatch = newModelId.match(/^(.+)-(\d{8})$/);
+        if (dateMatch) {
+            const baseId = dateMatch[1];
+            const existing = await findOne<any>(
+                this.fastify.db,
+                `SELECT id, model_id FROM ai_models WHERE provider_id = ? AND model_id = ?`,
+                [providerId, baseId]
+            );
+            if (existing) return existing;
+        }
+
+        return null;
     }
 
     /**
