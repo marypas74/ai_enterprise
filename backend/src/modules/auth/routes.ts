@@ -6,6 +6,28 @@ import { findOne, insertOne, updateOne } from '../../database/index.js';
 import { verify, generateSecret, generateURI } from 'otplib';
 import QRCode from 'qrcode';
 
+// Check if the IP belongs to the server's local network (MFA bypass allowed)
+function isLocalNetwork(ip: string): boolean {
+  if (!ip) return false;
+
+  // Localhost (IPv4 and IPv6)
+  if (ip === '127.0.0.1' || ip === '::1' || ip === 'localhost') return true;
+
+  // Server LAN: 192.168.34.0/24
+  if (ip.startsWith('192.168.34.')) return true;
+
+  // K8s pod network: 10.1.28.0/24
+  if (ip.startsWith('10.1.28.')) return true;
+
+  // K8s service/internal: 10.152.0.0/16 (MicroK8s default)
+  if (ip.startsWith('10.152.')) return true;
+
+  // Docker bridge: 172.17.0.0/16
+  if (ip.startsWith('172.17.')) return true;
+
+  return false;
+}
+
 // Validation schemas
 const registerSchema = z.object({
   email: z.string().email(),
@@ -141,39 +163,42 @@ export async function authRoutes(fastify: FastifyInstance) {
         return reply.status(401).send({ error: 'Invalid credentials' });
       }
 
+      // Determine client IP (Cloudflare > X-Forwarded-For > direct)
+      const clientIp = (request.geo?.ip) || request.ip;
+      const isLocal = isLocalNetwork(clientIp);
+
       // Generate tokens
-      const isTestAccount = user.email.endsWith('@enterprise.local');
       const accessToken = fastify.jwt.sign({
         id: user.id,
         email: user.email,
         role: user.role,
-        mfa_verified: isTestAccount || !!(user.mfa_enabled && user.mfa_secret)
+        mfa_verified: isLocal || !!(user.mfa_enabled && user.mfa_secret)
       });
 
-      // Check MFA
+      // Check MFA — local network access bypasses MFA, external access requires it
       if (user.mfa_enabled && user.mfa_secret) {
-        if (!body.totp_code) {
-          // MFA required but no code provided
+        // MFA is configured — require TOTP from external networks
+        if (!body.totp_code && !isLocal) {
           return reply.status(200).send({
             mfa_required: true,
             message: 'TOTP code required'
           });
         }
 
-        // Verify TOTP code
-        const isValid = verify({
-          token: body.totp_code,
-          secret: user.mfa_secret
-        });
+        // Verify TOTP code if provided (even from local, if user sends it)
+        if (body.totp_code) {
+          const isValid = verify({
+            token: body.totp_code,
+            secret: user.mfa_secret
+          });
 
-        if (!isValid) {
-          return reply.status(401).send({ error: 'Invalid TOTP code' });
+          if (!isValid) {
+            return reply.status(401).send({ error: 'Invalid TOTP code' });
+          }
         }
       } else {
-        // MFA is NOT enabled/setup but we want to enforce it
-        // Allow test accounts (email ending with @enterprise.local) to skip MFA
-        const isTestAccount = user.email.endsWith('@enterprise.local');
-        if (!body.totp_code && !isTestAccount) {
+        // MFA is NOT configured — require setup from external networks
+        if (!body.totp_code && !isLocal) {
           return reply.status(200).send({
             mfa_setup_required: true,
             accessToken, // Give token so they can call /mfa/setup
@@ -184,7 +209,7 @@ export async function authRoutes(fastify: FastifyInstance) {
               role: user.role,
               mfa_enabled: false
             },
-            message: 'MFA setup is mandatory for all users.'
+            message: 'MFA setup is mandatory for external access.'
           });
         }
       }
@@ -216,9 +241,7 @@ export async function authRoutes(fastify: FastifyInstance) {
       );
 
       // === GEO-TRACKING ===
-      const geo = (request as any).geo || {};
-      const ip = geo.ip || request.ip;
-      const country = geo.country || 'XX';
+      const country = request.geo?.country || 'XX';
       const userAgent = request.headers['user-agent'] || 'Unknown';
 
       // Create user session with geo data
@@ -226,7 +249,7 @@ export async function authRoutes(fastify: FastifyInstance) {
         fastify.db,
         `INSERT INTO user_sessions (user_id, token_hash, ip_address, country, user_agent, expires_at)
          VALUES (?, ?, ?, ?, ?, ?)`,
-        [user.id, refreshTokenHash, ip, country, userAgent, refreshExpiresAt]
+        [user.id, refreshTokenHash, clientIp, country, userAgent, refreshExpiresAt]
       );
 
       // Update last login
@@ -236,11 +259,12 @@ export async function authRoutes(fastify: FastifyInstance) {
         [user.id]
       );
 
-      // Log audit with geo info
+      // Log audit with geo info and MFA bypass status
+      const mfaBypassed = isLocal && !user.mfa_enabled;
       await insertOne(
         fastify.db,
         'INSERT INTO audit_log (user_id, action, ip_address, user_agent, details) VALUES (?, ?, ?, ?, ?)',
-        [user.id, 'login', ip, userAgent, JSON.stringify({ country })]
+        [user.id, 'login', clientIp, userAgent, JSON.stringify({ country, local_network: isLocal, mfa_bypassed: mfaBypassed })]
       );
 
       // Set refresh token in HTTP-only cookie
