@@ -841,7 +841,7 @@ data:
     ('allow_user_registration', 'false', 'boolean', 'Allow new users to self-register', FALSE),
     ('default_model', 'gpt-4o', 'string', 'Default model for new conversations', TRUE),
     ('maintenance_mode', 'false', 'boolean', 'Enable maintenance mode', FALSE),
-    ('app_version', '1.6.1', 'string', 'Versione corrente dell''applicazione', TRUE);
+    ('app_version', '1.7.5', 'string', 'Versione corrente dell''applicazione', TRUE);
     
     -- ============================================
     -- DEFAULT SKILLS

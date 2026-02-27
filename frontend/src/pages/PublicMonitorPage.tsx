@@ -38,6 +38,12 @@ function timeAgo(dateStr: string): string {
     return `${hours}h ${mins % 60}m ago`;
 }
 
+function formatTime(dateStr: string): string {
+    if (!dateStr) return '-';
+    const d = new Date(dateStr);
+    return d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
 function GridCard({ title, icon: Icon, color = 'blue', children }: { title: string; icon: any; color?: string; children: React.ReactNode }) {
     const colorClasses = {
         blue: 'text-blue-400 border-blue-500/30 bg-blue-500/5',
@@ -124,7 +130,7 @@ export default function PublicMonitorPage() {
                         <Activity className="w-6 h-6 text-green-500" />
                         VITAL_SIGNS_OS
                     </h1>
-                    <span className="text-surface-500 text-[10px]">FE: 1.6.1_STABLE | BE: 1.6.1_STABLE | NODE: {data?.hostname}</span>
+                    <span className="text-surface-500 text-[10px]">FE: 1.7.5_STABLE | BE: 1.7.5_STABLE | NODE: {data?.hostname}</span>
                 </div>
                 <div className="text-right">
                     <div className="text-green-500 animate-pulse text-xs font-bold font-mono">● LIVE_STREAM_ACTIVE</div>
@@ -437,7 +443,7 @@ export default function PublicMonitorPage() {
                         <span className="bg-pink-500/20 text-pink-400 px-1.5 rounded font-bold">{data?.activeUsers?.length || 0}</span>
                     </div>
                     {data?.activeUsers && data.activeUsers.length > 0 ? (
-                        <div className="space-y-1.5 max-h-[140px] overflow-y-auto pr-1">
+                        <div className="space-y-1.5 max-h-[180px] overflow-y-auto pr-1">
                             {data.activeUsers.map((u: any, i: number) => (
                                 <div key={i} className="bg-white/5 rounded p-1.5 flex items-center gap-2">
                                     <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse flex-shrink-0" />
@@ -450,7 +456,10 @@ export default function PublicMonitorPage() {
                                         </div>
                                         <div className="flex items-center justify-between text-[8px] text-surface-500">
                                             <span className="truncate">{u.email}</span>
-                                            <span className="flex-shrink-0">{timeAgo(u.lastActivity)}</span>
+                                            <span className="flex-shrink-0 text-green-400">{timeAgo(u.lastActivity)}</span>
+                                        </div>
+                                        <div className="flex items-center justify-between text-[8px] mt-0.5">
+                                            <span className="text-surface-500">LOGIN: <span className="text-green-400">{formatTime(u.sessionStart)}</span></span>
                                         </div>
                                         {u.ipAddress && (
                                             <div className="text-[7px] text-surface-600 truncate">

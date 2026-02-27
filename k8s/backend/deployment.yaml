@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: backend
-          image: localhost:32000/enterprise-ai-chat-backend:1.6.1
+          image: localhost:32000/enterprise-ai-chat-backend:1.7.5
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3000
@@ -42,6 +42,10 @@ spec:
               value: "/app/projects/attachments"
             - name: DOC_PROCESSOR_URL
               value: "http://doc-processor:3001"
+            - name: QDRANT_URL
+              value: "http://qdrant:6333"
+            - name: BROWSERLESS_URL
+              value: "http://browserless:3100"
           volumeMounts:
             - name: shared-projects
               mountPath: /app/projects
@@ -56,11 +60,11 @@ spec:
               readOnly: true
           resources:
             requests:
-              memory: "256Mi"
-              cpu: "200m"
-            limits:
               memory: "1Gi"
-              cpu: "1000m"
+              cpu: "500m"
+            limits:
+              memory: "8Gi"
+              cpu: "4000m"
           securityContext:
             privileged: false
           livenessProbe:

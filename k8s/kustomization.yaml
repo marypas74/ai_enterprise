@@ -11,10 +11,12 @@ resources:
   - redis/statefulset.yaml
   - backend/deployment.yaml
   - frontend/deployment.yaml
+  - qdrant/statefulset.yaml
+  - browserless/deployment.yaml
   - ingress.yaml
 
 # NOTE: commonLabels removed — it injects labels into Service selectors,
 # breaking selector matching when pods don't have the same labels.
 # Use metadata labels directly in each resource instead.
 commonAnnotations:
-  app.kubernetes.io/version: "1.6.1"
+  app.kubernetes.io/version: "1.7.5"
