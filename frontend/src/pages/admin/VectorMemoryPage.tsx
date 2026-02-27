@@ -316,7 +316,7 @@ export default function VectorMemoryPage() {
                       {results.map((r, i) => (
                         <div key={i} className="card p-3 text-sm">
                           <div className="flex items-center justify-between mb-1">
-                            <span className="font-mono text-xs text-surface-500">score: {r.score.toFixed(3)}</span>
+                            <span className="font-mono text-xs text-surface-500">score: {Number(r.score).toFixed(3)}</span>
                             {r.metadata.source && (
                               <span className="text-xs text-surface-500">{r.metadata.source}</span>
                             )}

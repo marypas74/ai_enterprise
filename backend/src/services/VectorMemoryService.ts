@@ -107,6 +107,44 @@ async function ensureAllCollections(db: mysql.Pool): Promise<boolean> {
   return results.every(Boolean);
 }
 
+// ---- Semantic Deduplication ----
+
+const DEDUP_THRESHOLD = parseFloat(process.env.MEMORY_DEDUP_THRESHOLD || '0.95');
+
+/**
+ * Check if a near-duplicate already exists in a collection.
+ * Returns true if a point with cosine similarity >= DEDUP_THRESHOLD exists.
+ */
+async function isDuplicate(
+  collection: string,
+  embedding: number[],
+  filterUserId?: number,
+): Promise<boolean> {
+  try {
+    const body: any = {
+      vector: embedding,
+      limit: 1,
+      score_threshold: DEDUP_THRESHOLD,
+      with_payload: false,
+    };
+    if (filterUserId && collection !== 'procedural_memory') {
+      body.filter = { must: [{ key: 'user_id', match: { value: filterUserId } }] };
+    }
+
+    const resp = await fetch(`${QDRANT_URL}/collections/${collection}/points/search`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    if (!resp.ok) return false;
+    const data = await resp.json() as any;
+    return (data.result || []).length > 0;
+  } catch {
+    return false; // On error, allow storage (don't block)
+  }
+}
+
 // ---- Store ----
 
 export async function storeEpisodic(
@@ -123,6 +161,12 @@ export async function storeEpisodic(
   if (!emb) return false;
 
   await ensureCollection('episodic_memory', emb.dimensions);
+
+  // Semantic dedup: skip if near-duplicate exists
+  if (await isDuplicate('episodic_memory', emb.embedding, userId)) {
+    console.log(`[VectorMemory] Skipping duplicate episodic memory for user ${userId}`);
+    return true;
+  }
 
   const pointId = Date.now() * 1000 + Math.floor(Math.random() * 1000);
 
@@ -162,6 +206,12 @@ export async function storeDeclarative(
   if (!emb) return false;
 
   await ensureCollection('declarative_memory', emb.dimensions);
+
+  // Semantic dedup: skip if near-duplicate exists
+  if (await isDuplicate('declarative_memory', emb.embedding, userId)) {
+    console.log(`[VectorMemory] Skipping duplicate declarative memory for user ${userId}`);
+    return true;
+  }
 
   const pointId = Date.now() * 1000 + Math.floor(Math.random() * 1000);
 

@@ -211,4 +211,97 @@ export async function vectorMemoryRoutes(fastify: FastifyInstance) {
     const result = await classifier.classify(body.text, body.labels, body.threshold ?? 0.5);
     return result;
   });
+
+  // ==========================================
+  // Recall Analytics (Admin)
+  // ==========================================
+
+  // Get recall quality statistics
+  fastify.get('/recall-stats', {
+    onRequest: [adminOnly],
+  }, async (request: FastifyRequest) => {
+    const q = request.query as { days?: string };
+    const days = parseInt(q.days || '7', 10);
+
+    // Overall stats
+    const [overallRows] = await fastify.db.execute(
+      `SELECT
+         COUNT(*) as total_queries,
+         ROUND(AVG(avg_score), 3) as mean_score,
+         ROUND(AVG(episodic_count), 1) as avg_episodic,
+         ROUND(AVG(declarative_count), 1) as avg_declarative,
+         ROUND(AVG(procedural_count), 1) as avg_procedural,
+         SUM(hyde_used) as hyde_count,
+         SUM(reranked) as reranked_count
+       FROM recall_log
+       WHERE created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)`,
+      [days],
+    );
+    const overall = (overallRows as any[])[0] || {};
+
+    // Daily breakdown
+    const [dailyRows] = await fastify.db.execute(
+      `SELECT
+         DATE(created_at) as date,
+         COUNT(*) as queries,
+         ROUND(AVG(avg_score), 3) as avg_score,
+         ROUND(AVG(episodic_count + declarative_count + procedural_count), 1) as avg_results
+       FROM recall_log
+       WHERE created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+       GROUP BY DATE(created_at)
+       ORDER BY date DESC`,
+      [days],
+    );
+
+    // Top users by recall usage
+    const [userRows] = await fastify.db.execute(
+      `SELECT
+         rl.user_id,
+         u.name as user_name,
+         COUNT(*) as query_count,
+         ROUND(AVG(rl.avg_score), 3) as avg_score
+       FROM recall_log rl
+       LEFT JOIN users u ON rl.user_id = u.id
+       WHERE rl.created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+       GROUP BY rl.user_id, u.name
+       ORDER BY query_count DESC
+       LIMIT 10`,
+      [days],
+    );
+
+    // Low-quality queries (score < 0.5)
+    const [lowQualityRows] = await fastify.db.execute(
+      `SELECT query, avg_score, episodic_count, declarative_count, procedural_count, created_at
+       FROM recall_log
+       WHERE avg_score > 0 AND avg_score < 0.5
+         AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+       ORDER BY avg_score ASC
+       LIMIT 20`,
+      [days],
+    );
+
+    return {
+      period: `${days} days`,
+      overall,
+      daily: dailyRows,
+      topUsers: userRows,
+      lowQualityQueries: lowQualityRows,
+    };
+  });
+
+  // Get MCP server status (admin)
+  fastify.get('/mcp-status', {
+    onRequest: [adminOnly],
+  }, async () => {
+    try {
+      const { MCPClientManager } = await import('../../services/MCPClientManager.js');
+      const manager = MCPClientManager.getInstance();
+      return {
+        servers: manager.getStatus(),
+        totalTools: manager.getAllTools().length,
+      };
+    } catch {
+      return { servers: [], totalTools: 0 };
+    }
+  });
 }

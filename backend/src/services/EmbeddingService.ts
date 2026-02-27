@@ -131,13 +131,14 @@ export async function generateEmbedding(
     }
 
     try {
-        switch (provider.name) {
+        switch (provider.type) {
             case 'openai':
+            case 'openai_compatible':
                 return await generateOpenAIEmbedding(provider, text);
             case 'ollama':
                 return await generateOllamaEmbedding(provider, text);
             default:
-                // Try OpenAI-compatible API
+                // Try OpenAI-compatible API as fallback
                 return await generateOpenAIEmbedding(provider, text);
         }
     } catch (error: any) {
@@ -159,7 +160,7 @@ export async function generateEmbeddings(
     }
 
     // For OpenAI, batch is supported natively
-    if (provider.name === 'openai') {
+    if (provider.type === 'openai' || provider.type === 'openai_compatible') {
         try {
             return await generateOpenAIEmbeddingBatch(provider, texts);
         } catch (error: any) {
@@ -251,9 +252,13 @@ async function generateOllamaEmbedding(
     provider: EmbeddingProvider,
     text: string
 ): Promise<EmbeddingResult> {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const authKey = process.env.OLLAMA_AUTH_KEY || '';
+    if (authKey) headers['X-Ollama-Key'] = authKey;
+
     const response = await fetch(`${provider.baseUrl}/api/embeddings`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
             model: provider.modelId,
             prompt: text,
