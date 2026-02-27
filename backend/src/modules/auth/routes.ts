@@ -6,9 +6,18 @@ import { findOne, insertOne, updateOne } from '../../database/index.js';
 import { verify, generateSecret, generateURI } from 'otplib';
 import QRCode from 'qrcode';
 
-// Check if the IP belongs to the server's local network (MFA bypass allowed)
-function isLocalNetwork(ip: string): boolean {
+// Trusted external IPs (MFA bypass allowed)
+const TRUSTED_EXTERNAL_IPS = new Set([
+  '217.198.133.248',
+  '93.149.87.38',
+]);
+
+// Check if the IP is trusted (local network or whitelisted external)
+function isTrustedIp(ip: string): boolean {
   if (!ip) return false;
+
+  // Whitelisted external IPs
+  if (TRUSTED_EXTERNAL_IPS.has(ip)) return true;
 
   // Localhost (IPv4 and IPv6)
   if (ip === '127.0.0.1' || ip === '::1' || ip === 'localhost') return true;
@@ -165,7 +174,7 @@ export async function authRoutes(fastify: FastifyInstance) {
 
       // Determine client IP (Cloudflare > X-Forwarded-For > direct)
       const clientIp = (request.geo?.ip) || request.ip;
-      const isLocal = isLocalNetwork(clientIp);
+      const isLocal = isTrustedIp(clientIp);
 
       // Generate tokens
       const accessToken = fastify.jwt.sign({
