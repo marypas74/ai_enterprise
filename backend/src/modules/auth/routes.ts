@@ -176,13 +176,11 @@ export async function authRoutes(fastify: FastifyInstance) {
       const clientIp = (request.geo?.ip) || request.ip;
       const isLocal = isTrustedIp(clientIp);
 
-      // Generate tokens
-      const accessToken = fastify.jwt.sign({
-        id: user.id,
-        email: user.email,
-        role: user.role,
-        mfa_verified: isLocal || !!(user.mfa_enabled && user.mfa_secret)
-      });
+      // Generate session identifier BEFORE JWT so it can be embedded in the token
+      const refreshToken = crypto.randomBytes(64).toString('hex');
+      const refreshTokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+      // Short session ID derived from token hash (first 16 chars) for JWT embedding
+      const sessionId = refreshTokenHash.substring(0, 16);
 
       // Check MFA — local network access bypasses MFA, external access requires it
       if (user.mfa_enabled && user.mfa_secret) {
@@ -208,9 +206,16 @@ export async function authRoutes(fastify: FastifyInstance) {
       } else {
         // MFA is NOT configured — require setup from external networks
         if (!body.totp_code && !isLocal) {
+          // Generate a temporary token for MFA setup (no session binding needed)
+          const setupToken = fastify.jwt.sign({
+            id: user.id,
+            email: user.email,
+            role: user.role,
+            mfa_verified: false
+          }, { expiresIn: '10m' });
           return reply.status(200).send({
             mfa_setup_required: true,
-            accessToken, // Give token so they can call /mfa/setup
+            accessToken: setupToken,
             user: {
               id: user.id,
               email: user.email,
@@ -238,8 +243,14 @@ export async function authRoutes(fastify: FastifyInstance) {
       );
 
       // === TOKEN & SESSION GENERATION ===
-      const refreshToken = crypto.randomBytes(64).toString('hex');
-      const refreshTokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+      // Generate JWT with embedded session ID for single-session enforcement
+      const accessToken = fastify.jwt.sign({
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        sid: sessionId,
+        mfa_verified: isLocal || !!(user.mfa_enabled && user.mfa_secret)
+      });
       const refreshExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
       // Store refresh token
@@ -339,11 +350,13 @@ export async function authRoutes(fastify: FastifyInstance) {
       [tokenHash]
     ).catch(() => { }); // Non-critical
 
-    // Generate new access token
+    // Generate new access token with session ID for single-session enforcement
+    const sessionId = tokenHash.substring(0, 16);
     const accessToken = fastify.jwt.sign({
       id: (storedToken as any).user_id,
       email: (storedToken as any).email,
-      role: (storedToken as any).role
+      role: (storedToken as any).role,
+      sid: sessionId
     });
 
     return { accessToken };

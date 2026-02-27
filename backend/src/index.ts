@@ -168,40 +168,75 @@ const appPlugin = fp(async function (fastify) {
       await request.jwtVerify();
       fastify.log.debug(`[Auth] OK for ${url} - User: ${request.user?.id}`);
 
-      // Check session inactivity: if last_activity_at > 15 min ago, force re-login
+      // Verify session is still active using the session ID embedded in the JWT
       const userId = request.user?.id;
+      const sessionId = request.user?.sid;
       if (userId && fastify.db) {
-        const [sessions] = await fastify.db.execute(
-          `SELECT id, last_activity_at FROM user_sessions
-           WHERE user_id = ? AND revoked_at IS NULL AND logged_out_at IS NULL AND expires_at > NOW()
-           ORDER BY created_at DESC LIMIT 1`,
-          [userId]
-        ) as any;
+        if (sessionId) {
+          // JWT has a session ID — verify THIS specific session is still active
+          const [sessions] = await fastify.db.execute(
+            `SELECT id, last_activity_at FROM user_sessions
+             WHERE user_id = ? AND LEFT(token_hash, 16) = ? AND revoked_at IS NULL AND logged_out_at IS NULL AND expires_at > NOW()
+             LIMIT 1`,
+            [userId, sessionId]
+          ) as any;
 
-        if (!sessions || sessions.length === 0) {
-          fastify.log.warn(`[Auth] No active session found for user ${userId}`);
-          return reply.status(401).send({ error: 'Unauthorized', reason: 'Session expired' });
-        }
+          if (!sessions || sessions.length === 0) {
+            fastify.log.warn(`[Auth] Session revoked or expired for user ${userId} (sid: ${sessionId})`);
+            return reply.status(401).send({ error: 'Unauthorized', reason: 'Session revoked' });
+          }
 
-        const session = sessions[0];
-        const lastActivity = session.last_activity_at ? new Date(session.last_activity_at).getTime() : 0;
-        const fifteenMinMs = 15 * 60 * 1000;
+          const session = sessions[0];
+          const lastActivity = session.last_activity_at ? new Date(session.last_activity_at).getTime() : 0;
+          const fifteenMinMs = 15 * 60 * 1000;
 
-        if (Date.now() - lastActivity > fifteenMinMs) {
-          // Invalidate session due to inactivity
-          await fastify.db.execute(
-            'UPDATE user_sessions SET revoked_at = NOW(), logged_out_at = NOW() WHERE id = ?',
+          if (Date.now() - lastActivity > fifteenMinMs) {
+            await fastify.db.execute(
+              'UPDATE user_sessions SET revoked_at = NOW(), logged_out_at = NOW() WHERE id = ?',
+              [session.id]
+            );
+            fastify.log.warn(`[Auth] Session expired due to inactivity for user ${userId}`);
+            return reply.status(401).send({ error: 'Unauthorized', reason: 'Session expired due to inactivity' });
+          }
+
+          // Update last_activity_at (fire & forget)
+          fastify.db.execute(
+            'UPDATE user_sessions SET last_activity_at = NOW() WHERE id = ?',
             [session.id]
-          );
-          fastify.log.warn(`[Auth] Session expired due to inactivity for user ${userId}`);
-          return reply.status(401).send({ error: 'Unauthorized', reason: 'Session expired due to inactivity' });
-        }
+          ).catch(() => { /* non-critical */ });
+        } else {
+          // Legacy JWT without session ID — fallback to any active session check
+          const [sessions] = await fastify.db.execute(
+            `SELECT id, last_activity_at FROM user_sessions
+             WHERE user_id = ? AND revoked_at IS NULL AND logged_out_at IS NULL AND expires_at > NOW()
+             ORDER BY created_at DESC LIMIT 1`,
+            [userId]
+          ) as any;
 
-        // Update last_activity_at (fire & forget)
-        fastify.db.execute(
-          'UPDATE user_sessions SET last_activity_at = NOW() WHERE id = ?',
-          [session.id]
-        ).catch(() => { /* non-critical */ });
+          if (!sessions || sessions.length === 0) {
+            fastify.log.warn(`[Auth] No active session found for user ${userId}`);
+            return reply.status(401).send({ error: 'Unauthorized', reason: 'Session expired' });
+          }
+
+          const session = sessions[0];
+          const lastActivity = session.last_activity_at ? new Date(session.last_activity_at).getTime() : 0;
+          const fifteenMinMs = 15 * 60 * 1000;
+
+          if (Date.now() - lastActivity > fifteenMinMs) {
+            await fastify.db.execute(
+              'UPDATE user_sessions SET revoked_at = NOW(), logged_out_at = NOW() WHERE id = ?',
+              [session.id]
+            );
+            fastify.log.warn(`[Auth] Session expired due to inactivity for user ${userId}`);
+            return reply.status(401).send({ error: 'Unauthorized', reason: 'Session expired due to inactivity' });
+          }
+
+          // Update last_activity_at (fire & forget)
+          fastify.db.execute(
+            'UPDATE user_sessions SET last_activity_at = NOW() WHERE id = ?',
+            [session.id]
+          ).catch(() => { /* non-critical */ });
+        }
       }
     } catch (err: any) {
       fastify.log.warn(`[Auth] JWT verify failed for ${url}: ${err.message}`);
