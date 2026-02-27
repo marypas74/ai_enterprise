@@ -366,13 +366,70 @@ export class WhiteRabbitService {
         return new Date(now.getTime() + (config.interval_ms || 60_000)).toISOString();
 
       case 'cron': {
-        // Simple next-run calculation for basic cron patterns
-        // For full cron support, would use node-cron — keeping it simple here
-        return new Date(now.getTime() + 60_000).toISOString();
+        // Parse standard 5-field cron: minute hour day-of-month month day-of-week
+        const cronExpr = config.cron_expression || config.expression || '* * * * *';
+        return this.getNextCronRun(cronExpr, now).toISOString();
       }
 
       default:
         return null;
     }
+  }
+
+  /**
+   * Calculate the next run time from a 5-field cron expression.
+   * Supports: numbers, *, ranges (1-5), steps (*​/15), lists (1,3,5)
+   */
+  private getNextCronRun(expr: string, from: Date): Date {
+    const parts = expr.trim().split(/\s+/);
+    if (parts.length < 5) return new Date(from.getTime() + 60_000);
+
+    const parseField = (field: string, min: number, max: number): number[] => {
+      const values: number[] = [];
+      for (const part of field.split(',')) {
+        if (part === '*') {
+          for (let i = min; i <= max; i++) values.push(i);
+        } else if (part.includes('/')) {
+          const [range, stepStr] = part.split('/');
+          const step = parseInt(stepStr, 10) || 1;
+          const start = range === '*' ? min : parseInt(range, 10);
+          for (let i = start; i <= max; i += step) values.push(i);
+        } else if (part.includes('-')) {
+          const [lo, hi] = part.split('-').map(Number);
+          for (let i = lo; i <= hi; i++) values.push(i);
+        } else {
+          values.push(parseInt(part, 10));
+        }
+      }
+      return values.filter(v => v >= min && v <= max).sort((a, b) => a - b);
+    };
+
+    const minutes = parseField(parts[0], 0, 59);
+    const hours = parseField(parts[1], 0, 23);
+    const daysOfMonth = parseField(parts[2], 1, 31);
+    const months = parseField(parts[3], 1, 12);
+    const daysOfWeek = parseField(parts[4], 0, 6);
+
+    // Iterate from 1 minute after `from`, up to 366 days ahead
+    const candidate = new Date(from);
+    candidate.setSeconds(0, 0);
+    candidate.setMinutes(candidate.getMinutes() + 1);
+    const limit = from.getTime() + 366 * 86400_000;
+
+    while (candidate.getTime() < limit) {
+      if (
+        months.includes(candidate.getMonth() + 1) &&
+        daysOfMonth.includes(candidate.getDate()) &&
+        daysOfWeek.includes(candidate.getDay()) &&
+        hours.includes(candidate.getHours()) &&
+        minutes.includes(candidate.getMinutes())
+      ) {
+        return candidate;
+      }
+      candidate.setMinutes(candidate.getMinutes() + 1);
+    }
+
+    // Fallback: 24h from now
+    return new Date(from.getTime() + 86400_000);
   }
 }

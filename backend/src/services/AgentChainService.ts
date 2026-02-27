@@ -28,6 +28,9 @@ import { PromptTemplateService, type TemplateContext } from './PromptTemplateSer
 import { recall, getUserRecallSettings, type MemoryPoint } from './VectorMemoryService.js';
 import { ConversationalFormService } from './ConversationalFormService.js';
 import { ProceduralMemoryService } from './ProceduralMemoryService.js';
+import { RerankerService } from './RerankerService.js';
+import { HybridSearchService } from './HybridSearchService.js';
+import { ModelConfigService } from './ModelConfigService.js';
 import type { Message } from '../modules/ai/providers.js';
 
 export interface AgentChainInput {
@@ -113,7 +116,7 @@ export class AgentChainService {
 
     // ========== STEP 3: Memory Agent — Build final system prompt ==========
     const finalMessages = await this.runMemoryAgent(
-      userId, conversationId, processedInput.messages, recallResults, proceduresResult, hookCtx,
+      userId, conversationId, processedInput.messages, recallResults, proceduresResult, hookCtx, input.model,
     );
 
     // Refresh working memory state
@@ -163,19 +166,97 @@ export class AgentChainService {
         k: recallSettings.proceduralK, threshold: recallSettings.proceduralThreshold,
       }, hookCtx)).data;
 
-      const recalled = await recall(this.db, {
-        userId,
-        query: recallQuery,
-        episodicK: episodicConfig?.k ?? recallSettings.episodicK,
-        episodicThreshold: episodicConfig?.threshold ?? recallSettings.episodicThreshold,
-        declarativeK: declarativeConfig?.k ?? recallSettings.declarativeK,
-        declarativeThreshold: declarativeConfig?.threshold ?? recallSettings.declarativeThreshold,
+      // --- Hybrid Search (BM25 + Vector with RRF) for episodic + declarative ---
+      const hybridService = new HybridSearchService();
+      const eK = episodicConfig?.k ?? recallSettings.episodicK;
+      const dK = declarativeConfig?.k ?? recallSettings.declarativeK;
+      const hybridTopK = eK + dK; // fetch enough for both collections
+
+      let episodic: MemoryPoint[] = [];
+      let declarative: MemoryPoint[] = [];
+
+      try {
+        const hybridResults = await hybridService.search(this.db, userId, recallQuery, {
+          collections: ['episodic_memory', 'declarative_memory'],
+          vectorK: hybridTopK,
+          vectorThreshold: Math.min(
+            episodicConfig?.threshold ?? recallSettings.episodicThreshold,
+            declarativeConfig?.threshold ?? recallSettings.declarativeThreshold,
+          ),
+          keywordLimit: hybridTopK,
+          topK: hybridTopK,
+        });
+
+        // Split hybrid results back into episodic/declarative by collection metadata
+        for (const hr of hybridResults) {
+          const point: MemoryPoint = {
+            id: hr.metadata?.id || Date.now(),
+            collection: hr.metadata?.collection === 'declarative' ? 'declarative_memory' : 'episodic_memory',
+            content: hr.content,
+            score: hr.score,
+            metadata: hr.metadata || {},
+          };
+          if (hr.metadata?.collection === 'declarative') {
+            if (declarative.length < dK) declarative.push(point);
+          } else {
+            if (episodic.length < eK) episodic.push(point);
+          }
+        }
+      } catch (hybridErr: any) {
+        this.fastify.log.warn(`[AgentChain] Hybrid search failed, falling back to vector-only: ${hybridErr.message}`);
+        // Fallback: direct vector recall
+        const fallback = await recall(this.db, {
+          userId, query: recallQuery,
+          episodicK: eK, episodicThreshold: episodicConfig?.threshold ?? recallSettings.episodicThreshold,
+          declarativeK: dK, declarativeThreshold: declarativeConfig?.threshold ?? recallSettings.declarativeThreshold,
+          proceduralK: 0,
+        });
+        episodic = fallback.episodic;
+        declarative = fallback.declarative;
+      }
+
+      // --- Procedural recall (vector-only, no hybrid needed) ---
+      const proceduralFallback = await recall(this.db, {
+        userId, query: recallQuery,
+        collections: ['procedural_memory'],
         proceduralK: proceduralConfig?.k ?? recallSettings.proceduralK,
         proceduralThreshold: proceduralConfig?.threshold ?? recallSettings.proceduralThreshold,
       });
+      let procedural = proceduralFallback.procedural;
+
+      // --- LLM-based Reranking (post-retrieval quality boost) ---
+      const reranker = new RerankerService(this.db);
+      try {
+        const [rerankedEpisodic, rerankedDeclarative] = await Promise.all([
+          episodic.length > 0 ? reranker.rerank(recallQuery, episodic, eK) : Promise.resolve([]),
+          declarative.length > 0 ? reranker.rerank(recallQuery, declarative, dK) : Promise.resolve([]),
+        ]);
+        episodic = rerankedEpisodic;
+        declarative = rerankedDeclarative;
+      } catch (rerankErr: any) {
+        this.fastify.log.warn(`[AgentChain] Reranking failed, using original order: ${rerankErr.message}`);
+      }
+
+      const recalled = { episodic, declarative, procedural };
 
       // Hook: after_cat_recalls_memories
       await eventBus.emit('after_cat_recalls_memories', recalled, hookCtx);
+
+      // Log recall quality for analytics
+      try {
+        const allPoints = [...recalled.episodic, ...recalled.declarative, ...recalled.procedural];
+        const avgScore = allPoints.length > 0
+          ? allPoints.reduce((sum, p) => sum + p.score, 0) / allPoints.length
+          : 0;
+        const reranked = episodic.length > 0 || declarative.length > 0;
+        await this.db.execute(
+          `INSERT INTO recall_log (user_id, conversation_id, query, episodic_count, declarative_count, procedural_count, avg_score, hyde_used, reranked)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [userId, _conversationId, recallQuery.substring(0, 500), recalled.episodic.length, recalled.declarative.length, recalled.procedural.length, avgScore.toFixed(3), recallQuery !== userMessage, reranked],
+        );
+      } catch {
+        // Recall logging is non-critical
+      }
 
       return recalled;
     } catch (err: any) {
@@ -256,6 +337,7 @@ export class AgentChainService {
     recallResults: { episodic: MemoryPoint[]; declarative: MemoryPoint[]; procedural: MemoryPoint[] },
     proceduresResult: { selectedAction: string; actionInput: string | null } | null,
     hookCtx: HookContext,
+    model?: string,
   ): Promise<Message[]> {
     // Build context strings from recall results
     const episodicContext = recallResults.episodic.length > 0
@@ -303,8 +385,19 @@ export class AgentChainService {
     const instructionsResult = await eventBus.pipe('agent_prompt_instructions', prompt.instructions, hookCtx);
     const finalInstructions = instructionsResult.data || prompt.instructions;
 
+    // Model-family-specific system prompt addition (GAP 3)
+    let familyPrompt = '';
+    if (model) {
+      try {
+        const modelConfig = await ModelConfigService.getConfig(this.db, model);
+        familyPrompt = ModelConfigService.getSystemPromptForFamily(modelConfig);
+      } catch {
+        // Non-critical — skip family prompt on error
+      }
+    }
+
     // Assemble final system prompt
-    const systemPrompt = [finalPrefix, finalSuffix, finalInstructions]
+    const systemPrompt = [familyPrompt, finalPrefix, finalSuffix, finalInstructions]
       .filter(s => s && s.trim())
       .join('\n\n');
 
