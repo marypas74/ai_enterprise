@@ -50,6 +50,7 @@ import { AgentEventEmitter } from './services/AgentEventEmitter.js';
 import { LLMSyncWorker } from './services/LLMSyncWorker.js';
 import { MCPClientManager } from './services/MCPClientManager.js';
 import { MemoryDecayService } from './services/MemoryDecayService.js';
+import { ConversationCleanupService } from './services/ConversationCleanupService.js';
 import websocket from '@fastify/websocket';
 import { findAll, findOne } from './database/index.js';
 import { decryptSecret } from './utils/crypto.js';
@@ -590,6 +591,13 @@ async function bootstrap() {
     const stopDecay = () => { memoryDecay.stop(); };
     process.on('SIGTERM', stopDecay);
     process.on('SIGINT', stopDecay);
+
+    // Initialize Conversation Cleanup Service (archive >24h, delete >60d)
+    const conversationCleanup = new ConversationCleanupService();
+    conversationCleanup.start(fastify.db);
+    const stopConvCleanup = () => { conversationCleanup.stop(); };
+    process.on('SIGTERM', stopConvCleanup);
+    process.on('SIGINT', stopConvCleanup);
 
     // Cleanup old generated files every hour (delete files older than 24h)
     const generatedDir = path.join(process.env.STORAGE_ROOT || process.cwd(), 'generated');

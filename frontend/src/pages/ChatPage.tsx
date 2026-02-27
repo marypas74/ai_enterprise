@@ -443,7 +443,7 @@ export default function ChatPage() {
           setIsStreaming(false);
           if (!currentConversationId) {
             setCurrentConversationId(conversationId);
-            loadConversations(showArchived);
+            loadConversations(showArchived, 0, true);
           }
         },
         (error) => {
