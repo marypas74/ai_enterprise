@@ -824,7 +824,7 @@ export class AIProviderFactory {
     if (model.startsWith('claude-')) return 'anthropic';
     if (model.startsWith('gemini-')) return 'google';
     // Check for common Ollama model patterns
-    if (model.match(/^(llama|mistral|mixtral|codellama|phi|qwen|gemma|deepseek|vicuna|orca|neural|dolphin|openhermes|starling|yi|solar|glm|glm4|glm-)/i)) {
+    if (model.match(/^(llama|llava|mistral|mixtral|codellama|phi|qwen|gemma|deepseek|vicuna|orca|neural|dolphin|openhermes|starling|yi|solar|glm|glm4|glm-|minicpm|nomic)/i)) {
       return 'ollama';
     }
     // Default to custom for unknown models

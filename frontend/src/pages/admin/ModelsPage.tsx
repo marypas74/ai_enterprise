@@ -224,11 +224,11 @@ export default function ModelsPage() {
                   <div className="grid grid-cols-2 gap-2 text-xs text-surface-500 mb-3">
                     <div>
                       <span className="block text-surface-400">Context</span>
-                      <span className="font-medium">{(model.context_window / 1000).toFixed(0)}K</span>
+                      <span className="font-medium">{(Number(model.context_window) / 1000).toFixed(0)}K</span>
                     </div>
                     <div>
                       <span className="block text-surface-400">Max Output</span>
-                      <span className="font-medium">{(model.max_output_tokens / 1000).toFixed(0)}K</span>
+                      <span className="font-medium">{(Number(model.max_output_tokens) / 1000).toFixed(0)}K</span>
                     </div>
                   </div>
 

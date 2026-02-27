@@ -369,11 +369,12 @@ export async function adminRoutes(fastify: FastifyInstance) {
       fastify.db,
       `SELECT us.id, us.user_id, u.email, u.name, u.role, u.mfa_enabled,
               us.ip_address, us.country, us.user_agent,
-              us.created_at as login_at, us.last_activity_at, us.expires_at
+              us.created_at as login_at, us.last_activity_at, us.expires_at, us.logged_out_at
        FROM user_sessions us
        JOIN users u ON us.user_id = u.id
-       WHERE us.revoked_at IS NULL AND us.expires_at > NOW()
-       ORDER BY us.last_activity_at DESC`
+       WHERE us.logged_out_at IS NULL AND us.revoked_at IS NULL AND us.expires_at > NOW()
+         AND us.last_activity_at > DATE_SUB(NOW(), INTERVAL 15 MINUTE)
+       ORDER BY us.created_at DESC`
     );
 
     const mapped = sessions.map((s: any) => ({
@@ -410,7 +411,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
     const result = await updateOne(
       fastify.db,
-      'UPDATE user_sessions SET revoked_at = NOW() WHERE user_id = ? AND revoked_at IS NULL',
+      'UPDATE user_sessions SET revoked_at = NOW(), logged_out_at = NOW() WHERE user_id = ? AND revoked_at IS NULL',
       [userId]
     );
 

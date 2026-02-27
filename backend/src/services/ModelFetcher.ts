@@ -70,6 +70,7 @@ async function fetchAnthropicModels(apiKey: string): Promise<AvailableModel[]> {
   // Anthropic doesn't have a models list endpoint, so we use known models
   // and verify the API key works
   try {
+    console.log('[ModelFetcher] Verifying Anthropic API key...');
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -78,27 +79,39 @@ async function fetchAnthropicModels(apiKey: string): Promise<AvailableModel[]> {
         'content-type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'claude-3-haiku-20240307',
+        model: 'claude-haiku-4-5-20251001',
         max_tokens: 1,
         messages: [{ role: 'user', content: 'Hi' }]
       })
     });
 
+    console.log(`[ModelFetcher] Anthropic API response status: ${response.status}`);
+
     // If we get 401, the key is invalid
     if (response.status === 401) {
-      console.error('Anthropic API key is invalid');
+      console.error('[ModelFetcher] Anthropic API key is invalid (401)');
       return [];
     }
 
-    // Key is valid, return known Claude models (Updated Jan 2026)
-    // Note: claude-3-5-sonnet-20241022 and claude-3-5-haiku-20241022 are deprecated
+    // Key is valid (any non-401 response means auth succeeded)
+    // Return known Claude models (Updated Feb 2026)
+    // IDs from https://platform.claude.com/docs/en/about-claude/models/overview
     return [
+      // Latest generation (Claude 4.6)
+      { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', provider: 'anthropic' },
+      { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', provider: 'anthropic' },
+      // Claude 4.5
+      { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', provider: 'anthropic' },
+      { id: 'claude-opus-4-5-20251101', name: 'Claude Opus 4.5', provider: 'anthropic' },
+      { id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5', provider: 'anthropic' },
+      // Claude 4
       { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', provider: 'anthropic' },
       { id: 'claude-opus-4-20250514', name: 'Claude Opus 4', provider: 'anthropic' },
-      { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku (Fast)', provider: 'anthropic' },
+      // Legacy
+      { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku (Legacy)', provider: 'anthropic' },
     ];
-  } catch (error) {
-    console.error('Failed to verify Anthropic API:', error);
+  } catch (error: any) {
+    console.error(`[ModelFetcher] Failed to verify Anthropic API: ${error.message}`);
     return [];
   }
 }
