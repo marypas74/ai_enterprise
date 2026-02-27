@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: browserless
+  namespace: enterprise-ai-chat
+  labels:
+    app: browserless
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: browserless
+  template:
+    metadata:
+      labels:
+        app: browserless
+    spec:
+      containers:
+        - name: browserless
+          image: ghcr.io/browserless/chromium:latest
+          ports:
+            - containerPort: 3000
+              name: http
+          env:
+            - name: TIMEOUT
+              value: "60000"
+            - name: CONCURRENT
+              value: "5"
+            - name: QUEUED
+              value: "10"
+            - name: HEALTH
+              value: "true"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1536Mi"
+              cpu: "1000m"
+          livenessProbe:
+            httpGet:
+              path: /json/version
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /json/version
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: browserless
+  namespace: enterprise-ai-chat
+spec:
+  selector:
+    app: browserless
+  ports:
+    - name: http
+      port: 3100
+      targetPort: 3000
+  type: ClusterIP
