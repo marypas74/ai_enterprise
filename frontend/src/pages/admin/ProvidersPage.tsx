@@ -132,7 +132,7 @@ export default function ProvidersPage() {
     setTesting(true);
     setTestResult(null);
     try {
-      const response = await api.post(`/admin/providers/${selectedProvider.id}/test`);
+      const response = await api.post(`/admin/providers/${selectedProvider.id}/test`, {});
       setTestResult({ success: response.data.success, message: response.data.message || 'Connection successful' });
     } catch (err: any) {
       setTestResult({

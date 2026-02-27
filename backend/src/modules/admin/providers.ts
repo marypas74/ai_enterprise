@@ -180,6 +180,16 @@ export async function providerRoutes(fastify: FastifyInstance) {
         `UPDATE ai_providers SET ${updates.join(', ')} WHERE id = ?`,
         values
       );
+
+      // Trigger immediate model sync when provider is enabled/disabled
+      if (body.is_enabled !== undefined) {
+        const worker = (fastify as any).llmSyncWorker;
+        if (worker) {
+          worker.triggerSync().catch((err: any) =>
+            fastify.log.error(`[Provider] Triggered sync failed: ${err.message}`)
+          );
+        }
+      }
     }
 
     return { success: true };
@@ -235,6 +245,14 @@ export async function providerRoutes(fastify: FastifyInstance) {
       [(request.user as any).id, 'update_provider_settings', 'ai_provider', id, request.ip]
     );
 
+    // Trigger immediate model sync when settings change (API key, base_url, etc.)
+    const worker = (fastify as any).llmSyncWorker;
+    if (worker) {
+      worker.triggerSync().catch((err: any) =>
+        fastify.log.error(`[Provider] Triggered sync after settings update failed: ${err.message}`)
+      );
+    }
+
     return { success: true };
   });
 
@@ -272,8 +290,9 @@ export async function providerRoutes(fastify: FastifyInstance) {
     }
 
     try {
-      // Test connection based on provider name (more specific than provider_type)
-      switch (provider.name) {
+      // Test connection based on provider name or provider_type (case-insensitive)
+      const providerKey = (provider.provider_type || provider.name || '').toLowerCase();
+      switch (providerKey) {
         case 'openai': {
           const response = await fetch(`${config.base_url || 'https://api.openai.com/v1'}/models`, {
             headers: { 'Authorization': `Bearer ${config.api_key}` }
@@ -283,14 +302,31 @@ export async function providerRoutes(fastify: FastifyInstance) {
         }
         case 'anthropic_api':
         case 'anthropic': {
-          // Claude API Key - test API key format
+          // Claude API - actually test the connection with a minimal request
           if (!config.api_key) {
             throw new Error('API key non configurata');
           }
-          if (!config.api_key.startsWith('sk-ant-')) {
-            throw new Error('Formato API key non valido (deve iniziare con sk-ant-)');
+          const baseUrl = config.base_url || 'https://api.anthropic.com';
+          const testResp = await fetch(`${baseUrl}/v1/messages`, {
+            method: 'POST',
+            headers: {
+              'x-api-key': config.api_key,
+              'anthropic-version': '2023-06-01',
+              'content-type': 'application/json'
+            },
+            body: JSON.stringify({
+              model: 'claude-haiku-4-5-20251001',
+              max_tokens: 1,
+              messages: [{ role: 'user', content: 'Hi' }]
+            })
+          });
+          if (testResp.status === 401) {
+            throw new Error('API key non valida (401 Unauthorized)');
           }
-          // Key format is valid, will be tested when used
+          if (testResp.status === 403) {
+            throw new Error('API key non autorizzata (403 Forbidden)');
+          }
+          // Any other response (200, 400, 429) means the key is accepted
           break;
         }
         case 'google':
@@ -308,8 +344,19 @@ export async function providerRoutes(fastify: FastifyInstance) {
           if (!response.ok) throw new Error(`Ollama API error: ${response.status}`);
           break;
         }
+        case 'custom': {
+          // For custom OpenAI-compatible providers, test the /models endpoint
+          if (!config.base_url) {
+            throw new Error('Base URL non configurato per provider custom');
+          }
+          const headers: Record<string, string> = {};
+          if (config.api_key) headers['Authorization'] = `Bearer ${config.api_key}`;
+          const response = await fetch(`${config.base_url}/models`, { headers });
+          if (!response.ok) throw new Error(`Custom provider error: ${response.status}`);
+          break;
+        }
         default:
-          return { success: true, message: 'Cannot test custom provider' };
+          return { success: true, message: 'Provider type not recognized for testing' };
       }
 
       return { success: true, message: 'Connection successful' };

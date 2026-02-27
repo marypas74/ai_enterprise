@@ -313,7 +313,7 @@ export async function generateExcelBuffer(
 }
 
 /**
- * Generate a PowerPoint buffer from slides
+ * Generate a professional PowerPoint buffer from slides
  * @param slides Array of { title, content }
  * @param title Presentation title
  */
@@ -324,35 +324,190 @@ export async function generatePptxBuffer(
     try {
         const pptx = new (PptxGenJS as any)();
 
-        // set metadata
+        // Professional color palette
+        const COLORS = {
+            primary: '1B3A5C',      // Dark blue
+            secondary: '2E6BA6',     // Medium blue
+            accent: '4A90D9',        // Light blue
+            text: '2D2D2D',          // Near-black for body text
+            textLight: '5A5A5A',     // Gray for subtitles
+            background: 'FFFFFF',    // White
+            headerBg: '1B3A5C',     // Header background
+            footerText: '8C8C8C',   // Light gray for footer
+            bulletColor: '2E6BA6',   // Blue bullets
+        };
+
+        // Layout constants (inches) — proper margins for professional look
+        const MARGIN = {
+            left: 0.8,
+            right: 0.8,
+            top: 0.6,
+            bottom: 0.8,
+        };
+        const CONTENT_WIDTH = 10 - MARGIN.left - MARGIN.right; // ~8.4"
+        const SLIDE_HEIGHT = 5.63; // Standard 16:9 slide height
+
+        // Metadata
         pptx.author = 'Enterprise AI Chat';
-        pptx.company = 'Your Company';
+        pptx.company = 'Enterprise AI';
         pptx.subject = title;
         pptx.title = title;
+        pptx.layout = 'LAYOUT_WIDE'; // 13.33 x 7.5 — standard widescreen
 
-        // Title Slide
+        // --- Title Slide ---
         const titleSlide = pptx.addSlide();
-        titleSlide.addText(title, { x: 1, y: 1, w: 8, h: 1, fontSize: 36, align: 'center', bold: true });
-        titleSlide.addText('Generato da AI', { x: 1, y: 2.5, w: 8, h: 0.5, fontSize: 18, align: 'center', color: '363636' });
+        // Blue accent bar at top
+        titleSlide.addShape('rect', {
+            x: 0, y: 0, w: '100%', h: 0.15,
+            fill: { color: COLORS.primary }
+        });
+        // Blue accent bar at bottom
+        titleSlide.addShape('rect', {
+            x: 0, y: 6.9, w: '100%', h: 0.6,
+            fill: { color: COLORS.primary }
+        });
+        // Title
+        titleSlide.addText(title, {
+            x: MARGIN.left, y: 2.0, w: CONTENT_WIDTH, h: 1.5,
+            fontSize: 36, fontFace: 'Calibri', bold: true,
+            color: COLORS.primary, align: 'center', valign: 'middle'
+        });
+        // Decorative line under title
+        titleSlide.addShape('rect', {
+            x: 3.5, y: 3.6, w: 3.3, h: 0.04,
+            fill: { color: COLORS.accent }
+        });
+        // Subtitle
+        titleSlide.addText('Generato da Enterprise AI', {
+            x: MARGIN.left, y: 4.0, w: CONTENT_WIDTH, h: 0.6,
+            fontSize: 16, fontFace: 'Calibri',
+            color: COLORS.textLight, align: 'center'
+        });
+        // Date in footer bar
+        const dateStr = new Date().toLocaleDateString('it-IT', { year: 'numeric', month: 'long', day: 'numeric' });
+        titleSlide.addText(dateStr, {
+            x: MARGIN.left, y: 7.0, w: CONTENT_WIDTH, h: 0.4,
+            fontSize: 11, fontFace: 'Calibri',
+            color: 'FFFFFF', align: 'center'
+        });
 
-        // Content Slides
-        for (const slideData of slides) {
+        // --- Content Slides ---
+        const totalSlides = slides.length;
+        for (let idx = 0; idx < totalSlides; idx++) {
+            const slideData = slides[idx];
             const slide = pptx.addSlide();
-            slide.addText(slideData.title, { x: 0.5, y: 0.5, w: 9, h: 0.6, fontSize: 24, bold: true, color: '003366' });
 
-            // Handle bullet points if content has newlines
-            const items = slideData.content.split('\n').filter(line => line.trim().length > 0);
+            // Top colored header bar
+            slide.addShape('rect', {
+                x: 0, y: 0, w: '100%', h: 1.1,
+                fill: { color: COLORS.primary }
+            });
 
-            // Simple text rendering
-            slide.addText(slideData.content, { x: 0.5, y: 1.5, w: 9, h: 3.5, fontSize: 14, color: '363636', align: 'left', bullet: items.length > 1 });
+            // Slide title (white on blue header)
+            slide.addText(slideData.title, {
+                x: MARGIN.left, y: 0.15, w: CONTENT_WIDTH - 1, h: 0.8,
+                fontSize: 22, fontFace: 'Calibri', bold: true,
+                color: 'FFFFFF', valign: 'middle'
+            });
+
+            // Parse content into structured bullet items
+            const contentItems = parseSlideContent(slideData.content);
+
+            // Content area with proper margins
+            const contentY = 1.4;
+            const contentH = SLIDE_HEIGHT - contentY - MARGIN.bottom;
+
+            if (contentItems.length > 0) {
+                // Build text array for PptxGenJS with proper bullet formatting
+                const textRows: any[] = [];
+                for (const item of contentItems) {
+                    const indent = item.level * 0.3;
+                    const bulletChar = item.level === 0 ? '●' : item.level === 1 ? '○' : '–';
+                    const fontSize = item.level === 0 ? 14 : 13;
+
+                    textRows.push({
+                        text: item.text,
+                        options: {
+                            fontSize,
+                            fontFace: 'Calibri',
+                            color: COLORS.text,
+                            bullet: { code: bulletChar.charCodeAt(0).toString(16), indent: indent },
+                            indentLevel: item.level,
+                            paraSpaceAfter: 6,
+                            paraSpaceBefore: item.level === 0 ? 4 : 0,
+                        }
+                    });
+                }
+
+                slide.addText(textRows, {
+                    x: MARGIN.left, y: contentY, w: CONTENT_WIDTH, h: contentH,
+                    valign: 'top', shrinkText: true
+                });
+            } else {
+                // Plain text fallback
+                slide.addText(slideData.content, {
+                    x: MARGIN.left, y: contentY, w: CONTENT_WIDTH, h: contentH,
+                    fontSize: 14, fontFace: 'Calibri', color: COLORS.text,
+                    align: 'left', valign: 'top', paraSpaceAfter: 6
+                });
+            }
+
+            // Thin accent line above footer
+            slide.addShape('rect', {
+                x: MARGIN.left, y: 6.95, w: CONTENT_WIDTH, h: 0.02,
+                fill: { color: COLORS.accent }
+            });
+
+            // Footer: slide number
+            slide.addText(`${idx + 1} / ${totalSlides}`, {
+                x: CONTENT_WIDTH - 0.5, y: 7.05, w: 1.5, h: 0.35,
+                fontSize: 10, fontFace: 'Calibri',
+                color: COLORS.footerText, align: 'right'
+            });
+
+            // Footer: title reference
+            slide.addText(title, {
+                x: MARGIN.left, y: 7.05, w: 4, h: 0.35,
+                fontSize: 10, fontFace: 'Calibri',
+                color: COLORS.footerText, align: 'left'
+            });
         }
 
-        // Return a nodebuffer. The type definition might require 'nodebuffer' string.
         return (await pptx.write({ outputType: 'nodebuffer' })) as unknown as Buffer;
     } catch (error: any) {
         console.error(`[DocumentProcessor] PPTX generation error: ${error.message}`);
         throw new Error(`PPTX generation failed: ${error.message}`);
     }
+}
+
+/**
+ * Parse slide content text into structured bullet items with indentation levels
+ */
+function parseSlideContent(content: string): { text: string; level: number }[] {
+    const lines = content.split('\n').filter(line => line.trim().length > 0);
+    if (lines.length <= 1) return [];
+
+    const items: { text: string; level: number }[] = [];
+    for (const raw of lines) {
+        const line = raw.trimEnd();
+        // Detect indentation level from leading whitespace, bullets, or dashes
+        const leadingMatch = line.match(/^(\s*)([-•●○▪▸►*]\s*|\d+[.)]\s*)?(.+)/);
+        if (!leadingMatch) continue;
+
+        const whitespace = leadingMatch[1] || '';
+        const bulletPrefix = leadingMatch[2] || '';
+        const text = leadingMatch[3].trim();
+        if (!text) continue;
+
+        // Determine indent level: 0=top, 1=sub, 2=sub-sub
+        let level = 0;
+        const totalIndent = whitespace.length + (bulletPrefix ? 1 : 0);
+        if (totalIndent >= 6) level = 2;
+        else if (totalIndent >= 2) level = 1;
+
+        items.push({ text, level });
+    }
+    return items;
 }
 
 
@@ -417,7 +572,7 @@ export async function convertSlidesToPptx(
 
 export interface ProcessResult {
     text: string;
-    method: 'pdf-parse' | 'ocr' | 'mammoth' | 'xlsx' | 'pptx' | 'text-read' | 'unknown';
+    method: 'pdf-parse' | 'ocr' | 'vision-ocr' | 'mammoth' | 'xlsx' | 'pptx' | 'text-read' | 'unknown';
     charCount: number;
 }
 
@@ -429,8 +584,20 @@ export async function processDocument(
     mimeType: string,
     originalName: string
 ): Promise<ProcessResult> {
-    // Images → OCR
+    // Images → Vision OCR (with Tesseract fallback)
     if (mimeType.startsWith('image/')) {
+        try {
+            const { VisionService } = await import('./VisionService.js');
+            const vision = VisionService.getInstance();
+            if (await vision.isAvailable()) {
+                const result = await vision.analyzeDocument(buffer, mimeType);
+                if (result.text.trim().length > 10) {
+                    return { text: result.text, method: 'vision-ocr', charCount: result.text.length };
+                }
+            }
+        } catch (err: any) {
+            console.warn(`[DocumentProcessor] Vision OCR failed for image, falling back to Tesseract: ${err.message}`);
+        }
         const text = await extractWithOCR(buffer);
         return { text, method: 'ocr', charCount: text.length };
     }
@@ -453,25 +620,49 @@ export async function processDocument(
         return { text, method, charCount: text.length };
     }
 
-    // PDF -> pdf-parse (with OCR fallback)
+    // PDF -> pdf-parse (with Vision OCR fallback, then Tesseract fallback)
     if (mimeType === 'application/pdf') {
         const { extractPdfText } = await import('../modules/attachments/routes.js');
         let text: string = await extractPdfText(buffer);
+        let method: ProcessResult['method'] = 'pdf-parse';
 
         // Check if text is too sparse or just markers
         const markerPattern = /-- \d+ of \d+ --/g;
         const cleanedText = text.replace(markerPattern, '').trim();
 
         if (cleanedText.length < 20) {
-            console.log(`[DocumentProcessor] PDF text too sparse (${cleanedText.length} chars) for ${originalName}, trying OCR...`);
+            console.log(`[DocumentProcessor] PDF text too sparse (${cleanedText.length} chars) for ${originalName}, trying Vision OCR...`);
+
+            // Try Vision OCR first (much better quality than Tesseract)
             try {
-                const ocrText = await extractPdfWithOCR(buffer);
-                if (ocrText.trim()) text = ocrText;
-            } catch (ocrErr: any) {
-                console.warn(`[DocumentProcessor] PDF OCR fallback failed: ${ocrErr.message}`);
+                const { VisionService } = await import('./VisionService.js');
+                const vision = VisionService.getInstance();
+                if (await vision.isAvailable()) {
+                    const visionResult = await vision.analyzeDocument(buffer, mimeType);
+                    if (visionResult.text.trim().length > 20) {
+                        console.log(`[DocumentProcessor] Vision OCR extracted ${visionResult.text.length} chars using ${visionResult.model} (${visionResult.pages} pages)`);
+                        text = visionResult.text;
+                        method = 'vision-ocr';
+                    }
+                }
+            } catch (visionErr: any) {
+                console.warn(`[DocumentProcessor] Vision OCR failed: ${visionErr.message}`);
+            }
+
+            // If Vision OCR also failed, fall back to Tesseract
+            if (method === 'pdf-parse' && cleanedText.length < 20) {
+                try {
+                    const ocrText = await extractPdfWithOCR(buffer);
+                    if (ocrText.trim()) {
+                        text = ocrText;
+                        method = 'ocr';
+                    }
+                } catch (ocrErr: any) {
+                    console.warn(`[DocumentProcessor] Tesseract OCR fallback failed: ${ocrErr.message}`);
+                }
             }
         }
-        return { text, method: 'pdf-parse', charCount: text.length };
+        return { text, method, charCount: text.length };
     }
 
     // Plain text / code
