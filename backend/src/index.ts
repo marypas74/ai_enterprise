@@ -7,6 +7,7 @@ import rateLimit from '@fastify/rate-limit';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import fp from 'fastify-plugin';
+import path from 'path';
 import 'dotenv/config';
 
 import { databasePlugin } from './database/index.js';
@@ -47,6 +48,8 @@ import { AIProviderFactory } from './modules/ai/providers.js';
 import { AgentOrchestrator } from './services/AgentOrchestrator.js';
 import { AgentEventEmitter } from './services/AgentEventEmitter.js';
 import { LLMSyncWorker } from './services/LLMSyncWorker.js';
+import { MCPClientManager } from './services/MCPClientManager.js';
+import { MemoryDecayService } from './services/MemoryDecayService.js';
 import websocket from '@fastify/websocket';
 import { findAll, findOne } from './database/index.js';
 import { decryptSecret } from './utils/crypto.js';
@@ -164,12 +167,39 @@ const appPlugin = fp(async function (fastify) {
       await request.jwtVerify();
       fastify.log.debug(`[Auth] OK for ${url} - User: ${request.user?.id}`);
 
-      // Update session last_activity_at on every authenticated request (fire & forget)
+      // Check session inactivity: if last_activity_at > 15 min ago, force re-login
       const userId = request.user?.id;
       if (userId && fastify.db) {
-        fastify.db.execute(
-          'UPDATE user_sessions SET last_activity_at = NOW() WHERE user_id = ? AND revoked_at IS NULL AND expires_at > NOW() ORDER BY created_at DESC LIMIT 1',
+        const [sessions] = await fastify.db.execute(
+          `SELECT id, last_activity_at FROM user_sessions
+           WHERE user_id = ? AND revoked_at IS NULL AND logged_out_at IS NULL AND expires_at > NOW()
+           ORDER BY created_at DESC LIMIT 1`,
           [userId]
+        ) as any;
+
+        if (!sessions || sessions.length === 0) {
+          fastify.log.warn(`[Auth] No active session found for user ${userId}`);
+          return reply.status(401).send({ error: 'Unauthorized', reason: 'Session expired' });
+        }
+
+        const session = sessions[0];
+        const lastActivity = session.last_activity_at ? new Date(session.last_activity_at).getTime() : 0;
+        const fifteenMinMs = 15 * 60 * 1000;
+
+        if (Date.now() - lastActivity > fifteenMinMs) {
+          // Invalidate session due to inactivity
+          await fastify.db.execute(
+            'UPDATE user_sessions SET revoked_at = NOW(), logged_out_at = NOW() WHERE id = ?',
+            [session.id]
+          );
+          fastify.log.warn(`[Auth] Session expired due to inactivity for user ${userId}`);
+          return reply.status(401).send({ error: 'Unauthorized', reason: 'Session expired due to inactivity' });
+        }
+
+        // Update last_activity_at (fire & forget)
+        fastify.db.execute(
+          'UPDATE user_sessions SET last_activity_at = NOW() WHERE id = ?',
+          [session.id]
         ).catch(() => { /* non-critical */ });
       }
     } catch (err: any) {
@@ -512,6 +542,8 @@ async function bootstrap() {
     try {
       syncWorker = new LLMSyncWorker(fastify);
       syncWorker.start();
+      // Expose worker for on-demand trigger from admin routes
+      (fastify as any).llmSyncWorker = syncWorker;
     } catch (err) {
       fastify.log.warn('Could not initialize LLM Sync Worker: ' + String(err));
     }
@@ -529,6 +561,80 @@ async function bootstrap() {
       fastify.log.info('[Startup] HyDE service initialized');
     } catch (err) {
       fastify.log.warn('[Startup] HyDE service initialization failed: ' + err);
+    }
+
+    // Initialize Vision Service with DB for dynamic model resolution
+    try {
+      const { VisionService } = await import('./services/VisionService.js');
+      VisionService.getInstance().setDb(fastify.db);
+      fastify.log.info('[Startup] VisionService initialized with DB pool');
+    } catch (err) {
+      fastify.log.warn('[Startup] VisionService initialization failed: ' + err);
+    }
+
+    // Initialize MCP Client Manager
+    try {
+      const mcpManager = MCPClientManager.getInstance();
+      await mcpManager.initialize(fastify.db);
+      const mcpStatus = mcpManager.getStatus();
+      if (mcpStatus.length > 0) {
+        fastify.log.info(`[Startup] MCP Client Manager: ${mcpStatus.filter(s => s.connected).length}/${mcpStatus.length} servers connected`);
+      }
+    } catch (err) {
+      fastify.log.warn('[Startup] MCP Client Manager initialization failed: ' + err);
+    }
+
+    // Initialize Memory Decay Service
+    const memoryDecay = new MemoryDecayService();
+    memoryDecay.start(fastify.db);
+    const stopDecay = () => { memoryDecay.stop(); };
+    process.on('SIGTERM', stopDecay);
+    process.on('SIGINT', stopDecay);
+
+    // Cleanup old generated files every hour (delete files older than 24h)
+    const generatedDir = path.join(process.env.STORAGE_ROOT || process.cwd(), 'generated');
+    const cleanupGeneratedFiles = async () => {
+      try {
+        const { readdir, stat, unlink } = await import('fs/promises');
+        const files = await readdir(generatedDir).catch(() => [] as string[]);
+        const maxAge = 24 * 60 * 60 * 1000; // 24 hours
+        let cleaned = 0;
+        for (const file of files) {
+          const filePath = path.join(generatedDir, file);
+          const fileStat = await stat(filePath).catch(() => null);
+          if (fileStat && Date.now() - fileStat.mtimeMs > maxAge) {
+            await unlink(filePath).catch(() => {});
+            cleaned++;
+          }
+        }
+        if (cleaned > 0) {
+          fastify.log.info(`[Cleanup] Removed ${cleaned} expired generated files`);
+        }
+      } catch (err) {
+        fastify.log.warn(`[Cleanup] Generated files cleanup failed: ${err}`);
+      }
+    };
+    // Run once on startup, then every hour
+    cleanupGeneratedFiles();
+    const cleanupInterval = setInterval(cleanupGeneratedFiles, 60 * 60 * 1000);
+    process.on('SIGTERM', () => clearInterval(cleanupInterval));
+    process.on('SIGINT', () => clearInterval(cleanupInterval));
+
+    // Register built-in tools as procedural memory for semantic tool selection
+    try {
+      const { storeProcedural } = await import('./services/VectorMemoryService.js');
+      const { getToolDefinitions } = await import('./services/ToolService.js');
+      const tools = getToolDefinitions();
+      let registered = 0;
+      for (const tool of tools) {
+        const success = await storeProcedural(fastify.db, registered + 1, tool.name, tool.description, 'tool', 'built-in');
+        if (success) registered++;
+      }
+      if (registered > 0) {
+        fastify.log.info(`[Startup] Registered ${registered} built-in tools in procedural memory`);
+      }
+    } catch (err) {
+      fastify.log.warn('[Startup] Procedural memory registration failed: ' + err);
     }
 
     // Fire bootstrap event for hook system

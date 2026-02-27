@@ -303,6 +303,25 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
     },
     {
+      name: 'recall_log',
+      sql: `CREATE TABLE IF NOT EXISTS recall_log (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        user_id BIGINT UNSIGNED NOT NULL,
+        conversation_id BIGINT UNSIGNED NULL,
+        query TEXT NOT NULL,
+        episodic_count TINYINT UNSIGNED DEFAULT 0,
+        declarative_count TINYINT UNSIGNED DEFAULT 0,
+        procedural_count TINYINT UNSIGNED DEFAULT 0,
+        avg_score DECIMAL(4,3) DEFAULT 0,
+        duration_ms INT UNSIGNED DEFAULT 0,
+        hyde_used BOOLEAN DEFAULT FALSE,
+        reranked BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_user (user_id),
+        INDEX idx_created (created_at DESC)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+    },
+    {
       name: 'resource_permissions',
       sql: `CREATE TABLE IF NOT EXISTS resource_permissions (
         id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -322,6 +341,22 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
         UNIQUE KEY uniq_user_resource (user_id, resource),
         INDEX idx_user (user_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+    },
+    {
+      name: 'token_usage_components',
+      sql: `CREATE TABLE IF NOT EXISTS token_usage_components (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        usage_id BIGINT UNSIGNED NULL,
+        conversation_id BIGINT UNSIGNED NULL,
+        user_id BIGINT UNSIGNED NOT NULL,
+        component ENUM('system_prompt','memory_context','hyde','user_message','tool_definitions','tool_results','assistant_response') NOT NULL,
+        tokens_estimate INT UNSIGNED NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_usage (usage_id),
+        INDEX idx_conversation (conversation_id),
+        INDEX idx_user_component (user_id, component),
+        INDEX idx_created (created_at DESC)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
     }
   ];
@@ -344,6 +379,7 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
     { name: 'users_add_notes', sql: `ALTER TABLE users ADD COLUMN notes TEXT NULL` },
     { name: 'users_add_mfa_enabled', sql: `ALTER TABLE users ADD COLUMN mfa_enabled BOOLEAN DEFAULT FALSE` },
     { name: 'users_add_mfa_secret', sql: `ALTER TABLE users ADD COLUMN mfa_secret VARCHAR(255) NULL` },
+    { name: 'user_sessions_add_logged_out_at', sql: `ALTER TABLE user_sessions ADD COLUMN logged_out_at TIMESTAMP NULL` },
   ];
 
   for (const migration of alterMigrations) {
