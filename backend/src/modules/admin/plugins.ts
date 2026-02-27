@@ -578,8 +578,7 @@ export async function pluginRoutes(fastify: FastifyInstance) {
       return reply.status(404).send({ error: 'MCP server not found' });
     }
 
-    // TODO: Implement actual MCP connection test
-    // For now, just validate configuration
+    // Validate configuration
     if (server.transport_type === 'stdio' && !server.command) {
       return { success: false, message: 'Command is required for stdio transport' };
     }
@@ -588,7 +587,45 @@ export async function pluginRoutes(fastify: FastifyInstance) {
       return { success: false, message: 'URL is required for SSE/WebSocket transport' };
     }
 
-    return { success: true, message: 'Configuration is valid' };
+    // Actual connection test for stdio transport
+    if (server.transport_type === 'stdio' && server.command) {
+      try {
+        const { MCPClientManager } = await import('../../services/MCPClientManager.js');
+        const manager = MCPClientManager.getInstance();
+        // Parse command — first token is the executable, rest are args
+        const cmdParts = server.command.trim().split(/\s+/);
+        const envVars = server.env_vars
+          ? (typeof server.env_vars === 'string' ? JSON.parse(server.env_vars) : server.env_vars)
+          : {};
+        const config = {
+          id: server.id,
+          name: server.name,
+          transport: server.transport_type as 'stdio',
+          command: cmdParts[0],
+          args: cmdParts.slice(1),
+          env: envVars,
+          isEnabled: true,
+        };
+        const connected = await manager.connectServer(config);
+        if (connected) {
+          const status = manager.getStatus().find(s => s.id === server.id);
+          return {
+            success: true,
+            message: `Connected successfully. Discovered ${status?.tools || 0} tools.`,
+            tools: status?.tools || 0,
+          };
+        }
+        const status = manager.getStatus().find(s => s.id === server.id);
+        return {
+          success: false,
+          message: status?.error || 'Connection failed',
+        };
+      } catch (err: any) {
+        return { success: false, message: `Connection test failed: ${err.message}` };
+      }
+    }
+
+    return { success: true, message: 'Configuration is valid (connection test not available for this transport type)' };
   });
 
   // ==========================================

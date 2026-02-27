@@ -531,19 +531,21 @@ export class MetricsService {
         } catch { return []; }
     }
 
-    // Get active user sessions from database
+    // Get active user sessions from database (active = logged_out_at IS NULL AND activity within 15 min)
     static async getActiveUsers(db?: Pool): Promise<any[]> {
         if (!db) return [];
         try {
             const [rows] = await db.execute(
                 `SELECT u.id, u.email, u.name, u.role, u.last_login_at,
-                        us.ip_address, us.country, us.user_agent, us.last_activity_at, us.created_at as session_start
+                        us.ip_address, us.country, us.user_agent, us.last_activity_at,
+                        us.created_at as session_start, us.logged_out_at
                  FROM user_sessions us
                  JOIN users u ON u.id = us.user_id
-                 WHERE us.revoked_at IS NULL
+                 WHERE us.logged_out_at IS NULL
+                   AND us.revoked_at IS NULL
                    AND us.expires_at > NOW()
                    AND us.last_activity_at > DATE_SUB(NOW(), INTERVAL 15 MINUTE)
-                 ORDER BY us.last_activity_at DESC
+                 ORDER BY us.created_at DESC
                  LIMIT 30`
             );
             return (rows as any[]).map(r => ({
@@ -555,7 +557,8 @@ export class MetricsService {
                 ipAddress: r.ip_address || null,
                 country: r.country || null,
                 userAgent: r.user_agent || null,
-                sessionStart: r.session_start || null
+                sessionStart: r.session_start || null,
+                loggedOutAt: r.logged_out_at || null
             }));
         } catch {
             // Fallback: query users table by last_login_at
@@ -563,7 +566,7 @@ export class MetricsService {
                 const [rows] = await db.execute(
                     `SELECT id, email, name, role, last_login_at
                      FROM users
-                     WHERE last_login_at > DATE_SUB(NOW(), INTERVAL 15 MINUTE)
+                     WHERE last_login_at > DATE_SUB(NOW(), INTERVAL 30 MINUTE)
                      ORDER BY last_login_at DESC
                      LIMIT 30`
                 );
@@ -576,7 +579,8 @@ export class MetricsService {
                     ipAddress: null,
                     country: null,
                     userAgent: null,
-                    sessionStart: null
+                    sessionStart: null,
+                    loggedOutAt: null
                 }));
             } catch {
                 return [];
