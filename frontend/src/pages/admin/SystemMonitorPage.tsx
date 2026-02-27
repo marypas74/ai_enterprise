@@ -44,7 +44,7 @@ interface SystemData {
   }>;
   network: {
     interfaces: Array<{ name: string; address: string; netmask: string; mac: string }>;
-    stats: Array<{ interface: string; rxBytes: number; txBytes: number }>;
+    stats: Array<{ interface: string; rxBytesPerSec: number; txBytesPerSec: number }>;
   };
   containers: Array<{ id: string; name: string; status: string; image: string; ports: string }>;
   processes: Array<{
@@ -89,8 +89,8 @@ interface SystemData {
   };
 }
 
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B';
+function formatBytes(bytes: number | undefined | null): string {
+  if (!bytes || bytes <= 0) return '0 B';
   const k = 1024;
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
@@ -368,7 +368,7 @@ export default function SystemMonitorPage() {
               {data?.network?.stats?.slice(0, 4).map((stat, i) => (
                 <div key={i} className="flex justify-between text-surface-500">
                   <span>{stat.interface}</span>
-                  <span>RX: {formatBytes(stat.rxBytes)} TX: {formatBytes(stat.txBytes)}</span>
+                  <span>RX: {formatBytes(stat.rxBytesPerSec)}/s TX: {formatBytes(stat.txBytesPerSec)}/s</span>
                 </div>
               ))}
             </div>

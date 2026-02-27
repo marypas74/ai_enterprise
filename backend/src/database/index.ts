@@ -358,6 +358,10 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
         INDEX idx_user_component (user_id, component),
         INDEX idx_created (created_at DESC)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+    },
+    {
+      name: 'plugins_add_dependencies',
+      sql: `ALTER TABLE plugins ADD COLUMN IF NOT EXISTS dependencies JSON NULL`
     }
   ];
 

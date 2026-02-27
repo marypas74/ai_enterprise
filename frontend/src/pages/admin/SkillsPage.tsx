@@ -302,6 +302,15 @@ export default function SkillsPage() {
       </div>
 
       {/* Skills Grid */}
+      {Object.keys(groupedSkills).length === 0 ? (
+        <div className="flex items-center justify-center h-64 bg-white rounded-lg border-2 border-dashed border-gray-300">
+          <div className="text-center">
+            <Brain className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+            <p className="text-gray-600 font-medium">Nessuna skill trovata</p>
+            <p className="text-gray-500 text-sm mt-1">Crea la tua prima skill per iniziare</p>
+          </div>
+        </div>
+      ) : (
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
         {Object.entries(groupedSkills).map(([category, categorySkills]) => (
           <div key={category} className="col-span-full">
@@ -401,6 +410,7 @@ export default function SkillsPage() {
           </div>
         ))}
       </div>
+      )}
 
       {/* Skill Templates */}
       {templates.length > 0 && (

@@ -144,7 +144,7 @@ export async function pluginRoutes(fastify: FastifyInstance) {
     return plugins.map(p => ({
       ...p,
       config_schema: p.config_schema ? JSON.parse(p.config_schema) : null,
-      tool_count: toolCountMap.get(p.id) || 0
+      tools_count: toolCountMap.get(p.id) || 0
     }));
   });
 

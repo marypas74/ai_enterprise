@@ -620,7 +620,6 @@ export async function authRoutes(fastify: FastifyInstance) {
       FROM user_sessions us
       JOIN users u ON us.user_id = u.id
       WHERE us.logged_out_at IS NULL AND us.revoked_at IS NULL AND us.expires_at > NOW()
-        AND us.last_activity_at > DATE_SUB(NOW(), INTERVAL 15 MINUTE)
       ORDER BY us.created_at DESC
     `);
 

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { api } from '../../services/api';
+import { useAuth } from '../../hooks/useAuth';
 import {
   Bug,
   Terminal,
@@ -79,6 +80,7 @@ const originalConsole = {
 };
 
 export default function DebugPage() {
+  const { token } = useAuth();
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [apiRequests, setApiRequests] = useState<ApiRequest[]>([]);
   const [activeTab, setActiveTab] = useState<'all' | 'backend' | 'frontend' | 'api'>('all');
@@ -235,7 +237,7 @@ export default function DebugPage() {
   useEffect(() => {
     const connectWs = () => {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}/ws/debug`;
+      const wsUrl = `${protocol}//${window.location.host}/ws/debug${token ? `?token=${encodeURIComponent(token)}` : ''}`;
 
       try {
         wsRef.current = new WebSocket(wsUrl);
@@ -286,7 +288,7 @@ export default function DebugPage() {
     return () => {
       wsRef.current?.close();
     };
-  }, [addLog]);
+  }, [addLog, token]);
 
   // Load backend logs via API
   const loadBackendLogs = async () => {
