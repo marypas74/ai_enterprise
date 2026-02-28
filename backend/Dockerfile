@@ -25,7 +25,7 @@ WORKDIR /app
 RUN groupadd -g 1001 nodejs && \
     useradd -u 1001 --create-home --shell /bin/bash -g nodejs nodejs
 
-# Install LibreOffice, poppler-utils and fonts
+# Install LibreOffice, poppler-utils, fonts, and Python sandbox
 RUN apt-get update && apt-get install -y \
     libreoffice \
     fonts-dejavu \
@@ -36,6 +36,10 @@ RUN apt-get update && apt-get install -y \
     poppler-utils \
     wget \
     procps \
+    python3 \
+    python3-pip \
+    && python3 -m pip install --no-cache-dir \
+       requests beautifulsoup4 lxml trafilatura pandas \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy package files
@@ -46,6 +50,9 @@ RUN npm ci --omit=dev --legacy-peer-deps && npm cache clean --force
 
 # Copy built files from builder
 COPY --from=builder /app/dist ./dist
+
+# Copy sandbox Python files
+COPY src/sandbox ./sandbox
 
 # Set ownership
 RUN chown -R nodejs:nodejs /app

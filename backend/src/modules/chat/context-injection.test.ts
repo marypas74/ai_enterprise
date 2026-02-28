@@ -52,7 +52,7 @@ describe('Chat Routes Context Injection', () => {
                 warn: vi.fn(),
             },
             db: {
-                execute: vi.fn(),
+                execute: vi.fn().mockResolvedValue([{ insertId: 1, affectedRows: 1 }, []]),
             },
             authenticate: vi.fn(),
         };
@@ -87,6 +87,7 @@ describe('Chat Routes Context Injection', () => {
             // Match the query used in the route handler
             if (query.includes('FROM chat_attachments') || query.includes('processed_content')) {
                 return Promise.resolve([{
+                    id: 100,
                     original_name: 'test.pdf',
                     content_type: 'document',
                     processed_content: 'Extracted Content From DB',
@@ -110,11 +111,11 @@ describe('Chat Routes Context Injection', () => {
         expect(userMessageCall).toBeDefined();
         const savedMessage = userMessageCall[2][2];
 
-        expect(savedMessage).toContain('[Allegato: test.pdf (document)]');
+        expect(savedMessage).toContain('[Allegato ID=100: test.pdf (document)]');
         expect(savedMessage).toContain('Extracted Content From DB');
         expect(savedMessage).toContain('Analyze this file');
 
-        expect(savedMessage).toContain('[Allegato: test.pdf (document)]');
+        expect(savedMessage).toContain('[Allegato ID=100: test.pdf (document)]');
         expect(savedMessage).toContain('Extracted Content From DB');
         expect(savedMessage).toContain('Analyze this file');
     });

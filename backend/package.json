@@ -1,6 +1,6 @@
 {
   "name": "enterprise-ai-chat-backend",
-  "version": "1.7.7",
+  "version": "1.7.8",
   "description": "Enterprise AI Chat Platform - Backend API",
   "main": "dist/index.js",
   "type": "module",

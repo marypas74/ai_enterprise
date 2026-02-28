@@ -7,7 +7,8 @@ import { fetchAllModels, clearModelsCache } from '../../services/ModelFetcher.js
 import { ParlantProviderFactory, fetchParlantAgents, checkParlantHealth } from '../../services/ParlantProvider.js';
 import { enhanceWithWebSearch } from '../../services/WebSearchService.js';
 import { saveCodeBlocks, formatSavedFilesNotification, isAutoSaveModel } from '../../services/CodeAutoSaveService.js';
-import { getAllToolDefinitions, executeTool } from '../../services/ToolService.js';
+import { executeTool } from '../../services/ToolService.js';
+import { selectTools } from '../../services/ToolSelectionService.js';
 import { MemoryService } from '../memory/service.js';
 import { getProjectFolder } from '../../services/StorageService.js';
 import { decryptSecret } from '../../utils/crypto.js';
@@ -425,19 +426,21 @@ Il codice che generi verrà salvato automaticamente nella cartella condivisa. Us
       // Inject Tool System Prompt if context is available (tool-calling models)
       if (toolContext) {
         const toolSystemPrompt = `\n\n[CAPABILITIES]
-You have access to the following tools to help the user. YOU MUST USE THEM when requested to create files or read attachments:
-1. generate_word_document(path, content, title): Create Word (.docx) files. The user will receive a download link.
-2. generate_excel_document(path, data, sheetName): Create Excel (.xlsx) files.
-3. generate_powerpoint_document(path, slides, title): Create PowerPoint (.pptx) files.
-4. get_attachment_text(attachment_id): Read the FULL text of an uploaded file.
+You have access to these tools:
+1. **execute_python(code)**: Run Python in a sandbox. Inside Python, use the pre-initialized "tool" object:
+   - tool.read_file(path), tool.write_file(path, content), tool.list_files(path)
+   - tool.web_search(query), tool.http_get(url), tool.web_extract(url)
+   - tool.vector_search(query), tool.vector_upsert(text, metadata)
+   - tool.dataframe(data) for pandas DataFrames. Use print() for output.
+2. **vector_memory_search(query)**: Search vector memory for relevant context.
+3. **generate_word_document / generate_excel_document / generate_powerpoint_document**: Create Office files.
+4. **get_attachment_text(attachment_id)**: Read the FULL text of an uploaded file.
+5. **web_search(query)**: Search the web for current information.
 
 [CRITICAL INSTRUCTIONS]
 - The content of any uploaded file (PDF, DOCX, etc.) is ALREADY INCLUDED in the user message above, between [Allegato ...] and [Fine allegato] markers.
 - You CAN read it. DO NOT say you cannot read or see the file. The text IS the file content.
-- If the user asks to translate a file and save it as DOCX:
-  1. Read the file content from the [Allegato] section above.
-  2. Translate ALL the content to the requested language.
-  3. Use generate_word_document to save the translated text as a .docx file.
+- For complex multi-step tasks, prefer execute_python to orchestrate everything in one call.
 - ALWAYS use tools for file operations. NEVER say you cannot create files.
 - Use relative paths like "output/translated.docx".`;
 
@@ -616,6 +619,7 @@ Quando l'utente chiede di tradurre, creare o elaborare un documento:
       let fullResponse = '';
       let tokensInput = 0;
       let tokensOutput = 0;
+      let toolDefs: ReturnType<typeof selectTools> | undefined;
 
       // Hook: before_llm_call — modify prompt/params before LLM call
       try {
@@ -630,87 +634,134 @@ Quando l'utente chiede di tradurre, creare o elaborare un documento:
 
       try {
         const modelConfig = await ModelConfigService.getConfig(fastify.db, body.model);
-        const stream = provider.streamComplete({
-          model: body.model,
-          messages,
-          maxTokens: modelConfig.maxOutputTokens,
-          temperature: modelConfig.temperature,
-          stream: true,
-          tools: toolContext ? getAllToolDefinitions() : undefined
-        });
+        toolDefs = toolContext ? selectTools(body.message) : undefined;
+        const MAX_TOOL_ROUNDS = 5;
+        let toolRound = 0;
 
-        let accumulatedToolCalls: any[] = [];
-        let currentToolCall: any = null;
+        // Multi-round tool call loop: stream LLM → execute tools → re-send to LLM
+        let continueLoop = true;
+        while (continueLoop && toolRound < MAX_TOOL_ROUNDS) {
+          toolRound++;
+          continueLoop = false; // Will be set true if tool calls detected
 
-        for await (const chunk of stream) {
-          // Handle Tool Definitions in Stream
-          if (chunk.toolCalls && chunk.toolCalls.length > 0) {
-            for (const tc of chunk.toolCalls) {
-              if (tc.function && tc.function.name) {
-                // Start new tool call
-                if (currentToolCall) accumulatedToolCalls.push(currentToolCall);
-                currentToolCall = {
-                  id: tc.id,
-                  name: tc.function.name,
-                  arguments: tc.function.arguments || ''
-                };
-              } else if (tc.function && tc.function.arguments && currentToolCall) {
-                // Append arguments
-                currentToolCall.arguments += tc.function.arguments;
-              }
-            }
-          }
+          const stream = provider.streamComplete({
+            model: body.model,
+            messages,
+            maxTokens: modelConfig.maxOutputTokens,
+            temperature: modelConfig.temperature,
+            stream: true,
+            tools: toolDefs
+          });
 
-          if (chunk.content) {
-            fullResponse += chunk.content;
-            reply.raw.write(`data: ${JSON.stringify({ content: chunk.content, done: false })}\n\n`);
-          }
-          if (chunk.done) {
-            // If there's a pending tool call, finish it
-            if (currentToolCall) accumulatedToolCalls.push(currentToolCall);
+          let accumulatedToolCalls: any[] = [];
+          let currentToolCall: any = null;
+          let roundContent = '';
 
-            // Execute tools if any
-            if (accumulatedToolCalls.length > 0 && toolContext) {
-              for (const tc of accumulatedToolCalls) {
-                try {
-                  const args = JSON.parse(tc.arguments);
-                  fastify.log.info(`[Chat] Auto-executing tool in chat: ${tc.name}`);
-
-                  // Hook: before_tool_execute
-                  await eventBus.emit('before_tool_execute', { tool: tc.name, args, toolContext }, hookCtx);
-
-                  const result = await executeTool(tc.name, args, toolContext);
-
-                  // Hook: after_tool_execute
-                  await eventBus.emit('after_tool_execute', { tool: tc.name, args, result, toolContext }, hookCtx);
-
-                  if (result.success) {
-                    // Build notification with download link if available
-                    let notification: string;
-                    if (result.output.downloadUrl) {
-                      notification = `\n\n📄 **Documento generato**: [Scarica ${result.output.downloadFilename || result.output.path}](${result.output.downloadUrl})`;
-                    } else {
-                      notification = `\n\n> **System**: Generated file \`${result.output.path}\``;
-                    }
-                    reply.raw.write(`data: ${JSON.stringify({ content: notification, done: false })}\n\n`);
-                    fullResponse += notification;
-                  } else {
-                    const err = `\n\n> **System**: Tool usage failed: ${result.error}`;
-                    reply.raw.write(`data: ${JSON.stringify({ content: err, done: false })}\n\n`);
-                    fullResponse += err;
-                  }
-                } catch (e: any) {
-                  fastify.log.error(`[Chat] Tool execution error: ${e.message}`);
+          for await (const chunk of stream) {
+            // Handle Tool Definitions in Stream
+            if (chunk.toolCalls && chunk.toolCalls.length > 0) {
+              for (const tc of chunk.toolCalls) {
+                if (tc.function && tc.function.name) {
+                  // Start new tool call
+                  if (currentToolCall) accumulatedToolCalls.push(currentToolCall);
+                  currentToolCall = {
+                    id: tc.id || `tool_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+                    name: tc.function.name,
+                    arguments: tc.function.arguments || ''
+                  };
+                } else if (tc.function && tc.function.arguments && currentToolCall) {
+                  // Append arguments
+                  currentToolCall.arguments += tc.function.arguments;
                 }
               }
             }
 
-            // Note: done:true is sent AFTER post-processing (auto-doc, auto-save) below
+            if (chunk.content) {
+              fullResponse += chunk.content;
+              roundContent += chunk.content;
+              reply.raw.write(`data: ${JSON.stringify({ content: chunk.content, done: false })}\n\n`);
+            }
           }
+
+          // Flush any pending tool call AFTER stream is fully consumed
+          if (currentToolCall) accumulatedToolCalls.push(currentToolCall);
+
+          // Execute tools if any were called
+          if (accumulatedToolCalls.length > 0 && toolContext) {
+            fastify.log.info(`[Chat] Tool round ${toolRound}: executing ${accumulatedToolCalls.length} tool(s)`);
+
+            // Add assistant message with tool calls to history for context
+            messages.push({
+              role: 'assistant',
+              content: roundContent,
+              tool_calls: accumulatedToolCalls.map(tc => ({
+                id: tc.id,
+                type: 'function',
+                function: { name: tc.name, arguments: tc.arguments }
+              }))
+            } as any);
+
+            for (const tc of accumulatedToolCalls) {
+              try {
+                const args = JSON.parse(tc.arguments);
+                fastify.log.info(`[Chat] Executing tool: ${tc.name} (round ${toolRound})`);
+
+                // Hook: before_tool_execute
+                await eventBus.emit('before_tool_execute', { tool: tc.name, args, toolContext }, hookCtx);
+
+                const result = await executeTool(tc.name, args, toolContext);
+
+                // Hook: after_tool_execute
+                await eventBus.emit('after_tool_execute', { tool: tc.name, args, result, toolContext }, hookCtx);
+
+                const resultContent = result.success ? JSON.stringify(result.output) : `Error: ${result.error}`;
+
+                // Add tool result to message history for next round
+                messages.push({
+                  role: 'tool',
+                  tool_call_id: tc.id,
+                  name: tc.name,
+                  content: resultContent
+                } as any);
+
+                // Notify client about tool execution
+                if (result.success && result.output?.downloadUrl) {
+                  const notification = `\n\n📄 **Documento generato**: [Scarica ${result.output.downloadFilename || result.output.path}](${result.output.downloadUrl})`;
+                  reply.raw.write(`data: ${JSON.stringify({ content: notification, done: false })}\n\n`);
+                  fullResponse += notification;
+                } else {
+                  reply.raw.write(`data: ${JSON.stringify({
+                    toolResult: { name: tc.name, success: result.success },
+                    done: false
+                  })}\n\n`);
+                }
+              } catch (e: any) {
+                fastify.log.error(`[Chat] Tool execution error: ${e.message}`);
+                messages.push({
+                  role: 'tool',
+                  tool_call_id: tc.id,
+                  name: tc.name,
+                  content: `Error: ${e.message}`
+                } as any);
+              }
+            }
+
+            // Continue the loop — LLM needs to process tool results
+            continueLoop = true;
+          }
+          // If no tool calls, loop ends naturally (continueLoop stays false)
         }
 
-        // Estimate tokens (rough approximation)
-        tokensInput = Math.ceil(messages.reduce((acc, m) => acc + m.content.length / 4, 0));
+        if (toolRound >= MAX_TOOL_ROUNDS) {
+          fastify.log.warn(`[Chat] Tool call loop hit max rounds (${MAX_TOOL_ROUNDS})`);
+        }
+
+        // Estimate tokens (includes tool_calls JSON overhead)
+        tokensInput = Math.ceil(messages.reduce((acc, m) => {
+          const contentLen = typeof m.content === 'string' ? m.content.length : 0;
+          const toolCallsLen = (m as any).tool_calls ? JSON.stringify((m as any).tool_calls).length : 0;
+          return acc + (contentLen + toolCallsLen) / 4;
+        }, 0));
         tokensOutput = Math.ceil(fullResponse.length / 4);
 
         // Post-processing: auto-generate document from full AI response
@@ -1106,22 +1157,19 @@ Quando l'utente chiede di tradurre, creare o elaborare un documento:
           }
         }
 
-        // Tool definitions overhead
-        if (toolContext) {
-          const toolDefs = JSON.stringify(getAllToolDefinitions());
-          components.push({ component: 'tool_definitions', tokens: estTokens(toolDefs) });
+        // Tool definitions overhead (reuse already-selected tools)
+        if (toolContext && toolDefs) {
+          components.push({ component: 'tool_definitions', tokens: estTokens(JSON.stringify(toolDefs)) });
         }
 
         // Assistant response
         components.push({ component: 'assistant_response', tokens: estTokens(fullResponse) });
 
-        // Batch insert all components
-        if (components.length > 0) {
-          const values = components.map(c =>
-            `(${usageId}, ${conversationId}, ${user.id}, '${c.component}', ${c.tokens})`
-          ).join(',');
+        // Insert components with parameterized queries (no SQL interpolation)
+        for (const c of components) {
           await fastify.db.execute(
-            `INSERT INTO token_usage_components (usage_id, conversation_id, user_id, component, tokens_estimate) VALUES ${values}`
+            'INSERT INTO token_usage_components (usage_id, conversation_id, user_id, component, tokens_estimate) VALUES (?, ?, ?, ?, ?)',
+            [usageId, conversationId, user.id, c.component, c.tokens]
           );
         }
       } catch (compErr: any) {
@@ -1701,7 +1749,7 @@ Quando l'utente chiede di tradurre, creare o elaborare un documento:
       // ============================================================
 
       // Dynamically import tool service
-      const { getAllToolDefinitions, executeTool } = await import('../../services/ToolService.js');
+      const { executeTool } = await import('../../services/ToolService.js');
 
       // Validate projectId - fallback to default if invalid
       let validProjectId = body.projectId;
@@ -1752,8 +1800,9 @@ Quando l'utente chiede di tradurre, creare o elaborare un documento:
       const { createProjectFolder } = await import('../../services/StorageService.js');
       await createProjectFolder(toolContext.userName, toolContext.projectName);
 
-      // Get tool definitions
-      const tools = body.enableTools ? getAllToolDefinitions() : [];
+      // Get tool definitions (deferred: only load relevant tools)
+      const { selectTools: agenticSelectTools } = await import('../../services/ToolSelectionService.js');
+      const tools = body.enableTools ? agenticSelectTools(body.message) : [];
 
       // Build messages
       let conversationId = body.conversationId;
@@ -1884,17 +1933,30 @@ Quando l'utente chiede di tradurre, creare o elaborare un documento:
       reply.raw.write(`data: ${JSON.stringify({ status: 'thinking', message: 'Connecting to AI...', reqId })}\n\n`);
       resetWatchdog('connecting_to_ai');
 
-      const systemPrompt = body.systemPrompt || `You are a skilled software developer AI assistant. Your ONLY purpose is to write and manage code files and Office documents.
+      const systemPrompt = body.systemPrompt || `You are a skilled AI assistant with full programmatic capabilities.
 
-CRITICAL INSTRUCTIONS:
-1. You DO NOT have the ability to update Kanban board status or move cards. Do not try.
-2. Your available tools are: write_file, read_file, list_files, create_folder, generate_word_document, generate_excel_document, generate_powerpoint_document
-3. When asked to create code or documents, immediately use the appropriate tool to save them.
-4. Save files to the project storage using relative paths (e.g., "src/main.py", "index.html", "outputs/report.docx")
-5. Always create complete, working content - never leave placeholders
-6. After writing files, briefly explain what you created
+AVAILABLE TOOLS:
+1. **execute_python** — Run Python code in a sandbox with access to:
+   - File ops: tool.read_file(path), tool.write_file(path, content), tool.list_files(path)
+   - Web search: tool.web_search(query) → [{url, title, snippet}]
+   - HTTP: tool.http_get(url), tool.web_extract(url) → clean text
+   - Vector DB: tool.vector_search(query, collection, top_k), tool.vector_upsert(text, metadata)
+   - Data analysis: tool.dataframe(data) → pandas DataFrame
+   - Use print() to return output. The "tool" variable is pre-initialized.
 
-Focus 100% on generation. Start writing files immediately.`;
+2. **vector_memory_search** — Search vector memory for relevant context
+3. **write_file / read_file / list_files / create_folder** — Direct file operations
+4. **generate_word_document / generate_excel_document / generate_powerpoint_document** — Office docs
+5. **web_search / browse_url** — Web access
+6. **get_attachment_text** — Read uploaded file content
+
+STRATEGY:
+- For complex multi-step tasks, prefer execute_python to orchestrate everything in one call
+- For simple file operations, use the direct tools
+- For data analysis, use execute_python with pandas
+- For web research + analysis, use execute_python combining tool.web_search() and tool.web_extract()
+- Always produce complete, working output — never leave placeholders
+- After completing work, briefly explain what you did`;
 
       // Inject system prompt if not present in messages
       if (!messages.find(m => m.role === 'system')) {
