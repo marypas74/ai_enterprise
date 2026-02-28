@@ -22,12 +22,14 @@ export const CACHE_KEYS = {
   SESSION: (userId: number) => `session:${userId}`,
   CONVERSATION: (convId: number) => `conv:${convId}`,
   RATE_LIMIT: (userId: number) => `rate:${userId}`,
-  USER_USAGE: (userId: number, month: string) => `usage:${userId}:${month}`
+  USER_USAGE: (userId: number, month: string) => `usage:${userId}:${month}`,
+  EMBEDDING: (hash: string) => `emb:${hash}`,
 };
 
 export const CACHE_TTL = {
   SESSION: 60 * 60 * 24, // 24 hours
   CONVERSATION: 60 * 30, // 30 minutes
   RATE_LIMIT: 60, // 1 minute
-  USER_USAGE: 60 * 5 // 5 minutes
+  USER_USAGE: 60 * 5, // 5 minutes
+  EMBEDDING: 60 * 60 * 24, // 24 hours
 };

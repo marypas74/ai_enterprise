@@ -20,6 +20,23 @@ export interface CompletionOptions {
   temperature?: number;
   stream?: boolean;
   tools?: any[]; // Allow passing tools definitions
+  // --- v4.0: Advanced provider features ---
+  cacheControl?: boolean;              // Enable Anthropic prompt caching
+  thinking?: {                          // Extended/adaptive thinking
+    type: 'enabled' | 'adaptive';
+    budgetTokens?: number;
+  };
+  outputSchema?: {                      // Structured outputs (JSON schema)
+    type: 'json_schema';
+    jsonSchema: Record<string, any>;
+  };
+  documentBlocks?: Array<{              // Native PDF/document blocks (Anthropic)
+    type: 'document';
+    source: { type: 'base64' | 'text'; media_type: string; data: string };
+    title?: string;
+    citations?: { enabled: boolean };
+    cacheControl?: { type: 'ephemeral' };
+  }>;
 }
 
 export interface CompletionResult {
@@ -29,12 +46,37 @@ export interface CompletionResult {
   model: string;
   provider: ProviderType;
   toolCalls?: any[];
+  // --- v4.0: Advanced metrics ---
+  cacheCreationTokens?: number;
+  cacheReadTokens?: number;
+  thinkingContent?: string;
+  thinkingTokens?: number;
+  citations?: Array<{
+    type: string;
+    citedText: string;
+    documentIndex: number;
+    documentTitle?: string;
+    startCharIndex?: number;
+    endCharIndex?: number;
+    startPageNumber?: number;
+    endPageNumber?: number;
+  }>;
 }
 
 export interface StreamChunk {
   content: string;
   done: boolean;
   toolCalls?: any[];
+  // --- v4.0: Extended thinking & citations ---
+  thinking?: string;           // Thinking block content
+  thinkingDone?: boolean;      // End of thinking phase
+  citations?: any[];           // Citations delta
+  usage?: {                    // Token usage from stream (Anthropic message_delta)
+    inputTokens?: number;
+    outputTokens?: number;
+    cacheCreationTokens?: number;
+    cacheReadTokens?: number;
+  };
 }
 
 export interface ProviderConfig {
@@ -61,7 +103,14 @@ export const MODEL_PRICING: Record<string, { input: number; output: number }> = 
   'o1-mini': { input: 0.003, output: 0.012 },
   'o1-preview': { input: 0.015, output: 0.06 },
   'o3-mini': { input: 0.0011, output: 0.0044 },
-  // Anthropic - Claude 4 (Current - Jan 2026)
+  // Anthropic - Claude 4.6 (Latest - Feb 2026)
+  'claude-opus-4-6': { input: 0.015, output: 0.075 },
+  'claude-sonnet-4-6': { input: 0.003, output: 0.015 },
+  // Anthropic - Claude 4.5
+  'claude-opus-4-5-20251101': { input: 0.015, output: 0.075 },
+  'claude-sonnet-4-5-20250929': { input: 0.003, output: 0.015 },
+  'claude-haiku-4-5-20251001': { input: 0.001, output: 0.005 },
+  // Anthropic - Claude 4 (Current)
   'claude-sonnet-4-20250514': { input: 0.003, output: 0.015 },
   'claude-opus-4-20250514': { input: 0.015, output: 0.075 },
   // Anthropic - Claude 3 (Legacy)
@@ -240,23 +289,62 @@ export class AnthropicProvider implements AIProvider {
     // Extract system message
     const systemMessage = options.messages.find(m => m.role === 'system');
 
+    // v4.0: Build system with cache_control support
+    const systemContent = systemMessage?.content
+      ? (options.cacheControl
+        ? [{ type: 'text', text: systemMessage.content, cache_control: { type: 'ephemeral' } }]
+        : systemMessage.content)
+      : undefined;
+
+    const formattedMessages = this.formatAnthropicMessages(options.messages);
+
+    // v4.0: Inject document blocks into first user message for native PDF/citations
+    if (options.documentBlocks?.length) {
+      const firstUserIdx = formattedMessages.findIndex((m: any) => m.role === 'user');
+      if (firstUserIdx >= 0) {
+        const existing = formattedMessages[firstUserIdx].content;
+        const existingContent = Array.isArray(existing)
+          ? existing
+          : [{ type: 'text', text: existing }];
+        formattedMessages[firstUserIdx] = {
+          ...formattedMessages[firstUserIdx],
+          content: [...options.documentBlocks, ...existingContent],
+        };
+      }
+    }
+
     const requestBody: any = {
       model: options.model,
       max_tokens: options.maxTokens || 4096,
-      system: systemMessage?.content,
-      messages: this.formatAnthropicMessages(options.messages),
+      system: systemContent,
+      messages: formattedMessages,
       tools: options.tools as any
     };
+
+    // v4.0: Extended thinking
+    if (options.thinking) {
+      requestBody.thinking = options.thinking.type === 'adaptive'
+        ? { type: 'adaptive' }
+        : { type: 'enabled', budget_tokens: options.thinking.budgetTokens || 16000 };
+    }
+
+    // v4.0: Structured outputs
+    if (options.outputSchema) {
+      requestBody.output_config = {
+        format: {
+          type: options.outputSchema.type,
+          json_schema: options.outputSchema.jsonSchema,
+        }
+      };
+    }
 
     // Use OAuth if available, otherwise use SDK
     if (this.oauthToken) {
       const response = await this.callWithOAuth('/messages', requestBody, false);
-      const data = await response.json() as {
-        content: Array<{ type: string; text?: string }>;
-        usage: { input_tokens: number; output_tokens: number };
-      };
+      const data = await response.json() as any;
 
-      const textContent = data.content.find(c => c.type === 'text');
+      const textContent = data.content.find((c: any) => c.type === 'text');
+      const thinkingBlock = data.content.find((c: any) => c.type === 'thinking');
 
       return {
         content: textContent?.text || '',
@@ -264,7 +352,11 @@ export class AnthropicProvider implements AIProvider {
         tokensOutput: data.usage.output_tokens,
         model: options.model,
         provider: 'anthropic',
-        toolCalls: (data as any).content.filter((c: any) => c.type === 'tool_use')
+        toolCalls: data.content.filter((c: any) => c.type === 'tool_use'),
+        cacheCreationTokens: data.usage.cache_creation_input_tokens || 0,
+        cacheReadTokens: data.usage.cache_read_input_tokens || 0,
+        thinkingContent: thinkingBlock?.thinking || undefined,
+        thinkingTokens: thinkingBlock ? (data.usage.thinking_tokens || 0) : undefined,
       };
     }
 
@@ -275,6 +367,7 @@ export class AnthropicProvider implements AIProvider {
 
     const response = await this.client.messages.create(requestBody);
     const textContent = response.content.find(c => c.type === 'text');
+    const thinkingBlock = response.content.find((c: any) => c.type === 'thinking');
 
     return {
       content: textContent?.text || '',
@@ -282,7 +375,10 @@ export class AnthropicProvider implements AIProvider {
       tokensOutput: response.usage.output_tokens,
       model: options.model,
       provider: 'anthropic',
-      toolCalls: response.content.filter(c => c.type === 'tool_use')
+      toolCalls: response.content.filter(c => c.type === 'tool_use'),
+      cacheCreationTokens: (response.usage as any).cache_creation_input_tokens || 0,
+      cacheReadTokens: (response.usage as any).cache_read_input_tokens || 0,
+      thinkingContent: (thinkingBlock as any)?.thinking || undefined,
     };
   }
 
@@ -296,13 +392,54 @@ export class AnthropicProvider implements AIProvider {
       input_schema: t.input_schema
     }));
 
+    // v4.0: Build system with cache_control support
+    const systemContent = systemMessage?.content
+      ? (options.cacheControl
+        ? [{ type: 'text', text: systemMessage.content, cache_control: { type: 'ephemeral' } }]
+        : systemMessage.content)
+      : undefined;
+
+    const streamFormattedMessages = this.formatAnthropicMessages(options.messages);
+
+    // v4.0: Inject document blocks into first user message for native PDF/citations
+    if (options.documentBlocks?.length) {
+      const firstUserIdx = streamFormattedMessages.findIndex((m: any) => m.role === 'user');
+      if (firstUserIdx >= 0) {
+        const existing = streamFormattedMessages[firstUserIdx].content;
+        const existingContent = Array.isArray(existing)
+          ? existing
+          : [{ type: 'text', text: existing }];
+        streamFormattedMessages[firstUserIdx] = {
+          ...streamFormattedMessages[firstUserIdx],
+          content: [...options.documentBlocks, ...existingContent],
+        };
+      }
+    }
+
     const requestBody: any = {
       model: options.model,
       max_tokens: options.maxTokens || 4096,
-      system: systemMessage?.content,
-      messages: this.formatAnthropicMessages(options.messages),
+      system: systemContent,
+      messages: streamFormattedMessages,
       tools: anthropicTools && anthropicTools.length > 0 ? anthropicTools : undefined
     };
+
+    // v4.0: Extended thinking
+    if (options.thinking) {
+      requestBody.thinking = options.thinking.type === 'adaptive'
+        ? { type: 'adaptive' }
+        : { type: 'enabled', budget_tokens: options.thinking.budgetTokens || 16000 };
+    }
+
+    // v4.0: Structured outputs
+    if (options.outputSchema) {
+      requestBody.output_config = {
+        format: {
+          type: options.outputSchema.type,
+          json_schema: options.outputSchema.jsonSchema,
+        }
+      };
+    }
 
     // Use OAuth if available
     if (this.oauthToken) {
@@ -313,9 +450,10 @@ export class AnthropicProvider implements AIProvider {
       const decoder = new TextDecoder();
       let buffer = '';
 
-      // Track tool_use blocks being streamed
+      // Track tool_use and thinking blocks being streamed
       let currentToolUse: { id: string; name: string; inputJson: string } | null = null;
       const accumulatedToolCalls: any[] = [];
+      let isThinkingBlock = false;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -333,7 +471,15 @@ export class AnthropicProvider implements AIProvider {
             try {
               const event = JSON.parse(data) as any;
 
-              if (event.type === 'content_block_start' && event.content_block?.type === 'tool_use') {
+              // v4.0: Thinking block handling
+              if (event.type === 'content_block_start' && event.content_block?.type === 'thinking') {
+                isThinkingBlock = true;
+              } else if (event.type === 'content_block_delta' && event.delta?.type === 'thinking_delta') {
+                yield { content: '', done: false, thinking: event.delta.thinking || '' };
+              } else if (event.type === 'content_block_stop' && isThinkingBlock) {
+                isThinkingBlock = false;
+                yield { content: '', done: false, thinkingDone: true };
+              } else if (event.type === 'content_block_start' && event.content_block?.type === 'tool_use') {
                 // Start of a tool_use block
                 currentToolUse = {
                   id: event.content_block.id,
@@ -358,6 +504,19 @@ export class AnthropicProvider implements AIProvider {
                 currentToolUse = null;
               } else if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
                 yield { content: event.delta.text || '', done: false };
+              // v4.0: Citations delta
+              } else if (event.type === 'content_block_delta' && event.delta?.type === 'citations_delta') {
+                yield { content: '', done: false, citations: [event.delta.citation] };
+              // v4.0: Usage in message_delta (includes cache metrics)
+              } else if (event.type === 'message_delta' && event.usage) {
+                yield {
+                  content: '', done: false,
+                  usage: {
+                    outputTokens: event.usage.output_tokens,
+                    cacheCreationTokens: event.usage.cache_creation_input_tokens,
+                    cacheReadTokens: event.usage.cache_read_input_tokens,
+                  }
+                };
               } else if (event.type === 'message_stop') {
                 yield {
                   content: '',
@@ -386,12 +545,21 @@ export class AnthropicProvider implements AIProvider {
 
     const stream = this.client.messages.stream(requestBody as any);
 
-    // Track tool_use blocks being streamed (SDK path)
+    // Track tool_use and thinking blocks being streamed (SDK path)
     let currentToolUse: { id: string; name: string; inputJson: string } | null = null;
     const accumulatedToolCalls: any[] = [];
+    let isThinkingBlock = false;
 
     for await (const event of stream) {
-      if (event.type === 'content_block_start' && (event as any).content_block?.type === 'tool_use') {
+      // v4.0: Thinking block handling (SDK path)
+      if (event.type === 'content_block_start' && (event as any).content_block?.type === 'thinking') {
+        isThinkingBlock = true;
+      } else if (event.type === 'content_block_delta' && (event as any).delta?.type === 'thinking_delta') {
+        yield { content: '', done: false, thinking: (event as any).delta.thinking || '' };
+      } else if (event.type === 'content_block_stop' && isThinkingBlock) {
+        isThinkingBlock = false;
+        yield { content: '', done: false, thinkingDone: true };
+      } else if (event.type === 'content_block_start' && (event as any).content_block?.type === 'tool_use') {
         currentToolUse = {
           id: (event as any).content_block.id,
           name: (event as any).content_block.name,
@@ -413,6 +581,20 @@ export class AnthropicProvider implements AIProvider {
         currentToolUse = null;
       } else if (event.type === 'content_block_delta' && (event as any).delta?.type === 'text_delta') {
         yield { content: (event as any).delta.text, done: false };
+      // v4.0: Citations delta (SDK path)
+      } else if (event.type === 'content_block_delta' && (event as any).delta?.type === 'citations_delta') {
+        yield { content: '', done: false, citations: [(event as any).delta.citation] };
+      // v4.0: Usage in message_delta (SDK path)
+      } else if (event.type === 'message_delta' && (event as any).usage) {
+        const u = (event as any).usage;
+        yield {
+          content: '', done: false,
+          usage: {
+            outputTokens: u.output_tokens,
+            cacheCreationTokens: u.cache_creation_input_tokens,
+            cacheReadTokens: u.cache_read_input_tokens,
+          }
+        };
       } else if (event.type === 'message_stop') {
         yield {
           content: '',

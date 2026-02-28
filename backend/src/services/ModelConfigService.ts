@@ -17,6 +17,11 @@ export interface ModelConfig {
   supportsTools: boolean;
   supportsStreaming: boolean;
   isLightModel: boolean; // < 3B params (qwen:3b, gemma:2b, phi3:mini, llama3.2:3b)
+  // --- v4.0: Advanced capabilities ---
+  supportsThinking: boolean;   // Extended/adaptive thinking support
+  supportsCitations: boolean;  // Citations API support
+  supportsCaching: boolean;    // Prompt caching support
+  supportsNativePdf: boolean;  // Native PDF document blocks
 }
 
 // Cache model configs for 5 minutes
@@ -45,6 +50,9 @@ export class ModelConfigService {
       [modelId],
     );
 
+    const isClaude = modelId.startsWith('claude-');
+    const isReasoningModel = modelId.startsWith('o1') || modelId.startsWith('o3');
+
     const config: ModelConfig = {
       modelId,
       modelFamily: row?.model_family || null,
@@ -57,6 +65,11 @@ export class ModelConfigService {
       supportsTools: row?.supports_functions ?? false,
       supportsStreaming: row?.supports_streaming ?? true,
       isLightModel: LIGHT_MODELS.has(modelId),
+      // v4.0: infer from DB or model name
+      supportsThinking: row?.supports_thinking ?? (isClaude || isReasoningModel),
+      supportsCitations: row?.supports_citations ?? isClaude,
+      supportsCaching: row?.supports_caching ?? isClaude,
+      supportsNativePdf: row?.supports_native_pdf ?? isClaude,
     };
 
     configCache.set(modelId, { config, ts: Date.now() });

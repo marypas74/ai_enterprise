@@ -362,6 +362,24 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
     {
       name: 'plugins_add_dependencies',
       sql: `ALTER TABLE plugins ADD COLUMN IF NOT EXISTS dependencies JSON NULL`
+    },
+    {
+      name: 'batch_jobs',
+      sql: `CREATE TABLE IF NOT EXISTS batch_jobs (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id BIGINT UNSIGNED NOT NULL,
+        batch_id VARCHAR(255) NOT NULL,
+        model VARCHAR(100) NOT NULL,
+        status ENUM('in_progress','canceling','ended') DEFAULT 'in_progress',
+        total_requests INT DEFAULT 0,
+        succeeded INT DEFAULT 0,
+        errored INT DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        ended_at TIMESTAMP NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id),
+        INDEX idx_batch_id (batch_id),
+        INDEX idx_user_batch (user_id, status)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
     }
   ];
 
@@ -384,6 +402,15 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
     { name: 'users_add_mfa_enabled', sql: `ALTER TABLE users ADD COLUMN mfa_enabled BOOLEAN DEFAULT FALSE` },
     { name: 'users_add_mfa_secret', sql: `ALTER TABLE users ADD COLUMN mfa_secret VARCHAR(255) NULL` },
     { name: 'user_sessions_add_logged_out_at', sql: `ALTER TABLE user_sessions ADD COLUMN logged_out_at TIMESTAMP NULL` },
+    // v4.0: AI model capabilities
+    { name: 'ai_models_add_supports_thinking', sql: `ALTER TABLE ai_models ADD COLUMN supports_thinking BOOLEAN DEFAULT FALSE` },
+    { name: 'ai_models_add_supports_citations', sql: `ALTER TABLE ai_models ADD COLUMN supports_citations BOOLEAN DEFAULT FALSE` },
+    { name: 'ai_models_add_supports_caching', sql: `ALTER TABLE ai_models ADD COLUMN supports_caching BOOLEAN DEFAULT FALSE` },
+    { name: 'ai_models_add_supports_native_pdf', sql: `ALTER TABLE ai_models ADD COLUMN supports_native_pdf BOOLEAN DEFAULT FALSE` },
+    // v4.0: Token usage cache/thinking tracking
+    { name: 'token_usage_add_cache_creation', sql: `ALTER TABLE token_usage ADD COLUMN cache_creation_tokens INT DEFAULT 0` },
+    { name: 'token_usage_add_cache_read', sql: `ALTER TABLE token_usage ADD COLUMN cache_read_tokens INT DEFAULT 0` },
+    { name: 'token_usage_add_thinking', sql: `ALTER TABLE token_usage ADD COLUMN thinking_tokens INT DEFAULT 0` },
   ];
 
   for (const migration of alterMigrations) {
@@ -395,6 +422,23 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
       if (err?.errno !== 1060) {
         fastify.log.warn({ err }, `[Migration] Column ${migration.name} migration failed`);
       }
+    }
+  }
+
+  // v4.0: Enable capabilities for Claude models
+  try {
+    await pool.execute(
+      `UPDATE ai_models SET
+        supports_thinking = TRUE,
+        supports_citations = TRUE,
+        supports_caching = TRUE,
+        supports_native_pdf = TRUE
+       WHERE model_id LIKE 'claude-%'`
+    );
+  } catch (err: any) {
+    // Columns might not exist yet on first run, skip
+    if (err?.errno !== 1054) {
+      fastify.log.warn({ err }, `[Migration] Claude capabilities update failed`);
     }
   }
 

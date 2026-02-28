@@ -41,6 +41,7 @@ import { hookRoutes } from './modules/admin/hooks.js';
 import { formRoutes } from './modules/forms/routes.js';
 import { ingestionRoutes } from './modules/ingestion/routes.js';
 import { schedulerRoutes } from './modules/scheduler/routes.js';
+import { batchRoutes } from './modules/batch/routes.js';
 import { permissionRoutes } from './modules/admin/permissions.js';
 import { eventBus } from './services/EventBusService.js';
 import { HyDEService } from './services/HyDEService.js';
@@ -273,6 +274,7 @@ const appPlugin = fp(async function (fastify) {
   await fastify.register(formRoutes, { prefix: '/api/forms' });
   await fastify.register(ingestionRoutes, { prefix: '/api/ingestion' });
   await fastify.register(schedulerRoutes, { prefix: '/api/scheduler' });
+  await fastify.register(batchRoutes, { prefix: '/api/batch' });
   await fastify.register(permissionRoutes, { prefix: '/api/permissions' });
 
   // Debug WebSocket clients set (defined early so addHook can reference it)

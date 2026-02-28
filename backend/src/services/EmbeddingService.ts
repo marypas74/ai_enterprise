@@ -4,7 +4,9 @@
  */
 
 import { findOne, findMany } from '../database/index.js';
+import { createHash } from 'crypto';
 import type mysql from 'mysql2/promise';
+import { CACHE_TTL } from '../cache/index.js';
 
 // ============================================================
 // Types
@@ -118,12 +120,23 @@ export function clearEmbeddingCache(): void {
 // ============================================================
 
 /**
- * Generate embeddings for a text string
+ * Generate embeddings for a text string.
+ * Optionally caches results in Redis (v4.0: embedding caching).
  */
 export async function generateEmbedding(
     db: mysql.Pool,
-    text: string
+    text: string,
+    redis?: any
 ): Promise<EmbeddingResult | null> {
+    // v4.0: Check Redis cache first
+    const cacheKey = redis ? `emb:${createHash('sha256').update(text).digest('hex')}` : null;
+    if (redis && cacheKey) {
+        try {
+            const cached = await redis.get(cacheKey);
+            if (cached) return JSON.parse(cached);
+        } catch { /* cache miss or error, proceed */ }
+    }
+
     const provider = await detectEmbeddingProvider(db);
     if (!provider) {
         console.warn('[EmbeddingService] No embedding provider configured');
@@ -131,16 +144,28 @@ export async function generateEmbedding(
     }
 
     try {
+        let result: EmbeddingResult;
         switch (provider.type) {
             case 'openai':
             case 'openai_compatible':
-                return await generateOpenAIEmbedding(provider, text);
+                result = await generateOpenAIEmbedding(provider, text);
+                break;
             case 'ollama':
-                return await generateOllamaEmbedding(provider, text);
+                result = await generateOllamaEmbedding(provider, text);
+                break;
             default:
                 // Try OpenAI-compatible API as fallback
-                return await generateOpenAIEmbedding(provider, text);
+                result = await generateOpenAIEmbedding(provider, text);
         }
+
+        // v4.0: Store in Redis cache (TTL 24h)
+        if (redis && cacheKey) {
+            try {
+                await redis.setex(cacheKey, CACHE_TTL.EMBEDDING, JSON.stringify(result));
+            } catch { /* cache write failed, non-critical */ }
+        }
+
+        return result;
     } catch (error: any) {
         console.error(`[EmbeddingService] Embedding generation failed: ${error.message}`);
         return null;

@@ -16,6 +16,7 @@ import { eventBus } from '../../services/EventBusService.js';
 import { storeEpisodic } from '../../services/VectorMemoryService.js';
 import { ConversationalFormService } from '../../services/ConversationalFormService.js';
 import { ModelConfigService } from '../../services/ModelConfigService.js';
+import { recordProviderError, recordProviderSuccess, isProviderHealthy } from '../../services/CircuitBreakerService.js';
 
 // Validation schemas
 const completionSchema = z.object({
@@ -277,6 +278,15 @@ export async function chatRoutes(fastify: FastifyInstance) {
         fastify.log.warn(`[Form] Form check failed: ${formErr.message}`);
       }
 
+      // v4.0: Native PDF document blocks (populated by attachment processing below)
+      const nativeDocBlocks: Array<{
+        type: 'document';
+        source: { type: 'base64'; media_type: string; data: string };
+        title?: string;
+        citations?: { enabled: boolean };
+        cacheControl?: { type: 'ephemeral' };
+      }> = [];
+
       // Handle attachments if present
       if (body.attachmentIds && body.attachmentIds.length > 0) {
         // Wait for processing to complete (up to 30 seconds)
@@ -285,7 +295,7 @@ export async function chatRoutes(fastify: FastifyInstance) {
         for (let attempt = 0; attempt < 90; attempt++) {
           attachments = await findMany<any>(
             fastify.db,
-            `SELECT id, original_name, content_type, processing_status, processed_content
+            `SELECT id, original_name, content_type, processing_status, processed_content, file_path, file_size
              FROM chat_attachments
              WHERE id IN (${placeholders}) AND user_id = ?`,
             [...body.attachmentIds, user.id]
@@ -300,7 +310,31 @@ export async function chatRoutes(fastify: FastifyInstance) {
         // This prevents the model from saying "I can't read the file"
         const contextParts: string[] = [];
 
+        // v4.0: Check if we can use native PDF document blocks for Anthropic
+        const isAnthropicProvider = AIProviderFactory.getProviderName(body.model) === 'anthropic';
+
         for (const a of attachments) {
+          // v4.0: Native PDF support for Anthropic — bypass OCR for small PDFs
+          if (isAnthropicProvider && a.content_type === 'application/pdf'
+              && a.file_path && a.file_size && a.file_size < 32 * 1024 * 1024) {
+            try {
+              const fsSync = await import('fs');
+              const pdfBuffer = fsSync.default.readFileSync(a.file_path);
+              const pdfBase64 = pdfBuffer.toString('base64');
+              nativeDocBlocks.push({
+                type: 'document',
+                source: { type: 'base64', media_type: 'application/pdf', data: pdfBase64 },
+                title: a.original_name,
+                citations: { enabled: true },
+                cacheControl: { type: 'ephemeral' },
+              });
+              console.log(`[Chat-DEBUG] Using native PDF document block for ${a.original_name} (${Math.round(a.file_size / 1024)} KB)`);
+              continue; // Skip text-based processing for this attachment
+            } catch (nativePdfErr: any) {
+              console.warn(`[Chat-DEBUG] Native PDF failed for ${a.original_name}, falling back to text: ${nativePdfErr.message}`);
+            }
+          }
+
           if (!a.processed_content) continue;
 
           // For small documents, always use full content (no chunking/search)
@@ -640,11 +674,33 @@ Quando l'utente chiede di tradurre, creare o elaborare un documento:
         fastify.log.warn(`[Hook] before_llm_call failed: ${hookErr.message}`);
       }
 
+      // v4.0: Track cache and thinking metrics
+      let cacheCreationTokens = 0;
+      let cacheReadTokens = 0;
+      let thinkingTokens = 0;
+
       try {
         const modelConfig = await ModelConfigService.getConfig(fastify.db, body.model);
         toolDefs = toolContext ? selectTools(body.message) : undefined;
         const MAX_TOOL_ROUNDS = 5;
         let toolRound = 0;
+
+        // v4.0: Build advanced completion options
+        const isAnthropic = providerName === 'anthropic';
+        const completionExtras: Record<string, any> = {};
+        if (isAnthropic) {
+          completionExtras.cacheControl = modelConfig.supportsCaching;
+          if (modelConfig.supportsThinking) {
+            const isOpus = body.model.includes('opus');
+            completionExtras.thinking = isOpus
+              ? { type: 'adaptive' as const }
+              : { type: 'enabled' as const, budgetTokens: 16000 };
+          }
+          // v4.0: Attach native PDF document blocks
+          if (nativeDocBlocks.length > 0) {
+            completionExtras.documentBlocks = nativeDocBlocks;
+          }
+        }
 
         // Multi-round tool call loop: stream LLM → execute tools → re-send to LLM
         let continueLoop = true;
@@ -658,7 +714,8 @@ Quando l'utente chiede di tradurre, creare o elaborare un documento:
             maxTokens: modelConfig.maxOutputTokens,
             temperature: modelConfig.temperature,
             stream: true,
-            tools: toolDefs
+            tools: toolDefs,
+            ...completionExtras,
           });
 
           let accumulatedToolCalls: any[] = [];
@@ -666,6 +723,25 @@ Quando l'utente chiede di tradurre, creare o elaborare un documento:
           let roundContent = '';
 
           for await (const chunk of stream) {
+            // v4.0: Forward thinking blocks via SSE
+            if (chunk.thinking) {
+              sseWrite(`data: ${JSON.stringify({ thinking: chunk.thinking, done: false })}\n\n`);
+            }
+            if (chunk.thinkingDone) {
+              sseWrite(`data: ${JSON.stringify({ thinkingDone: true, done: false })}\n\n`);
+            }
+
+            // v4.0: Forward citations via SSE
+            if (chunk.citations?.length) {
+              sseWrite(`data: ${JSON.stringify({ citations: chunk.citations, done: false })}\n\n`);
+            }
+
+            // v4.0: Track usage metrics from stream
+            if (chunk.usage) {
+              if (chunk.usage.cacheCreationTokens) cacheCreationTokens = chunk.usage.cacheCreationTokens;
+              if (chunk.usage.cacheReadTokens) cacheReadTokens = chunk.usage.cacheReadTokens;
+            }
+
             // Handle Tool Definitions in Stream
             if (chunk.toolCalls && chunk.toolCalls.length > 0) {
               for (const tc of chunk.toolCalls) {
@@ -763,6 +839,9 @@ Quando l'utente chiede di tradurre, creare o elaborare un documento:
         if (toolRound >= MAX_TOOL_ROUNDS) {
           fastify.log.warn(`[Chat] Tool call loop hit max rounds (${MAX_TOOL_ROUNDS})`);
         }
+
+        // v4.0: Record success for circuit breaker
+        recordProviderSuccess(body.model);
 
         // Estimate tokens (includes tool_calls JSON overhead)
         tokensInput = Math.ceil(messages.reduce((acc, m) => {
@@ -958,6 +1037,9 @@ Quando l'utente chiede di tradurre, creare o elaborare un documento:
         const errorMessage = streamError?.message || 'Unknown stream error';
         fastify.log.error(`[Chat] Stream error: ${errorMessage}`);
 
+        // v4.0: Record provider error for circuit breaker
+        recordProviderError(body.model);
+
         // --- Fallback Chain (GAP 4): retry with an alternative model ---
         const isRetriable = errorMessage.includes('timeout')
           || errorMessage.includes('ECONNREFUSED')
@@ -968,15 +1050,18 @@ Quando l'utente chiede di tradurre, creare o elaborare un documento:
           || errorMessage.includes('overloaded');
 
         if (isRetriable && !isParlantAgent && !(request as any)._fallbackAttempted) {
-          // Define fallback chains per provider family
-          const fallbackMap: Record<string, string> = {
-            'gpt-4o': 'gpt-4o-mini',
-            'gpt-4-turbo': 'gpt-4o-mini',
-            'gpt-4.1': 'gpt-4.1-mini',
-            'claude-opus-4-20250514': 'claude-sonnet-4-20250514',
-            'claude-sonnet-4-20250514': 'claude-3-haiku-20240307',
-            'gemini-1.5-pro': 'gemini-2.0-flash',
-            'gemini-2.0-flash-thinking': 'gemini-2.0-flash',
+          // v4.0: Extended fallback chains with circuit breaker awareness
+          const fallbackMap: Record<string, string[]> = {
+            'gpt-4o': ['gpt-4o-mini', 'gemini-2.0-flash'],
+            'gpt-4-turbo': ['gpt-4o-mini', 'gemini-2.0-flash'],
+            'gpt-4.1': ['gpt-4.1-mini', 'claude-sonnet-4-20250514'],
+            'gpt-4.1-mini': ['gpt-4.1-nano', 'gemini-2.0-flash'],
+            'claude-opus-4-6': ['claude-sonnet-4-6', 'claude-sonnet-4-20250514', 'gpt-4o'],
+            'claude-opus-4-20250514': ['claude-sonnet-4-20250514', 'gpt-4o'],
+            'claude-sonnet-4-6': ['claude-sonnet-4-20250514', 'gpt-4o-mini'],
+            'claude-sonnet-4-20250514': ['claude-haiku-4-5-20251001', 'gpt-4o-mini'],
+            'gemini-1.5-pro': ['gemini-2.0-flash', 'gpt-4o-mini'],
+            'gemini-2.0-flash-thinking': ['gemini-2.0-flash'],
           };
           // For Ollama models, dynamically find a lighter variant from DB
           const isOllama = AIProviderFactory.getProviderName(body.model) === 'ollama';
@@ -996,9 +1081,11 @@ Quando l'utente chiede di tradurre, creare o elaborare un documento:
               // DB query failed, no fallback
             }
           }
-          const fallbackModel = fallbackMap[body.model] || ollamaFallback;
+          // v4.0: Pick first healthy fallback from chain (circuit breaker aware)
+          const fallbackChain = fallbackMap[body.model] || (ollamaFallback ? [ollamaFallback] : []);
+          const fallbackModel = fallbackChain.find(m => m !== body.model && isProviderHealthy(m)) || null;
 
-          if (fallbackModel && fallbackModel !== body.model) {
+          if (fallbackModel) {
             fastify.log.warn(`[Chat] Fallback: ${body.model} → ${fallbackModel} (reason: ${errorMessage.substring(0, 100)})`);
             reply.raw.write(`data: ${JSON.stringify({ content: `\n\n> ⚠️ Model ${body.model} unavailable, switching to ${fallbackModel}...\n\n`, done: false })}\n\n`);
 
@@ -1024,11 +1111,15 @@ Quando l'utente chiede di tradurre, creare o elaborare un documento:
                 }
               }
 
+              // v4.0: Record success for circuit breaker
+              recordProviderSuccess(fallbackModel);
+
               // Update token estimates for fallback model
               tokensInput = Math.ceil(messages.reduce((acc, m) => acc + m.content.length / 4, 0));
               tokensOutput = Math.ceil(fullResponse.length / 4);
               providerName = AIProviderFactory.getProviderName(fallbackModel);
             } catch (fbError: any) {
+              recordProviderError(fallbackModel);
               fastify.log.error(`[Chat] Fallback also failed: ${fbError.message}`);
               reply.raw.write(`data: ${JSON.stringify({ error: 'Both primary and fallback models failed. Please try again later.', done: true })}\n\n`);
               reply.raw.end();
@@ -1120,11 +1211,13 @@ Quando l'utente chiede di tradurre, creare o elaborare un documento:
         [conversationId, 'assistant', fullResponse, tokensInput, tokensOutput]
       );
 
-      // Record token usage
+      // Record token usage (v4.0: includes cache + thinking metrics)
       const cost = calculateCost(body.model, tokensInput, tokensOutput);
       const [usageResult] = await fastify.db.execute(
-        'INSERT INTO token_usage (user_id, conversation_id, provider, model, tokens_input, tokens_output, cost_usd) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [user.id, conversationId, providerName, body.model, tokensInput, tokensOutput, cost]
+        `INSERT INTO token_usage (user_id, conversation_id, provider, model, tokens_input, tokens_output, cost_usd,
+         cache_creation_tokens, cache_read_tokens, thinking_tokens) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [user.id, conversationId, providerName, body.model, tokensInput, tokensOutput, cost,
+         cacheCreationTokens, cacheReadTokens, thinkingTokens]
       ) as any;
       const usageId = usageResult?.insertId || null;
 
