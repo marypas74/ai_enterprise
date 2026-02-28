@@ -12,6 +12,8 @@ import ipaddress
 import json
 import logging
 import os
+import socket
+import threading
 import uuid
 from typing import Any, Dict, List, Optional
 from urllib.parse import quote, urlparse
@@ -36,14 +38,20 @@ _ALLOWED_SCHEMES = {"http", "https"}
 # Allowed Qdrant collections (security: prevent access to arbitrary collections)
 _ALLOWED_COLLECTIONS = {"document_chunks", "episodic_memory", "procedural_memory"}
 
-# Blocked private/internal networks for SSRF prevention
+# Blocked private/internal networks for SSRF prevention (incl. IPv6 ULA, link-local, IPv4-mapped)
 _BLOCKED_NETWORKS = [
     ipaddress.ip_network("10.0.0.0/8"),
     ipaddress.ip_network("172.16.0.0/12"),
     ipaddress.ip_network("192.168.0.0/16"),
     ipaddress.ip_network("127.0.0.0/8"),
     ipaddress.ip_network("169.254.0.0/16"),
+    ipaddress.ip_network("0.0.0.0/8"),
+    ipaddress.ip_network("100.64.0.0/10"),
     ipaddress.ip_network("::1/128"),
+    ipaddress.ip_network("fc00::/7"),
+    ipaddress.ip_network("fe80::/10"),
+    ipaddress.ip_network("::ffff:0:0/96"),
+    ipaddress.ip_network("2002::/16"),
 ]
 _BLOCKED_HOSTS = {"metadata.google.internal", "metadata.internal"}
 
@@ -52,8 +60,21 @@ _BLOCKED_HOSTS = {"metadata.google.internal", "metadata.internal"}
 # URL validation (SSRF prevention)
 # ---------------------------------------------------------------------------
 
+def _check_ip_blocked(addr_str: str) -> None:
+    """Raise ValueError if the IP address is in a blocked network."""
+    try:
+        addr = ipaddress.ip_address(addr_str)
+        for net in _BLOCKED_NETWORKS:
+            if addr in net:
+                raise ValueError(f"Access to blocked IP range: {addr_str}")
+    except ValueError as ve:
+        if "blocked" in str(ve):
+            raise
+
+
 def _validate_url(url: str) -> None:
-    """Raise ValueError if the URL is not safe for outbound requests."""
+    """Raise ValueError if the URL is not safe for outbound requests.
+    Resolves hostnames to prevent DNS rebinding attacks."""
     parsed = urlparse(url)
     if parsed.scheme not in _ALLOWED_SCHEMES:
         raise ValueError(f"URL scheme '{parsed.scheme}' not allowed (only http/https)")
@@ -62,15 +83,24 @@ def _validate_url(url: str) -> None:
         raise ValueError("URL has no hostname")
     if host in _BLOCKED_HOSTS:
         raise ValueError(f"Access to host '{host}' is blocked")
+    # Check if host is a literal IP
     try:
-        addr = ipaddress.ip_address(host)
-        for net in _BLOCKED_NETWORKS:
-            if addr in net:
-                raise ValueError(f"Access to private/internal IP range is blocked: {host}")
+        _check_ip_blocked(host)
     except ValueError as ve:
-        if "is blocked" in str(ve):
+        if "blocked" in str(ve):
             raise
-        # Not an IP — it's a hostname, allow DNS resolution (can't block all SSRF via DNS)
+        # Not an IP literal — resolve hostname and validate all resolved IPs
+    # DNS resolution check (prevents DNS rebinding)
+    try:
+        resolved = socket.getaddrinfo(host, None)
+        for result in resolved:
+            addr_str = result[4][0]
+            _check_ip_blocked(addr_str)
+    except socket.gaierror:
+        raise ValueError(f"Cannot resolve hostname: {host}")
+    except ValueError as ve:
+        if "blocked" in str(ve) or "Cannot resolve" in str(ve):
+            raise
 
 
 def _validate_collection(collection: str) -> None:
@@ -107,14 +137,16 @@ class ToolBridge:
 
     def __init__(self) -> None:
         self._request_count = 0
+        self._lock = threading.Lock()
 
     def _check_rate_limit(self) -> None:
-        """Per-instance rate limiting."""
-        self._request_count += 1
-        if self._request_count > _MAX_HTTP_REQUESTS:
-            raise RuntimeError(
-                f"Rate limit exceeded: max {_MAX_HTTP_REQUESTS} HTTP requests per execution"
-            )
+        """Thread-safe per-instance rate limiting."""
+        with self._lock:
+            self._request_count += 1
+            if self._request_count > _MAX_HTTP_REQUESTS:
+                raise RuntimeError(
+                    f"Rate limit exceeded: max {_MAX_HTTP_REQUESTS} HTTP requests per execution"
+                )
 
     # ---- Backend tool bridge (HTTP to Node.js) ----
 
@@ -206,7 +238,7 @@ class ToolBridge:
     # ---- Direct web access (SSRF-protected) ----
 
     def http_get(self, url: str, headers: Optional[Dict[str, str]] = None) -> str:
-        """HTTP GET request. Returns response body as text."""
+        """HTTP GET request. Returns response body as text. No redirects (SSRF prevention)."""
         _validate_url(url)
         self._check_rate_limit()
         try:
@@ -215,48 +247,58 @@ class ToolBridge:
                 headers=headers or {},
                 timeout=_HTTP_TIMEOUT,
                 stream=True,
+                allow_redirects=False,
             )
+            if resp.is_redirect or resp.status_code in (301, 302, 303, 307, 308):
+                raise RuntimeError("Redirects are not permitted from the sandbox")
             resp.raise_for_status()
             return _stream_content(resp, _MAX_CONTENT_LENGTH)
         except requests.RequestException as e:
             raise RuntimeError(f"HTTP GET failed: {e}") from e
 
     def web_extract(self, url: str) -> str:
-        """Extract clean text from a web page using trafilatura (fallback: BS4)."""
+        """Extract clean text from a web page using trafilatura (fallback: BS4).
+        SECURITY: Does NOT use trafilatura.fetch_url (follows redirects without SSRF check).
+        Downloads content ourselves with redirect blocking, then passes HTML to trafilatura.extract().
+        """
         _validate_url(url)
         self._check_rate_limit()
 
-        # Try trafilatura first
+        # Download content ourselves (no redirects — prevents SSRF via redirect)
+        try:
+            resp = requests.get(
+                url, timeout=_HTTP_TIMEOUT, stream=True, allow_redirects=False,
+            )
+            if resp.is_redirect or resp.status_code in (301, 302, 303, 307, 308):
+                raise RuntimeError("Redirects are not permitted from the sandbox")
+            resp.raise_for_status()
+            raw = _stream_content(resp, _MAX_CONTENT_LENGTH)
+        except requests.RequestException as e:
+            raise RuntimeError(f"web_extract download failed: {e}") from e
+
+        # Try trafilatura extraction on downloaded HTML
         try:
             import trafilatura
-            from trafilatura.settings import use_config
 
-            traf_config = use_config()
-            traf_config.set("DEFAULT", "DOWNLOAD_TIMEOUT", str(_HTTP_TIMEOUT))
-            downloaded = trafilatura.fetch_url(url, config=traf_config)
-            if downloaded:
-                text = trafilatura.extract(
-                    downloaded,
-                    include_links=False,
-                    include_images=False,
-                    include_tables=True,
-                    favor_recall=True,
-                )
-                if text:
-                    return text[:5000]
+            text = trafilatura.extract(
+                raw,
+                include_links=False,
+                include_images=False,
+                include_tables=True,
+                favor_recall=True,
+            )
+            if text:
+                return text[:5000]
         except ImportError:
             pass  # trafilatura not installed — fall through to BS4
         except Exception as exc:
             logger.warning("trafilatura extraction failed for %s: %s", url, exc)
 
-        # Fallback: BeautifulSoup with streaming size enforcement
+        # Fallback: BeautifulSoup (html.parser is safer than lxml for untrusted HTML)
         try:
             from bs4 import BeautifulSoup
 
-            resp = requests.get(url, timeout=_HTTP_TIMEOUT, stream=True)
-            resp.raise_for_status()
-            raw = _stream_content(resp, _MAX_CONTENT_LENGTH)
-            soup = BeautifulSoup(raw, "lxml")
+            soup = BeautifulSoup(raw, "html.parser")
             # Remove script, style, nav, footer
             for tag in soup(["script", "style", "nav", "footer", "header", "aside"]):
                 tag.decompose()

@@ -269,14 +269,17 @@ function runPython(
   timeoutMs: number
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   return new Promise((resolve) => {
-    const env = {
-      ...process.env,
+    // SECURITY: Minimal env — do NOT spread process.env (leaks DB_PASSWORD, JWT_SECRET, API keys)
+    const env: Record<string, string> = {
       BRIDGE_URL: `http://127.0.0.1:${bridgePort}`,
       BRIDGE_SECRET: bridgeSecret,
       QDRANT_URL: QDRANT_URL,
       PYTHONUNBUFFERED: '1',
       PYTHONDONTWRITEBYTECODE: '1',
       HOME: sandboxDir,
+      TMPDIR: sandboxDir,
+      PATH: '/usr/local/bin:/usr/bin:/bin',
+      LANG: 'en_US.UTF-8',
     };
 
     const child = execFile(
@@ -290,7 +293,7 @@ function runPython(
         killSignal: 'SIGKILL',
       },
       (error, stdout, stderr) => {
-        if (error && error.signal === 'SIGKILL') {
+        if (error && ((error as any).killed === true || error.signal === 'SIGKILL')) {
           resolve({
             stdout: '',
             stderr: `Execution timed out after ${timeoutMs / 1000}s`,
@@ -302,7 +305,7 @@ function runPython(
         resolve({
           stdout: stdout || '',
           stderr: stderr || '',
-          exitCode: error ? (error as any).code || 1 : 0,
+          exitCode: error ? (typeof (error as any).code === 'number' ? (error as any).code : 1) : 0,
         });
       }
     );

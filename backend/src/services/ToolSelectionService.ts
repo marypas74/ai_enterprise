@@ -47,7 +47,7 @@ const TOOL_GROUPS: ToolGroup[] = [
   },
   {
     tools: ['web_search'],
-    keywords: /\b(cerca|search|web|internet|google|news|notizie|meteo|weather|oggi|today|attual[ei]|current|latest|recent[ei]?|what|chi|come|quando|quanto|prezzo|price)\b/i,
+    keywords: /\b(cerca|search|web|internet|google|news|notizie|meteo|weather|oggi|today|attualit[àa]|current\s+event|latest\s+news|prezzo|price)\b/i,
   },
   {
     tools: ['browse_url', 'extract_page_data'],

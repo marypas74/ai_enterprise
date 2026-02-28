@@ -225,6 +225,7 @@ export async function chatRoutes(fastify: FastifyInstance) {
       // Hook: fast_reply — short-circuit opportunity (legacy, kept for backward compat)
       const fastReplyResult = await eventBus.pipe('fast_reply', null, hookCtx);
       if (fastReplyResult.short_circuited && fastReplyResult.data) {
+        reply.hijack();
         reply.raw.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive', 'X-Conversation-Id': conversationId!.toString() });
         reply.raw.write(`data: ${JSON.stringify({ content: fastReplyResult.data })}\n\n`);
         reply.raw.write('data: [DONE]\n\n');
@@ -586,6 +587,7 @@ Quando l'utente chiede di tradurre, creare o elaborare un documento:
 
         // If agent chain short-circuited via agent_fast_reply, send reply and return
         if (chainResult.skippedByFastReply && chainResult.fastReplyContent) {
+          reply.hijack();
           reply.raw.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive', 'X-Conversation-Id': conversationId!.toString() });
           reply.raw.write(`data: ${JSON.stringify({ content: chainResult.fastReplyContent })}\n\n`);
           reply.raw.write('data: [DONE]\n\n');
@@ -606,7 +608,8 @@ Quando l'utente chiede di tradurre, creare o elaborare un documento:
         fastify.log.warn(`[AgentChain] Agent chain failed, continuing without: ${chainErr.message}`);
       }
 
-      // Set up SSE streaming
+      // Set up SSE streaming — hijack tells Fastify we manage the response
+      reply.hijack();
       reply.raw.writeHead(200, {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
@@ -620,6 +623,11 @@ Quando l'utente chiede di tradurre, creare o elaborare un documento:
       let tokensInput = 0;
       let tokensOutput = 0;
       let toolDefs: ReturnType<typeof selectTools> | undefined;
+
+      // Safe SSE write — silently skips if client disconnected
+      const sseWrite = (data: string) => {
+        if (!reply.raw.destroyed) reply.raw.write(data);
+      };
 
       // Hook: before_llm_call — modify prompt/params before LLM call
       try {
@@ -1847,7 +1855,8 @@ Quando l'utente chiede di tradurre, creare o elaborare un documento:
         [conversationId, 'user', body.message]
       );
 
-      // Set up SSE streaming
+      // Set up SSE streaming — hijack tells Fastify we manage the response
+      reply.hijack();
       reply.raw.writeHead(200, {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',

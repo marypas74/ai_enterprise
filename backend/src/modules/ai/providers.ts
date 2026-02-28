@@ -192,16 +192,14 @@ export class AnthropicProvider implements AIProvider {
     return response;
   }
 
-  async complete(options: CompletionOptions): Promise<CompletionResult> {
-    // Extract system message
-    const systemMessage = options.messages.find(m => m.role === 'system');
-    const conversationMessages = options.messages.filter(m => m.role !== 'system');
-
-    const requestBody: any = {
-      model: options.model,
-      max_tokens: options.maxTokens || 4096,
-      system: systemMessage?.content,
-      messages: conversationMessages.map(m => {
+  /**
+   * Format messages for Anthropic API: transforms tool/tool_calls messages.
+   * Shared between complete() and streamComplete() to avoid divergence.
+   */
+  private formatAnthropicMessages(messages: Array<{ role: string; content: string; tool_call_id?: string; tool_calls?: any[] }>): any[] {
+    return messages
+      .filter(m => m.role !== 'system')
+      .map(m => {
         if (m.role === 'tool') {
           return {
             role: 'user',
@@ -235,7 +233,18 @@ export class AnthropicProvider implements AIProvider {
           role: m.role as 'user' | 'assistant',
           content: content.length === 1 && content[0].type === 'text' ? content[0].text : content
         };
-      }),
+      });
+  }
+
+  async complete(options: CompletionOptions): Promise<CompletionResult> {
+    // Extract system message
+    const systemMessage = options.messages.find(m => m.role === 'system');
+
+    const requestBody: any = {
+      model: options.model,
+      max_tokens: options.maxTokens || 4096,
+      system: systemMessage?.content,
+      messages: this.formatAnthropicMessages(options.messages),
       tools: options.tools as any
     };
 
@@ -279,7 +288,6 @@ export class AnthropicProvider implements AIProvider {
 
   async *streamComplete(options: CompletionOptions): AsyncGenerator<StreamChunk> {
     const systemMessage = options.messages.find(m => m.role === 'system');
-    const conversationMessages = options.messages.filter(m => m.role !== 'system');
 
     // Format tools for Anthropic API if provided
     const anthropicTools = options.tools?.map((t: any) => ({
@@ -292,10 +300,7 @@ export class AnthropicProvider implements AIProvider {
       model: options.model,
       max_tokens: options.maxTokens || 4096,
       system: systemMessage?.content,
-      messages: conversationMessages.map(m => ({
-        role: m.role as 'user' | 'assistant',
-        content: m.content
-      })),
+      messages: this.formatAnthropicMessages(options.messages),
       tools: anthropicTools && anthropicTools.length > 0 ? anthropicTools : undefined
     };
 

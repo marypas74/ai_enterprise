@@ -73,10 +73,12 @@ describe('Chat Routes Context Injection', () => {
         const replyMock = {
             status: vi.fn().mockReturnThis(),
             send: vi.fn(),
+            hijack: vi.fn(),
             raw: {
                 writeHead: vi.fn(),
                 write: vi.fn(),
                 end: vi.fn(),
+                destroyed: false,
             }
         };
 
