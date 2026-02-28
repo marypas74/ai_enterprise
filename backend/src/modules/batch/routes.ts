@@ -11,13 +11,27 @@ import { decryptSecret } from '../../utils/crypto.js';
 
 const submitSchema = z.object({
   requests: z.array(z.object({
-    customId: z.string(),
+    customId: z.string().max(256),
     model: z.string(),
     messages: z.array(z.any()),
     system: z.string().optional(),
     maxTokens: z.number().optional(),
   })).min(1).max(100000),
 });
+
+const batchIdSchema = z.string().max(128).regex(/^[a-zA-Z0-9_-]+$/);
+
+/** Retrieve and decrypt the Anthropic API key from the database. */
+async function getAnthropicApiKey(db: any): Promise<string | null> {
+  const providerRow = await findOne<any>(
+    db,
+    `SELECT ps.setting_value FROM ai_provider_settings ps
+     JOIN ai_providers p ON ps.provider_id = p.id
+     WHERE p.provider_type = 'anthropic' AND ps.setting_key = 'api_key' LIMIT 1`
+  );
+  if (!providerRow?.setting_value) return null;
+  return decryptSecret(providerRow.setting_value);
+}
 
 export async function batchRoutes(fastify: FastifyInstance) {
   // Submit a batch job
@@ -27,19 +41,10 @@ export async function batchRoutes(fastify: FastifyInstance) {
     const user = request.user as { id: number };
     const body = submitSchema.parse(request.body);
 
-    // Get Anthropic API key from DB
-    const providerRow = await findOne<any>(
-      fastify.db,
-      `SELECT ps.setting_value FROM ai_provider_settings ps
-       JOIN ai_providers p ON ps.provider_id = p.id
-       WHERE p.provider_type = 'anthropic' AND ps.setting_key = 'api_key' LIMIT 1`
-    );
-
-    if (!providerRow?.setting_value) {
+    const apiKey = await getAnthropicApiKey(fastify.db);
+    if (!apiKey) {
       return reply.status(400).send({ error: 'Anthropic API key not configured' });
     }
-
-    const apiKey = decryptSecret(providerRow.setting_value);
 
     try {
       const batchId = await submitBatch(apiKey, body.requests);
@@ -54,7 +59,7 @@ export async function batchRoutes(fastify: FastifyInstance) {
       return reply.send({ success: true, batchId, totalRequests: body.requests.length });
     } catch (error: any) {
       fastify.log.error(`[Batch] Submit failed: ${error.message}`);
-      return reply.status(500).send({ error: error.message });
+      return reply.status(500).send({ error: 'Batch submission failed' });
     }
   });
 
@@ -64,6 +69,11 @@ export async function batchRoutes(fastify: FastifyInstance) {
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const user = request.user as { id: number };
     const { batchId } = request.params as { batchId: string };
+
+    const parsedId = batchIdSchema.safeParse(batchId);
+    if (!parsedId.success) {
+      return reply.status(400).send({ error: 'Invalid batch ID format' });
+    }
 
     // Verify ownership
     const job = await findOne<any>(
@@ -76,19 +86,10 @@ export async function batchRoutes(fastify: FastifyInstance) {
       return reply.status(404).send({ error: 'Batch job not found' });
     }
 
-    // Get Anthropic API key
-    const providerRow = await findOne<any>(
-      fastify.db,
-      `SELECT ps.setting_value FROM ai_provider_settings ps
-       JOIN ai_providers p ON ps.provider_id = p.id
-       WHERE p.provider_type = 'anthropic' AND ps.setting_key = 'api_key' LIMIT 1`
-    );
-
-    if (!providerRow?.setting_value) {
+    const apiKey = await getAnthropicApiKey(fastify.db);
+    if (!apiKey) {
       return reply.status(400).send({ error: 'Anthropic API key not configured' });
     }
-
-    const apiKey = decryptSecret(providerRow.setting_value);
 
     try {
       const status = await getBatchStatus(apiKey, batchId);
@@ -108,7 +109,8 @@ export async function batchRoutes(fastify: FastifyInstance) {
 
       return reply.send({ success: true, ...status });
     } catch (error: any) {
-      return reply.status(500).send({ error: error.message });
+      fastify.log.error(`[Batch] Status check failed: ${error.message}`);
+      return reply.status(500).send({ error: 'Failed to retrieve batch status' });
     }
   });
 
@@ -118,6 +120,11 @@ export async function batchRoutes(fastify: FastifyInstance) {
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const user = request.user as { id: number };
     const { batchId } = request.params as { batchId: string };
+
+    const parsedId = batchIdSchema.safeParse(batchId);
+    if (!parsedId.success) {
+      return reply.status(400).send({ error: 'Invalid batch ID format' });
+    }
 
     const job = await findOne<any>(
       fastify.db,
@@ -129,18 +136,10 @@ export async function batchRoutes(fastify: FastifyInstance) {
       return reply.status(404).send({ error: 'Batch job not found' });
     }
 
-    const providerRow = await findOne<any>(
-      fastify.db,
-      `SELECT ps.setting_value FROM ai_provider_settings ps
-       JOIN ai_providers p ON ps.provider_id = p.id
-       WHERE p.provider_type = 'anthropic' AND ps.setting_key = 'api_key' LIMIT 1`
-    );
-
-    if (!providerRow?.setting_value) {
+    const apiKey = await getAnthropicApiKey(fastify.db);
+    if (!apiKey) {
       return reply.status(400).send({ error: 'Anthropic API key not configured' });
     }
-
-    const apiKey = decryptSecret(providerRow.setting_value);
 
     try {
       const status = await cancelBatch(apiKey, batchId);
@@ -150,7 +149,8 @@ export async function batchRoutes(fastify: FastifyInstance) {
       );
       return reply.send({ success: true, ...status });
     } catch (error: any) {
-      return reply.status(500).send({ error: error.message });
+      fastify.log.error(`[Batch] Cancel failed: ${error.message}`);
+      return reply.status(500).send({ error: 'Failed to cancel batch' });
     }
   });
 

@@ -6,7 +6,7 @@
 import { findOne, findMany } from '../database/index.js';
 import { createHash } from 'crypto';
 import type mysql from 'mysql2/promise';
-import { CACHE_TTL } from '../cache/index.js';
+import { CACHE_TTL, CACHE_KEYS } from '../cache/index.js';
 
 // ============================================================
 // Types
@@ -129,7 +129,7 @@ export async function generateEmbedding(
     redis?: any
 ): Promise<EmbeddingResult | null> {
     // v4.0: Check Redis cache first
-    const cacheKey = redis ? `emb:${createHash('sha256').update(text).digest('hex')}` : null;
+    const cacheKey = redis ? CACHE_KEYS.EMBEDDING(createHash('sha256').update(text).digest('hex')) : null;
     if (redis && cacheKey) {
         try {
             const cached = await redis.get(cacheKey);

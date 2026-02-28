@@ -62,14 +62,14 @@ export class ModelConfigService {
       topP: parseFloat(row?.optimal_top_p ?? 0.9),
       repeatPenalty: parseFloat(row?.optimal_repeat_penalty ?? 1.1),
       timeoutMs: row?.timeout_ms || 120000,
-      supportsTools: row?.supports_functions ?? false,
-      supportsStreaming: row?.supports_streaming ?? true,
+      supportsTools: !!(row?.supports_functions) || false,
+      supportsStreaming: !!(row?.supports_streaming) || true,
       isLightModel: LIGHT_MODELS.has(modelId),
       // v4.0: infer from DB or model name
-      supportsThinking: row?.supports_thinking ?? (isClaude || isReasoningModel),
-      supportsCitations: row?.supports_citations ?? isClaude,
-      supportsCaching: row?.supports_caching ?? isClaude,
-      supportsNativePdf: row?.supports_native_pdf ?? isClaude,
+      supportsThinking: !!(row?.supports_thinking) || (isClaude || isReasoningModel),
+      supportsCitations: !!(row?.supports_citations) || isClaude,
+      supportsCaching: !!(row?.supports_caching) || isClaude,
+      supportsNativePdf: !!(row?.supports_native_pdf) || isClaude,
     };
 
     configCache.set(modelId, { config, ts: Date.now() });

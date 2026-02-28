@@ -366,7 +366,7 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
     {
       name: 'batch_jobs',
       sql: `CREATE TABLE IF NOT EXISTS batch_jobs (
-        id INT AUTO_INCREMENT PRIMARY KEY,
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
         user_id BIGINT UNSIGNED NOT NULL,
         batch_id VARCHAR(255) NOT NULL,
         model VARCHAR(100) NOT NULL,
@@ -425,7 +425,7 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
     }
   }
 
-  // v4.0: Enable capabilities for Claude models
+  // v4.0: Enable capabilities for Claude models (only where not already set)
   try {
     await pool.execute(
       `UPDATE ai_models SET
@@ -433,7 +433,8 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
         supports_citations = TRUE,
         supports_caching = TRUE,
         supports_native_pdf = TRUE
-       WHERE model_id LIKE 'claude-%'`
+       WHERE model_id LIKE 'claude-%'
+         AND (supports_thinking IS NULL OR supports_thinking = FALSE)`
     );
   } catch (err: any) {
     // Columns might not exist yet on first run, skip

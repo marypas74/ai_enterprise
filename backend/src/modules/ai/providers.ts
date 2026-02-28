@@ -35,7 +35,7 @@ export interface CompletionOptions {
     source: { type: 'base64' | 'text'; media_type: string; data: string };
     title?: string;
     citations?: { enabled: boolean };
-    cacheControl?: { type: 'ephemeral' };
+    cache_control?: { type: 'ephemeral' };
   }>;
 }
 
@@ -76,6 +76,7 @@ export interface StreamChunk {
     outputTokens?: number;
     cacheCreationTokens?: number;
     cacheReadTokens?: number;
+    thinkingTokens?: number;
   };
 }
 
@@ -104,16 +105,19 @@ export const MODEL_PRICING: Record<string, { input: number; output: number }> = 
   'o1-preview': { input: 0.015, output: 0.06 },
   'o3-mini': { input: 0.0011, output: 0.0044 },
   // Anthropic - Claude 4.6 (Latest - Feb 2026)
-  'claude-opus-4-6': { input: 0.015, output: 0.075 },
+  'claude-opus-4-6': { input: 0.005, output: 0.025 },
   'claude-sonnet-4-6': { input: 0.003, output: 0.015 },
-  // Anthropic - Claude 4.5
+  // Anthropic - Claude 4.5 (aliases + date-stamped)
+  'claude-opus-4-5': { input: 0.015, output: 0.075 },
   'claude-opus-4-5-20251101': { input: 0.015, output: 0.075 },
+  'claude-sonnet-4-5': { input: 0.003, output: 0.015 },
   'claude-sonnet-4-5-20250929': { input: 0.003, output: 0.015 },
+  'claude-haiku-4-5': { input: 0.001, output: 0.005 },
   'claude-haiku-4-5-20251001': { input: 0.001, output: 0.005 },
-  // Anthropic - Claude 4 (Current)
+  // Anthropic - Claude 4
   'claude-sonnet-4-20250514': { input: 0.003, output: 0.015 },
   'claude-opus-4-20250514': { input: 0.015, output: 0.075 },
-  // Anthropic - Claude 3 (Legacy)
+  // Anthropic - Claude 3 (Legacy — claude-3-haiku retiring April 2026)
   'claude-3-haiku-20240307': { input: 0.00025, output: 0.00125 },
   // Google Gemini
   'gemini-2.0-flash': { input: 0.0001, output: 0.0004 },
@@ -272,7 +276,7 @@ export class AnthropicProvider implements AIProvider {
               id: tc.id,
               name: tc.function?.name || tc.name,
               input: typeof tc.function?.arguments === 'string'
-                ? JSON.parse(tc.function.arguments)
+                ? (() => { try { return JSON.parse(tc.function.arguments); } catch { return {}; } })()
                 : (tc.function?.arguments || tc.input)
             });
           });
@@ -283,6 +287,21 @@ export class AnthropicProvider implements AIProvider {
           content: content.length === 1 && content[0].type === 'text' ? content[0].text : content
         };
       });
+  }
+
+  /** Inject document blocks into the first user message of formatted messages. */
+  private injectDocumentBlocks(messages: any[], documentBlocks: any[]): void {
+    if (!documentBlocks?.length) return;
+    const firstUserIdx = messages.findIndex((m: any) => m.role === 'user');
+    if (firstUserIdx < 0) return;
+    const existing = messages[firstUserIdx].content;
+    const existingContent = Array.isArray(existing)
+      ? existing
+      : [{ type: 'text', text: existing }];
+    messages[firstUserIdx] = {
+      ...messages[firstUserIdx],
+      content: [...documentBlocks, ...existingContent],
+    };
   }
 
   async complete(options: CompletionOptions): Promise<CompletionResult> {
@@ -297,21 +316,7 @@ export class AnthropicProvider implements AIProvider {
       : undefined;
 
     const formattedMessages = this.formatAnthropicMessages(options.messages);
-
-    // v4.0: Inject document blocks into first user message for native PDF/citations
-    if (options.documentBlocks?.length) {
-      const firstUserIdx = formattedMessages.findIndex((m: any) => m.role === 'user');
-      if (firstUserIdx >= 0) {
-        const existing = formattedMessages[firstUserIdx].content;
-        const existingContent = Array.isArray(existing)
-          ? existing
-          : [{ type: 'text', text: existing }];
-        formattedMessages[firstUserIdx] = {
-          ...formattedMessages[firstUserIdx],
-          content: [...options.documentBlocks, ...existingContent],
-        };
-      }
-    }
+    this.injectDocumentBlocks(formattedMessages, options.documentBlocks || []);
 
     const requestBody: any = {
       model: options.model,
@@ -379,6 +384,7 @@ export class AnthropicProvider implements AIProvider {
       cacheCreationTokens: (response.usage as any).cache_creation_input_tokens || 0,
       cacheReadTokens: (response.usage as any).cache_read_input_tokens || 0,
       thinkingContent: (thinkingBlock as any)?.thinking || undefined,
+      thinkingTokens: (response.usage as any).thinking_tokens || 0,
     };
   }
 
@@ -400,21 +406,7 @@ export class AnthropicProvider implements AIProvider {
       : undefined;
 
     const streamFormattedMessages = this.formatAnthropicMessages(options.messages);
-
-    // v4.0: Inject document blocks into first user message for native PDF/citations
-    if (options.documentBlocks?.length) {
-      const firstUserIdx = streamFormattedMessages.findIndex((m: any) => m.role === 'user');
-      if (firstUserIdx >= 0) {
-        const existing = streamFormattedMessages[firstUserIdx].content;
-        const existingContent = Array.isArray(existing)
-          ? existing
-          : [{ type: 'text', text: existing }];
-        streamFormattedMessages[firstUserIdx] = {
-          ...streamFormattedMessages[firstUserIdx],
-          content: [...options.documentBlocks, ...existingContent],
-        };
-      }
-    }
+    this.injectDocumentBlocks(streamFormattedMessages, options.documentBlocks || []);
 
     const requestBody: any = {
       model: options.model,
@@ -584,7 +576,7 @@ export class AnthropicProvider implements AIProvider {
       // v4.0: Citations delta (SDK path)
       } else if (event.type === 'content_block_delta' && (event as any).delta?.type === 'citations_delta') {
         yield { content: '', done: false, citations: [(event as any).delta.citation] };
-      // v4.0: Usage in message_delta (SDK path)
+      // v4.0: Usage in message_delta (SDK path — includes cache + thinking metrics)
       } else if (event.type === 'message_delta' && (event as any).usage) {
         const u = (event as any).usage;
         yield {
@@ -593,6 +585,7 @@ export class AnthropicProvider implements AIProvider {
             outputTokens: u.output_tokens,
             cacheCreationTokens: u.cache_creation_input_tokens,
             cacheReadTokens: u.cache_read_input_tokens,
+            thinkingTokens: u.thinking_tokens,
           }
         };
       } else if (event.type === 'message_stop') {

@@ -29,6 +29,7 @@ export async function countTokensAnthropic(
       'Content-Type': 'application/json',
       'x-api-key': apiKey,
       'anthropic-version': '2023-06-01',
+      'anthropic-beta': 'token-counting-2024-11-01',
     },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(10000),
@@ -36,7 +37,7 @@ export async function countTokensAnthropic(
 
   if (!response.ok) {
     const errText = await response.text().catch(() => '');
-    throw new Error(`Anthropic count_tokens failed (${response.status}): ${errText}`);
+    throw new Error(`Anthropic count_tokens failed (${response.status}): ${errText.substring(0, 200)}`);
   }
 
   const data = await response.json() as { input_tokens: number };

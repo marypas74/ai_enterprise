@@ -112,11 +112,17 @@ export async function* streamBatchResults(apiKey: string, batchId: string): Asyn
     throw new Error('Batch results not yet available');
   }
 
+  // Validate results URL to prevent SSRF — must be from Anthropic
+  if (!status.results_url.startsWith('https://api.anthropic.com/')) {
+    throw new Error('Invalid results URL: unexpected domain');
+  }
+
   const response = await fetch(status.results_url, {
     headers: {
       'x-api-key': apiKey,
       'anthropic-version': '2023-06-01',
     },
+    signal: AbortSignal.timeout(300000), // 5 min for large result sets
   });
 
   if (!response.ok) {

@@ -1,7 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { estimateTokens, contextUsagePercent, countTokensAnthropic } from './TokenCountService.js';
 
 describe('TokenCountService', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   describe('estimateTokens', () => {
     it('should estimate ~4 chars per token', () => {
       expect(estimateTokens('hello world')).toBe(3); // 11 chars / 4 = 2.75 → 3
@@ -65,11 +69,10 @@ describe('TokenCountService', () => {
       const fetchCall = (fetch as any).mock.calls[0];
       expect(fetchCall[0]).toBe('https://api.anthropic.com/v1/messages/count_tokens');
       expect(fetchCall[1].headers['x-api-key']).toBe('test-api-key');
-
-      vi.unstubAllGlobals();
+      expect(fetchCall[1].headers['anthropic-beta']).toBe('token-counting-2024-11-01');
     });
 
-    it('should throw on API error', async () => {
+    it('should throw on API error with truncated message', async () => {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
         ok: false,
         status: 401,
@@ -79,8 +82,25 @@ describe('TokenCountService', () => {
       await expect(
         countTokensAnthropic('bad-key', 'claude-sonnet-4-20250514', [])
       ).rejects.toThrow('Anthropic count_tokens failed (401)');
+    });
 
-      vi.unstubAllGlobals();
+    it('should include system and tools when provided', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ input_tokens: 100 }),
+      }));
+
+      await countTokensAnthropic(
+        'key',
+        'claude-sonnet-4-20250514',
+        [{ role: 'user', content: 'Hi' }],
+        'System prompt',
+        [{ name: 'tool', description: 'desc', input_schema: {} }],
+      );
+
+      const body = JSON.parse((fetch as any).mock.calls[0][1].body);
+      expect(body.system).toBe('System prompt');
+      expect(body.tools).toHaveLength(1);
     });
   });
 });

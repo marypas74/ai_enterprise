@@ -1,9 +1,13 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { submitBatch, getBatchStatus, cancelBatch } from './BatchProcessingService.js';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { submitBatch, getBatchStatus, cancelBatch, streamBatchResults } from './BatchProcessingService.js';
 
 describe('BatchProcessingService', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   describe('submitBatch', () => {
@@ -27,13 +31,12 @@ describe('BatchProcessingService', () => {
       const fetchCall = (fetch as any).mock.calls[0];
       expect(fetchCall[0]).toBe('https://api.anthropic.com/v1/messages/batches');
       expect(fetchCall[1].method).toBe('POST');
+      expect(fetchCall[1].headers['anthropic-version']).toBe('2023-06-01');
 
       const body = JSON.parse(fetchCall[1].body);
       expect(body.requests).toHaveLength(1);
       expect(body.requests[0].custom_id).toBe('req-1');
       expect(body.requests[0].params.model).toBe('claude-sonnet-4-20250514');
-
-      vi.unstubAllGlobals();
     });
 
     it('should throw on API error', async () => {
@@ -46,13 +49,11 @@ describe('BatchProcessingService', () => {
       await expect(
         submitBatch('test-key', [{ customId: 'x', model: 'claude-sonnet-4-20250514', messages: [] }])
       ).rejects.toThrow('Batch submit failed (400)');
-
-      vi.unstubAllGlobals();
     });
   });
 
   describe('getBatchStatus', () => {
-    it('should return batch status', async () => {
+    it('should return batch status with correct headers', async () => {
       const mockStatus = {
         id: 'batch_abc123',
         type: 'message_batch',
@@ -72,7 +73,8 @@ describe('BatchProcessingService', () => {
       expect(status.processing_status).toBe('ended');
       expect(status.request_counts.succeeded).toBe(5);
 
-      vi.unstubAllGlobals();
+      const fetchCall = (fetch as any).mock.calls[0];
+      expect(fetchCall[1].headers['anthropic-version']).toBe('2023-06-01');
     });
   });
 
@@ -93,8 +95,39 @@ describe('BatchProcessingService', () => {
       const fetchCall = (fetch as any).mock.calls[0];
       expect(fetchCall[0]).toContain('/cancel');
       expect(fetchCall[1].method).toBe('POST');
+      expect(fetchCall[1].headers['anthropic-version']).toBe('2023-06-01');
+    });
+  });
 
-      vi.unstubAllGlobals();
+  describe('streamBatchResults', () => {
+    it('should reject non-Anthropic results URLs (SSRF protection)', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({
+          id: 'batch_abc123',
+          processing_status: 'ended',
+          request_counts: { processing: 0, succeeded: 1, errored: 0, canceled: 0, expired: 0 },
+          results_url: 'https://evil.com/steal-key',
+        }),
+      }));
+
+      const gen = streamBatchResults('test-key', 'batch_abc123');
+      await expect(gen.next()).rejects.toThrow('Invalid results URL');
+    });
+
+    it('should throw if results not yet available', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({
+          id: 'batch_in_progress',
+          processing_status: 'in_progress',
+          request_counts: { processing: 1, succeeded: 0, errored: 0, canceled: 0, expired: 0 },
+          results_url: null,
+        }),
+      }));
+
+      const gen = streamBatchResults('test-key', 'batch_in_progress');
+      await expect(gen.next()).rejects.toThrow('Batch results not yet available');
     });
   });
 });

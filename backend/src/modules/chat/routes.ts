@@ -1,5 +1,6 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import path from 'path';
+import { promises as fsPromises } from 'fs';
 import { z } from 'zod';
 import { findOne, findMany, insertOne, updateOne } from '../../database/index.js';
 import { AIProviderFactory, calculateCost, Message } from '../ai/providers.js';
@@ -284,7 +285,7 @@ export async function chatRoutes(fastify: FastifyInstance) {
         source: { type: 'base64'; media_type: string; data: string };
         title?: string;
         citations?: { enabled: boolean };
-        cacheControl?: { type: 'ephemeral' };
+        cache_control?: { type: 'ephemeral' };
       }> = [];
 
       // Handle attachments if present
@@ -318,20 +319,25 @@ export async function chatRoutes(fastify: FastifyInstance) {
           if (isAnthropicProvider && a.content_type === 'application/pdf'
               && a.file_path && a.file_size && a.file_size < 32 * 1024 * 1024) {
             try {
-              const fsSync = await import('fs');
-              const pdfBuffer = fsSync.default.readFileSync(a.file_path);
+              // Validate path to prevent traversal attacks
+              const storageRoot = path.resolve(process.env.STORAGE_ROOT || process.cwd());
+              const resolvedPath = path.resolve(a.file_path);
+              if (!resolvedPath.startsWith(storageRoot + path.sep) && resolvedPath !== storageRoot) {
+                throw new Error('Invalid attachment path');
+              }
+              const pdfBuffer = await fsPromises.readFile(resolvedPath);
               const pdfBase64 = pdfBuffer.toString('base64');
               nativeDocBlocks.push({
                 type: 'document',
                 source: { type: 'base64', media_type: 'application/pdf', data: pdfBase64 },
                 title: a.original_name,
                 citations: { enabled: true },
-                cacheControl: { type: 'ephemeral' },
+                cache_control: { type: 'ephemeral' },
               });
-              console.log(`[Chat-DEBUG] Using native PDF document block for ${a.original_name} (${Math.round(a.file_size / 1024)} KB)`);
+              fastify.log.debug(`[Chat] Native PDF document block: ${a.original_name} (${Math.round(a.file_size / 1024)} KB)`);
               continue; // Skip text-based processing for this attachment
             } catch (nativePdfErr: any) {
-              console.warn(`[Chat-DEBUG] Native PDF failed for ${a.original_name}, falling back to text: ${nativePdfErr.message}`);
+              fastify.log.warn(`[Chat] Native PDF failed for ${a.original_name}, falling back to text: ${nativePdfErr.message}`);
             }
           }
 
@@ -692,9 +698,16 @@ Quando l'utente chiede di tradurre, creare o elaborare un documento:
           completionExtras.cacheControl = modelConfig.supportsCaching;
           if (modelConfig.supportsThinking) {
             const isOpus = body.model.includes('opus');
-            completionExtras.thinking = isOpus
-              ? { type: 'adaptive' as const }
-              : { type: 'enabled' as const, budgetTokens: 16000 };
+            const maxOut = modelConfig.maxOutputTokens || 4096;
+            if (isOpus) {
+              completionExtras.thinking = { type: 'adaptive' as const };
+            } else {
+              // budget_tokens MUST be < max_tokens per Anthropic API
+              const budgetTokens = Math.min(16000, maxOut - 1024);
+              if (budgetTokens >= 1024) {
+                completionExtras.thinking = { type: 'enabled' as const, budgetTokens };
+              }
+            }
           }
           // v4.0: Attach native PDF document blocks
           if (nativeDocBlocks.length > 0) {
@@ -886,7 +899,7 @@ Quando l'utente chiede di tradurre, creare o elaborare un documento:
 
             if (cleanContent.length > 30) {
               const titleMatch = body.message.match(/(?:titolo|title)[:\s]+"?([^"\n]+)"?/i);
-              const docTitle = titleMatch ? titleMatch[1].trim() : 'Documento_Generato';
+              const docTitle = titleMatch ? titleMatch[1].trim().substring(0, 100) : 'Documento_Generato';
 
               const { generateDocxBuffer, generatePptxBuffer, generateExcelBuffer, convertOfficeToPdf } = await import('../../services/DocumentProcessorService.js');
               const fsImport = await import('fs');
@@ -999,7 +1012,7 @@ Quando l'utente chiede di tradurre, creare o elaborare un documento:
             }
           } catch (docErr: any) {
             fastify.log.error(`[Chat] Auto document generation failed: ${docErr.message}`);
-            const errorNotice = `\n\n⚠️ Generazione documento fallita: ${docErr.message}`;
+            const errorNotice = `\n\nGenerazione documento fallita. Riprova o usa un formato diverso.`;
             reply.raw.write(`data: ${JSON.stringify({ content: errorNotice, done: false })}\n\n`);
             fullResponse += errorNotice;
           }
