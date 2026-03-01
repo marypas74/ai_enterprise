@@ -1,13 +1,19 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { readdir, stat, createReadStream } from 'fs';
-import { join } from 'path';
+import { join, dirname } from 'path';
 import { promisify } from 'util';
+import { fileURLToPath } from 'url';
 
 const readdirAsync = promisify(readdir);
 const statAsync = promisify(stat);
 
 // Path to vscode-extension directory - uses EXTENSION_DIR env var or shared projects path
 const EXTENSION_DIR = process.env.EXTENSION_DIR || join(process.env.PROJECTS_PATH || '/data/projects', 'extensions');
+
+// Path to guides directory (relative to source)
+const __filename_local = fileURLToPath(import.meta.url);
+const __dirname_local = dirname(__filename_local);
+const GUIDES_DIR = join(__dirname_local, '..', '..', 'guides');
 
 export async function downloadRoutes(fastify: FastifyInstance) {
   // Helper: Check if user is authenticated
@@ -68,6 +74,88 @@ export async function downloadRoutes(fastify: FastifyInstance) {
     } catch (err) {
       fastify.log.error('Failed to list VS Code extensions: ' + String(err));
       return reply.status(500).send({ error: 'Failed to list extensions' });
+    }
+  });
+
+  // View user guide (HTML - inline in browser)
+  fastify.get('/downloads/guides/user', {
+    onRequest: [requireAuth],
+    schema: {
+      description: 'View user guide',
+      tags: ['downloads'],
+      security: [{ bearerAuth: [] }]
+    }
+  }, async (_request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const filepath = join(GUIDES_DIR, 'user-guide.html');
+      await statAsync(filepath);
+      const stream = createReadStream(filepath);
+      return reply
+        .header('Content-Type', 'text/html; charset=utf-8')
+        .send(stream);
+    } catch (err) {
+      fastify.log.error('Failed to serve user guide: ' + String(err));
+      return reply.status(404).send({ error: 'User guide not found' });
+    }
+  });
+
+  // View admin guide (HTML - inline in browser)
+  fastify.get('/downloads/guides/admin', {
+    onRequest: [requireAuth],
+    schema: {
+      description: 'View admin guide',
+      tags: ['downloads'],
+      security: [{ bearerAuth: [] }]
+    }
+  }, async (_request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const filepath = join(GUIDES_DIR, 'admin-guide.html');
+      await statAsync(filepath);
+      const stream = createReadStream(filepath);
+      return reply
+        .header('Content-Type', 'text/html; charset=utf-8')
+        .send(stream);
+    } catch (err) {
+      fastify.log.error('Failed to serve admin guide: ' + String(err));
+      return reply.status(404).send({ error: 'Admin guide not found' });
+    }
+  });
+
+  // List available guides
+  fastify.get('/downloads/guides', {
+    onRequest: [requireAuth],
+    schema: {
+      description: 'List available guides',
+      tags: ['downloads'],
+      security: [{ bearerAuth: [] }]
+    }
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const user = (request as any).user;
+      const guides = [
+        {
+          id: 'user',
+          name: 'Guida Utente',
+          description: 'Guida completa per gli utenti della piattaforma',
+          filename: 'Enterprise-AI-Chat-Guida-Utente.html',
+          url: '/api/downloads/guides/user'
+        }
+      ];
+
+      if (user?.role === 'admin') {
+        guides.push({
+          id: 'admin',
+          name: 'Guida Amministratore',
+          description: 'Guida completa per la configurazione e gestione del sistema',
+          filename: 'Enterprise-AI-Chat-Guida-Amministratore.html',
+          url: '/api/downloads/guides/admin'
+        });
+      }
+
+      return { guides };
+    } catch (err) {
+      fastify.log.error('Failed to list guides: ' + String(err));
+      return reply.status(500).send({ error: 'Failed to list guides' });
     }
   });
 

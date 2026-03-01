@@ -88,7 +88,7 @@ export interface ProviderConfig {
   customHeaders?: Record<string, string>;
 }
 
-// Model pricing (USD per 1K tokens) - Updated December 2025
+// Model pricing (USD per 1K tokens) - Updated March 2026
 export const MODEL_PRICING: Record<string, { input: number; output: number }> = {
   // OpenAI - Latest models
   'gpt-4.1': { input: 0.002, output: 0.008 },          // Latest GPT-4.1
@@ -123,7 +123,19 @@ export const MODEL_PRICING: Record<string, { input: number; output: number }> = 
   'gemini-2.0-flash': { input: 0.0001, output: 0.0004 },
   'gemini-2.0-flash-thinking': { input: 0.0001, output: 0.0004 },
   'gemini-1.5-pro': { input: 0.00125, output: 0.005 },
-  'gemini-1.5-flash': { input: 0.000075, output: 0.0003 }
+  'gemini-1.5-flash': { input: 0.000075, output: 0.0003 },
+  // Ollama local models (free, cost=0 for tracking purposes)
+  'qwen3:14b': { input: 0, output: 0 },
+  'qwen3:30b-a3b': { input: 0, output: 0 },
+  'gemma3:12b': { input: 0, output: 0 },
+  'deepseek-r1:14b': { input: 0, output: 0 },
+  'deepseek-ocr:latest': { input: 0, output: 0 },
+  'glm-ocr:latest': { input: 0, output: 0 },
+  'qwen2.5vl:7b': { input: 0, output: 0 },
+  'phi4:latest': { input: 0, output: 0 },
+  'mistral:latest': { input: 0, output: 0 },
+  'mixtral:latest': { input: 0, output: 0 },
+  'glm-4.7-flash:latest': { input: 0, output: 0 },
 };
 
 // Calculate cost
@@ -736,17 +748,22 @@ export class OllamaProvider implements AIProvider {
     console.log(`[Ollama] Initialized: baseUrl=${this.baseUrl}, timeout=${this.timeout}ms, keepAlive=${this.keepAlive}`);
   }
 
-  async complete(options: CompletionOptions): Promise<CompletionResult> {
-    // Model mapping for Ollama (handles aliases from DB → actual Ollama model names)
-    const modelMapping: Record<string, string> = {
-      'qwen-fast': 'qwen2.5:3b',
-      'llama-fast': 'llama3.2:3b',
-      'gemma-fast': 'gemma2:2b',
-      'phi-fast': 'phi3:mini',
-      'glm-4.7-flash': 'glm4:latest',
-    };
+  // Model mapping for Ollama (handles aliases from DB → actual Ollama model names)
+  private static readonly MODEL_MAPPING: Record<string, string> = {
+    'qwen-fast': 'qwen3:30b-a3b',       // MoE ultra-fast (upgraded from qwen2.5:3b)
+    'llama-fast': 'llama3.2:3b',
+    'gemma-fast': 'gemma3:12b',          // Upgraded from gemma2:2b
+    'phi-fast': 'phi4:latest',           // Upgraded from phi3:mini
+    'glm-4.7-flash': 'glm-4.7-flash:latest',
+  };
 
-    const targetModel = modelMapping[options.model] || options.model;
+  private resolveModel(model: string): string {
+    return OllamaProvider.MODEL_MAPPING[model] || model;
+  }
+
+  async complete(options: CompletionOptions): Promise<CompletionResult> {
+    const targetModel = this.resolveModel(options.model);
+    const useThinking = !!options.thinking;
 
     const response = await fetch(`${this.baseUrl}/api/chat`, {
       method: 'POST',
@@ -759,6 +776,7 @@ export class OllamaProvider implements AIProvider {
         messages: options.messages,
         stream: false,
         tools: options.tools,
+        ...(useThinking ? { think: true } : {}),
         options: {
           num_predict: options.maxTokens || 4096,
           temperature: options.temperature || 0.7
@@ -773,7 +791,7 @@ export class OllamaProvider implements AIProvider {
     }
 
     const data = await response.json() as {
-      message: { content: string };
+      message: { content: string; thinking?: string };
       prompt_eval_count?: number;
       eval_count?: number;
     };
@@ -784,25 +802,17 @@ export class OllamaProvider implements AIProvider {
       tokensOutput: data.eval_count || 0,
       model: options.model,
       provider: 'ollama',
-      toolCalls: (data as any).message?.tool_calls
+      toolCalls: (data as any).message?.tool_calls,
+      thinkingContent: data.message?.thinking || undefined,
     };
   }
 
   async *streamComplete(options: CompletionOptions): AsyncGenerator<StreamChunk> {
     const startTime = Date.now();
+    const targetModel = this.resolveModel(options.model);
+    const useThinking = !!options.thinking;
 
-    // Model mapping for Ollama (handles aliases from DB → actual Ollama model names)
-    const modelMapping: Record<string, string> = {
-      'qwen-fast': 'qwen2.5:3b',
-      'llama-fast': 'llama3.2:3b',
-      'gemma-fast': 'gemma2:2b',
-      'phi-fast': 'phi3:mini',
-      'glm-4.7-flash': 'glm4:latest',
-    };
-
-    const targetModel = modelMapping[options.model] || options.model;
-
-    console.log(`[Ollama] Starting stream request: model=${targetModel} (orig=${options.model}), timeout=${this.timeout}ms`);
+    console.log(`[Ollama] Starting stream request: model=${targetModel} (orig=${options.model}), thinking=${useThinking}, timeout=${this.timeout}ms`);
     console.log(`[Ollama] Messages count: ${options.messages.length}, last message length: ${options.messages[options.messages.length - 1]?.content?.length || 0} chars`);
 
     // Helper to make the Ollama API call (may retry without tools)
@@ -819,6 +829,7 @@ export class OllamaProvider implements AIProvider {
           messages: options.messages,
           stream: true,
           tools: useTools,
+          ...(useThinking ? { think: true } : {}),
           options: {
             num_predict: options.maxTokens || 4096,
             temperature: options.temperature || 0.7
@@ -862,6 +873,8 @@ export class OllamaProvider implements AIProvider {
       let buffer = '';
       let chunkCount = 0;
       let totalContent = '';
+      let isInThinking = false;
+      let thinkingEmitted = false;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -878,15 +891,42 @@ export class OllamaProvider implements AIProvider {
         for (const line of lines) {
           if (!line.trim()) continue;
           try {
-            const data = JSON.parse(line) as { message?: { content: string }; done: boolean; error?: string };
+            const data = JSON.parse(line) as {
+              message?: { content: string; thinking?: string };
+              done: boolean;
+              error?: string;
+            };
             if (data.error) throw new Error(data.error);
             chunkCount++;
-            if (data.message?.content) {
-              totalContent += data.message.content;
-            }
+
             if (chunkCount === 1) {
               console.log(`[Ollama] First chunk received after ${Date.now() - startTime}ms`);
             }
+
+            // Handle thinking content from Ollama API (think: true)
+            if (data.message?.thinking) {
+              if (!isInThinking) {
+                isInThinking = true;
+              }
+              thinkingEmitted = true;
+              yield {
+                content: '',
+                done: false,
+                thinking: data.message.thinking,
+              };
+              continue;
+            }
+
+            // Transition from thinking to content
+            if (isInThinking && data.message?.content) {
+              isInThinking = false;
+              yield { content: '', done: false, thinkingDone: true };
+            }
+
+            if (data.message?.content) {
+              totalContent += data.message.content;
+            }
+
             yield {
               content: data.message?.content || '',
               done: data.done,
@@ -896,6 +936,11 @@ export class OllamaProvider implements AIProvider {
             // Skip invalid JSON
           }
         }
+      }
+
+      // If thinking was emitted but thinkingDone never sent (edge case: model only thinks, no content)
+      if (thinkingEmitted && isInThinking) {
+        yield { content: '', done: false, thinkingDone: true };
       }
     } catch (error: any) {
       const elapsed = Date.now() - startTime;
@@ -1003,8 +1048,8 @@ export class AIProviderFactory {
     if (model.startsWith('gpt-') || model.startsWith('o1-') || model.startsWith('o3-')) return 'openai';
     if (model.startsWith('claude-')) return 'anthropic';
     if (model.startsWith('gemini-')) return 'google';
-    // Check for common Ollama model patterns
-    if (model.match(/^(llama|llava|mistral|mixtral|codellama|phi|qwen|gemma|deepseek|vicuna|orca|neural|dolphin|openhermes|starling|yi|solar|glm|glm4|glm-|minicpm|nomic)/i)) {
+    // Check for common Ollama model patterns (includes reasoning models)
+    if (model.match(/^(llama|llava|mistral|mixtral|codellama|phi|phi4|qwen|qwq|gemma|deepseek|vicuna|orca|neural|dolphin|openhermes|starling|yi|solar|glm|glm4|glm-|minicpm|nomic|granite|magistral|kimi|gpt-oss|nemotron)/i)) {
       return 'ollama';
     }
     // Default to custom for unknown models

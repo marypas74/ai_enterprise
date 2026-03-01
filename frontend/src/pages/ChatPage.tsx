@@ -15,6 +15,7 @@ import {
   User,
   Sparkles,
   Download,
+  BookOpen,
   Paperclip,
   FileText,
   Image,
@@ -52,6 +53,8 @@ interface Message {
   ai_provider?: string;
   safety_disclaimer?: string;
   safety_topics?: string[];
+  thinking?: string;
+  thinkingDone?: boolean;
 }
 
 interface Conversation {
@@ -66,6 +69,7 @@ interface Model {
   id: string;
   name: string;
   provider: string;
+  description?: string;
 }
 
 interface Attachment {
@@ -119,6 +123,8 @@ export default function ChatPage() {
   } | null>(null);
   const [showVectorMemory, setShowVectorMemory] = useState(false);
   const [showConsentModal, setShowConsentModal] = useState(false);
+  const [expandedThinking, setExpandedThinking] = useState<Record<number, boolean>>({});
+  const [confirmAction, setConfirmAction] = useState<{ type: string; id?: number; label: string; action: () => Promise<void> } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -333,11 +339,8 @@ export default function ChatPage() {
         headers: { 'Content-Type': undefined }
       });
 
-      console.log('[Upload] Response:', JSON.stringify(response.data));
-
       if (response.data.attachments) {
         uploadedIds.push(...response.data.attachments.map((a: any) => a.id));
-        console.log('[Upload] Attachment IDs:', uploadedIds);
       }
 
       // Clear attachments after upload
@@ -356,19 +359,16 @@ export default function ChatPage() {
     return uploadedIds;
   };
 
-  const deleteConversation = async (id: number, e: React.MouseEvent) => {
+  const deleteConversation = (id: number, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm('Delete this conversation?')) return;
-
-    try {
-      await api.delete(`/chat/conversations/${id}`);
-      setConversations(prev => prev.filter(c => c.id !== id));
-      if (currentConversationId === id) {
-        startNewConversation();
+    setConfirmAction({
+      type: 'delete-conversation', id, label: 'Eliminare questa conversazione?',
+      action: async () => {
+        await api.delete(`/chat/conversations/${id}`);
+        setConversations(prev => prev.filter(c => c.id !== id));
+        if (currentConversationId === id) startNewConversation();
       }
-    } catch (err) {
-      console.error('Failed to delete conversation:', err);
-    }
+    });
   };
 
   const toggleArchive = async (id: number, currentStatus: boolean, e: React.MouseEvent) => {
@@ -384,26 +384,26 @@ export default function ChatPage() {
     }
   };
 
-  const archiveAllConversations = async (archive: boolean) => {
-    if (!confirm(archive ? 'Archive all conversations?' : 'Unarchive all conversations?')) return;
-    try {
-      await api.patch('/chat/conversations/archive', { all: true, archived: archive });
-      setConversations([]);
-      startNewConversation();
-    } catch (err) {
-      console.error('Failed to bulk archive:', err);
-    }
+  const archiveAllConversations = (archive: boolean) => {
+    setConfirmAction({
+      type: 'archive-all', label: archive ? 'Archiviare tutte le conversazioni?' : 'Ripristinare tutte le conversazioni?',
+      action: async () => {
+        await api.patch('/chat/conversations/archive', { all: true, archived: archive });
+        setConversations([]);
+        startNewConversation();
+      }
+    });
   };
 
-  const deleteAllConversations = async () => {
-    if (!confirm('PERMANENTLY delete ALL conversations? This cannot be undone.')) return;
-    try {
-      await api.delete('/chat/conversations', { data: { all: true } });
-      setConversations([]);
-      startNewConversation();
-    } catch (err) {
-      console.error('Failed to bulk delete:', err);
-    }
+  const deleteAllConversations = () => {
+    setConfirmAction({
+      type: 'delete-all', label: 'ELIMINARE PERMANENTEMENTE tutte le conversazioni? Questa azione è irreversibile.',
+      action: async () => {
+        await api.delete('/chat/conversations', { data: { all: true } });
+        setConversations([]);
+        startNewConversation();
+      }
+    });
   };
 
   const sendMessage = async () => {
@@ -423,15 +423,15 @@ export default function ChatPage() {
     setMessages(prev => [...prev, { role: 'user', content: displayMessage, timestamp: new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) }]);
     setIsStreaming(true);
 
-    // Add empty assistant message for streaming
-    setMessages(prev => [...prev, { role: 'assistant', content: '', timestamp: new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) }]);
+    // Add empty assistant message for streaming (include AI model info for Art. 50.2 label)
+    const currentModel = models.find(m => m.id === selectedModel);
+    setMessages(prev => [...prev, { role: 'assistant', content: '', ai_model: selectedModel, ai_provider: currentModel?.provider, timestamp: new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) }]);
 
     try {
       // Upload attachments first (works with or without conversationId)
       let attachmentIds: number[] = [];
       if (hasAttachments) {
         attachmentIds = await uploadAttachments(currentConversationId || undefined);
-        console.log(`[SendMessage] Upload complete. attachmentIds: ${JSON.stringify(attachmentIds)}`);
       }
 
       // Build message with attachment context
@@ -452,10 +452,13 @@ export default function ChatPage() {
         (content) => {
           setMessages(prev => {
             const newMessages = [...prev];
-            const lastMessage = newMessages[newMessages.length - 1];
-            if (lastMessage.role === 'assistant') {
-              lastMessage.content += content;
-              lastMessage.timestamp = new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            const last = newMessages[newMessages.length - 1];
+            if (last.role === 'assistant') {
+              newMessages[newMessages.length - 1] = {
+                ...last,
+                content: last.content + content,
+                timestamp: new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+              };
             }
             return newMessages;
           });
@@ -471,16 +474,33 @@ export default function ChatPage() {
           setIsStreaming(false);
           setMessages(prev => {
             const newMessages = [...prev];
-            const lastMessage = newMessages[newMessages.length - 1];
-            if (lastMessage.role === 'assistant') {
-              lastMessage.content = `Errore: ${error}`;
+            const last = newMessages[newMessages.length - 1];
+            if (last.role === 'assistant') {
+              newMessages[newMessages.length - 1] = { ...last, content: `Errore: ${error}` };
             }
             return newMessages;
           });
         },
         currentConversationId || undefined,
         undefined,
-        attachmentIds.length > 0 ? attachmentIds : undefined
+        attachmentIds.length > 0 ? attachmentIds : undefined,
+        // onThinking callback
+        (thinkingContent, done) => {
+          setMessages(prev => {
+            const newMessages = [...prev];
+            const last = newMessages[newMessages.length - 1];
+            if (last.role === 'assistant') {
+              newMessages[newMessages.length - 1] = done
+                ? { ...last, thinkingDone: true }
+                : { ...last, thinking: (last.thinking || '') + thinkingContent };
+            }
+            return newMessages;
+          });
+        },
+        // onVectorMemories callback
+        (memories) => {
+          setVectorMemories(memories);
+        }
       );
     } catch (err) {
       setIsStreaming(false);
@@ -582,6 +602,18 @@ export default function ChatPage() {
     } catch (err) {
       console.error('Failed to download extension:', err);
       alert('Failed to download VS Code extension');
+    }
+  };
+
+  const openGuide = async (type: 'user' | 'admin') => {
+    try {
+      const response = await api.get(`/downloads/guides/${type}`, {
+        responseType: 'blob'
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'text/html' }));
+      window.open(url, '_blank');
+    } catch (err) {
+      console.error('Failed to open guide:', err);
     }
   };
 
@@ -711,6 +743,31 @@ export default function ChatPage() {
               </button>
             </div>
 
+            {/* Guide Downloads */}
+            <div className="px-4 pb-2">
+              <div className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-2">Guide</div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => openGuide('user')}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg border border-surface-700 hover:bg-surface-800 transition-colors text-xs"
+                  title="Apri Guida Utente"
+                >
+                  <BookOpen className="w-3.5 h-3.5" />
+                  <span>Utente</span>
+                </button>
+                {user?.role === 'admin' && (
+                  <button
+                    onClick={() => openGuide('admin')}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg border border-amber-900/30 hover:bg-amber-900/20 text-amber-400 transition-colors text-xs"
+                    title="Apri Guida Amministratore"
+                  >
+                    <BookOpen className="w-3.5 h-3.5" />
+                    <span>Admin</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
             {/* User Menu */}
             <div className="p-4 border-t border-surface-800">
               <div className="flex items-center gap-3">
@@ -802,6 +859,9 @@ export default function ChatPage() {
                               )}
                             </p>
                             <p className="text-xs text-surface-500">{model.provider}</p>
+                            {model.description && (
+                              <p className="text-xs text-surface-400 dark:text-surface-500 mt-0.5 line-clamp-1">{model.description}</p>
+                            )}
                           </div>
                           {selectedModel === model.id && (
                             <div className="w-2 h-2 rounded-full bg-primary-500" />
@@ -947,8 +1007,36 @@ export default function ChatPage() {
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
+                      {/* Thinking block */}
+                      {message.role === 'assistant' && message.thinking && (
+                        <div className="mb-3">
+                          <button
+                            onClick={() => setExpandedThinking(prev => ({ ...prev, [index]: !prev[index] }))}
+                            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-500/10 dark:bg-amber-500/5 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-xs font-medium hover:bg-amber-500/20 transition-colors"
+                          >
+                            <Brain className="w-3.5 h-3.5" />
+                            <span>Ragionamento</span>
+                            {!message.thinkingDone && (
+                              <span className="thinking-pulse inline-block w-1.5 h-1.5 rounded-full bg-amber-500" />
+                            )}
+                            <ChevronDown className={clsx('w-3.5 h-3.5 transition-transform duration-200', expandedThinking[index] && 'rotate-180')} />
+                          </button>
+                          {(expandedThinking[index] ?? (!message.thinkingDone && isStreaming)) && (
+                            <div className="mt-2 pl-3 border-l-2 border-amber-500/30 max-h-64 overflow-y-auto">
+                              <pre className="text-xs text-surface-400 dark:text-surface-500 font-mono whitespace-pre-wrap leading-relaxed">{message.thinking}</pre>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {/* Thinking-only indicator (thinking in progress, no content yet) */}
+                      {message.role === 'assistant' && message.thinking && !message.thinkingDone && !message.content && (
+                        <div className="flex items-center gap-2 text-xs text-amber-500/70 mb-2">
+                          <Brain className="w-3.5 h-3.5 animate-pulse" />
+                          <span>Sta ragionando...</span>
+                        </div>
+                      )}
                       <div className="prose dark:prose-invert prose-sm max-w-none">
-                        {message.role === 'assistant' && message.content === '' ? (
+                        {message.role === 'assistant' && message.content === '' && !message.thinking ? (
                           <div className="typing-indicator">
                             <span></span>
                             <span></span>
@@ -1023,13 +1111,13 @@ export default function ChatPage() {
                             </div>
                           )}
                           {/* AI Act: Feedback buttons (GAP-9) */}
-                          {message.role === 'assistant' && message.id && !isStreaming && (
+                          {message.role === 'assistant' && message.id && (index < messages.length - 1 || !isStreaming) && (
                             <FeedbackButtons messageId={message.id} />
                           )}
                         </div>
                       )}
                       {/* AI Act: AI Generated Label (GAP-2) */}
-                      {message.role === 'assistant' && message.content && !isStreaming && (
+                      {message.role === 'assistant' && message.content && (index < messages.length - 1 || !isStreaming) && (
                         <div className="mt-1">
                           <AIGeneratedLabel model={message.ai_model} provider={message.ai_provider} />
                         </div>
@@ -1157,6 +1245,33 @@ export default function ChatPage() {
       {/* AI Act: Consent Modal (GAP-4) */}
       {showConsentModal && (
         <ConsentModal onConsented={() => setShowConsentModal(false)} />
+      )}
+
+      {/* Confirmation Modal */}
+      {confirmAction && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+          <div className="bg-white dark:bg-surface-900 rounded-xl max-w-md w-full p-6 space-y-4">
+            <h3 className="text-lg font-semibold text-surface-900 dark:text-surface-100">Conferma</h3>
+            <p className="text-sm text-surface-600 dark:text-surface-400">{confirmAction.label}</p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setConfirmAction(null)}
+                className="px-4 py-2 rounded-lg bg-surface-200 dark:bg-surface-700 text-surface-700 dark:text-surface-300 text-sm font-medium"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={async () => {
+                  try { await confirmAction.action(); } catch { /* error handled in action */ }
+                  setConfirmAction(null);
+                }}
+                className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-medium"
+              >
+                Conferma
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

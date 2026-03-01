@@ -28,11 +28,31 @@ export interface ModelConfig {
 const configCache = new Map<string, { config: ModelConfig; ts: number }>();
 const CACHE_TTL = 5 * 60 * 1000;
 
-// Models known to be lightweight (< 3B params)
+// Models known to be lightweight (< 3B params or MoE with small active params)
 const LIGHT_MODELS = new Set([
-  'qwen2.5:3b', 'qwen-fast', 'gemma2:2b', 'gemma-fast',
-  'phi3:mini', 'phi-fast', 'llama3.2:3b', 'llama-fast',
+  'qwen2.5:3b', 'llama3.2:3b', 'llama-fast',
+  'gemma2:2b', 'phi3:mini',
+  'qwen3:30b-a3b',  // MoE 30B total but only 3B active — treat as light
+  'qwen-fast',       // alias → qwen3:30b-a3b
 ]);
+
+// Ollama model name prefixes that support native thinking (think: true API)
+// These models output <think>...</think> tags natively via Ollama's thinking API
+const OLLAMA_THINKING_PREFIXES = [
+  'deepseek-r1',        // DeepSeek R1 reasoning family (1.5b-671b)
+  'deepseek-v3',        // DeepSeek V3.1 with thinking mode
+  'qwen3',              // Qwen 3 / 3.5 / 3-next (all support think param)
+  'qwq',                // Qwen QwQ reasoning model (legacy)
+  'phi4-reasoning',     // Microsoft Phi-4 Reasoning (14b)
+  'phi4-mini-reasoning',// Microsoft Phi-4 Mini Reasoning
+  'granite-3.2',        // IBM Granite 3.2 thinking family
+  'magistral',          // Mistral Magistral reasoning (24b)
+  'kimi-k2-thinking',   // Moonshot Kimi K2 Thinking
+  'gpt-oss',            // GPT-OSS reasoning
+  'gpt-oss-safeguard',  // GPT-OSS with safety
+  'nemotron',           // NVIDIA Nemotron reasoning
+  'glm-4.7',            // GLM 4.7 Flash with thinking
+];
 
 export class ModelConfigService {
   /**
@@ -52,6 +72,7 @@ export class ModelConfigService {
 
     const isClaude = modelId.startsWith('claude-');
     const isReasoningModel = modelId.startsWith('o1') || modelId.startsWith('o3');
+    const isOllamaThinking = OLLAMA_THINKING_PREFIXES.some(p => modelId.startsWith(p));
 
     const config: ModelConfig = {
       modelId,
@@ -63,10 +84,10 @@ export class ModelConfigService {
       repeatPenalty: parseFloat(row?.optimal_repeat_penalty ?? 1.1),
       timeoutMs: row?.timeout_ms || 120000,
       supportsTools: !!(row?.supports_functions) || false,
-      supportsStreaming: !!(row?.supports_streaming) || true,
+      supportsStreaming: !!(row?.supports_streaming ?? true),
       isLightModel: LIGHT_MODELS.has(modelId),
-      // v4.0: infer from DB or model name
-      supportsThinking: !!(row?.supports_thinking) || (isClaude || isReasoningModel),
+      // v4.0+: infer from DB or model name (Ollama thinking models included)
+      supportsThinking: !!(row?.supports_thinking) || isClaude || isReasoningModel || isOllamaThinking,
       supportsCitations: !!(row?.supports_citations) || isClaude,
       supportsCaching: !!(row?.supports_caching) || isClaude,
       supportsNativePdf: !!(row?.supports_native_pdf) || isClaude,
@@ -110,34 +131,44 @@ export class ModelConfigService {
    */
   static getSystemPromptForFamily(config: ModelConfig): string {
     const family = (config.modelFamily || config.modelId).toLowerCase();
+    const langInstruction = 'Rispondi sempre in italiano.';
 
     if (family.includes('qwen') || family.includes('alibaba')) {
-      return 'You follow instructions precisely. When given a structured task, respond with clean formatting. Use numbered lists for steps. Keep responses focused and avoid unnecessary preamble.';
+      return `Segui le istruzioni con precisione. Per compiti strutturati, rispondi con formattazione pulita. Usa elenchi numerati per i passaggi. Mantieni le risposte focalizzate. ${langInstruction}`;
     }
     if (family.includes('llama') || family.includes('meta')) {
-      return 'You are a helpful, harmless, and honest assistant. Provide clear, well-structured answers. When you are uncertain, say so rather than guessing.';
+      return `Sei un assistente utile e onesto. Fornisci risposte chiare e ben strutturate. Quando non sei sicuro, dillo piuttosto che inventare. ${langInstruction}`;
     }
     if (family.includes('gemma') || family.includes('google')) {
-      return 'Be concise and direct. Provide factual, well-sourced answers. Use markdown formatting for structure when appropriate.';
+      return `Sii conciso e diretto. Fornisci risposte fattuali e ben documentate. Usa la formattazione markdown quando appropriato. ${langInstruction}`;
     }
     if (family.includes('phi') || family.includes('microsoft')) {
-      return 'You are a precise and efficient assistant. Focus on accuracy over verbosity. Structure complex answers with clear headers and bullet points.';
+      return `Sei un assistente preciso ed efficiente. Concentrati sull'accuratezza. Struttura le risposte complesse con intestazioni e punti elenco. ${langInstruction}`;
     }
     if (family.includes('claude') || family.includes('anthropic')) {
-      return 'You are a thoughtful assistant. Reason step by step for complex problems. Be transparent about uncertainty and provide nuanced answers.';
+      return `Sei un assistente riflessivo. Ragiona passo dopo passo per problemi complessi. Sii trasparente sull'incertezza e fornisci risposte articolate. ${langInstruction}`;
     }
     if (family.includes('gpt') || family.includes('openai') || family.includes('o1') || family.includes('o3')) {
-      return 'You are a versatile assistant. Adapt your response style to the task at hand. Use code blocks, lists, and structured formatting when appropriate.';
+      return `Sei un assistente versatile. Adatta il tuo stile di risposta al compito. Usa blocchi di codice, elenchi e formattazione strutturata quando appropriato. ${langInstruction}`;
     }
     if (family.includes('gemini')) {
-      return 'You are a knowledgeable assistant with strong reasoning capabilities. Provide comprehensive yet concise answers. Use markdown for clarity.';
+      return `Sei un assistente competente con forti capacità di ragionamento. Fornisci risposte complete ma concise. Usa il markdown per chiarezza. ${langInstruction}`;
+    }
+    if (family.includes('deepseek-r1') || family.includes('deepseek-r')) {
+      return `Sei un modello di ragionamento avanzato. Analizza i problemi passo dopo passo, mostrando il processo logico. Fornisci risposte accurate e ben argomentate. ${langInstruction}`;
+    }
+    if (family.includes('deepseek')) {
+      return `Sei un assistente versatile e preciso. Fornisci risposte strutturate con ragionamento chiaro. ${langInstruction}`;
     }
     if (family.includes('mistral') || family.includes('mixtral')) {
-      return 'You are a multilingual assistant. Respond in the same language as the user. Be precise, structured, and helpful.';
+      return `Sei un assistente multilingue. Sii preciso, strutturato e utile. ${langInstruction}`;
+    }
+    if (family.includes('codellama') || family.includes('code')) {
+      return `Sei un esperto assistente di programmazione. Fornisci codice completo con commenti chiari. ${langInstruction}`;
     }
 
     // Default for unknown families
-    return '';
+    return langInstruction;
   }
 
   /**

@@ -17,7 +17,10 @@ import {
     Unlock,
     Download,
     Trash2,
-    FileText
+    FileText,
+    Eye,
+    XCircle,
+    RefreshCw
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import clsx from 'clsx';
@@ -38,18 +41,30 @@ export default function SettingsPage() {
     const [success, setSuccess] = useState('');
     const [mfaEnabled, setMfaEnabled] = useState(user?.mfa_enabled || false);
     const [copied, setCopied] = useState(false);
+    const [exportsList, setExportsList] = useState<any[]>([]);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [deleteConfirmText, setDeleteConfirmText] = useState('');
+    const [deletionPending, setDeletionPending] = useState(false);
+    const [showMfaDisableModal, setShowMfaDisableModal] = useState(false);
+    const [mfaDisableCode, setMfaDisableCode] = useState('');
 
-    // Load latest user status
+    // Load latest user status + deletion status
     useEffect(() => {
-        const checkMfaStatus = async () => {
+        const loadStatus = async () => {
             try {
-                const response = await api.get('/auth/me');
-                setMfaEnabled(!!response.data.mfa_enabled);
+                const [meRes, consentRes] = await Promise.all([
+                    api.get('/auth/me'),
+                    api.get('/compliance/consent/status').catch(() => null),
+                ]);
+                setMfaEnabled(!!meRes.data.mfa_enabled);
+                if (consentRes?.data?.deletion_pending) {
+                    setDeletionPending(true);
+                }
             } catch (err) {
-                console.error('Failed to update user status:', err);
+                console.error('Failed to load user status:', err);
             }
         };
-        checkMfaStatus();
+        loadStatus();
     }, []);
 
     const handleStartMfaSetup = async () => {
@@ -87,14 +102,15 @@ export default function SettingsPage() {
     };
 
     const handleDisableMfa = async () => {
-        const code = prompt('Inserisci il codice TOTP attuale per disabilitare l\'MFA:');
-        if (!code) return;
+        if (!mfaDisableCode || mfaDisableCode.length < 6) return;
 
         setLoading(true);
         setError('');
         try {
-            await api.post('/auth/mfa/disable', { totp_code: code });
+            await api.post('/auth/mfa/disable', { totp_code: mfaDisableCode });
             setMfaEnabled(false);
+            setShowMfaDisableModal(false);
+            setMfaDisableCode('');
             setSuccess('MFA disattivata correttamente.');
             setTimeout(() => setSuccess(''), 5000);
         } catch (err: any) {
@@ -305,11 +321,11 @@ export default function SettingsPage() {
                                         </div>
 
                                         <button
-                                            onClick={handleDisableMfa}
+                                            onClick={() => setShowMfaDisableModal(true)}
                                             disabled={loading}
                                             className="btn bg-white dark:bg-surface-800 border-red-200 dark:border-red-900/30 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 px-8"
                                         >
-                                            {loading ? 'Disattivazione...' : 'Disattiva MFA'}
+                                            Disattiva MFA
                                         </button>
                                     </div>
                                 </div>
@@ -343,26 +359,88 @@ export default function SettingsPage() {
 
                             <div className="space-y-4">
                                 {/* Data Export */}
-                                <div className="flex items-center justify-between p-4 bg-surface-50 dark:bg-surface-800/50 rounded-lg">
-                                    <div className="flex items-center gap-3">
-                                        <Download className="w-5 h-5 text-blue-500" />
-                                        <div>
-                                            <p className="font-medium">Esporta i tuoi dati</p>
-                                            <p className="text-xs text-surface-500">Scarica una copia di tutti i tuoi dati (Art. 20 GDPR)</p>
+                                <div className="p-4 bg-surface-50 dark:bg-surface-800/50 rounded-lg space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <Download className="w-5 h-5 text-blue-500" />
+                                            <div>
+                                                <p className="font-medium">Esporta i tuoi dati</p>
+                                                <p className="text-xs text-surface-500">Scarica una copia di tutti i tuoi dati (Art. 20 GDPR)</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={async () => {
+                                                    try {
+                                                        setSuccess('');
+                                                        const res = await api.post('/compliance/data-export');
+                                                        setSuccess(`Richiesta export creata (ID: ${res.data.export_id}).`);
+                                                        // Refresh exports list
+                                                        const listRes = await api.get('/compliance/data-exports');
+                                                        setExportsList(listRes.data.exports || []);
+                                                    } catch { setError('Errore nella richiesta di export.'); }
+                                                }}
+                                                className="btn bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 text-sm"
+                                            >
+                                                Richiedi Export
+                                            </button>
+                                            <button
+                                                onClick={async () => {
+                                                    try {
+                                                        const res = await api.get('/compliance/data-exports');
+                                                        setExportsList(res.data.exports || []);
+                                                    } catch { /* ignore */ }
+                                                }}
+                                                className="btn bg-surface-200 dark:bg-surface-700 text-surface-700 dark:text-surface-300 px-2 py-2 text-sm"
+                                                aria-label="Aggiorna lista export"
+                                            >
+                                                <RefreshCw className="w-4 h-4" />
+                                            </button>
                                         </div>
                                     </div>
-                                    <button
-                                        onClick={async () => {
-                                            try {
-                                                setSuccess('');
-                                                const res = await api.post('/compliance/data-export');
-                                                setSuccess(`Richiesta export creata (ID: ${res.data.export_id}). Riceverai una notifica quando sarà pronto.`);
-                                            } catch { setError('Errore nella richiesta di export.'); }
-                                        }}
-                                        className="btn bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 text-sm"
-                                    >
-                                        Richiedi Export
-                                    </button>
+                                    {exportsList.length > 0 && (
+                                        <div className="space-y-1">
+                                            {exportsList.map((exp: any) => (
+                                                <div key={exp.id} className="flex items-center justify-between text-xs p-2 bg-white dark:bg-surface-900 rounded">
+                                                    <span className="text-surface-600 dark:text-surface-400">
+                                                        Export #{exp.id} — {exp.status === 'completed' ? 'Completato' : exp.status === 'pending' ? 'In attesa' : exp.status === 'processing' ? 'In elaborazione' : exp.status}
+                                                    </span>
+                                                    {exp.status === 'completed' && (
+                                                        <button
+                                                            onClick={async () => {
+                                                                try {
+                                                                    const res = await api.get(`/compliance/data-export/${exp.id}`, { responseType: 'blob' });
+                                                                    const url = URL.createObjectURL(res.data);
+                                                                    const a = document.createElement('a');
+                                                                    a.href = url;
+                                                                    a.download = `data-export-${exp.id}.json`;
+                                                                    a.click();
+                                                                    URL.revokeObjectURL(url);
+                                                                } catch { setError('Errore nel download del file export.'); }
+                                                            }}
+                                                            className="text-blue-600 hover:text-blue-700 font-medium"
+                                                        >
+                                                            Scarica
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Transparency Link */}
+                                <div className="flex items-center justify-between p-4 bg-surface-50 dark:bg-surface-800/50 rounded-lg">
+                                    <div className="flex items-center gap-3">
+                                        <Eye className="w-5 h-5 text-purple-500" />
+                                        <div>
+                                            <p className="font-medium">Trasparenza AI</p>
+                                            <p className="text-xs text-surface-500">Modelli utilizzati, limitazioni, statistiche di utilizzo</p>
+                                        </div>
+                                    </div>
+                                    <Link to="/transparency" className="btn bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 text-sm">
+                                        Visualizza
+                                    </Link>
                                 </div>
 
                                 {/* Privacy Policy Link */}
@@ -385,32 +463,134 @@ export default function SettingsPage() {
                                 </div>
 
                                 {/* Account Deletion */}
-                                <div className="flex items-center justify-between p-4 bg-red-50 dark:bg-red-900/10 rounded-lg border border-red-100 dark:border-red-900/30">
-                                    <div className="flex items-center gap-3">
-                                        <Trash2 className="w-5 h-5 text-red-500" />
-                                        <div>
-                                            <p className="font-medium text-red-700 dark:text-red-400">Elimina account</p>
-                                            <p className="text-xs text-red-600/70 dark:text-red-400/70">Cancellazione definitiva con periodo di grazia di 30 giorni</p>
+                                <div className="p-4 bg-red-50 dark:bg-red-900/10 rounded-lg border border-red-100 dark:border-red-900/30 space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <Trash2 className="w-5 h-5 text-red-500" />
+                                            <div>
+                                                <p className="font-medium text-red-700 dark:text-red-400">Elimina account</p>
+                                                <p className="text-xs text-red-600/70 dark:text-red-400/70">Cancellazione definitiva con periodo di grazia di 30 giorni</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            {deletionPending ? (
+                                                <button
+                                                    onClick={async () => {
+                                                        try {
+                                                            await api.post('/compliance/delete-account/cancel');
+                                                            setDeletionPending(false);
+                                                            setSuccess('Richiesta di cancellazione annullata.');
+                                                        } catch { setError('Errore nell\'annullamento della cancellazione.'); }
+                                                    }}
+                                                    className="btn bg-surface-600 hover:bg-surface-700 text-white px-4 py-2 text-sm"
+                                                >
+                                                    Annulla Cancellazione
+                                                </button>
+                                            ) : (
+                                                <button
+                                                    onClick={() => setShowDeleteConfirm(true)}
+                                                    className="btn bg-red-600 hover:bg-red-700 text-white px-4 py-2 text-sm"
+                                                >
+                                                    Richiedi Cancellazione
+                                                </button>
+                                            )}
                                         </div>
                                     </div>
-                                    <button
-                                        onClick={async () => {
-                                            if (!confirm('Sei sicuro di voler richiedere la cancellazione del tuo account? Avrai 30 giorni per annullarla.')) return;
-                                            try {
-                                                await api.post('/compliance/delete-account');
-                                                setSuccess('Richiesta di cancellazione inviata. Hai 30 giorni per annullarla dalle impostazioni.');
-                                            } catch { setError('Errore nella richiesta di cancellazione.'); }
-                                        }}
-                                        className="btn bg-red-600 hover:bg-red-700 text-white px-4 py-2 text-sm"
-                                    >
-                                        Richiedi Cancellazione
-                                    </button>
+                                    {deletionPending && (
+                                        <p className="text-xs text-red-600 dark:text-red-400">
+                                            Cancellazione in corso. Hai 30 giorni per annullarla.
+                                        </p>
+                                    )}
                                 </div>
+
+                                {/* Delete Confirmation Modal */}
+                                {showDeleteConfirm && (
+                                    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="delete-confirm-title">
+                                        <div className="bg-white dark:bg-surface-900 rounded-xl max-w-md w-full p-6 space-y-4">
+                                            <h3 id="delete-confirm-title" className="text-lg font-semibold text-red-700 dark:text-red-400">Conferma cancellazione account</h3>
+                                            <p className="text-sm text-surface-600 dark:text-surface-400">
+                                                Stai per richiedere la cancellazione del tuo account. Questa azione è irreversibile dopo il periodo di grazia di 30 giorni.
+                                            </p>
+                                            <p className="text-sm text-surface-600 dark:text-surface-400">
+                                                Digita <strong>ELIMINA</strong> per confermare:
+                                            </p>
+                                            <input
+                                                type="text"
+                                                value={deleteConfirmText}
+                                                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                                                className="w-full px-3 py-2 border border-surface-300 dark:border-surface-600 rounded-lg bg-white dark:bg-surface-800 text-sm"
+                                                placeholder="ELIMINA"
+                                                autoFocus
+                                            />
+                                            <div className="flex justify-end gap-3">
+                                                <button
+                                                    onClick={() => { setShowDeleteConfirm(false); setDeleteConfirmText(''); }}
+                                                    className="btn bg-surface-200 dark:bg-surface-700 text-surface-700 dark:text-surface-300 px-4 py-2 text-sm"
+                                                >
+                                                    Annulla
+                                                </button>
+                                                <button
+                                                    disabled={deleteConfirmText !== 'ELIMINA'}
+                                                    onClick={async () => {
+                                                        try {
+                                                            await api.post('/compliance/delete-account');
+                                                            setDeletionPending(true);
+                                                            setShowDeleteConfirm(false);
+                                                            setDeleteConfirmText('');
+                                                            setSuccess('Richiesta di cancellazione inviata. Hai 30 giorni per annullarla.');
+                                                        } catch { setError('Errore nella richiesta di cancellazione.'); }
+                                                    }}
+                                                    className="btn bg-red-600 hover:bg-red-700 text-white px-4 py-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                                >
+                                                    Conferma Cancellazione
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
+
+            {/* MFA Disable Modal */}
+            {showMfaDisableModal && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="mfa-disable-title">
+                    <div className="bg-white dark:bg-surface-900 rounded-xl max-w-md w-full p-6 space-y-4">
+                        <h3 id="mfa-disable-title" className="text-lg font-semibold text-surface-900 dark:text-surface-100">Disattiva MFA</h3>
+                        <p className="text-sm text-surface-600 dark:text-surface-400">
+                            Inserisci il codice TOTP attuale dalla tua app di autenticazione per disabilitare la verifica a due fattori.
+                        </p>
+                        <input
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            maxLength={6}
+                            value={mfaDisableCode}
+                            onChange={(e) => setMfaDisableCode(e.target.value.replace(/\D/g, ''))}
+                            className="w-full px-3 py-2 border border-surface-300 dark:border-surface-600 rounded-lg bg-white dark:bg-surface-800 text-sm text-center text-2xl tracking-widest"
+                            placeholder="000000"
+                            autoFocus
+                        />
+                        <div className="flex justify-end gap-3">
+                            <button
+                                onClick={() => { setShowMfaDisableModal(false); setMfaDisableCode(''); }}
+                                className="btn bg-surface-200 dark:bg-surface-700 text-surface-700 dark:text-surface-300 px-4 py-2 text-sm"
+                            >
+                                Annulla
+                            </button>
+                            <button
+                                disabled={mfaDisableCode.length < 6 || loading}
+                                onClick={handleDisableMfa}
+                                className="btn bg-red-600 hover:bg-red-700 text-white px-4 py-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {loading ? 'Disattivazione...' : 'Conferma Disattivazione'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

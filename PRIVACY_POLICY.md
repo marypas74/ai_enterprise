@@ -8,10 +8,11 @@ Informativa resa ai sensi degli Artt. 13-14 del Regolamento (UE) 2016/679 (GDPR)
 
 ## 1. Titolare del Trattamento
 
-Il Titolare del trattamento dei dati personali è l'organizzazione che gestisce la piattaforma Enterprise AI Chat.
+Il Titolare del trattamento dei dati personali è **LushLolli S.r.l.**, con sede legale in Italia, che gestisce la piattaforma Enterprise AI Chat.
 
 **Contatti del Responsabile della Protezione dei Dati (DPO):**
-- Email: privacy@[dominio-azienda].com
+- Email: privacy@lushlolli.com
+- PEC: privacy@pec.lushlolli.com
 
 ## 2. Tipologie di Dati Raccolti
 

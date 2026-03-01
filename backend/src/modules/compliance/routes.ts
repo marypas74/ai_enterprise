@@ -133,7 +133,14 @@ export async function complianceRoutes(fastify: FastifyInstance) {
     const requiredTypes = ['ai_disclosure', 'data_processing', 'terms_of_service'];
     const allGranted = requiredTypes.every(t => consentMap[t]?.granted === true);
 
-    return { consents: consentMap, all_required_granted: allGranted };
+    // Check for pending account deletion (GAP-7)
+    const deletionReq = await findOne<{ id: number }>(
+      fastify.db,
+      `SELECT id FROM account_deletion_requests WHERE user_id = ? AND status IN ('pending','confirmed')`,
+      [user.id]
+    );
+
+    return { consents: consentMap, all_required_granted: allGranted, deletion_pending: !!deletionReq };
   });
 
   // ── POST /compliance/consent/revoke ── (GAP-4: Revoke consent)
@@ -168,7 +175,7 @@ export async function complianceRoutes(fastify: FastifyInstance) {
       fastify.db,
       `SELECT m.id FROM messages m
        JOIN conversations c ON m.conversation_id = c.id
-       WHERE m.id = ? AND c.user_id = ?`,
+       WHERE m.id = ? AND c.user_id = ? AND m.role = 'assistant'`,
       [body.message_id, user.id]
     );
     if (!messageOwned) {
@@ -234,32 +241,43 @@ export async function complianceRoutes(fastify: FastifyInstance) {
     const user = request.user as UserPayload;
     const body = dataExportSchema.parse(request.body || {});
 
-    // Check for pending export
-    const pending = await findOne<{ id: number }>(
-      fastify.db,
-      `SELECT id FROM data_export_requests WHERE user_id = ? AND status IN ('pending','processing')`,
-      [user.id]
-    );
-    if (pending) {
-      return reply.status(409).send({ error: 'Una richiesta di export è già in corso.' });
+    // Check for pending export with row-level lock to prevent race condition
+    const conn = await (fastify.db as any).getConnection();
+    try {
+      await conn.beginTransaction();
+      const [rows] = await conn.execute(
+        `SELECT id FROM data_export_requests WHERE user_id = ? AND status IN ('pending','processing') FOR UPDATE`,
+        [user.id]
+      );
+      if ((rows as any[]).length > 0) {
+        await conn.rollback();
+        conn.release();
+        return reply.status(409).send({ error: 'Una richiesta di export è già in corso.' });
+      }
+
+      const [result] = await conn.execute(
+        `INSERT INTO data_export_requests (user_id, format, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 7 DAY))`,
+        [user.id, body.format]
+      );
+      const exportId = (result as any).insertId;
+      await conn.commit();
+      conn.release();
+
+      // Generate export in background
+      generateDataExport(fastify, user.id, exportId, body.format).catch(err => {
+        fastify.log.error({ err }, `[AI-Act] Data export ${exportId} failed`);
+      });
+
+      await insertOne(fastify.db,
+        `INSERT INTO audit_log (user_id, action, entity_type, entity_id, ip_address) VALUES (?, ?, ?, ?, ?)`,
+        [user.id, 'data_export_requested', 'data_export', exportId, getRealIp(request)]
+      );
+
+      return { success: true, export_id: exportId, message: 'Export avviato. Sarà disponibile a breve nelle impostazioni.' };
+    } catch (txErr) {
+      try { await conn.rollback(); conn.release(); } catch { /* ignore */ }
+      throw txErr;
     }
-
-    const exportId = await insertOne(fastify.db,
-      `INSERT INTO data_export_requests (user_id, format, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 7 DAY))`,
-      [user.id, body.format]
-    );
-
-    // Generate export in background
-    generateDataExport(fastify, user.id, exportId, body.format).catch(err => {
-      fastify.log.error({ err }, `[AI-Act] Data export ${exportId} failed`);
-    });
-
-    await insertOne(fastify.db,
-      `INSERT INTO audit_log (user_id, action, entity_type, entity_id, ip_address) VALUES (?, ?, ?, ?, ?)`,
-      [user.id, 'data_export_requested', 'data_export', exportId, getRealIp(request)]
-    );
-
-    return { success: true, export_id: exportId, message: 'Export avviato. Sarà disponibile a breve nelle impostazioni.' };
   });
 
   // ── GET /compliance/data-export/:id ── (GAP-6: Download export)
@@ -497,6 +515,15 @@ export async function complianceRoutes(fastify: FastifyInstance) {
     );
     const total = await findOne<{ cnt: number }>(fastify.db, `SELECT COUNT(*) as cnt FROM user_consents`);
 
+    // Audit log admin read access
+    try {
+      const user = (request as any).user;
+      await insertOne(fastify.db,
+        `INSERT INTO audit_log (user_id, action, entity_type, ip_address, details) VALUES (?, ?, ?, ?, ?)`,
+        [user.id, 'admin_read', 'user_consents', getRealIp(request), JSON.stringify({ results: consents.length })]
+      );
+    } catch { /* non-blocking */ }
+
     return { consents, total: total?.cnt || 0, limit, offset };
   });
 
@@ -510,7 +537,9 @@ export async function complianceRoutes(fastify: FastifyInstance) {
 
     let where = '1=1';
     const params: any[] = [];
-    if (query.model) { where += ' AND dl.ai_model = ?'; params.push(query.model); }
+    if (query.model && typeof query.model === 'string' && query.model.length <= 100) {
+      where += ' AND dl.ai_model = ?'; params.push(query.model);
+    }
     if (query.user_id) {
       const userId = safeParseInt(query.user_id, 0);
       if (userId > 0) { where += ' AND dl.user_id = ?'; params.push(userId); }
@@ -527,6 +556,15 @@ export async function complianceRoutes(fastify: FastifyInstance) {
       [...params, limit, offset]
     );
     const total = await findOne<{ cnt: number }>(fastify.db, `SELECT COUNT(*) as cnt FROM ai_decision_log WHERE ${where}`, params);
+
+    // Audit log admin read access
+    try {
+      const user = (request as any).user;
+      await insertOne(fastify.db,
+        `INSERT INTO audit_log (user_id, action, entity_type, ip_address, details) VALUES (?, ?, ?, ?, ?)`,
+        [user.id, 'admin_read', 'ai_decision_log', getRealIp(request), JSON.stringify({ filters: { model: query.model || null, user_id: query.user_id || null }, results: logs.length })]
+      );
+    } catch { /* non-blocking */ }
 
     return { logs, total: total?.cnt || 0, limit, offset };
   });

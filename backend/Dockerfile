@@ -51,6 +51,9 @@ RUN npm ci --omit=dev --legacy-peer-deps && npm cache clean --force
 # Copy built files from builder
 COPY --from=builder /app/dist ./dist
 
+# Copy guides (static HTML files)
+COPY src/guides ./dist/guides
+
 # Copy sandbox Python files
 COPY src/sandbox ./sandbox
 

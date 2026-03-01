@@ -137,14 +137,14 @@ export class PromptTemplateService {
     const template = await this.getByType('tool_prompt');
     if (!template) {
       // Fallback hardcoded tool prompt
-      return `Create a JSON with the correct "action" and "action_input" to help the user.
+      return `Crea un JSON con la "action" e "action_input" corretti per aiutare l'utente.
 
-Available actions:
+Azioni disponibili:
 ${availableTools}
-- "no_action": Use this if no relevant action is available. Set action_input to the response.
+- "no_action": Usa questa se nessuna azione rilevante è disponibile. Imposta action_input con la risposta.
 
-${examples ? `Examples:\n${examples}\n\n` : ''}Output a JSON object: {"action": "action_name", "action_input": "input for the action"}
-Return ONLY the JSON, nothing else.`;
+${examples ? `Esempi:\n${examples}\n\n` : ''}Restituisci un oggetto JSON: {"action": "action_name", "action_input": "input per l'azione"}
+Restituisci SOLO il JSON, nient'altro.`;
     }
     return this.renderTemplate(template.content, {
       availableTools,
@@ -205,9 +205,9 @@ export const DEFAULT_TEMPLATES: Omit<PromptTemplate, 'id' | 'created_at' | 'upda
     name: 'default_prefix',
     display_name: 'Default Prefix (Personality)',
     template_type: 'prefix',
-    content: `You are a helpful, knowledgeable AI assistant. Today is {{currentDate}}.
-You respond in the same language the user speaks. You are precise, friendly, and proactive.
-When you don't know something, you say so honestly.`,
+    content: `Sei un assistente AI utile e competente. Oggi è {{currentDate}}.
+Rispondi SEMPRE in italiano. Sei preciso, amichevole e proattivo.
+Quando non sai qualcosa, dillo onestamente.`,
     is_default: true,
     is_active: true,
     description: 'Default personality and role definition for the AI assistant',
@@ -231,9 +231,9 @@ When you don't know something, you say so honestly.`,
     name: 'default_instructions',
     display_name: 'Default Instructions',
     template_type: 'instructions',
-    content: `Use the context above to inform your responses. If relevant memories or documents are provided, reference them naturally.
-If tools or procedures are available, use them when appropriate.
-If a form is active, help the user complete it by asking for missing fields conversationally.`,
+    content: `Usa il contesto sopra per informare le tue risposte. Se vengono forniti ricordi o documenti rilevanti, fai riferimento ad essi in modo naturale.
+Se sono disponibili strumenti o procedure, usali quando appropriato.
+Se un modulo è attivo, aiuta l'utente a completarlo chiedendo i campi mancanti in modo conversazionale.`,
     is_default: true,
     is_active: true,
     description: 'General instructions for how the AI should use context and tools',
@@ -243,15 +243,15 @@ If a form is active, help the user complete it by asking for missing fields conv
     name: 'default_tool_prompt',
     display_name: 'Default Tool Selection Prompt',
     template_type: 'tool_prompt',
-    content: `Create a JSON with the correct "action" and "action_input" to help the user.
+    content: `Crea un JSON con la "action" e "action_input" corretti per aiutare l'utente.
 
-Available actions:
+Azioni disponibili:
 {{availableTools}}
-- "no_action": Use this if no relevant action is available. Set action_input to your response text.
+- "no_action": Usa questa se nessuna azione rilevante è disponibile. Imposta action_input con il testo della risposta.
 
 {{customContext}}
-Output a JSON object: {"action": "action_name", "action_input": "input for the action"}
-Return ONLY the JSON, nothing else.`,
+Restituisci un oggetto JSON: {"action": "action_name", "action_input": "input per l'azione"}
+Restituisci SOLO il JSON, nient'altro.`,
     is_default: true,
     is_active: true,
     description: 'Tool/form selection prompt template',

@@ -81,3 +81,13 @@
   0%, 80%, 100% { transform: scale(0.6); opacity: 0.5; }
   40% { transform: scale(1); opacity: 1; }
 }
+
+/* Thinking pulse indicator */
+@keyframes thinking-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+.thinking-pulse {
+  animation: thinking-pulse 1.5s infinite ease-in-out;
+}

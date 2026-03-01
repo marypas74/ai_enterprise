@@ -55,19 +55,23 @@ export class BiasMonitorService {
     const periodEnd = new Date();
     const periodStart = new Date(periodEnd.getTime() - this.INTERVAL_MS);
 
-    // Aggregate decision log stats per model
+    // Aggregate decision log stats per model (includes refusal/error counts)
     const modelStats = await findMany<{
       ai_model: string;
       ai_provider: string;
       total_requests: number;
       avg_latency_ms: number;
       flagged_count: number;
+      refusal_count: number;
+      error_count: number;
     }>(
       this.fastify.db,
       `SELECT ai_model, ai_provider,
               COUNT(*) as total_requests,
               ROUND(AVG(latency_ms)) as avg_latency_ms,
-              SUM(CASE WHEN safety_flags IS NOT NULL AND JSON_LENGTH(safety_flags) > 0 THEN 1 ELSE 0 END) as flagged_count
+              SUM(CASE WHEN safety_flags IS NOT NULL AND JSON_LENGTH(safety_flags) > 0 THEN 1 ELSE 0 END) as flagged_count,
+              SUM(CASE WHEN tokens_output = 0 AND latency_ms > 0 THEN 1 ELSE 0 END) as refusal_count,
+              SUM(CASE WHEN latency_ms = 0 OR tokens_output IS NULL THEN 1 ELSE 0 END) as error_count
        FROM ai_decision_log
        WHERE created_at BETWEEN ? AND ?
        GROUP BY ai_model, ai_provider`,
@@ -97,9 +101,10 @@ export class BiasMonitorService {
         `INSERT INTO bias_monitoring_log
          (period_start, period_end, ai_model, ai_provider, total_requests, refusal_count, error_count,
           avg_latency_ms, negative_feedback_count, positive_feedback_count, flagged_content_count)
-         VALUES (?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [periodStart.toISOString(), periodEnd.toISOString(),
          stat.ai_model, stat.ai_provider, stat.total_requests,
+         stat.refusal_count || 0, stat.error_count || 0,
          stat.avg_latency_ms, negative, positive, stat.flagged_count]
       );
 

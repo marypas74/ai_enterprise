@@ -604,13 +604,13 @@ async function seedAIActSettings(pool: mysql.Pool, fastify: FastifyInstance): Pr
     }
   }
 
-  // Seed model documentation (AI Act Art. 50)
+  // Seed model documentation (AI Act Art. 50) — includes bias_notes (GAP-8/11)
   const modelDocs = [
-    { pattern: 'gpt-4o%', cutoff: '2024-04', limitations: 'Può generare informazioni non accurate (allucinazioni). Non adatto per consulenza medica o legale. Possibili bias nei dati di training.', rating: 'high', url: 'https://platform.openai.com/docs/models' },
-    { pattern: 'gpt-4-turbo%', cutoff: '2024-04', limitations: 'Può generare informazioni non accurate. Non adatto per consulenza medica o legale.', rating: 'high', url: 'https://platform.openai.com/docs/models' },
-    { pattern: 'gpt-3.5%', cutoff: '2021-09', limitations: 'Modello meno capace. Maggiore tendenza ad allucinazioni. Contesto limitato.', rating: 'medium', url: 'https://platform.openai.com/docs/models' },
-    { pattern: 'claude-%', cutoff: '2025-04', limitations: 'Può generare informazioni non accurate. Non adatto per consulenza medica o legale. Possibili bias nei dati di training.', rating: 'high', url: 'https://docs.anthropic.com/en/docs/about-claude/models' },
-    { pattern: 'gemini-%', cutoff: '2024-08', limitations: 'Può generare informazioni non accurate. Contesto più breve rispetto ai concorrenti. Possibili bias nei dati di training.', rating: 'medium', url: 'https://ai.google.dev/gemini-api/docs' },
+    { pattern: 'gpt-4o%', cutoff: '2024-04', limitations: 'Può generare informazioni non accurate (allucinazioni). Non adatto per consulenza medica o legale. Possibili bias nei dati di training.', biasNotes: 'Possibili bias derivanti dai dati di training (Common Crawl, libri, web). Sottorappresentazione di lingue non inglesi. Può riflettere stereotipi culturali occidentali.', rating: 'high', url: 'https://platform.openai.com/docs/models' },
+    { pattern: 'gpt-4-turbo%', cutoff: '2024-04', limitations: 'Può generare informazioni non accurate. Non adatto per consulenza medica o legale.', biasNotes: 'Stessi bias del dataset GPT-4. Possibile sycophancy (tendenza ad assecondare l\'utente).', rating: 'high', url: 'https://platform.openai.com/docs/models' },
+    { pattern: 'gpt-3.5%', cutoff: '2021-09', limitations: 'Modello meno capace. Maggiore tendenza ad allucinazioni. Contesto limitato.', biasNotes: 'Bias più marcati rispetto a GPT-4. Dataset di training meno curato. Maggiore sensibilità a prompt injection.', rating: 'medium', url: 'https://platform.openai.com/docs/models' },
+    { pattern: 'claude-%', cutoff: '2025-04', limitations: 'Può generare informazioni non accurate. Non adatto per consulenza medica o legale. Possibili bias nei dati di training.', biasNotes: 'Addestrato con RLHF e Constitutional AI. Tendenza a essere eccessivamente cauto. Possibili bias culturali anglosassoni.', rating: 'high', url: 'https://docs.anthropic.com/en/docs/about-claude/models' },
+    { pattern: 'gemini-%', cutoff: '2024-08', limitations: 'Può generare informazioni non accurate. Contesto più breve rispetto ai concorrenti. Possibili bias nei dati di training.', biasNotes: 'Addestrato su dati Google. Possibile bias verso prodotti/servizi Google. Bias linguistici verso inglese e lingue ad alta risorsa.', rating: 'medium', url: 'https://ai.google.dev/gemini-api/docs' },
   ];
 
   for (const m of modelDocs) {
@@ -619,10 +619,11 @@ async function seedAIActSettings(pool: mysql.Pool, fastify: FastifyInstance): Pr
         `UPDATE ai_models SET
           knowledge_cutoff = COALESCE(knowledge_cutoff, ?),
           limitations = COALESCE(limitations, ?),
+          bias_notes = COALESCE(bias_notes, ?),
           safety_rating = COALESCE(safety_rating, ?),
           documentation_url = COALESCE(documentation_url, ?)
          WHERE model_id LIKE ?`,
-        [m.cutoff, m.limitations, m.rating, m.url, m.pattern]
+        [m.cutoff, m.limitations, m.biasNotes, m.rating, m.url, m.pattern]
       );
     } catch (err: any) {
       if (err?.errno !== 1054) {

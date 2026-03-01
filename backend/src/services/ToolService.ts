@@ -34,6 +34,8 @@ export interface ToolContext {
   projectName: string;
   projectId: number;
   userId: number;
+  db?: any;
+  log?: { debug: (...args: any[]) => void; info: (...args: any[]) => void; warn: (...args: any[]) => void; error: (...args: any[]) => void };
 }
 
 // Tool execution result
@@ -362,7 +364,7 @@ export async function executeTool(
     : toolName === 'write_file'
     ? { ...toolInput, content: `[${toolInput.content?.length ?? 0} chars]` }
     : toolInput;
-  console.log(`[ToolService] Executing tool: ${toolName}`, safeInput);
+  (context.log || console).debug(`[ToolService] Executing tool: ${toolName}`, safeInput);
 
   try {
     switch (toolName) {
@@ -597,11 +599,11 @@ export async function executeTool(
           return { success: false, error: 'Missing required parameter: attachment_id' };
         }
 
-        const attachment = await findOne<any>(
-          (global as any).fastifyDb,
-          'SELECT processed_content, original_name FROM chat_attachments WHERE id = ?',
-          [attachment_id]
-        );
+        const attachment = context.db ? await findOne<any>(
+          context.db,
+          'SELECT processed_content, original_name FROM chat_attachments WHERE id = ? AND user_id = ?',
+          [attachment_id, context.userId]
+        ) : null;
 
         if (!attachment) {
           return { success: false, error: `Attachment not found: ${attachment_id}` };
@@ -624,7 +626,7 @@ export async function executeTool(
           return { success: false, error: 'Missing required parameter: query' };
         }
 
-        console.log(`[ToolService] Performing real web search for: ${query}`);
+        // Web search query logged at debug level only
 
         try {
           const { performWebSearch } = await import('./WebSearchService.js');
@@ -783,7 +785,7 @@ export async function executeTool(
         }
 
         try {
-          const db = (global as any).fastifyDb || null;
+          const db = context.db || null;
           // Clamp timeout at call site as defense-in-depth
           const safeTimeout = timeout_ms
             ? Math.min(Math.max(Number(timeout_ms), 1000), 60_000)
@@ -820,7 +822,7 @@ export async function executeTool(
 
         try {
           const { generateEmbedding } = await import('./EmbeddingService.js');
-          const db = (global as any).fastifyDb || null;
+          const db = context.db || null;
           if (!db) {
             return { success: false, error: 'Database connection not available for embedding generation' };
           }
@@ -892,7 +894,7 @@ export async function executeTool(
       }
     }
   } catch (error: any) {
-    console.error(`[ToolService] Tool execution error:`, error);
+    (context.log || console).error(`[ToolService] Tool execution error:`, error);
     return { success: false, error: error.message || 'Tool execution failed' };
   }
 }
@@ -914,7 +916,7 @@ async function executeMCPTool(
     return { success: false, error: `MCP tool not found: ${toolName}` };
   }
 
-  console.log(`[ToolService] Executing MCP tool: ${matchingTool.serverName}/${matchingTool.name}`);
+  // MCP tool execution logged at debug level only
   const result = await mcpManager.callTool(matchingTool.serverId, matchingTool.name, toolInput);
 
   if (!result.success) {

@@ -18,13 +18,14 @@ import { storeEpisodic } from '../../services/VectorMemoryService.js';
 import { ConversationalFormService } from '../../services/ConversationalFormService.js';
 import { ModelConfigService } from '../../services/ModelConfigService.js';
 import { recordProviderError, recordProviderSuccess, isProviderHealthy } from '../../services/CircuitBreakerService.js';
+import { ContentSafetyService } from '../compliance/contentSafety.js';
 
 // Validation schemas
 const completionSchema = z.object({
   conversationId: z.number().optional(),
-  model: z.string(),
-  message: z.string().min(1),
-  systemPrompt: z.string().optional(),
+  model: z.string().max(100),
+  message: z.string().min(1).max(100000),
+  systemPrompt: z.string().max(10000).optional(),
   attachmentIds: z.array(z.number()).optional()
 });
 
@@ -52,6 +53,9 @@ interface DbMessage {
 }
 
 export async function chatRoutes(fastify: FastifyInstance) {
+  // AI Act GAP-10: Singleton ContentSafetyService (shared across requests)
+  const contentSafetyService = new ContentSafetyService(fastify);
+
   // Streaming chat completion
   fastify.post('/completions', {
     onRequest: [(fastify as any).authenticate],
@@ -67,11 +71,7 @@ export async function chatRoutes(fastify: FastifyInstance) {
       const body = completionSchema.parse(request.body);
 
       // DEBUG: Log entry point
-      console.log(`[Chat-DEBUG] ============ REQUEST START ============`);
-      console.log(`[Chat-DEBUG] Model: "${body.model}"`);
-      console.log(`[Chat-DEBUG] Message length: ${body.message?.length || 0}`);
-      console.log(`[Chat-DEBUG] User ID: ${user.id}`);
-      console.log(`[Chat-DEBUG] AttachmentIds: ${JSON.stringify(body.attachmentIds || 'none')}`);
+      fastify.log.debug({ model: body.model, messageLength: body.message?.length || 0, userId: user.id, attachmentIds: body.attachmentIds || [] }, '[Chat] Request start');
       fastify.log.info(`[Chat] Request for model: ${body.model}`);
 
       // Check if this is a Parlant agent (model format: "parlant:{agentId}")
@@ -105,10 +105,9 @@ export async function chatRoutes(fastify: FastifyInstance) {
         fastify.log.info(`[Chat] Using Parlant agent: ${agentId}`);
       } else {
         providerName = AIProviderFactory.getProviderName(body.model);
-        console.log(`[Chat-DEBUG] Provider determined: "${providerName}" for model "${body.model}"`);
         fastify.log.info(`[Chat] Using ${providerName} provider for model: ${body.model}`);
         provider = AIProviderFactory.getProvider(body.model);
-        console.log(`[Chat-DEBUG] Provider instance created: ${provider?.name || 'NULL'}`);
+        fastify.log.debug(`[Chat] Provider instance created: ${provider?.name || 'NULL'}`);
       }
 
       let conversationId = body.conversationId;
@@ -167,7 +166,9 @@ export async function chatRoutes(fastify: FastifyInstance) {
               userName: owner?.name || owner?.email?.split('@')[0] || `user_${firstProject.owner_id}`,
               projectName: firstProject.name,
               projectId: firstProject.id,
-              userId: user.id
+              userId: user.id,
+              db: fastify.db,
+              log: fastify.log
             };
 
             // Ensure folder exists
@@ -180,7 +181,6 @@ export async function chatRoutes(fastify: FastifyInstance) {
       }
 
       // Get or create conversation
-      (global as any).fastifyDb = fastify.db;
       if (conversationId) {
         // Load existing conversation
         const conversation = await findOne<Conversation>(
@@ -201,6 +201,11 @@ export async function chatRoutes(fastify: FastifyInstance) {
         );
 
         messages = dbMessages.map(m => ({ role: m.role, content: m.content }));
+
+        // Inject conversation system_prompt if present and no system message in history
+        if (conversation.system_prompt && !messages.some(m => m.role === 'system')) {
+          messages.unshift({ role: 'system', content: conversation.system_prompt });
+        }
       } else {
         // Create new conversation
         const title = body.message.slice(0, 100);
@@ -224,11 +229,28 @@ export async function chatRoutes(fastify: FastifyInstance) {
       // Hook context (frozen for safety)
       const hookCtx = Object.freeze({ userId: user.id, conversationId: conversationId! });
 
+      // AI Act GAP-10: Content safety check on user message
+      let safetyResult: { is_sensitive: boolean; topics: string[]; disclaimer: string | null; safety_flags: Record<string, boolean> | null } = { is_sensitive: false, topics: [], disclaimer: null, safety_flags: null };
+      try {
+        safetyResult = await contentSafetyService.checkMessage(body.message);
+      } catch (safetyErr: any) {
+        fastify.log.warn(`[AI-Act] Content safety check failed: ${safetyErr.message}`);
+      }
+
       // Hook: fast_reply — short-circuit opportunity (legacy, kept for backward compat)
       const fastReplyResult = await eventBus.pipe('fast_reply', null, hookCtx);
       if (fastReplyResult.short_circuited && fastReplyResult.data) {
         reply.hijack();
-        reply.raw.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive', 'X-Conversation-Id': conversationId!.toString() });
+        reply.raw.writeHead(200, {
+          'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive',
+          'X-Conversation-Id': conversationId!.toString(),
+          'X-AI-Generated': 'true', 'X-AI-Model': body.model, 'X-AI-Provider': providerName,
+          'X-AI-Disclosure': 'This content is generated by artificial intelligence'
+        });
+        reply.raw.write(`data: ${JSON.stringify({ type: 'ai_disclosure', model: body.model, provider: providerName })}\n\n`);
+        if (safetyResult.is_sensitive && safetyResult.disclaimer) {
+          reply.raw.write(`data: ${JSON.stringify({ type: 'content_safety_warning', disclaimer: safetyResult.disclaimer, topics: safetyResult.topics })}\n\n`);
+        }
         reply.raw.write(`data: ${JSON.stringify({ content: fastReplyResult.data })}\n\n`);
         reply.raw.write('data: [DONE]\n\n');
         reply.raw.end();
@@ -303,7 +325,7 @@ export async function chatRoutes(fastify: FastifyInstance) {
           );
           const allDone = attachments.every((a: any) => a.processing_status === 'completed' || a.processing_status === 'failed');
           if (allDone || attachments.length === 0) break;
-          console.log(`[Chat-DEBUG] Waiting for attachment processing... attempt ${attempt + 1}/30, status: ${attachments.map((a: any) => `${a.original_name}=${a.processing_status}`).join(', ')}`);
+          fastify.log.debug(`[Chat] Waiting for attachment processing... attempt ${attempt + 1}/30`);
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
 
@@ -350,7 +372,7 @@ export async function chatRoutes(fastify: FastifyInstance) {
               `${a.processed_content}\n` +
               `[Fine allegato]`
             );
-            console.log(`[Chat-DEBUG] Injected FULL content for ${a.original_name} (${a.processed_content.length} chars)`);
+            fastify.log.debug(`[Chat] Injected FULL content for ${a.original_name} (${a.processed_content.length} chars)`);
           } else {
             // Large docs: use semantic search or keyword chunks
             let chunkContext: string | null = null;
@@ -365,7 +387,7 @@ export async function chatRoutes(fastify: FastifyInstance) {
               });
               if (semanticResults.length > 0) {
                 chunkContext = semanticResults.map((r: any) => r.content).join('\n\n---\n\n');
-                console.log(`[Chat-DEBUG] Used ${semanticResults.length} semantic chunks for ${a.original_name}`);
+                fastify.log.debug(`[Chat] Used ${semanticResults.length} semantic chunks for ${a.original_name}`);
               }
             } catch { /* Vector store not available */ }
 
@@ -406,9 +428,9 @@ export async function chatRoutes(fastify: FastifyInstance) {
         if (contextParts.length > 0) {
           const attachmentContext = contextParts.join('\n\n');
           userMessage = `${attachmentContext}\n\n---\nDomanda utente: ${body.message}`;
-          console.log(`[Chat-DEBUG] Added context from ${contextParts.length} attachments`);
+          fastify.log.debug(`[Chat] Added context from ${contextParts.length} attachments`);
         } else {
-          console.log(`[Chat-DEBUG] Attachments found but no processed content available yet`);
+          fastify.log.debug('[Chat] Attachments found but no processed content available yet');
         }
       }
 
@@ -449,7 +471,7 @@ Il codice che generi verrà salvato automaticamente nella cartella condivisa. Us
           fastify.log.info(`[Chat] Web search performed, found ${searchResult.searchResponse?.results?.length || 0} results`);
 
           // Add search context to the system prompt or create one
-          const searchSystemMessage = `You have access to current web search results. Use them to provide accurate, up-to-date information.\n${searchResult.searchContext}`;
+          const searchSystemMessage = `Hai accesso ai risultati di ricerca web aggiornati. Usali per fornire informazioni accurate e attuali.\n${searchResult.searchContext}`;
 
           // Check if there's already a system message
           const systemIndex = messages.findIndex(m => m.role === 'system');
@@ -466,24 +488,24 @@ Il codice che generi verrà salvato automaticamente nella cartella condivisa. Us
 
       // Inject Tool System Prompt if context is available (tool-calling models)
       if (toolContext) {
-        const toolSystemPrompt = `\n\n[CAPABILITIES]
-You have access to these tools:
-1. **execute_python(code)**: Run Python in a sandbox. Inside Python, use the pre-initialized "tool" object:
+        const toolSystemPrompt = `\n\n[STRUMENTI DISPONIBILI]
+Hai accesso a questi strumenti:
+1. **execute_python(code)**: Esegui Python in una sandbox. In Python, usa l'oggetto "tool" pre-inizializzato:
    - tool.read_file(path), tool.write_file(path, content), tool.list_files(path)
    - tool.web_search(query), tool.http_get(url), tool.web_extract(url)
    - tool.vector_search(query), tool.vector_upsert(text, metadata)
-   - tool.dataframe(data) for pandas DataFrames. Use print() for output.
-2. **vector_memory_search(query)**: Search vector memory for relevant context.
-3. **generate_word_document / generate_excel_document / generate_powerpoint_document**: Create Office files.
-4. **get_attachment_text(attachment_id)**: Read the FULL text of an uploaded file.
-5. **web_search(query)**: Search the web for current information.
+   - tool.dataframe(data) per DataFrame pandas. Usa print() per l'output.
+2. **vector_memory_search(query)**: Cerca nella memoria vettoriale contesto rilevante.
+3. **generate_word_document / generate_excel_document / generate_powerpoint_document**: Crea file Office.
+4. **get_attachment_text(attachment_id)**: Leggi il testo COMPLETO di un file caricato.
+5. **web_search(query)**: Cerca informazioni aggiornate sul web.
 
-[CRITICAL INSTRUCTIONS]
-- The content of any uploaded file (PDF, DOCX, etc.) is ALREADY INCLUDED in the user message above, between [Allegato ...] and [Fine allegato] markers.
-- You CAN read it. DO NOT say you cannot read or see the file. The text IS the file content.
-- For complex multi-step tasks, prefer execute_python to orchestrate everything in one call.
-- ALWAYS use tools for file operations. NEVER say you cannot create files.
-- Use relative paths like "output/translated.docx".`;
+[ISTRUZIONI CRITICHE]
+- Il contenuto di qualsiasi file caricato (PDF, DOCX, ecc.) è GIÀ INCLUSO nel messaggio utente sopra, tra i marcatori [Allegato ...] e [Fine allegato].
+- PUOI leggerlo. NON dire che non puoi leggere o vedere il file. Il testo È il contenuto del file.
+- Per compiti complessi multi-step, preferisci execute_python per orchestrare tutto in una sola chiamata.
+- USA SEMPRE gli strumenti per le operazioni sui file. NON dire MAI che non puoi creare file.
+- Usa percorsi relativi come "output/translated.docx".`;
 
         const systemIndex = messages.findIndex(m => m.role === 'system');
         if (systemIndex >= 0) {
@@ -613,6 +635,7 @@ Quando l'utente chiede di tradurre, creare o elaborare un documento:
       }
 
       // Agent Chain: memory recall + prompt templates + hookable pipeline
+      let recalledVectorMemories: { episodic: any[]; declarative: any[]; procedural: any[] } | null = null;
       try {
         const { AgentChainService } = await import('../../services/AgentChainService.js');
         const agentChain = new AgentChainService(fastify, fastify.db);
@@ -628,7 +651,16 @@ Quando l'utente chiede di tradurre, creare o elaborare un documento:
         // If agent chain short-circuited via agent_fast_reply, send reply and return
         if (chainResult.skippedByFastReply && chainResult.fastReplyContent) {
           reply.hijack();
-          reply.raw.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive', 'X-Conversation-Id': conversationId!.toString() });
+          reply.raw.writeHead(200, {
+            'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive',
+            'X-Conversation-Id': conversationId!.toString(),
+            'X-AI-Generated': 'true', 'X-AI-Model': body.model, 'X-AI-Provider': providerName,
+            'X-AI-Disclosure': 'This content is generated by artificial intelligence'
+          });
+          reply.raw.write(`data: ${JSON.stringify({ type: 'ai_disclosure', model: body.model, provider: providerName })}\n\n`);
+          if (safetyResult.is_sensitive && safetyResult.disclaimer) {
+            reply.raw.write(`data: ${JSON.stringify({ type: 'content_safety_warning', disclaimer: safetyResult.disclaimer, topics: safetyResult.topics })}\n\n`);
+          }
           reply.raw.write(`data: ${JSON.stringify({ content: chainResult.fastReplyContent })}\n\n`);
           reply.raw.write('data: [DONE]\n\n');
           reply.raw.end();
@@ -643,9 +675,32 @@ Quando l'utente chiede di tradurre, creare o elaborare un documento:
           + (chainResult.workingMemory.proceduralMemories?.length || 0);
         if (totalRecalled > 0) {
           fastify.log.info(`[AgentChain] Injected ${totalRecalled} memory results via agent chain for user ${user.id}`);
+          // Store for SSE emission after stream setup
+          recalledVectorMemories = {
+            episodic: chainResult.workingMemory.episodicMemories || [],
+            declarative: chainResult.workingMemory.declarativeMemories || [],
+            procedural: chainResult.workingMemory.proceduralMemories || [],
+          };
         }
       } catch (chainErr: any) {
         fastify.log.warn(`[AgentChain] Agent chain failed, continuing without: ${chainErr.message}`);
+      }
+
+      // Ensure a base system prompt exists with Italian language instruction
+      {
+        const systemIndex = messages.findIndex(m => m.role === 'system');
+        const italianLanguageInstruction = 'IMPORTANT: Rispondi SEMPRE in italiano, indipendentemente dalla lingua del system prompt. Usa un tono preciso, amichevole e professionale.';
+        if (systemIndex >= 0) {
+          if (!messages[systemIndex].content.includes('Rispondi SEMPRE in italiano')) {
+            messages[systemIndex] = {
+              ...messages[systemIndex],
+              content: messages[systemIndex].content + '\n\n' + italianLanguageInstruction,
+            };
+          }
+        } else {
+          const currentDate = new Date().toLocaleDateString('it-IT', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+          messages.unshift({ role: 'system', content: `Sei un assistente AI utile e competente. Oggi è ${currentDate}.\n${italianLanguageInstruction}` });
+        }
       }
 
       // Set up SSE streaming — hijack tells Fastify we manage the response
@@ -677,6 +732,16 @@ Quando l'utente chiede di tradurre, creare o elaborare un documento:
       // AI Act Art. 50: Send disclosure event before content
       sseWrite(`data: ${JSON.stringify({ type: 'ai_disclosure', model: body.model, provider: providerName })}\n\n`);
 
+      // AI Act GAP-10: Send content safety warning BEFORE the LLM stream
+      if (safetyResult.is_sensitive && safetyResult.disclaimer) {
+        sseWrite(`data: ${JSON.stringify({ type: 'content_safety_warning', disclaimer: safetyResult.disclaimer, topics: safetyResult.topics })}\n\n`);
+      }
+
+      // Emit vector memory recall results to frontend
+      if (recalledVectorMemories) {
+        sseWrite(`data: ${JSON.stringify({ type: 'vector_memories', memories: recalledVectorMemories })}\n\n`);
+      }
+
       // Hook: before_llm_call — modify prompt/params before LLM call
       try {
         // Load adaptive model config
@@ -699,12 +764,14 @@ Quando l'utente chiede di tradurre, creare o elaborare un documento:
         const MAX_TOOL_ROUNDS = 5;
         let toolRound = 0;
 
-        // v4.0: Build advanced completion options
+        // v4.0+: Build advanced completion options (Anthropic + Ollama thinking)
         const isAnthropic = providerName === 'anthropic';
+        const isOllama = providerName === 'ollama';
         const completionExtras: Record<string, any> = {};
-        if (isAnthropic) {
-          completionExtras.cacheControl = modelConfig.supportsCaching;
-          if (modelConfig.supportsThinking) {
+
+        // Thinking support: Anthropic (extended thinking API) + Ollama (think: true)
+        if (modelConfig.supportsThinking) {
+          if (isAnthropic) {
             const isOpus = body.model.includes('opus');
             const maxOut = modelConfig.maxOutputTokens || 4096;
             if (isOpus) {
@@ -716,7 +783,14 @@ Quando l'utente chiede di tradurre, creare o elaborare un documento:
                 completionExtras.thinking = { type: 'enabled' as const, budgetTokens };
               }
             }
+          } else if (isOllama) {
+            // Ollama thinking: triggers think: true in the API request
+            completionExtras.thinking = { type: 'enabled' as const };
           }
+        }
+
+        if (isAnthropic) {
+          completionExtras.cacheControl = modelConfig.supportsCaching;
           // v4.0: Attach native PDF document blocks
           if (nativeDocBlocks.length > 0) {
             completionExtras.documentBlocks = nativeDocBlocks;
@@ -761,6 +835,7 @@ Quando l'utente chiede di tradurre, creare o elaborare un documento:
             if (chunk.usage) {
               if (chunk.usage.cacheCreationTokens) cacheCreationTokens = chunk.usage.cacheCreationTokens;
               if (chunk.usage.cacheReadTokens) cacheReadTokens = chunk.usage.cacheReadTokens;
+              if (chunk.usage.thinkingTokens) thinkingTokens = chunk.usage.thinkingTokens;
             }
 
             // Handle Tool Definitions in Stream
@@ -1311,16 +1386,27 @@ Quando l'utente chiede di tradurre, creare o elaborare un documento:
         [user.id, yearMonth, providerName, tokensInput, tokensOutput, cost]
       );
 
-      // AI Act: Log AI decision (GAP-5) — non-blocking
+      // AI Act GAP-2: Insert ai_content_labels record — non-blocking
+      try {
+        await insertOne(fastify.db,
+          `INSERT INTO ai_content_labels (message_id, content_type, ai_model, ai_provider) VALUES (?, ?, ?, ?)`,
+          [assistantMsgId, 'chat_response', body.model, providerName]
+        );
+      } catch (labelErr: any) {
+        fastify.log.warn(`[AI-Act] Content label insert failed: ${labelErr.message}`);
+      }
+
+      // AI Act GAP-5: Log AI decision — non-blocking
       try {
         const { createHash } = await import('crypto');
         const promptHash = createHash('sha256').update(userMessage).digest('hex').slice(0, 64);
         const responseHash = createHash('sha256').update(fullResponse).digest('hex').slice(0, 64);
         const latencyMs = typeof streamStartTime === 'number' ? Date.now() - streamStartTime : 0;
+        const safetyFlagsJson = safetyResult.safety_flags ? JSON.stringify(safetyResult.safety_flags) : null;
         await insertOne(fastify.db,
-          `INSERT INTO ai_decision_log (user_id, conversation_id, message_id, ai_model, ai_provider, prompt_hash, response_hash, tokens_input, tokens_output, latency_ms, disclosure_shown)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [user.id, conversationId, assistantMsgId, body.model, providerName, promptHash, responseHash, tokensInput, tokensOutput, latencyMs, true]
+          `INSERT INTO ai_decision_log (user_id, conversation_id, message_id, ai_model, ai_provider, prompt_hash, response_hash, tokens_input, tokens_output, latency_ms, safety_flags, disclosure_shown)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [user.id, conversationId, assistantMsgId, body.model, providerName, promptHash, responseHash, tokensInput, tokensOutput, latencyMs, safetyFlagsJson, true]
         );
       } catch (decisionLogErr: any) {
         fastify.log.warn(`[AI-Act] Decision log failed: ${decisionLogErr.message}`);
@@ -1839,9 +1925,9 @@ Quando l'utente chiede di tradurre, creare o elaborare un documento:
   const agenticSchema = z.object({
     conversationId: z.number().optional(),
     projectId: z.number(),
-    model: z.string(),
-    message: z.string().min(1),
-    systemPrompt: z.string().optional(),
+    model: z.string().max(100),
+    message: z.string().min(1).max(100000),
+    systemPrompt: z.string().max(10000).optional(),
     enableTools: z.boolean().optional().default(true)
   });
 
@@ -1930,7 +2016,9 @@ Quando l'utente chiede di tradurre, creare o elaborare un documento:
         userName: owner?.name || owner?.email?.split('@')[0] || `user_${project.owner_id}`,
         projectName: project.name,
         projectId: validProjectId,
-        userId: user.id
+        userId: user.id,
+        db: fastify.db,
+        log: fastify.log
       };
 
       // Ensure project folder exists

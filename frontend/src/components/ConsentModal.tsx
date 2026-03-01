@@ -8,12 +8,14 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Shield } from 'lucide-react';
 import { api } from '../services/api';
+import { useAuthStore } from '../hooks/useAuthStore';
 
 interface ConsentModalProps {
   onConsented: () => void;
 }
 
 export default function ConsentModal({ onConsented }: ConsentModalProps) {
+  const { logout } = useAuthStore();
   const [aiConsent, setAiConsent] = useState(false);
   const [dataConsent, setDataConsent] = useState(false);
   const [tosConsent, setTosConsent] = useState(false);
@@ -172,7 +174,13 @@ export default function ConsentModal({ onConsented }: ConsentModalProps) {
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 bg-surface-50 dark:bg-surface-800/50 flex justify-end">
+        <div className="px-6 py-4 bg-surface-50 dark:bg-surface-800/50 flex justify-between">
+          <button
+            onClick={logout}
+            className="px-6 py-2 bg-surface-200 dark:bg-surface-700 text-surface-700 dark:text-surface-300 rounded-lg font-medium transition-colors hover:bg-surface-300 dark:hover:bg-surface-600"
+          >
+            Rifiuta e disconnettiti
+          </button>
           <button
             onClick={handleAccept}
             disabled={!allChecked || submitting}

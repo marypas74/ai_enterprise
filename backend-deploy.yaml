@@ -51,7 +51,7 @@ spec:
             name: app-config
         - secretRef:
             name: app-secrets
-        image: localhost:32000/enterprise-ai-chat-backend:1.8.0
+        image: localhost:32000/enterprise-ai-chat-backend:1.8.6
         imagePullPolicy: Always
         livenessProbe:
           failureThreshold: 3
