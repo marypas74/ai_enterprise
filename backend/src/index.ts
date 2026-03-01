@@ -6,6 +6,7 @@ import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
+import helmet from '@fastify/helmet';
 import fp from 'fastify-plugin';
 import path from 'path';
 import 'dotenv/config';
@@ -444,6 +445,12 @@ async function bootstrap() {
     credentials: true
   });
 
+  // H-05: Security headers via helmet
+  await fastify.register(helmet, {
+    contentSecurityPolicy: false, // Managed by frontend/nginx
+    crossOriginEmbedderPolicy: false, // Allow loading cross-origin resources
+  });
+
   // Rate Limiting
   await fastify.register(rateLimit, {
     max: parseInt(process.env.RATE_LIMIT_MAX || '100'),
@@ -458,6 +465,7 @@ async function bootstrap() {
       return false;
     }
   });
+
 
   // JWT
   await fastify.register(jwt, {
@@ -486,30 +494,33 @@ async function bootstrap() {
   // WebSocket support for real-time updates
   await fastify.register(websocket);
 
-  // Swagger Documentation
-  await fastify.register(swagger, {
-    openapi: {
-      info: {
-        title: 'Enterprise AI Chat API',
-        description: 'Multi-provider AI chat platform API',
-        version: '1.0.0'
-      },
-      servers: [{ url: `http://localhost:${process.env.PORT || 3000}` }],
-      components: {
-        securitySchemes: {
-          bearerAuth: {
-            type: 'http',
-            scheme: 'bearer',
-            bearerFormat: 'JWT'
+  // H-04: Swagger Documentation — disabled in production
+  const isProduction = process.env.NODE_ENV === 'production';
+  if (!isProduction) {
+    await fastify.register(swagger, {
+      openapi: {
+        info: {
+          title: 'Enterprise AI Chat API',
+          description: 'Multi-provider AI chat platform API',
+          version: '1.0.0'
+        },
+        servers: [{ url: `http://localhost:${process.env.PORT || 3000}` }],
+        components: {
+          securitySchemes: {
+            bearerAuth: {
+              type: 'http',
+              scheme: 'bearer',
+              bearerFormat: 'JWT'
+            }
           }
         }
       }
-    }
-  });
+    });
 
-  await fastify.register(swaggerUi, {
-    routePrefix: '/docs'
-  });
+    await fastify.register(swaggerUi, {
+      routePrefix: '/docs'
+    });
+  }
 
   // Global no-cache headers on all API responses
   fastify.addHook('onSend', (request, reply, payload, done) => {

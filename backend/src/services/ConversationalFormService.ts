@@ -262,6 +262,13 @@ export class ConversationalFormService {
           const url = config.url;
           if (!url) return { success: false, error: 'API URL not configured' };
 
+          // H-06: SSRF protection — block internal IPs (same as webhook case)
+          const parsedApi = new URL(url);
+          const blockedHosts = ['localhost', '127.0.0.1', '0.0.0.0', '::1', '169.254.169.254'];
+          if (blockedHosts.includes(parsedApi.hostname) || parsedApi.hostname.startsWith('10.') || parsedApi.hostname.startsWith('192.168.') || parsedApi.hostname.startsWith('172.')) {
+            return { success: false, error: 'API URL points to internal network (blocked)' };
+          }
+
           const resp = await fetch(url, {
             method: config.method || 'POST',
             headers: {

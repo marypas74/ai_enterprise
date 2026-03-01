@@ -356,11 +356,13 @@ class AgentOrchestratorClass {
 
     const claudeProcess = spawn('claude', [
       '--print',
-      '--dangerously-skip-permissions',
       session.taskSpecification
     ], {
       cwd: workingDir,
-      env: { ...process.env },
+      env: {
+        ...process.env,
+        CLAUDE_AGENT_MODE: '1',
+      },
       stdio: ['pipe', 'pipe', 'pipe']
     });
 

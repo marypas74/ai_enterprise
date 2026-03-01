@@ -228,10 +228,12 @@ export async function debugRoutes(fastify: FastifyInstance) {
       security: [{ bearerAuth: [] }]
     }
   }, async (request: FastifyRequest) => {
+    // M-08: Redact sensitive headers to prevent credential leakage
+    const { authorization, cookie, 'x-api-key': _apiKey, ...safeHeaders } = request.headers;
     return {
       method: request.method,
       url: request.url,
-      headers: request.headers,
+      headers: { ...safeHeaders, authorization: authorization ? '[REDACTED]' : undefined },
       query: request.query,
       body: request.body,
       ip: request.ip,

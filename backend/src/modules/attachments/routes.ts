@@ -25,7 +25,7 @@ import { indexChunks } from '../../services/VectorStoreService.js';
 import { searchSimilar } from '../../services/VectorStoreService.js';
 import { eventBus } from '../../services/EventBusService.js';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 export async function extractPdfText(buffer: Buffer): Promise<string> {
   console.log(`[Attachments] Starting PDF extraction, size: ${buffer.length}`);
@@ -48,6 +48,7 @@ export async function extractPdfText(buffer: Buffer): Promise<string> {
   }
 
   // Method 2: pdftotext CLI fallback (available in Docker with poppler-utils)
+  // H-02: Use execFile instead of exec to prevent shell injection
   const tmpId = crypto.randomBytes(8).toString('hex');
   const tmpFile = path.join(os.tmpdir(), `pdf_${tmpId}.pdf`);
   const txtFile = path.join(os.tmpdir(), `pdf_${tmpId}.txt`);
@@ -55,7 +56,7 @@ export async function extractPdfText(buffer: Buffer): Promise<string> {
   try {
     await fs.writeFile(tmpFile, buffer);
     console.log(`[Attachments] Trying pdftotext CLI fallback...`);
-    await execAsync(`pdftotext -layout "${tmpFile}" "${txtFile}"`, { timeout: 30000 });
+    await execFileAsync('pdftotext', ['-layout', tmpFile, txtFile], { timeout: 30000 });
 
     const text = await fs.readFile(txtFile, 'utf-8');
     if (text.trim().length > 0) {

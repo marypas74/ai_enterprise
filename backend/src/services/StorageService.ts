@@ -137,7 +137,14 @@ export async function writeProjectFile(
   content: string
 ): Promise<string> {
   const projectPath = getProjectFolder(userName, projectName);
-  const fullPath = path.join(projectPath, relativePath);
+  const fullPath = path.resolve(projectPath, relativePath);
+
+  // M-07: Path traversal protection — ensure resolved path stays within project folder
+  const resolvedProject = path.resolve(projectPath);
+  if (!fullPath.startsWith(resolvedProject + path.sep) && fullPath !== resolvedProject) {
+    throw new Error('Invalid file path: path traversal detected');
+  }
+
   const dirPath = path.dirname(fullPath);
 
   // Ensure directory exists
@@ -161,7 +168,13 @@ export async function readProjectFile(
   relativePath: string
 ): Promise<string | null> {
   const projectPath = getProjectFolder(userName, projectName);
-  const fullPath = path.join(projectPath, relativePath);
+  const fullPath = path.resolve(projectPath, relativePath);
+
+  // M-07: Path traversal protection
+  const resolvedProject = path.resolve(projectPath);
+  if (!fullPath.startsWith(resolvedProject + path.sep) && fullPath !== resolvedProject) {
+    throw new Error('Invalid file path: path traversal detected');
+  }
 
   if (!fs.existsSync(fullPath)) {
     return null;
@@ -179,7 +192,13 @@ export async function listProjectFiles(
   subPath?: string
 ): Promise<string[]> {
   const projectPath = getProjectFolder(userName, projectName);
-  const searchPath = subPath ? path.join(projectPath, subPath) : projectPath;
+  const searchPath = subPath ? path.resolve(projectPath, subPath) : projectPath;
+
+  // M-07: Path traversal protection
+  const resolvedProject = path.resolve(projectPath);
+  if (!searchPath.startsWith(resolvedProject + path.sep) && searchPath !== resolvedProject) {
+    throw new Error('Invalid file path: path traversal detected');
+  }
 
   if (!fs.existsSync(searchPath)) {
     return [];

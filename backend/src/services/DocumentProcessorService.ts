@@ -52,8 +52,8 @@ export async function extractPdfWithOCR(
     const crypto = await import('crypto');
     const os = await import('os');
     const { promisify } = await import('util');
-    const { exec: execCb } = await import('child_process');
-    const execAsync = promisify(execCb);
+    const { execFile: execFileCb } = await import('child_process');
+    const execFileAsync = promisify(execFileCb);
 
     const tmpId = crypto.randomBytes(8).toString('hex');
     const tmpDir = path.join(os.tmpdir(), `pdf_ocr_${tmpId}`);
@@ -66,7 +66,8 @@ export async function extractPdfWithOCR(
     try {
         // Convert PDF pages to PNG images at 300 DPI using pdftoppm
         console.log(`[DocumentProcessor] PDF OCR: running pdftoppm for ${buffer.length} bytes`);
-        await execAsync(`pdftoppm -png -r 300 "${tmpPdf}" "${tmpDir}/page"`, { timeout: 120000 });
+        // H-02: Use execFile instead of exec to prevent shell injection
+        await execFileAsync('pdftoppm', ['-png', '-r', '300', tmpPdf, `${tmpDir}/page`], { timeout: 120000 });
 
         // Find generated page images
         const files = await fs.readdir(tmpDir);

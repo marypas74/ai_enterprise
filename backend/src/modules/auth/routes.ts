@@ -87,6 +87,12 @@ export async function authRoutes(fastify: FastifyInstance) {
     }
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
+      // H-01: Registration gated behind env flag (default: disabled)
+      const registrationEnabled = process.env.REGISTRATION_ENABLED === 'true';
+      if (!registrationEnabled) {
+        return reply.status(403).send({ error: 'Registration is currently disabled' });
+      }
+
       const body = registerSchema.parse(request.body);
 
       // Check if user exists
@@ -138,6 +144,13 @@ export async function authRoutes(fastify: FastifyInstance) {
 
   // Login
   fastify.post('/login', {
+    config: {
+      // H-03: Strict rate limit on login (brute-force protection)
+      rateLimit: {
+        max: 10,
+        timeWindow: 60000, // 10 attempts per minute per IP
+      },
+    },
     schema: {
       description: 'Login and get tokens',
       tags: ['auth'],
