@@ -41,3 +41,8 @@ venv/
 
 # Keep example files
 !.env.example
+
+# Large binary files
+*.tar
+*.tar.gz
+*.tar.bz2
