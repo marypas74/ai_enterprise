@@ -134,11 +134,14 @@ function cosineSimilarity(a: number[], b: number[]): number {
 
 // ─── Semantic Router Class ──────────────────────────────────────────
 export class SemanticRouter {
-  private routes: SemanticRoute[] = ROUTING_ROUTES;
+  private routes: SemanticRoute[];
   private initialized = false;
   private readonly SIMILARITY_THRESHOLD = 0.65;
 
-  constructor(private db: mysql.Pool) {}
+  constructor(private db: mysql.Pool) {
+    // Deep copy to avoid mutating module-level constants
+    this.routes = ROUTING_ROUTES.map(r => ({ ...r, embeddings: undefined }));
+  }
 
   /**
    * Initialize by computing embeddings for all route examples.
@@ -150,16 +153,18 @@ export class SemanticRouter {
     try {
       const { generateEmbedding } = await import('./EmbeddingService.js');
 
-      for (const route of this.routes) {
+      this.routes = await Promise.all(this.routes.map(async (route) => {
         const embeddings: number[][] = [];
         for (const example of route.examples) {
-          const result = await generateEmbedding(this.db, example);
-          if (result?.embedding) {
-            embeddings.push(result.embedding);
-          }
+          try {
+            const result = await generateEmbedding(this.db, example);
+            if (result?.embedding) {
+              embeddings.push(result.embedding);
+            }
+          } catch { /* skip failed embedding */ }
         }
-        route.embeddings = embeddings;
-      }
+        return { ...route, embeddings };
+      }));
       this.initialized = true;
     } catch (err) {
       // Embedding service not available — semantic routing disabled

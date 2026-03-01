@@ -6,8 +6,27 @@
  * - Tier configuration CRUD
  * - Routing settings management
  */
-import { FastifyInstance } from 'fastify';
+import { FastifyInstance, FastifyReply } from 'fastify';
 import { findMany } from '../../database/index.js';
+
+const VALID_TIERS = ['fast', 'balanced', 'powerful'] as const;
+const ALLOWED_SETTING_KEYS = new Set([
+  'auto_routing_enabled', 'cascade_enabled',
+  'semantic_routing_enabled', 'escalation_threshold', 'max_escalation_rate',
+]);
+
+function requireAdmin(user: { role: string }, reply: FastifyReply): boolean {
+  if (user.role !== 'admin') {
+    reply.status(403).send({ error: 'Forbidden' });
+    return false;
+  }
+  return true;
+}
+
+function parsePositiveInt(value: unknown): number | null {
+  const num = parseInt(String(value), 10);
+  return Number.isInteger(num) && num > 0 ? num : null;
+}
 
 export async function orchestratorAdminRoutes(fastify: FastifyInstance) {
 
@@ -15,9 +34,9 @@ export async function orchestratorAdminRoutes(fastify: FastifyInstance) {
   fastify.get('/orchestrator/stats', {
     onRequest: [(fastify as any).authenticate],
     schema: { description: 'Get orchestrator routing statistics', tags: ['admin'], security: [{ bearerAuth: [] }] }
-  }, async (request) => {
+  }, async (request, reply) => {
     const user = request.user as { id: number; role: string };
-    if (user.role !== 'admin') return { error: 'Forbidden' };
+    if (!requireAdmin(user, reply)) return;
 
     // Routing distribution (last 7 days)
     const distribution = await findMany<{ selected_tier: string; count: number; avg_latency: number; avg_cost: number }>(
@@ -91,9 +110,9 @@ export async function orchestratorAdminRoutes(fastify: FastifyInstance) {
   fastify.get('/orchestrator/tiers', {
     onRequest: [(fastify as any).authenticate],
     schema: { description: 'Get routing tier configuration', tags: ['admin'], security: [{ bearerAuth: [] }] }
-  }, async (request) => {
+  }, async (request, reply) => {
     const user = request.user as { id: number; role: string };
-    if (user.role !== 'admin') return { error: 'Forbidden' };
+    if (!requireAdmin(user, reply)) return;
 
     return findMany(fastify.db,
       `SELECT id, tier_name, provider, model_id, priority, max_concurrent, is_enabled, created_at
@@ -105,11 +124,13 @@ export async function orchestratorAdminRoutes(fastify: FastifyInstance) {
   fastify.put('/orchestrator/tiers/:id', {
     onRequest: [(fastify as any).authenticate],
     schema: { description: 'Update a routing tier entry', tags: ['admin'], security: [{ bearerAuth: [] }] }
-  }, async (request) => {
+  }, async (request, reply) => {
     const user = request.user as { id: number; role: string };
-    if (user.role !== 'admin') return { error: 'Forbidden' };
+    if (!requireAdmin(user, reply)) return;
 
-    const { id } = request.params as { id: number };
+    const id = parsePositiveInt((request.params as { id: string }).id);
+    if (!id) return reply.status(400).send({ error: 'Invalid id: must be a positive integer' });
+
     const body = request.body as { priority?: number; is_enabled?: boolean; max_concurrent?: number };
 
     const sets: string[] = [];
@@ -118,7 +139,7 @@ export async function orchestratorAdminRoutes(fastify: FastifyInstance) {
     if (body.is_enabled !== undefined) { sets.push('is_enabled = ?'); params.push(body.is_enabled); }
     if (body.max_concurrent !== undefined) { sets.push('max_concurrent = ?'); params.push(body.max_concurrent); }
 
-    if (sets.length === 0) return { error: 'No fields to update' };
+    if (sets.length === 0) return reply.status(400).send({ error: 'No fields to update' });
     params.push(id);
 
     await fastify.db.execute(`UPDATE model_routing_tiers SET ${sets.join(', ')} WHERE id = ?`, params);
@@ -129,14 +150,25 @@ export async function orchestratorAdminRoutes(fastify: FastifyInstance) {
   fastify.post('/orchestrator/tiers', {
     onRequest: [(fastify as any).authenticate],
     schema: { description: 'Add a model to a routing tier', tags: ['admin'], security: [{ bearerAuth: [] }] }
-  }, async (request) => {
+  }, async (request, reply) => {
     const user = request.user as { id: number; role: string };
-    if (user.role !== 'admin') return { error: 'Forbidden' };
+    if (!requireAdmin(user, reply)) return;
 
     const body = request.body as { tier_name: string; provider: string; model_id: string; priority?: number };
+
+    if (!body.tier_name || !VALID_TIERS.includes(body.tier_name as any)) {
+      return reply.status(400).send({ error: 'Invalid tier_name. Must be: fast, balanced, or powerful' });
+    }
+    if (!body.model_id?.trim() || body.model_id.length > 100) {
+      return reply.status(400).send({ error: 'model_id is required and must be <= 100 characters' });
+    }
+    if (!body.provider?.trim() || body.provider.length > 50) {
+      return reply.status(400).send({ error: 'provider is required and must be <= 50 characters' });
+    }
+
     await fastify.db.execute(
       `INSERT INTO model_routing_tiers (tier_name, provider, model_id, priority) VALUES (?, ?, ?, ?)`,
-      [body.tier_name, body.provider, body.model_id, body.priority || 0]
+      [body.tier_name, body.provider.trim(), body.model_id.trim(), body.priority || 0]
     );
     return { success: true };
   });
@@ -145,11 +177,13 @@ export async function orchestratorAdminRoutes(fastify: FastifyInstance) {
   fastify.delete('/orchestrator/tiers/:id', {
     onRequest: [(fastify as any).authenticate],
     schema: { description: 'Remove a model from routing tier', tags: ['admin'], security: [{ bearerAuth: [] }] }
-  }, async (request) => {
+  }, async (request, reply) => {
     const user = request.user as { id: number; role: string };
-    if (user.role !== 'admin') return { error: 'Forbidden' };
+    if (!requireAdmin(user, reply)) return;
 
-    const { id } = request.params as { id: number };
+    const id = parsePositiveInt((request.params as { id: string }).id);
+    if (!id) return reply.status(400).send({ error: 'Invalid id: must be a positive integer' });
+
     await fastify.db.execute('DELETE FROM model_routing_tiers WHERE id = ?', [id]);
     return { success: true };
   });
@@ -158,9 +192,9 @@ export async function orchestratorAdminRoutes(fastify: FastifyInstance) {
   fastify.get('/orchestrator/settings', {
     onRequest: [(fastify as any).authenticate],
     schema: { description: 'Get orchestrator settings', tags: ['admin'], security: [{ bearerAuth: [] }] }
-  }, async (request) => {
+  }, async (request, reply) => {
     const user = request.user as { id: number; role: string };
-    if (user.role !== 'admin') return { error: 'Forbidden' };
+    if (!requireAdmin(user, reply)) return;
 
     return findMany(fastify.db,
       'SELECT setting_key, setting_value FROM model_routing_settings'
@@ -171,12 +205,18 @@ export async function orchestratorAdminRoutes(fastify: FastifyInstance) {
   fastify.put('/orchestrator/settings', {
     onRequest: [(fastify as any).authenticate],
     schema: { description: 'Update orchestrator settings', tags: ['admin'], security: [{ bearerAuth: [] }] }
-  }, async (request) => {
+  }, async (request, reply) => {
     const user = request.user as { id: number; role: string };
-    if (user.role !== 'admin') return { error: 'Forbidden' };
+    if (!requireAdmin(user, reply)) return;
 
     const settings = request.body as Record<string, string>;
     for (const [key, value] of Object.entries(settings)) {
+      if (!ALLOWED_SETTING_KEYS.has(key)) {
+        return reply.status(400).send({ error: `Unknown setting key: ${key}. Allowed: ${[...ALLOWED_SETTING_KEYS].join(', ')}` });
+      }
+      if (String(value).length > 500) {
+        return reply.status(400).send({ error: `Value for ${key} exceeds 500 characters` });
+      }
       await fastify.db.execute(
         `INSERT INTO model_routing_settings (setting_key, setting_value)
          VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)`,

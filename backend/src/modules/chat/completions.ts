@@ -48,9 +48,19 @@ export async function completionRoutes(fastify: FastifyInstance) {
       let routingDecision: RoutingDecision | null = null;
       let routedModel = parsedBody.model;
       if (parsedBody.model === 'auto') {
+        // Get conversation message count for routing context
+        let convMsgCount = 0;
+        if (parsedBody.conversationId) {
+          try {
+            const countRow = await findOne<{ cnt: number }>(fastify.db,
+              'SELECT COUNT(*) as cnt FROM messages WHERE conversation_id = ?',
+              [parsedBody.conversationId]);
+            convMsgCount = countRow?.cnt || 0;
+          } catch { /* non-critical */ }
+        }
         routingDecision = await modelRouter.route({
           query: parsedBody.message,
-          conversationLength: 0,
+          conversationLength: convMsgCount,
           hasAttachments: (parsedBody.attachmentIds?.length || 0) > 0,
           attachmentCount: parsedBody.attachmentIds?.length || 0,
           hasVisionAttachments: false,
@@ -493,7 +503,7 @@ export async function completionRoutes(fastify: FastifyInstance) {
           hasAttachments: (body.attachmentIds?.length || 0) > 0,
           attachmentCount: body.attachmentIds?.length || 0,
           hasVisionAttachments: false, toolsRequested: !!toolDefs, userId: user.id,
-        }, { latencyMs, tokensInput, tokensOutput, costUsd: cost }).catch(err =>
+        }, { latencyMs, tokensInput, tokensOutput, costUsd: cost, conversationId }).catch(err =>
           fastify.log.warn(`[Router] Failed to record routing decision: ${err.message}`)
         );
       }

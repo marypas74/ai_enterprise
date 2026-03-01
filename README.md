@@ -1,12 +1,13 @@
 # Enterprise AI Chat
 
-Enterprise-grade AI chat platform with multi-provider support, autonomous AI agents, project management, and VS Code extension.
+Enterprise-grade AI chat platform with multi-provider support, intelligent model orchestration, autonomous AI agents, project management, and VS Code extension.
 
-**Current version: 1.8.11**
+**Current version: 1.9.0**
 
 ## Features
 
-- **Multi-Provider AI**: OpenAI, Anthropic Claude, Google Gemini, Ollama (local models) with automatic failover
+- **Intelligent Model Orchestrator**: Automatic model selection based on query complexity — routes to fast/balanced/powerful tiers (Haiku, Sonnet, Opus + OpenAI + Gemini + Ollama). Rule-based + semantic routing with feedback loop.
+- **Multi-Provider AI**: OpenAI, Anthropic Claude, Google Gemini, Ollama (local models) with automatic failover and circuit breaker
 - **Autonomous AI Agents**: Claude Agent SDK integration with terminal orchestration, task management, and iterative execution
 - **Project Management**: Kanban boards with AI-powered cards, agent linking, and real-time collaboration
 - **Vector Memory**: RAG pipeline with embeddings, semantic search, HyDE, and 4-tier memory (episodic/declarative/procedural/working)
@@ -15,39 +16,85 @@ Enterprise-grade AI chat platform with multi-provider support, autonomous AI age
 - **EU AI Act Compliance**: Art. 50.1/50.2 disclosure, consent management, bias monitoring, audit logging
 - **VS Code Extension**: Full IDE integration with chat, code actions, agent sessions, inline editing
 - **Real-time Chat**: SSE streaming with markdown rendering, file attachments, conversation management
-- **Admin Dashboard**: User/group management, provider configuration, system monitoring, prompt templates
+- **Admin Dashboard**: User/group management, provider configuration, orchestrator dashboard, system monitoring
 - **Security**: JWT + MFA (TOTP), Zod input validation, rate limiting, OWASP hardening
 - **Kubernetes Ready**: Production deployment with MicroK8s, auto-scaling, backup CronJobs
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                    Frontend (React 18 + Vite)                    │
-│  Chat UI │ Admin Panel │ Projects/Kanban │ Agent Dashboard       │
-│  Zustand stores │ Tailwind CSS │ Lazy loading │ Code splitting   │
-└───────────────────────────┬─────────────────────────────────────┘
-                            │ Nginx reverse proxy
-┌───────────────────────────▼─────────────────────────────────────┐
-│                   Backend (Fastify 5 + TypeScript)               │
-│  20+ modules │ JWT/MFA auth │ WebSocket │ SSE streaming          │
-│  Zod validation │ Rate limiting │ Swagger/OpenAPI docs           │
-├─────────┬──────────┬──────────┬──────────┬─────────┬────────────┤
-│  Auth   │   Chat   │  Agents  │ Projects │  Admin  │   Tools    │
-│  MFA    │ Complete │ Sessions │  Kanban  │ Users   │ DOCX/XLSX  │
-│  OAuth  │ Stream   │ Orchestr │  Boards  │ Provid  │ PDF/PPTX   │
-│  Sessions│ Memory  │ Terminal │  Cards   │ Plugins │ Sandbox    │
-└─────────┴────┬─────┴──────────┴──────────┴─────────┴────────────┘
-               │
-  ┌────────────┼────────────┬──────────────┬──────────────┐
-  │            │            │              │              │
-┌─▼──────┐ ┌──▼─────┐ ┌────▼─────┐ ┌─────▼────┐ ┌──────▼──────┐
-│MariaDB │ │ Redis  │ │  Qdrant  │ │ Parlant  │ │   Ollama    │
-│Users   │ │Sessions│ │ Vectors  │ │ Agents   │ │ Local LLMs  │
-│Chat    │ │Cache   │ │Embeddings│ │Guidelines│ │ GPU Accel.  │
-│Projects│ │Tokens  │ │ RAG      │ │ Sessions │ │             │
-└────────┘ └────────┘ └──────────┘ └──────────┘ └─────────────┘
+                     ┌──────────────────────────────────────────────────────┐
+                     │              Frontend (React 18 + Vite)              │
+                     │  Chat UI │ Admin Panel │ Projects/Kanban │ Agents    │
+                     │  Zustand stores │ Tailwind CSS │ Code splitting      │
+                     └───────────────────────┬──────────────────────────────┘
+                                             │ Nginx reverse proxy
+┌────────────────────────────────────────────▼──────────────────────────────────┐
+│                      Backend (Fastify 5 + TypeScript)                         │
+│  20+ modules │ JWT/MFA auth │ WebSocket │ SSE streaming │ Zod validation      │
+├──────────────────────────────────────────────────────────────────────────────┤
+│                         Model Orchestrator (v1.9.0)                           │
+│                                                                              │
+│  User Query ──▶ ModelRouter ──▶ Tier Selection ──▶ Provider                  │
+│                    │                │                  │                      │
+│              Rule-based        Semantic          Circuit Breaker              │
+│              scoring          embedding           + Fallback                  │
+│                    │            similarity              │                     │
+│                    ▼                ▼                    ▼                     │
+│              ┌─────────┐    ┌───────────┐    ┌──────────────────┐            │
+│              │  FAST    │    │ BALANCED  │    │    POWERFUL       │            │
+│              │Haiku 4.5 │    │Sonnet 4.6 │    │  Opus 4.6        │            │
+│              │GPT-4.1m  │    │GPT-4.1    │    │  o3-mini          │            │
+│              │Gem Flash │    │Gem Pro    │    │                   │            │
+│              │Ollama    │    │           │    │                   │            │
+│              └─────────┘    └───────────┘    └──────────────────┘            │
+├──────────┬──────────┬──────────┬──────────┬─────────┬──────────┬─────────────┤
+│  Auth    │   Chat   │  Agents  │ Projects │  Admin  │  Tools   │ Compliance  │
+│  MFA     │ Complete │ Sessions │  Kanban  │ Users   │ DOCX/PDF │ AI Act      │
+│  OAuth   │ Stream   │ Orchestr │  Boards  │ Provid  │ PPTX     │ Consent     │
+│  Sessions│ Memory   │ Terminal │  Cards   │ Plugins │ Sandbox  │ Audit       │
+└──────────┴────┬─────┴──────────┴──────────┴─────────┴──────────┴─────────────┘
+                │
+   ┌────────────┼────────────┬──────────────┬──────────────┐
+   │            │            │              │              │
+ ┌─▼──────┐ ┌──▼─────┐ ┌────▼─────┐ ┌─────▼────┐ ┌──────▼──────┐
+ │MariaDB │ │ Redis  │ │  Qdrant  │ │ Parlant  │ │   Ollama    │
+ │Users   │ │Sessions│ │ Vectors  │ │ Agents   │ │ Local LLMs  │
+ │Chat    │ │Cache   │ │Embeddings│ │Guidelines│ │ GPU Accel.  │
+ │Routing │ │Tokens  │ │ RAG      │ │ Sessions │ │             │
+ └────────┘ └────────┘ └──────────┘ └──────────┘ └─────────────┘
 ```
+
+## Model Orchestrator
+
+The Model Orchestrator (v1.9.0) automatically selects the optimal AI model for each query, similar to how Perplexity and Gemini CLI work.
+
+### How It Works
+
+1. **Rule-Based Router** — Analyzes query length, keywords, attachments, conversation depth, and tool usage to compute a complexity score. Routes to fast/balanced/powerful tier.
+2. **Semantic Router** — Uses embedding similarity against pre-computed route examples for sub-millisecond task classification (greeting, coding, analysis, complex reasoning, etc.)
+3. **Response Quality Checker** — Evaluates response quality without LLM calls (refusal detection, truncation, uncertainty). Supports cascade escalation.
+4. **Feedback Loop** — Records all routing decisions with latency, cost, and user overrides. Admin dashboard shows routing distribution, cost savings, and accuracy trends.
+
+### Routing Tiers (configurable via Admin)
+
+| Tier | Models (default) | Use Case |
+|------|-----------------|----------|
+| **Fast** | Haiku 4.5, GPT-4.1-mini, Gemini Flash | Greetings, simple questions, formatting |
+| **Balanced** | Sonnet 4.6, GPT-4.1, Gemini Pro | Coding, analysis, writing, standard work |
+| **Powerful** | Opus 4.6, o3-mini | Architecture, complex reasoning, multi-step agents |
+
+### Admin API
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/admin/orchestrator/stats` | Routing distribution, cost savings, quality metrics |
+| `GET /api/admin/orchestrator/tiers` | Current tier configuration |
+| `POST /api/admin/orchestrator/tiers` | Add model to a tier |
+| `PUT /api/admin/orchestrator/tiers/:id` | Update tier priority/enabled |
+| `DELETE /api/admin/orchestrator/tiers/:id` | Remove model from tier |
+| `GET /api/admin/orchestrator/settings` | Routing settings |
+| `PUT /api/admin/orchestrator/settings` | Update settings (auto_routing_enabled, cascade_enabled, etc.) |
 
 ## Quick Start
 
@@ -93,7 +140,7 @@ enterprise-ai-chat/
 │   │   ├── modules/
 │   │   │   ├── auth/           # JWT + MFA (TOTP) + Google OAuth
 │   │   │   ├── chat/           # Completions, conversations, models, streaming
-│   │   │   ├── admin/          # Users, providers, plugins, settings, skills
+│   │   │   ├── admin/          # Users, providers, plugins, settings, orchestrator
 │   │   │   ├── agents/         # AI agent sessions + SDK routes
 │   │   │   ├── projects/       # Kanban boards, cards, access control
 │   │   │   ├── memory/         # Vector memory + observations
@@ -107,42 +154,34 @@ enterprise-ai-chat/
 │   │   │   ├── scheduler/      # Job scheduling (WhiteRabbit)
 │   │   │   └── activity/       # Activity logging
 │   │   ├── services/           # Business logic services
-│   │   │   ├── tools/          # FileTools, DocumentTools, WebTools, SystemTools
-│   │   │   ├── agent/          # AgentSessionManager, AgentExecutor
-│   │   │   ├── ModelRouter.ts  # Intelligent model selection
-│   │   │   ├── SemanticRouter.ts # Intent classification
-│   │   │   └── ...             # 20+ services
-│   │   └── database/           # Connection pool + query helpers
-│   ├── test/                   # Test setup + helpers
-│   ├── vitest.config.ts        # Test configuration
+│   │   │   ├── ModelRouter.ts        # Intelligent model selection (rule-based)
+│   │   │   ├── SemanticRouter.ts     # Embedding-based task classification
+│   │   │   ├── ResponseQualityChecker.ts  # Cascade quality assessment
+│   │   │   ├── CircuitBreakerService.ts   # Provider health tracking
+│   │   │   ├── tools/                # FileTools, DocumentTools, WebTools
+│   │   │   ├── agent/                # AgentSessionManager, AgentExecutor
+│   │   │   └── ...                   # 20+ services
+│   │   └── database/           # Connection pool + auto-migrations
 │   └── Dockerfile
 ├── frontend/                   # React 18 + Vite + Tailwind
 │   ├── src/
-│   │   ├── pages/              # 11 lazy-loaded route pages
+│   │   ├── pages/              # 11 route pages
 │   │   ├── hooks/              # Zustand stores (auth, agents, parlant)
 │   │   ├── components/         # Reusable UI components
-│   │   └── services/           # API client (axios + SSE)
-│   ├── test/                   # Test setup + helpers
-│   ├── vitest.config.ts        # Frontend test config
-│   ├── nginx.conf              # Production config (gzip, cache, CSP headers)
+│   │   └── services/           # API client (axios + SSE with routing events)
+│   ├── nginx.conf              # Production config (gzip, cache, CSP)
 │   └── Dockerfile
 ├── vscode-extension/           # VS Code companion extension
-│   ├── src/
-│   │   ├── extension.ts        # Entry point (~500 LOC)
-│   │   ├── auth/               # AuthService, ClaudeOAuth
-│   │   ├── commands/           # CodeActions, RegisterCommands
-│   │   ├── messaging/          # MessageHandler (SSE streaming)
-│   │   ├── providers/          # ChatViewHtml, Kanban, Messaging
-│   │   ├── models/             # ModelFetcher
-│   │   └── utils/              # Helpers
+│   ├── src/                    # Extension entry + modules
 │   └── webview-ui/             # React webview bundles
 ├── k8s/                        # Kubernetes manifests
-│   ├── backend/                # Deployment + PDB + startup probe
-│   ├── frontend/               # Deployment (Nginx)
-│   ├── mariadb/                # StatefulSet + backup CronJob
+│   ├── backend/                # Deployment + Service
+│   ├── frontend/               # Deployment + Service (Nginx)
+│   ├── mariadb/                # StatefulSet + init ConfigMap
 │   ├── redis/                  # StatefulSet
 │   ├── parlant/                # Parlant AI service
 │   └── kustomization.yaml      # Kustomize overlay
+├── ROADMAP.md                  # Development roadmap (Phases 0-8)
 ├── BUILD.sh                    # Full build pipeline
 └── DEPLOY.sh                   # Quick deploy script
 ```
@@ -208,10 +247,10 @@ Swagger UI is available at `/docs` when the server is running.
 | Module | Prefix | Description |
 |--------|--------|-------------|
 | Auth | `/api/auth` | Login, register, refresh, MFA setup/verify, Google OAuth |
-| Chat | `/api/chat` | Completions (SSE), conversations CRUD, models |
+| Chat | `/api/chat` | Completions (SSE), conversations CRUD, models (with Auto routing) |
 | Agents | `/api/agents` | Sessions CRUD, start/pause/resume, templates |
 | Projects | `/api/projects` | Projects, boards, columns, cards, agent linking |
-| Admin | `/api/admin` | Users, providers, plugins, settings, skills, audit |
+| Admin | `/api/admin` | Users, providers, plugins, settings, skills, orchestrator |
 | Memory | `/api/memory` | Observations, vector search, working memory |
 | Tools | `/api/tools` | DOCX/XLSX/PPTX/PDF generation, downloads |
 | Compliance | `/api/compliance` | Consent, feedback, data export, model docs |
@@ -241,7 +280,7 @@ npm run test:e2e
 
 - **Authentication**: JWT with 15m access + 7d refresh tokens, single-session enforcement
 - **MFA**: TOTP with QR code setup, mandatory for external access
-- **Input Validation**: Zod schemas on all 79+ endpoints (zero unsafe `request.body as` casts)
+- **Input Validation**: Zod schemas on all endpoints with strict type checking
 - **Rate Limiting**: Global 100/min + strict limits on login (10/min), register (5/5min)
 - **Headers**: Helmet security headers, CSP, X-Frame-Options, HSTS
 - **SQL**: Parameterized queries via mysql2 (zero raw string concatenation)
@@ -256,6 +295,7 @@ npm run test:e2e
 - **K8s**: MicroK8s with 2 backend replicas, 2 frontend replicas
 - **Database**: MariaDB StatefulSet with daily backup CronJob (30-day retention)
 - **Cache**: Redis StatefulSet for sessions and rate limiting
+- **Vector DB**: Qdrant for embeddings and semantic search
 - **Registry**: localhost:32000 (MicroK8s built-in)
 
 ### Rollout Process
@@ -264,11 +304,34 @@ npm run test:e2e
 # 1. Build and push images
 bash BUILD.sh
 
-# 2. Scale down, apply, scale up
-kubectl scale deployment backend --replicas=0 -n enterprise-ai-chat
-kubectl apply -f k8s/backend/deployment.yaml
-kubectl scale deployment backend --replicas=2 -n enterprise-ai-chat
+# 2. Scale down, apply, scale up (zero-downtime)
+kubectl scale deployment backend frontend --replicas=0 -n enterprise-ai-chat
+kubectl apply -f k8s/backend/deployment.yaml -f k8s/frontend/deployment.yaml
+kubectl scale deployment backend --replicas=2 frontend --replicas=2 -n enterprise-ai-chat
 ```
+
+## Changelog
+
+### v1.9.0 (2026-03-01)
+- **Model Orchestrator**: Intelligent auto-routing across fast/balanced/powerful tiers
+- Rule-based router with complexity scoring (query length, keywords, attachments, conversation depth)
+- Semantic router using embedding similarity for task classification
+- Response quality checker for cascade escalation
+- Admin API for tier configuration and routing statistics
+- Frontend "Auto (Smart Routing)" model option with real-time routing info
+- Routing decisions tracked in DB for feedback loop and cost analysis
+- Fix: Chat scroll no longer locked to bottom during streaming
+- Fix: Black-on-black text in code blocks resolved
+- Fix: Nginx regex compatibility with pcre2
+
+### v1.8.10
+- Version bump, model pricing update (March 2026)
+
+### v1.8.9
+- Mobile UX responsive improvements
+
+### v1.8.8
+- Disable MFA for test accounts
 
 ## License
 

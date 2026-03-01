@@ -252,7 +252,7 @@ export class ModelRouter {
   async recordDecision(
     decision: RoutingDecision,
     ctx: RoutingContext,
-    result: { latencyMs: number; tokensInput: number; tokensOutput: number; costUsd: number }
+    result: { latencyMs: number; tokensInput: number; tokensOutput: number; costUsd: number; conversationId?: number }
   ): Promise<void> {
     try {
       await this.db.execute(
@@ -261,14 +261,14 @@ export class ModelRouter {
            routing_reason, routing_confidence, latency_ms, tokens_input, tokens_output, cost_usd, routing_method)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          null, ctx.userId, ctx.query.length, computeComplexityScore(ctx),
+          result.conversationId || null, ctx.userId, ctx.query.length, computeComplexityScore(ctx),
           decision.tier, decision.model, decision.reason, decision.confidence,
           result.latencyMs, result.tokensInput, result.tokensOutput, result.costUsd,
           decision.routingMethod,
         ]
       );
-    } catch {
-      // Non-critical — don't break the request
+    } catch (err) {
+      console.warn('[ModelRouter] Failed to record routing decision:', err);
     }
   }
 }
