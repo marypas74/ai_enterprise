@@ -30,10 +30,10 @@ const CACHE_TTL = 5 * 60 * 1000;
 
 // Models known to be lightweight (< 3B params or MoE with small active params)
 const LIGHT_MODELS = new Set([
-  'qwen2.5:3b', 'llama3.2:3b', 'llama-fast',
-  'gemma2:2b', 'phi3:mini',
-  'qwen3:30b-a3b',  // MoE 30B total but only 3B active — treat as light
-  'qwen-fast',       // alias → qwen3:30b-a3b
+  'qwen3:30b-a3b',     // MoE 30B total but only 3B active — treat as light
+  'qwen-fast',          // alias → qwen3:30b-a3b
+  'glm-ocr:latest',    // 0.9B param OCR model
+  'translategemma:4b',  // Small translation model
 ]);
 
 // Ollama model name prefixes that support native thinking (think: true API)

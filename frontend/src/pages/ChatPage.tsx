@@ -619,11 +619,22 @@ export default function ChatPage() {
 
   return (
     <div className="h-screen flex overflow-hidden">
+      {/* Mobile sidebar backdrop */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
       <aside
         className={clsx(
-          'flex flex-col bg-surface-900 text-white transition-all duration-300',
-          sidebarOpen ? 'w-72' : 'w-0'
+          'flex flex-col bg-surface-900 text-white transition-all duration-300 z-50',
+          'md:relative md:z-auto',
+          sidebarOpen
+            ? 'fixed inset-y-0 left-0 w-72 md:relative'
+            : 'w-0'
         )}
       >
         {sidebarOpen && (
@@ -818,13 +829,13 @@ export default function ChatPage() {
                 onClick={() => setShowModelSelect(!showModelSelect)}
                 className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors"
               >
-                <Sparkles className="w-4 h-4 text-primary-500" />
-                <span className="font-medium">{currentModel.name}</span>
-                <ChevronDown className="w-4 h-4 text-surface-400" />
+                <Sparkles className="w-4 h-4 text-primary-500 shrink-0" />
+                <span className="font-medium truncate max-w-[120px] sm:max-w-[200px]">{currentModel.name}</span>
+                <ChevronDown className="w-4 h-4 text-surface-400 shrink-0" />
               </button>
 
               {showModelSelect && (
-                <div className="absolute top-full left-0 mt-1 w-96 card p-2 shadow-lg z-50 max-h-[70vh] overflow-y-auto">
+                <div className="absolute top-full left-0 mt-1 w-[calc(100vw-2rem)] sm:w-96 card p-2 shadow-lg z-50 max-h-[70vh] overflow-y-auto">
                   {modelsLoading ? (
                     <p className="px-3 py-2 text-sm text-surface-500">Loading models...</p>
                   ) : models.length === 0 ? (
@@ -875,53 +886,57 @@ export default function ChatPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <IconSelector onIconChange={setSelectedBotIcon} />
+          <div className="flex items-center gap-1 sm:gap-2">
+            <div className="hidden sm:block">
+              <IconSelector onIconChange={setSelectedBotIcon} />
+            </div>
 
-            {currentConversationId && messages.length > 0 && (
+            <div className="hidden sm:flex items-center gap-1">
+              {currentConversationId && messages.length > 0 && (
+                <button
+                  onClick={undoLastMessage}
+                  disabled={isStreaming}
+                  className="p-2 hover:bg-surface-100 dark:hover:bg-surface-800 rounded-lg transition-colors text-surface-500 hover:text-primary-500"
+                  title="Annulla ultimo messaggio e rifai"
+                >
+                  <RotateCcw className={clsx("w-5 h-5", isStreaming && "animate-spin")} />
+                </button>
+              )}
+
               <button
-                onClick={undoLastMessage}
-                disabled={isStreaming}
-                className="p-2 hover:bg-surface-100 dark:hover:bg-surface-800 rounded-lg transition-colors text-surface-500 hover:text-primary-500"
-                title="Annulla ultimo messaggio e rifai"
+                onClick={() => setShowVectorMemory(!showVectorMemory)}
+                className={clsx(
+                  "relative p-2 rounded-lg transition-colors",
+                  showVectorMemory
+                    ? "bg-cyan-500/20 text-cyan-400"
+                    : "hover:bg-surface-100 dark:hover:bg-surface-800 text-surface-500 hover:text-cyan-400"
+                )}
+                title="Vector Memory"
               >
-                <RotateCcw className={clsx("w-5 h-5", isStreaming && "animate-spin")} />
+                <Database className="w-5 h-5" />
               </button>
-            )}
 
-            <button
-              onClick={() => setShowVectorMemory(!showVectorMemory)}
-              className={clsx(
-                "relative p-2 rounded-lg transition-colors",
-                showVectorMemory
-                  ? "bg-cyan-500/20 text-cyan-400"
-                  : "hover:bg-surface-100 dark:hover:bg-surface-800 text-surface-500 hover:text-cyan-400"
-              )}
-              title="Vector Memory"
-            >
-              <Database className="w-5 h-5" />
-            </button>
-
-            <button
-              onClick={() => { setShowMemoryPanel(!showMemoryPanel); if (!showMemoryPanel) loadMemoryObservations(); }}
-              className={clsx(
-                "relative p-2 rounded-lg transition-colors",
-                showMemoryPanel
-                  ? "bg-purple-500/20 text-purple-400"
-                  : "hover:bg-surface-100 dark:hover:bg-surface-800 text-surface-500 hover:text-purple-400"
-              )}
-              title="Memory"
-            >
-              <Brain className="w-5 h-5" />
-              {memoryContextActive && (
-                <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-purple-500 rounded-full" />
-              )}
-            </button>
+              <button
+                onClick={() => { setShowMemoryPanel(!showMemoryPanel); if (!showMemoryPanel) loadMemoryObservations(); }}
+                className={clsx(
+                  "relative p-2 rounded-lg transition-colors",
+                  showMemoryPanel
+                    ? "bg-purple-500/20 text-purple-400"
+                    : "hover:bg-surface-100 dark:hover:bg-surface-800 text-surface-500 hover:text-purple-400"
+                )}
+                title="Memory"
+              >
+                <Brain className="w-5 h-5" />
+                {memoryContextActive && (
+                  <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-purple-500 rounded-full" />
+                )}
+              </button>
+            </div>
 
             {user?.role === 'admin' && (
               <a
                 href="/admin"
-                className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors"
+                className="hidden sm:flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors"
               >
                 <Settings className="w-5 h-5" />
                 <span className="text-sm">Admin</span>

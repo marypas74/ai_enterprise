@@ -38,15 +38,15 @@ export default function AIDisclosureBanner({ modelName, conversationId }: AIDisc
   if (!enabled || dismissed) return null;
 
   return (
-    <div className="mx-4 mt-2 mb-1 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+    <div className="mx-2 sm:mx-4 mt-2 mb-1 p-2 sm:p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
       <div className="flex items-start gap-2">
         <Info className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
         <div className="flex-1 min-w-0">
-          <p className="text-sm text-blue-800 dark:text-blue-300">
+          <p className="text-xs sm:text-sm text-blue-800 dark:text-blue-300">
             {bannerText}
           </p>
           {modelName && (
-            <p className="text-xs text-blue-600 dark:text-blue-500 mt-1">
+            <p className="text-[10px] sm:text-xs text-blue-600 dark:text-blue-500 mt-0.5 sm:mt-1">
               Modello attivo: {modelName}
             </p>
           )}

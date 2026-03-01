@@ -131,11 +131,17 @@ export class LLMSyncWorker {
     // Alias model_ids in DB → actual Ollama model names
     // These are virtual names used in the DB that map to real installed models
     private static readonly OLLAMA_MODEL_ALIASES: Record<string, string> = {
-        'qwen-fast': 'qwen2.5:3b',
-        'llama-fast': 'llama3.2:3b',
-        'gemma-fast': 'gemma2:2b',
-        'phi-fast': 'phi3:mini',
-        'glm-4.7-flash': 'glm4:latest',
+        'qwen-fast': 'qwen3:30b-a3b',       // MoE ultra-fast
+        'qwen-thinking': 'qwen3:32b',       // Qwen3 32B with native thinking
+        'gemma-fast': 'gemma3:12b',          // Gemma 3 12B
+        'phi-fast': 'phi4:latest',           // Phi-4
+        'glm-4.7-flash': 'glm-4.7-flash:latest',
+        'deepseek-think': 'deepseek-r1:32b', // DeepSeek R1 32B reasoning
+        'qwq-think': 'qwq:32b',             // QwQ 32B reasoning
+        'coder': 'qwen2.5-coder:32b',       // Best local coding model
+        'gpt-oss': 'gpt-oss:latest',        // OpenAI open-source
+        'llama4': 'llama4:scout',           // Llama 4 Scout MoE
+        'doc-vision': 'granite3.2-vision:latest', // Document understanding
     };
 
     /**

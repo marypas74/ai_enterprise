@@ -125,17 +125,35 @@ export const MODEL_PRICING: Record<string, { input: number; output: number }> = 
   'gemini-1.5-pro': { input: 0.00125, output: 0.005 },
   'gemini-1.5-flash': { input: 0.000075, output: 0.0003 },
   // Ollama local models (free, cost=0 for tracking purposes)
+  // --- Text Generation ---
   'qwen3:14b': { input: 0, output: 0 },
   'qwen3:30b-a3b': { input: 0, output: 0 },
+  'qwen3:32b': { input: 0, output: 0 },
   'gemma3:12b': { input: 0, output: 0 },
-  'deepseek-r1:14b': { input: 0, output: 0 },
-  'deepseek-ocr:latest': { input: 0, output: 0 },
-  'glm-ocr:latest': { input: 0, output: 0 },
-  'qwen2.5vl:7b': { input: 0, output: 0 },
   'phi4:latest': { input: 0, output: 0 },
   'mistral:latest': { input: 0, output: 0 },
   'mixtral:latest': { input: 0, output: 0 },
   'glm-4.7-flash:latest': { input: 0, output: 0 },
+  'gpt-oss:latest': { input: 0, output: 0 },
+  'llama4:scout': { input: 0, output: 0 },
+  // --- Thinking / Reasoning ---
+  'deepseek-r1:14b': { input: 0, output: 0 },
+  'deepseek-r1:32b': { input: 0, output: 0 },
+  'qwq:32b': { input: 0, output: 0 },
+  // --- Coding ---
+  'qwen2.5-coder:32b': { input: 0, output: 0 },
+  'deepseek-coder-v2:latest': { input: 0, output: 0 },
+  // --- Vision / OCR / Documents ---
+  'deepseek-ocr:latest': { input: 0, output: 0 },
+  'glm-ocr:latest': { input: 0, output: 0 },
+  'qwen2.5vl:7b': { input: 0, output: 0 },
+  'minicpm-v:latest': { input: 0, output: 0 },
+  'granite3.2-vision:latest': { input: 0, output: 0 },
+  // --- Embeddings ---
+  'bge-m3:latest': { input: 0, output: 0 },
+  'nomic-embed-text:latest': { input: 0, output: 0 },
+  // --- Translation ---
+  'translategemma:4b': { input: 0, output: 0 },
 };
 
 // Calculate cost
@@ -750,11 +768,17 @@ export class OllamaProvider implements AIProvider {
 
   // Model mapping for Ollama (handles aliases from DB → actual Ollama model names)
   private static readonly MODEL_MAPPING: Record<string, string> = {
-    'qwen-fast': 'qwen3:30b-a3b',       // MoE ultra-fast (upgraded from qwen2.5:3b)
-    'llama-fast': 'llama3.2:3b',
-    'gemma-fast': 'gemma3:12b',          // Upgraded from gemma2:2b
-    'phi-fast': 'phi4:latest',           // Upgraded from phi3:mini
+    'qwen-fast': 'qwen3:30b-a3b',       // MoE ultra-fast
+    'qwen-thinking': 'qwen3:32b',       // Qwen3 32B with native thinking
+    'gemma-fast': 'gemma3:12b',          // Gemma 3 12B
+    'phi-fast': 'phi4:latest',           // Phi-4
     'glm-4.7-flash': 'glm-4.7-flash:latest',
+    'deepseek-think': 'deepseek-r1:32b', // DeepSeek R1 32B reasoning
+    'qwq-think': 'qwq:32b',             // QwQ 32B reasoning
+    'coder': 'qwen2.5-coder:32b',       // Best local coding model
+    'gpt-oss': 'gpt-oss:latest',        // OpenAI open-source
+    'llama4': 'llama4:scout',           // Llama 4 Scout MoE
+    'doc-vision': 'granite3.2-vision:latest', // Document understanding
   };
 
   private resolveModel(model: string): string {
@@ -1049,7 +1073,7 @@ export class AIProviderFactory {
     if (model.startsWith('claude-')) return 'anthropic';
     if (model.startsWith('gemini-')) return 'google';
     // Check for common Ollama model patterns (includes reasoning models)
-    if (model.match(/^(llama|llava|mistral|mixtral|codellama|phi|phi4|qwen|qwq|gemma|deepseek|vicuna|orca|neural|dolphin|openhermes|starling|yi|solar|glm|glm4|glm-|minicpm|nomic|granite|magistral|kimi|gpt-oss|nemotron)/i)) {
+    if (model.match(/^(llama|llama4|mistral|mixtral|phi|phi4|qwen|qwq|gemma|deepseek|vicuna|orca|neural|dolphin|openhermes|starling|yi|solar|glm|glm4|glm-|minicpm|nomic|granite|magistral|kimi|gpt-oss|nemotron|translategemma|bge)/i)) {
       return 'ollama';
     }
     // Default to custom for unknown models

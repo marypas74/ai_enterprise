@@ -570,6 +570,19 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
     }
   }
 
+  // v4.1: Enable thinking for Ollama reasoning models
+  try {
+    await pool.execute(
+      `UPDATE ai_models SET supports_thinking = TRUE
+       WHERE (model_id LIKE 'deepseek-r1:%' OR model_id LIKE 'qwq:%' OR model_id LIKE 'qwen3:%')
+         AND (supports_thinking IS NULL OR supports_thinking = FALSE)`
+    );
+  } catch (err: any) {
+    if (err?.errno !== 1054) {
+      fastify.log.warn({ err }, `[Migration] Ollama thinking capabilities update failed`);
+    }
+  }
+
   // Seed AI Act compliance settings
   await seedAIActSettings(pool, fastify);
 
