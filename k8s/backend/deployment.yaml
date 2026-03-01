@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: backend
-          image: localhost:32000/enterprise-ai-chat-backend:1.8.10
+          image: localhost:32000/enterprise-ai-chat-backend:1.8.11
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3000
@@ -67,18 +67,25 @@ spec:
               cpu: "4000m"
           securityContext:
             privileged: false
-          livenessProbe:
-            httpGet:
-              path: /health
-              port: 3000
-            initialDelaySeconds: 15
-            periodSeconds: 10
-          readinessProbe:
+          startupProbe:
             httpGet:
               path: /health
               port: 3000
             initialDelaySeconds: 5
             periodSeconds: 5
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            periodSeconds: 5
+            failureThreshold: 3
       volumes:
         - name: shared-projects
           hostPath:

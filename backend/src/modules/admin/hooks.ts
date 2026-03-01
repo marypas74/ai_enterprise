@@ -1,5 +1,15 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { z } from 'zod';
 import { eventBus } from '../../services/EventBusService.js';
+
+// Validation schemas
+const toggleHandlerSchema = z.object({
+  enabled: z.boolean(),
+});
+
+const toggleTracingSchema = z.object({
+  enabled: z.boolean(),
+});
 
 export async function hookRoutes(fastify: FastifyInstance) {
   const adminOnly = async (request: FastifyRequest, reply: FastifyReply) => {
@@ -24,7 +34,7 @@ export async function hookRoutes(fastify: FastifyInstance) {
     onRequest: [(fastify as any).authenticate, adminOnly],
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { handlerId } = request.params as { handlerId: string };
-    const { enabled } = request.body as { enabled: boolean };
+    const { enabled } = toggleHandlerSchema.parse(request.body);
 
     const toggled = eventBus.toggleHandler(handlerId, enabled);
     if (!toggled) {
@@ -50,7 +60,7 @@ export async function hookRoutes(fastify: FastifyInstance) {
   fastify.post('/hooks/trace/toggle', {
     onRequest: [(fastify as any).authenticate, adminOnly],
   }, async (request: FastifyRequest) => {
-    const { enabled } = request.body as { enabled: boolean };
+    const { enabled } = toggleTracingSchema.parse(request.body);
     eventBus.setTracing(enabled);
     return { enabled, message: enabled ? 'Hook tracing enabled' : 'Hook tracing disabled' };
   });

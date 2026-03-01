@@ -3,7 +3,11 @@
  */
 
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { z } from 'zod';
 import { PermissionService, type Resource, type Permission } from '../../services/PermissionService.js';
+
+// Validation schema for permission body
+const permissionBodySchema = z.record(z.boolean());
 
 export async function permissionRoutes(fastify: FastifyInstance) {
   fastify.addHook('onRequest', (fastify as any).authenticate);
@@ -48,7 +52,7 @@ export async function permissionRoutes(fastify: FastifyInstance) {
     onRequest: [adminOnly],
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { userId, resource } = request.params as { userId: string; resource: string };
-    const body = request.body as Partial<Record<Permission, boolean>>;
+    const body = permissionBodySchema.parse(request.body) as Partial<Record<Permission, boolean>>;
 
     const validResources = permService.getSchema().resources;
     if (!validResources.includes(resource as Resource)) {

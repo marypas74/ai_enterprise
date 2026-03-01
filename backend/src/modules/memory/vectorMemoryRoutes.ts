@@ -1,4 +1,5 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { z } from 'zod';
 import {
   recall,
   getAllCollectionsInfo,
@@ -9,6 +10,36 @@ import {
 } from '../../services/VectorMemoryService.js';
 import { HyDEService } from '../../services/HyDEService.js';
 import { ClassificationService } from '../../services/ClassificationService.js';
+
+// Validation schemas
+const storeDeclarativeSchema = z.object({
+  content: z.string().min(1),
+  source: z.string().optional(),
+  metadata: z.record(z.any()).optional(),
+});
+
+const updateRecallSettingsSchema = z.object({
+  autoRagEnabled: z.boolean().optional(),
+  episodicK: z.number().optional(),
+  episodicThreshold: z.number().optional(),
+  declarativeK: z.number().optional(),
+  declarativeThreshold: z.number().optional(),
+  proceduralK: z.number().optional(),
+  proceduralThreshold: z.number().optional(),
+});
+
+const hydeConfigSchema = z.object({
+  enabled: z.boolean().optional(),
+  maxTokens: z.number().optional(),
+  maxQueryLength: z.number().optional(),
+});
+
+const classifySchema = z.object({
+  text: z.string().min(1),
+  labels: z.record(z.array(z.string())),
+  threshold: z.number().optional(),
+  multi: z.boolean().optional(),
+});
 
 export async function vectorMemoryRoutes(fastify: FastifyInstance) {
   fastify.addHook('onRequest', (fastify as any).authenticate);
@@ -82,10 +113,15 @@ export async function vectorMemoryRoutes(fastify: FastifyInstance) {
   // Store a fact/knowledge in declarative memory
   fastify.post('/declarative', async (request: FastifyRequest, reply: FastifyReply) => {
     const user = request.user as { id: number };
-    const body = request.body as { content: string; source?: string; metadata?: Record<string, any> };
 
-    if (!body.content?.trim()) {
-      return reply.status(400).send({ error: 'Content is required' });
+    let body: z.infer<typeof storeDeclarativeSchema>;
+    try {
+      body = storeDeclarativeSchema.parse(request.body);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return reply.status(400).send({ error: 'Validation failed', details: err.errors });
+      }
+      throw err;
     }
 
     const ok = await storeDeclarative(
@@ -113,7 +149,16 @@ export async function vectorMemoryRoutes(fastify: FastifyInstance) {
   // Update user recall settings
   fastify.patch('/recall-settings', async (request: FastifyRequest, reply: FastifyReply) => {
     const user = request.user as { id: number };
-    const body = request.body as Record<string, any>;
+
+    let body: z.infer<typeof updateRecallSettingsSchema>;
+    try {
+      body = updateRecallSettingsSchema.parse(request.body);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return reply.status(400).send({ error: 'Validation failed', details: err.errors });
+      }
+      throw err;
+    }
 
     const fields: string[] = [];
     const values: any[] = [];
@@ -128,10 +173,11 @@ export async function vectorMemoryRoutes(fastify: FastifyInstance) {
       proceduralThreshold: 'procedural_recall_threshold',
     };
 
+    const bodyRecord = body as Record<string, any>;
     for (const [jsKey, dbKey] of Object.entries(mapping)) {
-      if (body[jsKey] !== undefined) {
+      if (bodyRecord[jsKey] !== undefined) {
         fields.push(`${dbKey} = ?`);
-        values.push(body[jsKey]);
+        values.push(bodyRecord[jsKey]);
       }
     }
 
@@ -172,7 +218,7 @@ export async function vectorMemoryRoutes(fastify: FastifyInstance) {
   fastify.patch('/hyde', {
     onRequest: [adminOnly],
   }, async (request: FastifyRequest) => {
-    const body = request.body as { enabled?: boolean; maxTokens?: number; maxQueryLength?: number };
+    const body = hydeConfigSchema.parse(request.body);
     const hyde = new HyDEService(fastify, fastify.db);
     await hyde.loadConfig();
     await hyde.saveConfig(body);
@@ -187,18 +233,14 @@ export async function vectorMemoryRoutes(fastify: FastifyInstance) {
 
   // Classify text against labeled examples
   fastify.post('/classify', async (request: FastifyRequest, reply: FastifyReply) => {
-    const body = request.body as {
-      text: string;
-      labels: Record<string, string[]>;
-      threshold?: number;
-      multi?: boolean;
-    };
-
-    if (!body.text?.trim()) {
-      return reply.status(400).send({ error: 'text is required' });
-    }
-    if (!body.labels || Object.keys(body.labels).length === 0) {
-      return reply.status(400).send({ error: 'labels object is required with at least one label' });
+    let body: z.infer<typeof classifySchema>;
+    try {
+      body = classifySchema.parse(request.body);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return reply.status(400).send({ error: 'Validation failed', details: err.errors });
+      }
+      throw err;
     }
 
     const classifier = new ClassificationService(fastify, fastify.db);

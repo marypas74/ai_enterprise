@@ -5,7 +5,19 @@
  */
 
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { z } from 'zod';
 import { WhiteRabbitService } from '../../services/WhiteRabbitService.js';
+
+// Validation schemas
+const createJobSchema = z.object({
+  name: z.string().min(1),
+  description: z.string().optional(),
+  job_type: z.enum(['one_shot', 'interval', 'cron']),
+  action_type: z.enum(['scheduled_message', 'webhook', 'hook', 'plugin_action']),
+  action_config: z.record(z.any()),
+  schedule_config: z.record(z.any()),
+  max_runs: z.number().optional(),
+});
 
 export async function schedulerRoutes(fastify: FastifyInstance) {
   const scheduler = new WhiteRabbitService(fastify, fastify.db);
@@ -43,20 +55,15 @@ export async function schedulerRoutes(fastify: FastifyInstance) {
     schema: { description: 'Create a scheduled job', tags: ['scheduler'], security: [{ bearerAuth: [] }] },
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const user = request.user as { id: number };
-    const body = request.body as any;
 
-    if (!body.name || !body.job_type || !body.action_type || !body.action_config || !body.schedule_config) {
-      return reply.status(400).send({ error: 'Missing required fields: name, job_type, action_type, action_config, schedule_config' });
-    }
-
-    const validJobTypes = ['one_shot', 'interval', 'cron'];
-    const validActionTypes = ['scheduled_message', 'webhook', 'hook', 'plugin_action'];
-
-    if (!validJobTypes.includes(body.job_type)) {
-      return reply.status(400).send({ error: `Invalid job_type. Must be one of: ${validJobTypes.join(', ')}` });
-    }
-    if (!validActionTypes.includes(body.action_type)) {
-      return reply.status(400).send({ error: `Invalid action_type. Must be one of: ${validActionTypes.join(', ')}` });
+    let body: z.infer<typeof createJobSchema>;
+    try {
+      body = createJobSchema.parse(request.body);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return reply.status(400).send({ error: 'Validation failed', details: err.errors });
+      }
+      throw err;
     }
 
     const id = await scheduler.createJob({

@@ -1,579 +1,556 @@
-# ROADMAP DI SVILUPPO — Enterprise AI Chat
+# Enterprise AI Chat — Roadmap di Sviluppo
 
-> Documento generato il 2026-02-26 | Versione corrente: 1.6.1
-
----
-
-## STATO ATTUALE DEL SISTEMA
-
-### Componenti ATTIVI
-| Componente | Stato | Note |
-|---|---|---|
-| Chat multi-modello (14 modelli Ollama) | Funzionante | Sync worker ogni 5 min |
-| Web Search (DuckDuckGo + Google) | Funzionante | Auto-detect keyword |
-| Web Scraping | Funzionante | SSRF protection |
-| Document Processing (PDF, DOCX, XLSX, PPTX, OCR) | Funzionante | Microservizio separato |
-| Tool Service (file I/O, doc generation) | Funzionante | Audit log completo |
-| Working Memory (Redis) | Funzionante | TTL 2h per sessione |
-| Persistent Memory (SQL observations) | Funzionante | Auto-capture, fulltext search |
-| EventBus / Hook System (23 hook points) | Funzionante | Priority-based, timeout protection |
-| Plugin Loader (Mad Hatter) | Funzionante | Discovery, attivazione, settings |
-| LLM Sync Worker | Funzionante | Config sync 2min, model sync 5min |
-| Prompt Templates | Funzionante | Customizzabili da admin |
-| Metrics Dashboard | Funzionante | CPU, GPU, RAM, pods, containers |
-
-### Componenti IMPLEMENTATI ma NON ATTIVI (mancano prerequisiti)
-| Componente | Blocco | File Principale |
-|---|---|---|
-| Vector Memory (Qdrant 3 collections) | Qdrant non deployato + no embedding model | VectorMemoryService.ts |
-| Auto-RAG (AgentChain pipeline) | Qdrant + embeddings + auto_rag_enabled=false | AgentChainService.ts |
-| Episodic Memory storage | Qdrant + embeddings | VectorMemoryService.ts |
-| Declarative Memory (knowledge base) | Qdrant + embeddings | VectorMemoryService.ts |
-| Procedural Memory (tool selection semantico) | Qdrant + embeddings | ProceduralMemoryService.ts |
-| HyDE (Hypothetical Document Embeddings) | Embeddings + disabled by default | HyDEService.ts |
-| RabbitHole (document ingestion pipeline) | Qdrant + embeddings + tabella web_ingestions mancante | RabbitHoleService.ts |
-| Classification Service | Embeddings | ClassificationService.ts |
-
-### Componenti SCAFFOLDED ma NON COMPLETATI
-| Componente | Completamento | Cosa Manca |
-|---|---|---|
-| Agent Orchestrator | 80% | Git worktree, PTY/terminal integration |
-| Claude Agent SDK | 60% | MCP server wiring, permission modes |
-| Parlant Integration | 40% | Chat routing, API keys, guidelines UI |
-| MCP Client Runtime | 20% | Server spawning, tool discovery, connection pool |
-| Conversational Forms | 85% | Auto-trigger da chat, callback execution |
-| Scheduler (White Rabbit) | 60% | Tabelle DB mancanti, job execution |
-| Ralph Loop (iterazione AI) | 70% | UI controls, completion detection |
-| Browser Automation | 0% | Non presente |
+**Data analisi:** 2026-03-01
+**Versione corrente:** 1.8.10
+**Analisi basata su:** scansione completa del codebase (backend, frontend, vscode-extension, k8s)
 
 ---
 
-## FASE 1 — INFRASTRUTTURA VECTOR MEMORY (Settimana 1)
-**Obiettivo**: Sbloccare il 70% del codice gia' scritto
+## Stato Attuale — Executive Summary
 
-### 1.1 Deploy Qdrant in Kubernetes
-- Creare `k8s/qdrant/` con StatefulSet + Service + PVC
-- Image: `qdrant/qdrant:v1.12.1`
-- Port: 6333 (REST) + 6334 (gRPC)
-- PVC: 2Gi iniziale, espandibile
-- Resource limits: 512Mi RAM, 500m CPU
-- Health check: `/healthz`
-- **Effort**: Medio
+| Area | Stato Attuale | Target | Priorità | Effort Stimato |
+|------|--------------|--------|-----------|----------------|
+| **Test Coverage** | ~5-8% (11 test file backend, 0 frontend, 2 E2E) | 80%+ | CRITICA | ~290 ore |
+| **Refactoring** | 15 file >800 LOC, max 4.478 LOC | <800 LOC per file | ALTA | ~65 ore |
+| **Security** | 5 endpoint senza auth, 141 cast non validati | Audit completo | ALTA | ~40 ore |
+| **Documentazione** | Swagger disabilitato in prod, 36 JSDoc su 100+ file | API docs complete | MEDIA | ~30 ore |
+| **Performance** | No lazy loading, cache statica disabilitata | Ottimizzazione completa | MEDIA | ~25 ore |
+| **Production Readiness** | No backup, no monitoring, no autoscaling | Production-grade | ALTA | ~35 ore |
 
-### 1.2 Pull embedding model su Ollama
-```bash
-docker exec ollama ollama pull nomic-embed-text
+**Effort totale stimato: ~485 ore**
+
+---
+
+## INVENTARIO DETTAGLIATO
+
+### Test Coverage — Stato Attuale
+
+| Metrica | Valore Attuale | Target |
+|---------|---------------|--------|
+| Backend test file | 11 | ~103 necessari |
+| Backend copertura file | ~10.7% | 80% |
+| Frontend unit test | **0** | ~54 necessari |
+| Frontend test coverage | **0%** | 80% |
+| E2E spec file | 2 (4 test case) | 15+ necessari |
+| Coverage config | **Assente** | vitest coverage + thresholds |
+| **Copertura stimata globale** | **~5-8%** | **80%** |
+
+**Test backend esistenti (11 file, ~75 assertion):**
+- `services/ChunkingService.test.ts` — 10 test
+- `services/CircuitBreakerService.test.ts` — 8 test
+- `services/TokenCountService.test.ts` — 8 test
+- `services/ToolSelectionService.test.ts` — 17 test
+- `services/BatchProcessingService.test.ts` — 5 test
+- `services/ConversationCleanupService.test.ts` — 5 test
+- `services/DocumentProcessorService.test.ts` — 10 test
+- `services/SandboxService.test.ts` — 8 test
+- `modules/admin/mfa-reset.test.ts` — 2 test
+- `modules/attachments/pdf-extraction.test.ts` — 1 test
+- `modules/chat/context-injection.test.ts` — 1 test
+
+**Moduli backend SENZA test (19/22):**
+activity, agents, ai, auth, batch, compliance, downloads, files, forms, geo, ingestion, memory, orchestrator, parlant, projects, public, ralph, scheduler, tools
+
+**Servizi backend SENZA test (42/50):**
+AgentOrchestrator, AgentSdkService, BrowserService, ClaudeAgentService, ContentSafety, EmbeddingService, EventBusService, GDPRService, GoogleOAuthService, HybridSearchService, LLMSyncWorker, MCPClientManager, MemoryDecayService, MemoryService, MetricsService, ModelFetcher, PermissionService, ProceduralMemoryService, PromptTemplateService, StorageService, ToolService, VectorMemoryService, VectorStoreService, WebScraperService, WebSearchService, WorkingMemoryService, + 16 altri
+
+---
+
+### File >800 LOC da Refactorizzare (15 file)
+
+| # | File | LOC | Severità |
+|---|------|-----|----------|
+| 1 | `vscode-extension/src/extension.ts` | **4.478** | ESTREMA |
+| 2 | `backend/src/modules/chat/routes.ts` | **2.387** | ESTREMA |
+| 3 | `backend/src/modules/projects/routes.ts` | **1.384** | SEVERA |
+| 4 | `frontend/src/pages/ChatPage.tsx` | **1.293** | SEVERA |
+| 5 | `backend/src/modules/ai/providers.ts` | **1.091** | ALTA |
+| 6 | `frontend/src/pages/AutoClaudePage.tsx` | **1.063** | ALTA |
+| 7 | `backend/src/modules/admin/providers.ts` | **992** | ALTA |
+| 8 | `vscode-extension/webview-ui/src/claude-code/MainLayout.tsx` | **971** | ALTA |
+| 9 | `backend/src/services/ToolService.ts` | **941** | ALTA |
+| 10 | `frontend/src/pages/admin/UsersGroupsPage.tsx` | **912** | ALTA |
+| 11 | `backend/src/modules/admin/plugins.ts` | **901** | ALTA |
+| 12 | `backend/src/modules/admin/routes.ts` | **895** | ALTA |
+| 13 | `backend/src/modules/attachments/routes.ts` | **830** | MODERATA |
+| 14 | `vscode-extension/src/AgentPanel.ts` | **808** | MODERATA |
+| 15 | `backend/src/services/AgentOrchestrator.ts` | **801** | MODERATA |
+
+**File warning zone (400-800 LOC): 26 file aggiuntivi**
+
+---
+
+### Security — Stato Attuale
+
+| Categoria | Stato | Rischio |
+|-----------|-------|---------|
+| **Copertura autenticazione** | 305/318 endpoint (97%) | **CRITICO** — 5 tools routes senza auth |
+| **Autorizzazione (Admin/RBAC)** | Admin-only check sulle admin routes | BUONO |
+| **Input validation** | 74 Zod + 241 Fastify schema, ma 141 cast non sicuri | MEDIO |
+| **Rate limiting** | Globale + login-specific, ma admin esente | MEDIO |
+| **CORS** | Configurato correttamente | BUONO |
+| **Security headers** | Helmet abilitato | BUONO |
+| **CSRF** | Non necessario (JWT Bearer) | BASSO |
+| **SQL injection** | Query parametrizzate ovunque | BASSO |
+| **XSS** | Nessun pattern pericoloso trovato | MOLTO BASSO |
+| **Password hashing** | bcrypt cost 10 | BUONO |
+| **Secrets management** | Encrypted at rest, validati al boot | BUONO |
+| **Session management** | Activity tracking, revocation, refresh rotation | FORTE |
+
+**Endpoint SENZA autenticazione (RISCHIO CRITICO):**
+- `POST /api/tools/generate-docx` (tools/routes.ts:25)
+- `POST /api/tools/generate-excel` (tools/routes.ts:63)
+- `POST /api/tools/generate-pptx` (tools/routes.ts:109)
+- `POST /api/tools/convert-to-pdf` (tools/routes.ts:164) — anche IDOR vulnerability
+- `GET /api/tools/download/:filename` (tools/routes.ts:347)
+
+---
+
+### Performance — Stato Attuale
+
+| Area | Stato | Severità |
+|------|-------|----------|
+| DB connection pool | 10 per pod, potenzialmente insufficiente | MEDIA |
+| DB queue limit | Illimitato (0) — rischio memory buildup | MEDIA |
+| N+1 query patterns | 18 file con await sequenziali in loop | MEDIA |
+| Frontend code splitting | Non configurato | ALTA |
+| Frontend lazy loading | Tutte le pagine importate eagerly | ALTA |
+| Static asset caching | **Completamente disabilitato** (no-cache su asset hashati) | ALTA |
+| Source maps in produzione | Abilitati | MEDIA |
+| Circuit breaker scope | Solo per-pod, non condiviso | BASSA |
+| Redis cache utilization | Chiavi definite ma possibilmente sottoutilizzate | MEDIA |
+
+---
+
+### Production Readiness — Stato Attuale
+
+| Area | Stato | Severità |
+|------|-------|----------|
+| **Database backup** | **Nessuno configurato** | **CRITICO** |
+| Health endpoint (root) | Non verifica DB/Redis | ALTA |
+| Monitoring/metrics | No Prometheus/Grafana | ALTA |
+| Startup probes | Mancanti su tutti i deployment | MEDIA |
+| HPA (autoscaling) | Non configurato | MEDIA |
+| PodDisruptionBudget | Non configurato | MEDIA |
+| Content-Security-Policy | Mancante su frontend | MEDIA |
+| Egress network policy | Non configurata | BASSA |
+| Log shipping/aggregation | Non configurato | MEDIA |
+| Request tracing/correlation IDs | Non presenti | MEDIA |
+
+---
+
+## FASE 0 — Fix Immediati di Sicurezza (Settimana 1)
+
+> Questi fix devono essere applicati PRIMA di qualsiasi altro lavoro.
+
+### 0.1 — CRITICAL: Aggiungere autenticazione a tools routes
+**File:** `backend/src/modules/tools/routes.ts`
+**Problema:** 5 endpoint completamente senza autenticazione — chiunque può generare file e scaricarli.
+
+| Endpoint | Linea | Fix |
+|----------|-------|-----|
+| `POST /api/tools/generate-docx` | 25 | Aggiungere `onRequest: [(fastify as any).authenticate]` |
+| `POST /api/tools/generate-excel` | 63 | Aggiungere `onRequest: [(fastify as any).authenticate]` |
+| `POST /api/tools/generate-pptx` | 109 | Aggiungere `onRequest: [(fastify as any).authenticate]` |
+| `POST /api/tools/convert-to-pdf` | 164 | Aggiungere `onRequest: [(fastify as any).authenticate]` + user ownership check |
+| `GET /api/tools/download/:filename` | 347 | Aggiungere `onRequest: [(fastify as any).authenticate]` |
+
+### 0.2 — CRITICAL: IDOR in convert-to-pdf
+**File:** `backend/src/modules/tools/routes.ts:164`
+**Problema:** `SELECT * FROM chat_attachments WHERE id = ?` senza check `user_id` — qualsiasi utente può accedere a qualsiasi allegato.
+**Fix:** Aggiungere `AND user_id = ?` alla query.
+
+### 0.3 — Rate limiting admin endpoints
+**File:** `backend/src/index.ts:466`
+**Problema:** `/api/admin/*` esente da rate limiting.
+**Fix:** Rimuovere dall'allowList, usare un limite più alto (es. 200/min) invece dell'esenzione totale.
+
+### 0.4 — Input validation per tools routes
+**File:** `backend/src/modules/tools/routes.ts`
+**Problema:** Body di PPTX e PDF conversion usano `request.body as any` senza validazione.
+**Fix:** Aggiungere Zod schemas per ogni endpoint.
+
+**Effort: ~4 ore | Rischio: NULLO (fix chirurgici)**
+
+---
+
+## FASE 1 — Production Readiness Critica (Settimane 2-3)
+
+### 1.1 — Database Backup Strategy
+**Stato attuale:** ZERO backup configurati. Perdita PVC = perdita totale dati.
+
+**Azioni:**
+- [ ] Creare CronJob K8s per `mysqldump` giornaliero con retention 30 giorni
+- [ ] Configurare storage backup su volume separato o S3-compatible
+- [ ] Creare script di restore e testarlo
+- [ ] Documentare procedura di disaster recovery
+
+**Effort: ~8 ore**
+
+### 1.2 — Health Check Migliorato
+**File:** `backend/src/index.ts:418`
+**Stato attuale:** `/health` ritorna `{ status: 'ok' }` senza verificare DB/Redis.
+
+**Azioni:**
+- [ ] Aggiungere check connessione MariaDB (query `SELECT 1`)
+- [ ] Aggiungere check connessione Redis (comando `PING`)
+- [ ] Ritornare `503` se qualsiasi dipendenza è down
+- [ ] Aggiungere startup probe al backend deployment K8s
+
+**Effort: ~3 ore**
+
+### 1.3 — Monitoring & Alerting
+**Stato attuale:** Nessun Prometheus, nessun Grafana, nessun alerting.
+
+**Azioni:**
+- [ ] Installare `fastify-metrics` per esporre `/metrics`
+- [ ] Deployare Prometheus su K8s (o kube-prometheus-stack)
+- [ ] Deployare Grafana con dashboard per: API latency, error rate, DB connections, Redis usage
+- [ ] Configurare alerting base: error rate >5%, latency p99 >5s, pod restart, DB pool exhausted
+
+**Effort: ~16 ore**
+
+### 1.4 — K8s Hardening
+
+**Azioni:**
+- [ ] Aggiungere `startupProbe` al backend (per migrazioni lunghe)
+- [ ] Aggiungere `PodDisruptionBudget` (minAvailable: 1 per backend)
+- [ ] Valutare `HorizontalPodAutoscaler` per backend (CPU/memory based)
+- [ ] Ridurre spread memory request/limit (da 1Gi/8Gi a 2Gi/6Gi)
+
+**Effort: ~4 ore**
+
+---
+
+## FASE 2 — Performance Quick Wins (Settimana 3-4)
+
+### 2.1 — Frontend: Lazy Loading Pagine
+**File:** `frontend/src/App.tsx`
+**Stato attuale:** Tutte le 10+ pagine importate eagerly.
+
+**Fix:** Convertire tutti gli import a `React.lazy()` + `<Suspense>`.
+
+**Impatto: Riduzione ~60-70% del bundle iniziale**
+**Effort: ~2 ore**
+
+### 2.2 — Frontend: Correggere Cache Statica Nginx
+**File:** `frontend/nginx.conf`
+**Stato attuale:** TUTTI gli asset statici serviti con `no-cache`.
+
+**Fix:** Asset hashati Vite → `Cache-Control: public, max-age=31536000, immutable`. Solo `index.html` → `no-cache`.
+
+**Effort: ~1 ora**
+
+### 2.3 — Frontend: Code Splitting Vite
+**File:** `frontend/vite.config.ts`
+**Stato attuale:** No `manualChunks`, nessuna strategia di splitting.
+
+**Fix:** Aggiungere chunk splitting per vendor pesanti + disabilitare source maps in produzione.
+
+**Effort: ~2 ore**
+
+### 2.4 — Backend: DB Connection Pool Tuning
+**File:** `backend/src/database/index.ts`
+**Stato attuale:** `connectionLimit: 10`, `queueLimit: 0`.
+
+**Fix:** `connectionLimit: 25`, `queueLimit: 50`.
+
+**Effort: ~1 ora**
+
+### 2.5 — Backend: Audit N+1 Query
+**File con pattern sospetti:** `admin/providers.ts`, `admin/plugins.ts`, `admin/settings.ts`, `admin/skills.ts`, `projects/routes.ts`
+**Azione:** Convertire loop `for...of await db.execute()` in batch query `WHERE id IN (...)`.
+
+**Effort: ~8 ore**
+
+---
+
+## FASE 3 — Refactoring Codice (Settimane 4-8)
+
+### 3.1 — Split `extension.ts` (4.478 → <800 LOC per file)
+
+| Nuovo File | LOC Stimate | Contenuto |
+|------------|-------------|-----------|
+| `src/auth/AuthService.ts` | ~200 | Unificare le 2 implementazioni duplicate login/logout |
+| `src/auth/ClaudeOAuth.ts` | ~150 | Handler OAuth Claude, costanti |
+| `src/messaging/MessageHandler.ts` | ~200 | handleSendMessage, handleAgenticMessage |
+| `src/commands/CodeActions.ts` | ~100 | codeAction, addToChat, addFileToContext |
+| `src/commands/RegisterCommands.ts` | ~600 | Blocco registrazione comandi da activate() |
+| `src/providers/ChatViewProvider.ts` | ~400 | Classe principale senza HTML |
+| `src/providers/ChatViewHtml.ts` | ~700 | Template HTML/CSS/JS |
+| `src/providers/ChatViewKanban.ts` | ~200 | Operazioni Kanban |
+| `src/providers/ChatViewMessaging.ts` | ~300 | sendMessage, message handling |
+| `src/models/ModelFetcher.ts` | ~80 | fetchModels, fetchAIToolkitConfig |
+| `src/utils/CustomInstructions.ts` | ~50 | loadCustomInstructions |
+
+**Duplicazione confermata:** 2 set completi login/logout (panel-based linee 393-643, ChatViewProvider linee 1960-2270). Da unificare in AuthService.
+
+**Effort: ~20 ore**
+
+### 3.2 — Split `chat/routes.ts` (2.387 → <800 LOC per file)
+
+| Nuovo File | LOC Stimate | Contenuto |
+|------------|-------------|-----------|
+| `modules/chat/completions.ts` | ~700 | Handler `/completions` (refactored) |
+| `modules/chat/streaming.ts` | ~200 | Utility SSE, tool execution loop condiviso |
+| `modules/chat/conversations.ts` | ~300 | CRUD conversazioni |
+| `modules/chat/models.ts` | ~170 | Listing modelli |
+| `modules/chat/agentic.ts` | ~450 | Handler `/agentic` |
+| `modules/chat/routes.ts` | ~50 | Aggregatore fastify.register() |
+
+**Effort: ~12 ore**
+
+### 3.3 — Split `projects/routes.ts` (1.384 LOC)
+
+Split in: `projectCrud.ts`, `boards.ts`, `cards.ts`, `cardFeatures.ts`, `access.ts`
+
+**Effort: ~6 ore**
+
+### 3.4 — Split `ai/providers.ts` (1.091 LOC)
+
+Un file per provider: OpenAI, Anthropic, Google, Ollama, Custom + AIProviderFactory + types.
+
+**Effort: ~4 ore**
+
+### 3.5 — Split pagine frontend grandi
+
+| Pagina | LOC | Azione |
+|--------|-----|--------|
+| `ChatPage.tsx` (1.293) | Estrarre: `ChatSidebar`, `ChatMessageList`, `ChatInputArea`, hooks custom |
+| `AutoClaudePage.tsx` (1.063) | Estrarre 12 sotto-componenti inline in `pages/auto-claude/` |
+| `UsersGroupsPage.tsx` (912) | Estrarre `UserForm`, `GroupForm`, `Modal` |
+| `MainLayout.tsx` (971) | Estrarre sotto-pannelli |
+
+**Effort: ~12 ore**
+
+### 3.6 — Estrarre utility condivise
+
+- [ ] `sendError(reply, statusCode, message, details?)` — standardizzare le 370 risposte errore
+- [ ] `SSEStream` utility class — deduplicare pattern streaming
+- [ ] Error envelope standard: `{ success: false, error: string, details?: any }`
+
+**Effort: ~4 ore**
+
+---
+
+## FASE 4 — Test Infrastructure Setup (Settimana 5-6)
+
+### 4.1 — Backend Test Infrastructure
+
+**Azioni:**
+- [ ] Installare `@vitest/coverage-v8`
+- [ ] Creare `vitest.config.ts` con coverage thresholds 80%, reporter verbose + html
+- [ ] Creare `test/setup.ts` con mock globali (database, redis, fastify instance)
+- [ ] Creare `test/helpers/` con utility: `createTestFastify()`, `createAuthenticatedRequest()`, `mockDatabase()`
+
+**Effort: ~8 ore**
+
+### 4.2 — Frontend Test Infrastructure
+
+**Azioni:**
+- [ ] Installare: `vitest`, `@testing-library/react`, `@testing-library/jest-dom`, `@testing-library/user-event`, `jsdom`
+- [ ] Creare `vitest.config.ts` per frontend con jsdom environment
+- [ ] Creare `test/setup.ts` con mock per: zustand, react-router, api.ts
+- [ ] Creare test helper per render con provider (auth, router)
+
+**Effort: ~4 ore**
+
+### 4.3 — E2E Test Infrastructure
+
+**Azioni:**
+- [ ] Creare Page Object Model per pagine principali
+- [ ] Creare fixture per: login, utente autenticato, admin autenticato
+- [ ] Configurare test database con seed data
+- [ ] Aggiungere CI pipeline per E2E
+
+**Effort: ~6 ore**
+
+---
+
+## FASE 5 — Test Coverage Sprint (Settimane 6-16)
+
+### 5.1 — Backend Unit Tests — Servizi Critici (Settimane 6-8)
+
+**Priorità 1 — Security-critical (0 test attualmente):**
+
+| Servizio | Test da Scrivere |
+|----------|-----------------|
+| Auth routes | Login, register, refresh, MFA, session management |
+| Auth Google OAuth | OAuth flow, callback, token exchange |
+| PermissionService | RBAC checks, admin-only, user isolation |
+| Crypto utils | Encrypt/decrypt, key derivation |
+
+**Effort: ~20 ore**
+
+**Priorità 2 — Core business logic:**
+
+| Servizio | Test da Scrivere |
+|----------|-----------------|
+| AgentOrchestrator | Orchestration flow, tool routing, error handling |
+| ClaudeAgentService | Agent SDK integration, session management |
+| ToolService | Tool execution, sandboxing, result handling |
+| EmbeddingService | Embedding generation, batch processing |
+| VectorStoreService | Vector search, similarity scoring |
+| HybridSearchService | Search pipeline, ranking |
+
+**Effort: ~30 ore**
+
+**Priorità 3 — Supporto e infrastruttura:**
+
+EventBusService, StorageService, WebSearchService, MCPClientManager, PromptTemplateService, MetricsService, ModelFetcher + 10 altri
+
+**Effort: ~20 ore**
+
+### 5.2 — Backend Integration Tests — Route Modules (Settimane 8-10)
+
+Test con `fastify.inject()` per ogni modulo:
+
+| Modulo | Endpoint | Priorità |
+|--------|----------|----------|
+| chat | 15 | CRITICA |
+| admin/* | 63 | ALTA |
+| agents | 27 | ALTA |
+| auth | 15 | CRITICA |
+| tools | 6 | ALTA |
+| projects | 20 | MEDIA |
+| compliance | 18 | MEDIA |
+| memory | 21 | MEDIA |
+| tutti gli altri | ~60 | BASSA |
+
+**Effort: ~80 ore**
+
+### 5.3 — Frontend Unit Tests (Settimane 10-12)
+
+**Stores/Hooks:** useAuthStore, useAgentStore, api.ts, useAuth, useIdleTimeout — **15 ore**
+**Componenti:** DynamicForm, ConsentModal, FeedbackButtons, MemoryPanel, ecc. — **10 ore**
+**Pagine:** LoginPage, ChatPage, SettingsPage, AdminPage — **15 ore**
+
+### 5.4 — E2E Tests Expansion (Settimane 12-14)
+
+| Flow | Priorità |
+|------|----------|
+| Login completo | CRITICA |
+| Chat message send/receive | CRITICA |
+| File upload + processing | ALTA |
+| Admin user CRUD | ALTA |
+| MFA setup + login | ALTA |
+| Project management | MEDIA |
+| Settings persistence | MEDIA |
+| Agent session | MEDIA |
+| Error handling/recovery | MEDIA |
+| Mobile responsive | BASSA |
+
+**Effort: ~30 ore**
+
+---
+
+## FASE 6 — Security Hardening (Settimane 8-10, parallelo a testing)
+
+### 6.1 — Input Validation Audit
+141 `as` type assertion da sostituire con Zod schema parse. Target: 0 cast non validati su dati utente.
+**Effort: ~16 ore**
+
+### 6.2 — Authorization Audit
+Verificare IDOR su tutti gli endpoint che accedono a risorse per ID. Assicurare `user_id` check.
+**Effort: ~8 ore**
+
+### 6.3 — Rate Limiting Fine-Tuning
+Rate limit per-route su endpoint costosi: chat/completions (30/min), tools/* (20/min), ingestion/* (10/min). Rate limiting per utente (non solo IP).
+**Effort: ~6 ore**
+
+### 6.4 — Security Headers
+Aggiungere `Content-Security-Policy` al frontend. Configurare egress network policy.
+**Effort: ~4 ore**
+
+### 6.5 — Penetration Testing
+OWASP ZAP scan + test manuale su: auth bypass, IDOR, injection, file upload. Verifica isolamento tenant.
+**Effort: ~8 ore**
+
+---
+
+## FASE 7 — Documentazione (Settimane 10-12, parallelo)
+
+### 7.1 — Swagger/OpenAPI in Produzione
+Abilitare Swagger in produzione (read-only, dietro auth). Sincronizzare versione con package.json. Completare schema body/response per tutti i 325 endpoint.
+**Effort: ~12 ore**
+
+### 7.2 — Developer Onboarding Guide
+- `docs/GETTING_STARTED.md` — setup ambiente sviluppo
+- `docs/ARCHITECTURE.md` — overview architettura, diagrammi
+- `docs/API_GUIDE.md` — guida all'uso delle API
+- `docs/DEPLOYMENT.md` — guida deploy e operazioni
+**Effort: ~12 ore**
+
+### 7.3 — Documentazione Operativa
+- `docs/RUNBOOK.md` — procedure per incidenti comuni
+- `docs/BACKUP_RESTORE.md` — procedura backup e restore
+- `docs/MONITORING.md` — dashboard, alert, troubleshooting
+**Effort: ~6 ore**
+
+---
+
+## Timeline Complessiva
+
 ```
-- nomic-embed-text: 137MB, 768 dimensioni, ottimo per RAG locale
-- Alternativa: mxbai-embed-large (1024d, piu' preciso ma piu' lento)
-- **Effort**: 2 minuti
-
-### 1.3 Seed embedding model nel database
-```sql
-INSERT INTO ai_models (provider_id, model_id, display_name, description, model_type,
-  is_enabled, supports_streaming, sort_order)
-VALUES (4, 'nomic-embed-text', 'Nomic Embed Text', 'Embedding model per ricerca semantica (768d)',
-  'embedding', TRUE, FALSE, 1);
-```
-- **Effort**: 5 minuti
-
-### 1.4 Configurare QDRANT_URL nel backend deployment
-- Aggiungere env var `QDRANT_URL=http://qdrant:6333` in `k8s/backend/deployment.yaml`
-- **Effort**: 5 minuti
-
-### 1.5 Fix auth header su Ollama embedding
-- `EmbeddingService.ts` -> aggiungere `X-Ollama-Key` header nella funzione `generateOllamaEmbedding()`
-- Stesso fix gia' applicato a chat e admin
-- **Effort**: 10 minuti
-
-### 1.6 Abilitare Auto-RAG per utenti
-```sql
-UPDATE memory_settings SET auto_rag_enabled = 1 WHERE user_id IN (SELECT id FROM users WHERE role = 'admin');
--- Oppure per tutti:
-UPDATE memory_settings SET auto_rag_enabled = 1;
-```
-- **Effort**: 2 minuti
-
-### 1.7 Creare tabelle DB mancanti (migration)
-```sql
-CREATE TABLE IF NOT EXISTS web_ingestions (...);
-CREATE TABLE IF NOT EXISTS scheduled_jobs (...);
-CREATE TABLE IF NOT EXISTS job_executions (...);
-```
-- **Effort**: 30 minuti
-
----
-
-## FASE 2 — OTTIMIZZAZIONE RETRIEVAL (Settimana 2)
-**Obiettivo**: Migliorare qualita' delle risposte con contesto semantico
-
-### 2.1 Attivare HyDE
-```sql
-INSERT INTO system_settings (setting_key, setting_value)
-VALUES ('hyde_config', '{"enabled":true,"maxTokens":150,"maxQueryLength":500}')
-ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value);
-```
-- Usa un LLM leggero (qwen2.5:3b) per generare risposte ipotetiche
-- Migliora retrieval del 15-25% su query brevi
-
-### 2.2 Tuning parametri recall
-| Collection | K (risultati) | Threshold | Razionale |
-|---|---|---|---|
-| Episodic | 5 | 0.65 | Piu' contesto storico, soglia bassa per catturare piu' conversazioni |
-| Declarative | 5 | 0.60 | Knowledge base: meglio piu' risultati con filtro successivo |
-| Procedural | 3 | 0.80 | Tool selection: serve alta precisione |
-
-### 2.3 Aggiungere reranking (post-retrieval)
-- Dopo recall da Qdrant, secondo passaggio con LLM leggero
-- Riordina risultati per rilevanza reale vs solo similarita' coseno
-- Pattern: retrieve 10 → rerank → keep top 3
-- **Effort**: Alto
-
-### 2.4 Hybrid search (BM25 + vector)
-- Combinare MySQL FULLTEXT (keyword) con Qdrant (semantic)
-- Reciprocal Rank Fusion (RRF) per unire i ranking
-- Migliora recall su query con termini tecnici specifici
-- **Effort**: Alto
-
-### 2.5 Chunk overlap ottimizzato
-- Attuale: 200 chars statico
-- Target: 15-20% della chunk_size (dinamico)
-- Aggiungere sentence-boundary chunking (spezzare a fine frase, non a meta')
-- Aggiungere section-aware chunking (mantenere headers con contenuto)
-- **Effort**: Medio
-
----
-
-## FASE 3 — PERFORMANCE CHAT PER TUTTI I MODELLI (Settimana 2-3)
-**Obiettivo**: Ogni modello risponde al massimo delle sue capacita'
-
-### 3.1 System prompt per famiglia modello
-| Famiglia | Stile Ottimale | Note |
-|---|---|---|
-| Qwen 2.5 | Diretto, strutturato, supporta tool_call | Ottimo per coding |
-| Gemma 2 | Conciso, no markdown pesante | Modello piccolo, prompt brevi |
-| Phi 3/4 | Istruzioni chiare, step-by-step | Buono per ragionamento |
-| GLM 4 | Naturale, NO tools | Non supporta function calling |
-| Mixtral 8x7B | Dettagliato, multilingua | MoE, buono per testi lunghi |
-| Mistral | Bilanciato | Generalista solido |
-| CodeLlama | Solo codice, minimale prose | Specializzato |
-| LLaVA | Multimodale (testo + immagini) | Serve gestione input immagine |
-| DeepSeek Coder v2 | Codice + ragionamento | Ottimo per debug |
-
-### 3.2 Context window adattivo
-- Leggere `context_window` da `ai_models` e adattare:
-  - N. messaggi history (piccolo: 5, grande: 20)
-  - Max chunk context (piccolo: 500 chars, grande: 2000)
-  - Recall K (piccolo: 2, grande: 5)
-- **Effort**: Medio
-
-### 3.3 Light mode per modelli piccoli (< 3B)
-- Prompt system ridotto (< 500 token)
-- No episodic memory injection (troppo contesto)
-- Solo declarative memory (knowledge diretto)
-- Meno tool definitions
-- **Effort**: Medio
-
-### 3.4 Parametri ottimali per modello
-- Salvare nel DB: temperature, top_p, repeat_penalty, num_predict
-- Applicare automaticamente nel provider
-- Default sensibili per famiglia
-- **Effort**: Basso
-
-### 3.5 Timeout adattivo
-- Modelli grandi (Mixtral 47B): 300s
-- Modelli medi (Qwen 7B): 120s
-- Modelli piccoli (< 3B): 60s
-- Leggere da config DB, non hardcodato
-- **Effort**: Basso
-
-### 3.6 Fallback chain automatico
-- Se modello fallisce (timeout/OOM), provare il successivo per priorita'
-- Log del fallback per analisi
-- Notifica utente del cambio modello
-- **Effort**: Medio
-
----
-
-## FASE 4 — INTEGRAZIONE AGENT E PLUGIN (Settimana 3-4)
-**Obiettivo**: Attivare tutti i sistemi agent/plugin gia' implementati
-
-### 4.1 Collegare AgentChainService alla chat pipeline
-**Stato attuale**: Il codice esiste ma non viene chiamato dal chat handler
-**Azione**:
-- Integrare `AgentChainService.execute()` nel flusso chat principale
-- Pipeline: Memory Recall → Procedures Agent → Memory Agent → LLM Call
-- Iniettare contesto richiamato nel system prompt
-- **Effort**: Alto (punto critico)
-
-### 4.2 Attivare Tool Execution nella chat
-**Stato attuale**: ToolService ha 10+ tool built-in ma non vengono passati al LLM
-**Azione**:
-- Passare tool definitions al LLM (per modelli che supportano function calling)
-- Implementare tool execution loop: LLM chiede tool → backend esegue → risultato torna al LLM
-- Rispettare user_tool_permissions per tool approval
-- Loggare in tool_executions per audit
-- **Effort**: Alto
-
-### 4.3 Attivare Conversational Forms nella chat
-**Stato attuale**: Form designer completo, state machine implementata, ma non trigger automatico
-**Azione**:
-- Implementare form trigger detection: confrontare `start_examples` con messaggio utente
-- Quando form attivo: iniettare extraction prompt nel system message
-- Gestire stato: incomplete → complete → wait_confirm → closed
-- Eseguire on_complete_action (save, webhook, plugin_action)
-- **Effort**: Medio
-
-### 4.4 Completare Agent Orchestrator
-**Stato attuale**: 80% — session management, slot tracking, template system
-**Azione**:
-- Implementare PTY/terminal management per agenti code
-- Collegare git worktree operations
-- Merge conflict resolution workflow
-- Task queue processing (agent_task_queue table)
-- **Effort**: Alto
-
-### 4.5 Attivare Claude Agent SDK
-**Stato attuale**: 60% — Service creato, routes SSE definite
-**Azione**:
-- Implementare agent run con MCP server configs dal DB
-- Permission modes (default, acceptEdits, bypassPermissions)
-- Working directory isolation per sessione
-- Streaming risposta SSE al frontend
-- **Effort**: Alto
-
-### 4.6 Integrare Parlant nel flusso chat
-**Stato attuale**: 40% — deployment K8s, proxy routes, UI base
-**Azione**:
-- Configurare API keys reali in K8s secrets
-- Implementare routing conversazione: utente sceglie "Parlant Agent" dal dropdown
-- Sincronizzare guidelines con admin UI
-- Supporto journal/event tracking
-- **Effort**: Alto
-
-### 4.7 Completare Scheduler (White Rabbit)
-**Stato attuale**: 60% — Service in-memory, UI completa
-**Azione**:
-- Creare migration per tabelle `scheduled_jobs` + `job_executions`
-- Implementare DB persistence per jobs
-- Job types: one_shot, interval, cron
-- Action execution: scheduled_message, webhook, hook trigger
-- **Effort**: Medio
-
-### 4.8 Attivare Ralph Loop
-**Stato attuale**: 70% — Service implementato, routes definite
-**Azione**:
-- Completare completion detection logic
-- Aggiungere UI per configurare e lanciare loop iterativi
-- Max iterations safety limit
-- **Effort**: Basso-Medio
-
-### 4.9 Plugin Default: registrare tool built-in come procedural memory
-**Azione**:
-- Al boot, registrare ogni tool built-in in procedural_memory (Qdrant)
-- Quando utente chiede qualcosa, il ProceduresAgent trova il tool semanticamente
-- Elimina necessita' di passare TUTTI i tool al LLM (risparmio token)
-- **Effort**: Basso
-
----
-
-## FASE 5 — BROWSER INTEGRATION (Settimana 4)
-**Obiettivo**: Dare ai modelli la capacita' di navigare il web in modo interattivo
-
-### 5.1 Deploy Browserless in Kubernetes
-- Image: `browserless/chromium:latest` (Headless Chrome as a service)
-- Alternativa: `ghcr.io/nicholasgasior/goproxy-chromedp` (leggero)
-- Port: 3100 (WebSocket + REST API)
-- Resource limits: 1Gi RAM, 1 CPU (Chrome e' pesante)
-- PVC: 500Mi per cache/download
-- **Effort**: Medio
-
-### 5.2 Creare BrowserService
-```typescript
-// backend/src/services/BrowserService.ts
-class BrowserService {
-  // Navigazione
-  async navigateTo(url: string): Promise<PageContent>
-  async takeScreenshot(url: string): Promise<Buffer>
-  async extractContent(url: string, selector?: string): Promise<string>
-
-  // Interazione
-  async clickElement(sessionId: string, selector: string): Promise<void>
-  async fillForm(sessionId: string, fields: Record<string, string>): Promise<void>
-  async executeScript(sessionId: string, script: string): Promise<any>
-
-  // Sessioni (per navigazione multi-step)
-  async createSession(): Promise<string>
-  async closeSession(sessionId: string): Promise<void>
-
-  // Sicurezza
-  private isUrlAllowed(url: string): boolean  // SSRF protection
-  private sanitizeScript(script: string): string
-}
-```
-- **Effort**: Alto
-
-### 5.3 Registrare Browser Tools
-- `browse_url` — Naviga a URL, estrai contenuto testuale
-- `take_screenshot` — Screenshot pagina (ritorna immagine per LLaVA)
-- `fill_web_form` — Compila form su pagina web
-- `click_link` — Clicca un link/bottone su pagina web
-- `extract_table` — Estrai tabelle HTML come JSON/CSV
-- `search_and_browse` — Web search + naviga al primo risultato
-- **Effort**: Medio
-
-### 5.4 Integrazione con modelli multimodali
-- LLaVA puo' "vedere" screenshot e descrivere contenuto
-- Pipeline: browse → screenshot → LLaVA analizza → risposta testuale
-- Utile per: verificare layout, leggere grafici, OCR pagine web
-- **Effort**: Medio
-
-### 5.5 Sicurezza browser
-- Whitelist domini (configurabile da admin)
-- Rate limiting: max 10 navigazioni/minuto per utente
-- Timeout: 30s per pagina
-- Sandbox: no accesso a filesystem/rete interna
-- Blocco URL interni (10.*, 192.168.*, localhost)
-- **Effort**: Basso
-
----
-
-## FASE 6 — MCP (Model Context Protocol) INTEGRATION (Settimana 4-5)
-**Obiettivo**: Permettere agli utenti di connettere servizi esterni tramite MCP
-
-### 6.1 Implementare MCP Client Manager
-```typescript
-// backend/src/services/MCPClientManager.ts
-class MCPClientManager {
-  private connections: Map<number, MCPConnection>
-
-  // Lifecycle
-  async connectServer(serverId: number): Promise<void>
-  async disconnectServer(serverId: number): Promise<void>
-  async disconnectAll(): Promise<void>
-
-  // Tool discovery
-  async listTools(serverId: number): Promise<MCPTool[]>
-  async listResources(serverId: number): Promise<MCPResource[]>
-
-  // Execution
-  async callTool(serverId: number, toolName: string, args: any): Promise<any>
-  async readResource(serverId: number, uri: string): Promise<any>
-
-  // Health
-  async healthCheck(serverId: number): Promise<boolean>
-}
-```
-- **Effort**: Alto
-
-### 6.2 Supportare trasporti MCP
-| Trasporto | Uso | Implementazione |
-|---|---|---|
-| stdio | Server locali (memory, filesystem) | Spawn child process |
-| SSE | Server remoti HTTP | EventSource client |
-| WebSocket | Server remoti real-time | ws client |
-- Il DB `mcp_servers` supporta gia' tutti e 3 i trasporti
-- **Effort**: Medio
-
-### 6.3 Integrare MCP tools nella chat
-- Al login, caricare MCP servers abilitati per l'utente
-- Scoprire tool disponibili da ogni server
-- Unire ai tool built-in nella tool list
-- Quando LLM chiama un MCP tool: MCPClientManager.callTool()
-- Risultato torna al LLM come tool_result
-- **Effort**: Alto
-
-### 6.4 MCP Servers consigliati da pre-configurare
-| Server | Scopo | Trasporto |
-|---|---|---|
-| `memory` (gia' implementato) | Ricerca osservazioni memoria | stdio |
-| `filesystem` | Accesso file progetto utente | stdio |
-| `brave-search` | Ricerca web avanzata | stdio |
-| `github` | Issues, PR, repo browsing | stdio |
-| `sqlite` | Query database locali | stdio |
-| `google-drive` | Accesso documenti Google | SSE |
-| `slack` | Messaggi e canali Slack | SSE |
-| `postgres/mysql` | Query database esterni | stdio |
-- **Effort**: Medio (configurazione admin UI gia' esistente)
-
-### 6.5 UI per gestione MCP
-- Admin: pagina gia' esistente per CRUD server
-- Utente: toggle per abilitare/disabilitare server accessibili
-- Chat: indicatore visivo dei server MCP attivi nella sessione
-- Tool results: visualizzazione formattata nel messaggio
-- **Effort**: Medio
-
-### 6.6 MCP per richieste utente personalizzate
-- Permettere agli utenti (con permessi) di registrare i propri MCP server
-- Template pre-configurati per servizi comuni (GitHub, Google Drive, ecc.)
-- Validazione connessione con test automatico
-- Sandbox: limitare tool disponibili per ruolo utente
-- **Effort**: Medio
-
----
-
-## FASE 7 — KNOWLEDGE BASE E DOCUMENT MANAGEMENT (Settimana 5)
-**Obiettivo**: Popolare la memoria dichiarativa con knowledge aziendale
-
-### 7.1 UI per upload documenti nella RabbitHole
-- Pagina admin/utente per caricare PDF/DOCX/TXT
-- Progress bar WebSocket durante ingestion
-- Visualizzazione chunks creati e vettori generati
-- **Effort**: Alto
-
-### 7.2 Auto-ingest da conversazioni (gia' collegato)
-- `storeEpisodic()` e' gia' chiamato dopo ogni chat
-- Si attiva automaticamente con Qdrant + embeddings funzionanti
-- **Effort**: 0 (gia' implementato)
-
-### 7.3 Web scraping per knowledge
-- Importare contenuti da URL → text → chunk → embed → store in declarative
-- WebScraperService gia' implementato
-- Collegare alla RabbitHole pipeline
-- **Effort**: Basso (componenti gia' pronti)
-
-### 7.4 Gestione collections
-- UI per visualizzare/svuotare/esportare collections Qdrant
-- Endpoint gia' esistenti (wipeCollection, getAllCollectionsInfo, export/import)
-- **Effort**: Medio (solo frontend)
-
-### 7.5 Memory decay
-- Ridurre gradualmente peso memorie episodiche vecchie
-- Decay esponenziale su importance score
-- Cleanup automatico memorie con score < threshold
-- **Effort**: Basso
-
-### 7.6 Semantic deduplication
-- Prima di inserire nuova memoria, cercare duplicati simili (cosine > 0.95)
-- Unire contenuti duplicati invece di creare entry separate
-- **Effort**: Medio
-
----
-
-## FASE 8 — MONITORING E ANALYTICS (Settimana 5)
-**Obiettivo**: Misurare e migliorare continuamente
-
-### 8.1 Dashboard memorie nel metrics
-- Conteggio vettori per collection (episodic, declarative, procedural)
-- Hit rate recall (% query con risultati utili)
-- Average similarity score per collection
-- **Effort**: Medio
-
-### 8.2 Recall quality tracking
-- Loggare ogni recall: query, risultati, scores, tempo
-- Analisi offline qualita' retrieval
-- **Effort**: Basso
-
-### 8.3 A/B testing RAG vs no-RAG
-- Toggle per attivare/disattivare Auto-RAG per singola conversazione
-- Confrontare qualita' risposte con e senza contesto
-- **Effort**: Medio
-
-### 8.4 Token usage per componente
-- Tracciare separatamente: system prompt, context, memory injection, HyDE, user message
-- Visualizzare breakdown nel metrics
-- **Effort**: Basso
-
-### 8.5 Agent execution analytics
-- Tempo medio per agent session
-- Success rate per tipo di agent
-- Tool usage frequency
-- Form completion rate
-- **Effort**: Medio
-
----
-
-## PIANO TEMPORALE CONSIGLIATO
-
-```
-SETTIMANA 1:  FASE 1 (infrastruttura vector) — CRITICA, sblocca tutto
-              ├── 1.1 Deploy Qdrant
-              ├── 1.2-1.3 Embedding model
-              ├── 1.4-1.5 Config + fix auth
-              ├── 1.6 Abilitare Auto-RAG
-              └── 1.7 Migration tabelle mancanti
-
-SETTIMANA 2:  FASE 2 (retrieval) + FASE 3 (performance)
-              ├── 2.1-2.2 HyDE + tuning
-              ├── 3.4-3.5 Parametri modello + timeout
-              └── 3.2 Context window adattivo
-
-SETTIMANA 3:  FASE 4 (agent/plugin) — prima meta'
-              ├── 4.1 AgentChain → chat pipeline
-              ├── 4.2 Tool execution nella chat
-              ├── 4.3 Conversational Forms trigger
-              └── 4.9 Procedural memory registration
-
-SETTIMANA 4:  FASE 4 (agent/plugin) — seconda meta' + FASE 5 (browser)
-              ├── 4.4-4.5 Agent Orchestrator + Claude SDK
-              ├── 5.1-5.2 Browserless + BrowserService
-              └── 5.3 Browser tools registration
-
-SETTIMANA 5:  FASE 6 (MCP) + FASE 7 (knowledge) + FASE 8 (monitoring)
-              ├── 6.1-6.3 MCP Client Manager + chat integration
-              ├── 6.4-6.6 MCP servers pre-configurati
-              ├── 7.1 UI upload documenti
-              └── 8.1-8.5 Dashboard + analytics
-
-POST-LAUNCH:  FASE 2 avanzata (2.3-2.5 reranking, hybrid search)
-              FASE 3 avanzata (3.1 system prompt per modello, 3.6 fallback chain)
-              FASE 4 restante (4.6 Parlant, 4.7 Scheduler, 4.8 Ralph)
-              FASE 7 (7.5-7.6 memory decay, dedup)
+Settimana  1:  ████ FASE 0 — Security fix immediati (4h)
+Settimana  2:  ████████████ FASE 1 — Production readiness (16h)
+Settimana  3:  ████████████ FASE 1 + FASE 2 performance (15h)
+Settimana  4:  ████████████████ FASE 2 completamento + FASE 3 inizio refactoring (16h)
+Settimana  5:  ████████████████████ FASE 3 refactoring extension.ts + chat/routes (20h)
+Settimana  6:  ████████████████ FASE 3 completamento + FASE 4 test infra (16h)
+Settimana  7:  ████████████████████ FASE 5.1 — test servizi critici (20h)
+Settimana  8:  ████████████████████ FASE 5.1 + FASE 6.1 security audit (20h)
+Settimana  9:  ████████████████████████ FASE 5.2 — integration test (24h)
+Settimana 10:  ████████████████████████ FASE 5.2 + FASE 6 + FASE 7 (24h)
+Settimana 11:  ████████████████████ FASE 5.3 — frontend tests + FASE 7 (20h)
+Settimana 12:  ████████████████████ FASE 5.3 completamento + FASE 7 (20h)
+Settimana 13:  ████████████████ FASE 5.4 — E2E tests (16h)
+Settimana 14:  ████████████████ FASE 5.4 completamento + fix finali (16h)
+Settimana 15:  ████████████ Verifica coverage, penetration test (12h)
+Settimana 16:  ████████ Review finale, documentazione (8h)
 ```
 
 ---
 
-## DIPENDENZE CRITICHE
+## Dipendenze tra Fasi
 
 ```
-Qdrant (Fase 1.1)
-  └── Embedding Model (Fase 1.2-1.3)
-       └── Auto-RAG (Fase 1.6)
-            ├── Episodic Memory (auto)
-            ├── Declarative Memory (Fase 7)
-            ├── Procedural Memory (Fase 4.9)
-            ├── HyDE (Fase 2.1)
-            └── AgentChain (Fase 4.1)
-                 ├── Tool Execution (Fase 4.2)
-                 ├── Form Trigger (Fase 4.3)
-                 └── MCP Integration (Fase 6.3)
-
-Browserless (Fase 5.1)
-  └── BrowserService (Fase 5.2)
-       └── Browser Tools (Fase 5.3)
-            └── Multimodal (Fase 5.4)
-
-MCPClientManager (Fase 6.1)
-  └── MCP Transports (Fase 6.2)
-       └── Chat Integration (Fase 6.3)
-            └── MCP Servers (Fase 6.4-6.6)
+FASE 0 (Security Fix) ──→ tutto il resto
+                            │
+FASE 1 (Prod Ready) ───────┤
+                            │
+FASE 2 (Performance) ──────┤
+                            │
+FASE 3 (Refactoring) ──────┼──→ FASE 5 (Testing)
+                            │        │
+FASE 4 (Test Infra) ───────┘        │
+                                     ├──→ Coverage 80%+
+FASE 6 (Security) ──────────────────┤
+                                     │
+FASE 7 (Docs) ──────────────────────┘
 ```
+
+**Note critiche:**
+- FASE 3 (Refactoring) DEVE precedere FASE 5 (Testing) per i file >800 LOC
+- FASE 4 (Test Infra) è prerequisito per FASE 5
+- FASE 6 (Security) e FASE 7 (Docs) possono procedere in parallelo con il testing
 
 ---
 
-## NOTE ARCHITETTURALI
+## Metriche di Successo
 
-### Modelli di Embedding Consigliati
-| Modello | Dimensioni | Size | Provider | Qualita' | Costo |
-|---|---|---|---|---|---|
-| nomic-embed-text | 768 | 137MB | Ollama (locale) | Buona | Gratuito |
-| mxbai-embed-large | 1024 | 670MB | Ollama (locale) | Molto buona | Gratuito |
-| text-embedding-3-small | 1536 | API | OpenAI | Ottima | $0.02/1M token |
-| text-embedding-3-large | 3072 | API | OpenAI | Eccellente | $0.13/1M token |
+| Milestone | Criterio | Target |
+|-----------|----------|--------|
+| M1 — Security Clean | 0 endpoint senza auth, 0 IDOR | Fine Settimana 1 |
+| M2 — Prod Ready | Backup funzionante, health check con dipendenze, monitoring base | Fine Settimana 3 |
+| M3 — Performance | Lighthouse score >90, lazy loading attivo, cache statica | Fine Settimana 4 |
+| M4 — Refactoring | 0 file >800 LOC | Fine Settimana 6 |
+| M5 — Test 50% | Coverage backend >50%, frontend >30% | Fine Settimana 10 |
+| M6 — Security Audit | Penetration test superato, 0 cast non validati | Fine Settimana 12 |
+| M7 — Docs Complete | Swagger in prod, onboarding guide, runbook | Fine Settimana 12 |
+| M8 — Test 80% | Coverage globale >80%, E2E flow critici | Fine Settimana 16 |
 
-**Raccomandazione**: Partire con `nomic-embed-text` (locale, gratuito, veloce).
-Passare a `mxbai-embed-large` se la qualita' del retrieval non e' sufficiente.
+---
 
-### Ispirazione Cheshire Cat AI
-Il sistema segue l'architettura del [Cheshire Cat](https://cheshire-cat-ai.github.io/docs/):
-- **Qdrant** come vector database
-- **3 collections** (episodic, declarative, procedural)
-- **Hookable pipeline** (23 hook points)
-- **Mad Hatter** (plugin loader)
-- **Rabbit Hole** (document ingestion)
-- **White Rabbit** (scheduler)
-- **HyDE** per improved retrieval
-- **Working Memory** per stato sessione
-
-La differenza principale e' che il Cheshire Cat usa Python + LangChain,
-mentre enterprise-ai-chat usa TypeScript + Fastify con implementazione nativa.
+*Documento generato dall'analisi automatica del codebase il 2026-03-01.*
+*Aggiornare questo documento ad ogni milestone raggiunta.*

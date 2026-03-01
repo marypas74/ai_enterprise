@@ -4,6 +4,7 @@ import { AIProviderFactory, ProviderType } from '../modules/ai/providers.js';
 import { fetchAllModels } from './ModelFetcher.js';
 import { getOllamaModelSyncService } from './OllamaModelSyncService.js';
 import { decrypt as decryptSecret } from '../utils/crypto.js';
+import { inferModelCapabilities } from '../utils/model-capabilities.js';
 
 export class LLMSyncWorker {
     private fastify: FastifyInstance;
@@ -237,12 +238,15 @@ export class LLMSyncWorker {
                     ? `${installed.details.parameter_size || ''} ${installed.details.quantization_level || ''}`.trim()
                     : `Discovered from Ollama`;
 
+                const caps = inferModelCapabilities(installed.name);
                 await this.fastify.db.execute(
-                    `INSERT INTO ai_models (provider_id, model_id, display_name, description, model_type, supports_streaming, is_enabled, sort_order)
-                     VALUES (?, ?, ?, ?, 'chat', TRUE, FALSE, 999)`,
-                    [ollamaProvider.id, installed.name, displayName, desc]
+                    `INSERT INTO ai_models (provider_id, model_id, display_name, description, model_type,
+                     supports_streaming, supports_functions, supports_vision, supports_thinking, is_enabled, sort_order)
+                     VALUES (?, ?, ?, ?, 'chat', ?, ?, ?, ?, FALSE, 999)`,
+                    [ollamaProvider.id, installed.name, displayName, desc,
+                     caps.supports_streaming, caps.supports_functions, caps.supports_vision, caps.supports_thinking]
                 );
-                this.fastify.log.info(`[LLMSyncWorker] Discovered new Ollama model: ${installed.name} (added as disabled)`);
+                this.fastify.log.info(`[LLMSyncWorker] Discovered new Ollama model: ${installed.name} (tools=${caps.supports_functions}, vision=${caps.supports_vision}, thinking=${caps.supports_thinking})`);
             }
         }
     }
@@ -316,13 +320,16 @@ export class LLMSyncWorker {
                     );
                     this.fastify.log.info(`[LLMSyncWorker] Updated obsolete model ID: "${obsolete.model_id}" → "${model.id}" (${model.name})`);
                 } else {
+                    const caps = inferModelCapabilities(model.id);
                     await this.fastify.db.execute(
-                        `INSERT INTO ai_models (provider_id, model_id, display_name, description, model_type, supports_streaming, supports_functions, is_enabled)
-                         VALUES (?, ?, ?, ?, 'chat', TRUE, TRUE, TRUE)`,
-                        [provider.id, model.id, model.name, model.description || `From ${model.provider}`]
+                        `INSERT INTO ai_models (provider_id, model_id, display_name, description, model_type,
+                         supports_streaming, supports_functions, supports_vision, supports_thinking, is_enabled)
+                         VALUES (?, ?, ?, ?, 'chat', ?, ?, ?, ?, TRUE)`,
+                        [provider.id, model.id, model.name, model.description || `From ${model.provider}`,
+                         caps.supports_streaming, caps.supports_functions, caps.supports_vision, caps.supports_thinking]
                     );
                     addedCount++;
-                    this.fastify.log.info(`[LLMSyncWorker] Added new model: ${model.provider}/${model.id} (${model.name})`);
+                    this.fastify.log.info(`[LLMSyncWorker] Added new model: ${model.provider}/${model.id} (${model.name}) [tools=${caps.supports_functions}, vision=${caps.supports_vision}]`);
                 }
             } else if (!existing.is_enabled) {
                 // Re-enable models that were disabled when their provider was off

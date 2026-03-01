@@ -56,7 +56,11 @@
 
 /* Markdown styles */
 .prose pre {
-  @apply bg-surface-900 dark:bg-surface-950 rounded-lg overflow-x-auto;
+  @apply bg-surface-900 dark:bg-surface-950 rounded-lg overflow-x-auto text-surface-100 dark:text-surface-200;
+}
+
+.prose pre code {
+  @apply font-mono text-sm text-inherit;
 }
 
 .prose code {

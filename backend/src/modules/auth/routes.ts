@@ -46,7 +46,12 @@ const registerSchema = z.object({
 
 const loginSchema = z.object({
   email: z.string().email(),
-  password: z.string()
+  password: z.string(),
+  totp_code: z.string().optional()
+});
+
+const mfaCodeSchema = z.object({
+  totp_code: z.string().min(6).max(6)
 });
 
 // Types
@@ -72,6 +77,13 @@ interface RefreshToken {
 export async function authRoutes(fastify: FastifyInstance) {
   // Register
   fastify.post('/register', {
+    config: {
+      // Strict rate limit on registration (prevent mass account creation)
+      rateLimit: {
+        max: 5,
+        timeWindow: 300000, // 5 attempts per 5 minutes per IP
+      },
+    },
     schema: {
       description: 'Register a new user',
       tags: ['auth'],
@@ -166,7 +178,7 @@ export async function authRoutes(fastify: FastifyInstance) {
     }
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
-      const body = request.body as { email: string; password: string; totp_code?: string };
+      const body = loginSchema.parse(request.body);
 
       // Find user
       const user = await findOne<User>(
@@ -332,6 +344,13 @@ export async function authRoutes(fastify: FastifyInstance) {
 
   // Refresh token
   fastify.post('/refresh', {
+    config: {
+      // Rate limit token refresh to prevent abuse
+      rateLimit: {
+        max: 30,
+        timeWindow: 60000, // 30 per minute per IP
+      },
+    },
     schema: {
       description: 'Refresh access token',
       tags: ['auth']
@@ -518,8 +537,9 @@ export async function authRoutes(fastify: FastifyInstance) {
       }
     }
   }, async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
     const payload = request.user as { id: number };
-    const { totp_code } = request.body as { totp_code: string };
+    const { totp_code } = mfaCodeSchema.parse(request.body);
 
     const user = await findOne<User>(
       fastify.db,
@@ -563,6 +583,12 @@ export async function authRoutes(fastify: FastifyInstance) {
       success: true,
       message: 'MFA enabled successfully. You will need the TOTP code for future logins.'
     };
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return reply.status(400).send({ error: 'Validation failed', details: err.errors });
+      }
+      throw err;
+    }
   });
 
   // MFA Disable
@@ -581,8 +607,9 @@ export async function authRoutes(fastify: FastifyInstance) {
       }
     }
   }, async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
     const payload = request.user as { id: number };
-    const { totp_code } = request.body as { totp_code: string };
+    const { totp_code } = mfaCodeSchema.parse(request.body);
 
     const user = await findOne<User>(
       fastify.db,
@@ -622,6 +649,12 @@ export async function authRoutes(fastify: FastifyInstance) {
       success: true,
       message: 'MFA has been disabled'
     };
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return reply.status(400).send({ error: 'Validation failed', details: err.errors });
+      }
+      throw err;
+    }
   });
 
   // ===================== ADMIN SESSION ENDPOINTS =====================

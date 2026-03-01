@@ -6,9 +6,28 @@
  */
 
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { z } from 'zod';
 import { findMany } from '../../database/index.js';
 import { scrapeUrl } from '../../services/WebScraperService.js';
 import { RabbitHoleService } from '../../services/RabbitHoleService.js';
+
+// Validation schemas
+const ingestUrlSchema = z.object({
+  url: z.string().min(1),
+  conversationId: z.number().optional(),
+  chunkSize: z.number().optional(),
+  chunkOverlap: z.number().optional(),
+});
+
+const ingestTextSchema = z.object({
+  text: z.string().min(30),
+  title: z.string().min(1),
+  conversationId: z.number().optional(),
+});
+
+const importMemorySchema = z.object({
+  points: z.array(z.any()).min(1),
+});
 
 export async function ingestionRoutes(fastify: FastifyInstance) {
   // Ingest a URL into declarative memory (hookable pipeline)
@@ -21,13 +40,18 @@ export async function ingestionRoutes(fastify: FastifyInstance) {
     },
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const user = request.user as { id: number };
-    const { url, conversationId, chunkSize, chunkOverlap } = request.body as {
-      url: string; conversationId?: number; chunkSize?: number; chunkOverlap?: number;
-    };
 
-    if (!url || typeof url !== 'string') {
-      return reply.status(400).send({ error: 'URL is required' });
+    let body: z.infer<typeof ingestUrlSchema>;
+    try {
+      body = ingestUrlSchema.parse(request.body);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return reply.status(400).send({ error: 'Validation failed', details: err.errors });
+      }
+      throw err;
     }
+
+    const { url, conversationId, chunkSize, chunkOverlap } = body;
 
     // Basic URL validation
     try {
@@ -84,16 +108,18 @@ export async function ingestionRoutes(fastify: FastifyInstance) {
     },
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const user = request.user as { id: number };
-    const { text, title, conversationId } = request.body as {
-      text: string; title: string; conversationId?: number;
-    };
 
-    if (!text || text.length < 30) {
-      return reply.status(400).send({ error: 'Text must be at least 30 characters' });
+    let body: z.infer<typeof ingestTextSchema>;
+    try {
+      body = ingestTextSchema.parse(request.body);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return reply.status(400).send({ error: 'Validation failed', details: err.errors });
+      }
+      throw err;
     }
-    if (!title) {
-      return reply.status(400).send({ error: 'Title is required' });
-    }
+
+    const { text, title, conversationId } = body;
 
     const rabbitHole = new RabbitHoleService(fastify, fastify.db);
     const result = await rabbitHole.ingestText(text, title, user.id, conversationId);
@@ -159,15 +185,20 @@ export async function ingestionRoutes(fastify: FastifyInstance) {
     },
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { collection } = request.params as { collection: string };
-    const body = request.body as { points?: any[] };
 
     const valid = ['episodic_memory', 'declarative_memory', 'procedural_memory'];
     if (!valid.includes(collection)) {
       return reply.status(400).send({ error: `Invalid collection. Must be one of: ${valid.join(', ')}` });
     }
 
-    if (!body.points || !Array.isArray(body.points) || body.points.length === 0) {
-      return reply.status(400).send({ error: 'Request body must contain a "points" array' });
+    let body: z.infer<typeof importMemorySchema>;
+    try {
+      body = importMemorySchema.parse(request.body);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return reply.status(400).send({ error: 'Validation failed', details: err.errors });
+      }
+      throw err;
     }
 
     const rabbitHole = new RabbitHoleService(fastify, fastify.db);

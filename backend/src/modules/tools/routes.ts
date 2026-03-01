@@ -23,6 +23,7 @@ if (!existsSync(GENERATED_DIR)) {
 export async function toolsRoutes(fastify: FastifyInstance) {
     // POST: Generate and save file
     fastify.post('/tools/generate-docx', {
+        onRequest: [(fastify as any).authenticate],
         schema: {
             tags: ['Tools'],
             description: 'Generate a DOCX file from text content',
@@ -61,6 +62,7 @@ export async function toolsRoutes(fastify: FastifyInstance) {
 
     // POST: Generate Excel
     fastify.post('/tools/generate-excel', {
+        onRequest: [(fastify as any).authenticate],
         schema: {
             tags: ['Tools'],
             description: 'Generate an Excel file from JSON data',
@@ -107,6 +109,7 @@ export async function toolsRoutes(fastify: FastifyInstance) {
 
     // POST: Generate PowerPoint
     fastify.post('/tools/generate-pptx', {
+        onRequest: [(fastify as any).authenticate],
         schema: {
             tags: ['Tools'],
             description: 'Generate a PowerPoint file from JSON slides',
@@ -131,7 +134,14 @@ export async function toolsRoutes(fastify: FastifyInstance) {
         }
     }, async (request, reply) => {
         try {
-            const { slides, title } = request.body as { slides: any[], title?: string };
+            const pptxSchema = z.object({
+                slides: z.array(z.object({
+                    title: z.string(),
+                    content: z.string()
+                })).min(1),
+                title: z.string().optional()
+            });
+            const { slides, title } = pptxSchema.parse(request.body);
             // AI Act Art. 50.2: add disclosure slide
             const slidesWithDisclosure = [
               ...slides,
@@ -162,6 +172,7 @@ export async function toolsRoutes(fastify: FastifyInstance) {
     // If the USER wants to convert an EXISTING file, they normally upload it first.
     // Let's implement a route that takes an attachment ID to convert.
     fastify.post('/tools/convert-to-pdf', {
+        onRequest: [(fastify as any).authenticate],
         schema: {
             tags: ['Tools'],
             description: 'Convert an existing attachment (DOCX, XLSX, PPTX) to PDF',
@@ -175,13 +186,16 @@ export async function toolsRoutes(fastify: FastifyInstance) {
         }
     }, async (request, reply) => {
         try {
-            const { attachment_id } = request.body as { attachment_id: number };
+            const convertSchema = z.object({
+                attachment_id: z.number().int().positive()
+            });
+            const { attachment_id } = convertSchema.parse(request.body);
+            const user = request.user as { id: number };
 
-            // Fetch attachment from DB to get path
-            // We need access to the DB. Fastify instance has it.
+            // Fetch attachment from DB with user ownership check (IDOR protection)
             const attachment = await fastify.db.query(
-                'SELECT * FROM chat_attachments WHERE id = ?', [attachment_id]
-            ).then((res: any) => res[0]?.[0]); // Accessing raw mysql2 result: [rows, fields]
+                'SELECT * FROM chat_attachments WHERE id = ? AND user_id = ?', [attachment_id, user.id]
+            ).then((res: any) => res[0]?.[0]);
 
             if (!attachment) {
                 return reply.status(404).send({ error: 'Attachment not found' });
@@ -345,6 +359,7 @@ export async function toolsRoutes(fastify: FastifyInstance) {
 
     // GET: Download file
     fastify.get('/tools/download/:filename', {
+        onRequest: [(fastify as any).authenticate],
         schema: {
             tags: ['Tools'],
             params: {

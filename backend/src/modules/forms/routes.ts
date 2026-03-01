@@ -1,6 +1,51 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { z } from 'zod';
 import { findOne, findAll, insertOne, updateOne } from '../../database/index.js';
 import { ConversationalFormService } from '../../services/ConversationalFormService.js';
+
+// Validation schemas
+const idParamSchema = z.object({ id: z.string().regex(/^\d+$/, 'ID must be numeric') });
+
+const createFormSchema = z.object({
+  name: z.string().min(1).max(200),
+  display_name: z.string().min(1).max(200),
+  description: z.string().max(2000).optional().nullable(),
+  json_schema: z.record(z.any()),
+  start_examples: z.array(z.string()).optional().nullable(),
+  stop_examples: z.array(z.string()).optional().nullable(),
+  ask_confirm: z.boolean().optional().default(true),
+  on_complete_action: z.string().max(100).optional().default('save'),
+  on_complete_config: z.record(z.any()).optional().nullable(),
+  plugin_id: z.number().optional().nullable(),
+  is_enabled: z.boolean().optional().default(true),
+});
+
+const updateFormSchema = z.record(z.any()).refine(
+  (obj) => Object.keys(obj).length > 0,
+  { message: 'At least one field is required' }
+);
+
+const startSessionSchema = z.object({
+  form_id: z.number().int().positive(),
+  conversation_id: z.number().int().positive(),
+});
+
+const processFormSchema = z.object({
+  extracted_data: z.record(z.any()),
+});
+
+const confirmFormSchema = z.object({
+  confirmed: z.boolean(),
+});
+
+const activeSessionQuerySchema = z.object({
+  conversation_id: z.string().regex(/^\d+$/, 'conversation_id must be numeric').optional(),
+});
+
+const listSessionsQuerySchema = z.object({
+  state: z.string().max(50).optional(),
+  limit: z.string().regex(/^\d+$/).optional(),
+});
 
 export async function formRoutes(fastify: FastifyInstance) {
   const formService = new ConversationalFormService(fastify.db);
@@ -21,14 +66,14 @@ export async function formRoutes(fastify: FastifyInstance) {
   });
 
   fastify.get('/definitions/:id', async (request: FastifyRequest, reply: FastifyReply) => {
-    const { id } = request.params as { id: string };
+    const { id } = idParamSchema.parse(request.params);
     const form = await findOne(fastify.db, 'SELECT * FROM conversational_forms WHERE id = ?', [id]);
     if (!form) return reply.status(404).send({ error: 'Form not found' });
     return { form: parseFormJson(form) };
   });
 
   fastify.post('/definitions', { onRequest: [adminOnly] }, async (request: FastifyRequest, reply: FastifyReply) => {
-    const body = request.body as any;
+    const body = createFormSchema.parse(request.body);
     const id = await insertOne(fastify.db,
       `INSERT INTO conversational_forms (name, display_name, description, json_schema, start_examples, stop_examples, ask_confirm, on_complete_action, on_complete_config, plugin_id, is_enabled)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -48,8 +93,8 @@ export async function formRoutes(fastify: FastifyInstance) {
   });
 
   fastify.patch('/definitions/:id', { onRequest: [adminOnly] }, async (request: FastifyRequest, reply: FastifyReply) => {
-    const { id } = request.params as { id: string };
-    const body = request.body as Record<string, any>;
+    const { id } = idParamSchema.parse(request.params);
+    const body = updateFormSchema.parse(request.body);
 
     const sets: string[] = [];
     const vals: any[] = [];
@@ -72,7 +117,7 @@ export async function formRoutes(fastify: FastifyInstance) {
   });
 
   fastify.delete('/definitions/:id', { onRequest: [adminOnly] }, async (request: FastifyRequest) => {
-    const { id } = request.params as { id: string };
+    const { id } = idParamSchema.parse(request.params);
     await fastify.db.execute('DELETE FROM conversational_forms WHERE id = ?', [id]);
     return { success: true };
   });
@@ -82,7 +127,7 @@ export async function formRoutes(fastify: FastifyInstance) {
   // Get active session for current conversation
   fastify.get('/sessions/active', async (request: FastifyRequest, reply: FastifyReply) => {
     const user = request.user as { id: number };
-    const q = request.query as { conversation_id?: string };
+    const q = activeSessionQuerySchema.parse(request.query);
     if (!q.conversation_id) return reply.status(400).send({ error: 'conversation_id required' });
 
     const session = await formService.getActiveSession(user.id, parseInt(q.conversation_id));
@@ -95,7 +140,7 @@ export async function formRoutes(fastify: FastifyInstance) {
   // Start a new form session
   fastify.post('/sessions/start', async (request: FastifyRequest, reply: FastifyReply) => {
     const user = request.user as { id: number };
-    const body = request.body as { form_id: number; conversation_id: number };
+    const body = startSessionSchema.parse(request.body);
 
     try {
       const session = await formService.startSession(user.id, body.conversation_id, body.form_id);
@@ -115,8 +160,8 @@ export async function formRoutes(fastify: FastifyInstance) {
   // Process message in active form
   fastify.post('/sessions/:id/process', async (request: FastifyRequest, reply: FastifyReply) => {
     const user = request.user as { id: number };
-    const { id } = request.params as { id: string };
-    const body = request.body as { extracted_data: Record<string, any> };
+    const { id } = idParamSchema.parse(request.params);
+    const body = processFormSchema.parse(request.body);
 
     if (!await verifySessionOwnership(parseInt(id), user.id)) {
       return reply.status(403).send({ error: 'Access denied' });
@@ -133,8 +178,8 @@ export async function formRoutes(fastify: FastifyInstance) {
   // Confirm / reject form
   fastify.post('/sessions/:id/confirm', async (request: FastifyRequest, reply: FastifyReply) => {
     const user = request.user as { id: number };
-    const { id } = request.params as { id: string };
-    const body = request.body as { confirmed: boolean };
+    const { id } = idParamSchema.parse(request.params);
+    const body = confirmFormSchema.parse(request.body);
 
     if (!await verifySessionOwnership(parseInt(id), user.id)) {
       return reply.status(403).send({ error: 'Access denied' });

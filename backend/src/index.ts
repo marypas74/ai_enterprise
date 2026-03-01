@@ -414,8 +414,30 @@ const appPlugin = fp(async function (fastify) {
     });
   });
 
-  // Health check
-  fastify.get('/health', async () => ({ status: 'ok', timestamp: new Date().toISOString() }));
+  // Health check — verifies DB and Redis connectivity
+  fastify.get('/health', async (request, reply) => {
+    const checks: Record<string, string> = { status: 'ok', timestamp: new Date().toISOString() };
+    try {
+      await fastify.db.query('SELECT 1');
+      checks.database = 'ok';
+    } catch {
+      checks.database = 'error';
+      checks.status = 'degraded';
+    }
+    try {
+      if ((fastify as any).redis) {
+        await (fastify as any).redis.ping();
+        checks.redis = 'ok';
+      } else {
+        checks.redis = 'not_configured';
+      }
+    } catch {
+      checks.redis = 'error';
+      checks.status = 'degraded';
+    }
+    const statusCode = checks.status === 'ok' ? 200 : 503;
+    return reply.status(statusCode).send(checks);
+  });
 
   // Version endpoint - reads app_version from system_settings (single source of truth)
   const BUILD_TIME = new Date().toISOString();
@@ -459,13 +481,16 @@ async function bootstrap() {
     max: parseInt(process.env.RATE_LIMIT_MAX || '100'),
     timeWindow: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000'),
     allowList: (request) => {
-      // Exclude health, version, admin, and WebSocket endpoints from rate limiting
+      // Exclude health, version, and WebSocket endpoints from rate limiting
       const url = request.url;
       if (url === '/health' || url === '/version' || url.startsWith('/api/version')) return true;
       if (url.startsWith('/api/public')) return true;  // Public metrics (polled every 3s)
-      if (url.startsWith('/api/admin')) return true;  // All admin endpoints
       if (url.startsWith('/ws/')) return true;  // WebSocket connections
       return false;
+    },
+    // Admin endpoints get a higher limit instead of full exemption
+    keyGenerator: (request) => {
+      return request.ip;
     }
   });
 
@@ -497,33 +522,48 @@ async function bootstrap() {
   // WebSocket support for real-time updates
   await fastify.register(websocket);
 
-  // H-04: Swagger Documentation — disabled in production
-  const isProduction = process.env.NODE_ENV === 'production';
-  if (!isProduction) {
-    await fastify.register(swagger, {
-      openapi: {
-        info: {
-          title: 'Enterprise AI Chat API',
-          description: 'Multi-provider AI chat platform API',
-          version: '1.0.0'
-        },
-        servers: [{ url: `http://localhost:${process.env.PORT || 3000}` }],
-        components: {
-          securitySchemes: {
-            bearerAuth: {
-              type: 'http',
-              scheme: 'bearer',
-              bearerFormat: 'JWT'
-            }
+  // H-04: Swagger/OpenAPI Documentation
+  await fastify.register(swagger, {
+    openapi: {
+      info: {
+        title: 'Enterprise AI Chat API',
+        description: 'Multi-provider AI chat platform with agent orchestration, project management, and RAG pipeline',
+        version: process.env.APP_VERSION || '1.8.10'
+      },
+      servers: [
+        { url: `http://localhost:${process.env.PORT || 3000}`, description: 'Local' },
+        ...(process.env.NODE_ENV === 'production' ? [{ url: 'https://plane.lushlolli.com', description: 'Production' }] : [])
+      ],
+      tags: [
+        { name: 'auth', description: 'Authentication and session management' },
+        { name: 'chat', description: 'Chat completions and conversations' },
+        { name: 'agents', description: 'AI agent sessions and templates' },
+        { name: 'projects', description: 'Project management and Kanban boards' },
+        { name: 'admin', description: 'Administration and system settings' },
+        { name: 'memory', description: 'Vector memory and observations' },
+        { name: 'tools', description: 'File generation and document tools' },
+        { name: 'files', description: 'File operations' },
+      ],
+      components: {
+        securitySchemes: {
+          bearerAuth: {
+            type: 'http',
+            scheme: 'bearer',
+            bearerFormat: 'JWT'
           }
         }
       }
-    });
+    }
+  });
 
-    await fastify.register(swaggerUi, {
-      routePrefix: '/docs'
-    });
-  }
+  await fastify.register(swaggerUi, {
+    routePrefix: '/docs',
+    uiConfig: {
+      docExpansion: 'list',
+      deepLinking: true,
+      persistAuthorization: true,
+    },
+  });
 
   // Global no-cache headers on all API responses
   fastify.addHook('onSend', (request, reply, payload, done) => {
