@@ -20,6 +20,7 @@ import { chatRoutes } from './modules/chat/routes.js';
 import { adminRoutes } from './modules/admin/routes.js';
 import { providerRoutes } from './modules/admin/providers.js';
 import { settingsRoutes } from './modules/admin/settings.js';
+import { orchestratorAdminRoutes } from './modules/admin/orchestrator.js';
 import { skillRoutes } from './modules/admin/skills.js';
 import { pluginRoutes } from './modules/admin/plugins.js';
 import { projectRoutes } from './modules/projects/routes.js';
@@ -284,6 +285,7 @@ const appPlugin = fp(async function (fastify) {
   await fastify.register(memoryRoutes, { prefix: '/api/memory' });
   await fastify.register(vectorMemoryRoutes, { prefix: '/api/memory/vector' });
   await fastify.register(hookRoutes, { prefix: '/api/admin' });
+  await fastify.register(orchestratorAdminRoutes, { prefix: '/api/admin' });
   await fastify.register(formRoutes, { prefix: '/api/forms' });
   await fastify.register(ingestionRoutes, { prefix: '/api/ingestion' });
   await fastify.register(schedulerRoutes, { prefix: '/api/scheduler' });
