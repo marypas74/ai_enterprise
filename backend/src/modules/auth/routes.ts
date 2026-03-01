@@ -6,11 +6,10 @@ import { findOne, insertOne, updateOne } from '../../database/index.js';
 import { verify, generateSecret, generateURI } from 'otplib';
 import QRCode from 'qrcode';
 
-// Trusted external IPs (MFA bypass allowed)
-const TRUSTED_EXTERNAL_IPS = new Set([
-  '217.198.133.248',
-  '93.149.87.38',
-]);
+// Trusted external IPs (MFA bypass allowed) — loaded from environment
+const TRUSTED_EXTERNAL_IPS = new Set(
+  (process.env.TRUSTED_IPS || '').split(',').map(ip => ip.trim()).filter(Boolean)
+);
 
 // Check if the IP is trusted (local network or whitelisted external)
 function isTrustedIp(ip: string): boolean {
@@ -208,8 +207,9 @@ export async function authRoutes(fastify: FastifyInstance) {
       const sessionId = refreshTokenHash.substring(0, 16);
 
       // Check MFA — local network access bypasses MFA, external access requires it
-      // Test accounts (email containing 'test') are exempt from MFA
-      const isTestAccount = user.email.includes('test');
+      // Test accounts are exempt from MFA only when explicitly listed in env
+      const MFA_BYPASS_EMAILS = (process.env.MFA_BYPASS_EMAILS || '').split(',').map(e => e.trim()).filter(Boolean);
+      const isTestAccount = MFA_BYPASS_EMAILS.includes(user.email);
 
       if (!isTestAccount && user.mfa_enabled && user.mfa_secret) {
         // MFA is configured — require TOTP from external networks

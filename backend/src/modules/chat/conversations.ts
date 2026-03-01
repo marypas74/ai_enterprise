@@ -34,7 +34,7 @@ export async function conversationRoutes(fastify: FastifyInstance) {
     const query = request.query as { archived?: string; limit?: string; offset?: string };
 
     const isArchived = query.archived === 'true';
-    const limit = parseInt(query.limit || '20');
+    const limit = Math.min(parseInt(query.limit || '20') || 20, 200);
     const offset = parseInt(query.offset || '0');
 
     const conversations = await findMany<Conversation>(

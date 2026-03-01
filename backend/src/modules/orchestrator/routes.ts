@@ -280,7 +280,7 @@ export async function orchestratorRoutes(fastify: FastifyInstance) {
     const user = request.user as { id: number };
     const query = request.query as { limit?: string; offset?: string; sessionId?: string };
 
-    const limit = parseInt(query.limit || '50');
+    const limit = Math.min(parseInt(query.limit || '50') || 50, 200);
     const offset = parseInt(query.offset || '0');
 
     let sql = `SELECT h.*, s.name as session_name

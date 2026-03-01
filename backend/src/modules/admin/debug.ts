@@ -41,7 +41,7 @@ export async function debugRoutes(fastify: FastifyInstance) {
     }
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const query = request.query as { limit?: string; level?: string };
-    const limit = parseInt(query.limit || '100');
+    const limit = Math.min(parseInt(query.limit || '100') || 100, 200);
     const level = query.level;
 
     let filteredLogs = [...logBuffer];
@@ -157,7 +157,7 @@ export async function debugRoutes(fastify: FastifyInstance) {
     }
   }, async (request: FastifyRequest) => {
     const query = request.query as { limit?: string };
-    const limit = parseInt(query.limit || '50');
+    const limit = Math.min(parseInt(query.limit || '50') || 50, 200);
 
     try {
       const logs = await findAll<any>(

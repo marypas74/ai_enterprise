@@ -172,6 +172,16 @@ const appPlugin = fp(async function (fastify) {
       await request.jwtVerify();
       fastify.log.debug(`[Auth] OK for ${url} - User: ${request.user?.id}`);
 
+      // CRITICAL: Enforce mfa_verified — setup tokens can only access MFA routes
+      const mfaVerified = request.user?.mfa_verified;
+      if (mfaVerified === false) {
+        const isMfaRoute = url.startsWith('/api/auth/mfa/') || url === '/api/auth/me';
+        if (!isMfaRoute) {
+          fastify.log.warn(`[Auth] MFA setup token used on non-MFA route: ${url}`);
+          return reply.status(403).send({ error: 'MFA setup required', reason: 'Complete MFA setup before accessing the application' });
+        }
+      }
+
       // Verify session is still active using the session ID embedded in the JWT
       const userId = request.user?.id;
       const sessionId = request.user?.sid;
@@ -640,10 +650,7 @@ async function bootstrap() {
       fastify.log.warn('Could not initialize LLM Sync Worker: ' + String(err));
     }
 
-    // Graceful shutdown for sync worker
-    const stopSyncWorker = () => { syncWorker?.stop(); };
-    process.on('SIGTERM', stopSyncWorker);
-    process.on('SIGINT', stopSyncWorker);
+    // All shutdown handlers consolidated below (after service initialization)
 
     // Initialize HyDE service and register hook
     try {
@@ -679,23 +686,13 @@ async function bootstrap() {
     // Initialize Memory Decay Service
     const memoryDecay = new MemoryDecayService();
     memoryDecay.start(fastify.db);
-    const stopDecay = () => { memoryDecay.stop(); };
-    process.on('SIGTERM', stopDecay);
-    process.on('SIGINT', stopDecay);
-
     // Initialize Bias Monitor Service (AI Act GAP-11)
     const biasMonitor = new BiasMonitorService(fastify);
     biasMonitor.start();
-    const stopBiasMonitor = () => { biasMonitor.stop(); };
-    process.on('SIGTERM', stopBiasMonitor);
-    process.on('SIGINT', stopBiasMonitor);
 
     // Initialize Conversation Cleanup Service (archive >24h, delete >60d)
     const conversationCleanup = new ConversationCleanupService();
     conversationCleanup.start(fastify.db);
-    const stopConvCleanup = () => { conversationCleanup.stop(); };
-    process.on('SIGTERM', stopConvCleanup);
-    process.on('SIGINT', stopConvCleanup);
 
     // Cleanup old generated files every hour (delete files older than 24h)
     const generatedDir = path.join(process.env.STORAGE_ROOT || process.cwd(), 'generated');
@@ -723,8 +720,18 @@ async function bootstrap() {
     // Run once on startup, then every hour
     cleanupGeneratedFiles();
     const cleanupInterval = setInterval(cleanupGeneratedFiles, 60 * 60 * 1000);
-    process.on('SIGTERM', () => clearInterval(cleanupInterval));
-    process.on('SIGINT', () => clearInterval(cleanupInterval));
+    // Consolidated graceful shutdown handler
+    const gracefulShutdown = async () => {
+      fastify.log.info('[Shutdown] Graceful shutdown initiated...');
+      syncWorker?.stop();
+      memoryDecay.stop();
+      biasMonitor.stop();
+      conversationCleanup.stop();
+      clearInterval(cleanupInterval);
+      await fastify.close();
+    };
+    process.once('SIGTERM', gracefulShutdown);
+    process.once('SIGINT', gracefulShutdown);
 
     // Register built-in tools as procedural memory for semantic tool selection
     try {

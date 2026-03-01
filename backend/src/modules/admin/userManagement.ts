@@ -62,7 +62,7 @@ export async function userManagementRoutes(fastify: FastifyInstance) {
     }
   }, async (request: FastifyRequest) => {
     const query = request.query as { limit?: string; offset?: string; search?: string };
-    const limit = parseInt(query.limit || '50');
+    const limit = Math.min(parseInt(query.limit || '50') || 50, 200);
     const offset = parseInt(query.offset || '0');
     const search = query.search || '';
 
@@ -254,7 +254,7 @@ export async function userManagementRoutes(fastify: FastifyInstance) {
     await insertOne(
       fastify.db,
       'INSERT INTO audit_log (user_id, action, entity_type, entity_id, details, ip_address) VALUES (?, ?, ?, ?, ?, ?)',
-      [admin.id, 'update_user', 'user', params.id, JSON.stringify(body), request.ip]
+      [admin.id, 'update_user', 'user', params.id, JSON.stringify({ ...body, password: body.password ? '[REDACTED]' : undefined }), request.ip]
     );
 
     return { message: 'User updated' };

@@ -260,27 +260,19 @@ export async function toolsRoutes(fastify: FastifyInstance) {
             let textContent = body.content || '';
 
             // If no content provided, get the last assistant message from conversation
+            // SECURITY: ownership check is combined with the message query to prevent TOCTOU
             if (!textContent && body.conversationId) {
                 const lastMessage = await findOne<{ content: string }>(
                     fastify.db,
-                    `SELECT content FROM messages
-                     WHERE conversation_id = ? AND role = 'assistant'
-                     ORDER BY created_at DESC LIMIT 1`,
-                    [body.conversationId]
+                    `SELECT m.content FROM messages m
+                     JOIN conversations c ON m.conversation_id = c.id
+                     WHERE m.conversation_id = ? AND c.user_id = ? AND m.role = 'assistant'
+                     ORDER BY m.created_at DESC LIMIT 1`,
+                    [body.conversationId, user.id]
                 );
 
                 if (!lastMessage) {
-                    return reply.status(404).send({ error: 'No assistant message found in conversation' });
-                }
-
-                // Verify conversation belongs to user
-                const conv = await findOne<{ id: number }>(
-                    fastify.db,
-                    'SELECT id FROM conversations WHERE id = ? AND user_id = ?',
-                    [body.conversationId, user.id]
-                );
-                if (!conv) {
-                    return reply.status(403).send({ error: 'Conversation not found or access denied' });
+                    return reply.status(403).send({ error: 'Conversation not found or no assistant message' });
                 }
 
                 textContent = lastMessage.content;

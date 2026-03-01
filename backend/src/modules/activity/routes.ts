@@ -81,7 +81,7 @@ export async function activityRoutes(fastify: FastifyInstance) {
       source?: string;
     };
 
-    const limit = parseInt(query.limit || '50');
+    const limit = Math.min(parseInt(query.limit || '50') || 50, 200);
     const offset = parseInt(query.offset || '0');
 
     let sql = `

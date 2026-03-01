@@ -293,7 +293,7 @@ export async function systemSettingsRoutes(fastify: FastifyInstance) {
       userId?: string;
     };
 
-    const limit = parseInt(query.limit || '100');
+    const limit = Math.min(parseInt(query.limit || '100') || 100, 200);
     const offset = parseInt(query.offset || '0');
 
     let sql = `
