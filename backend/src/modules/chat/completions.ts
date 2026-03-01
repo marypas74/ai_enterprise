@@ -40,29 +40,31 @@ export async function completionRoutes(fastify: FastifyInstance) {
     const user = request.user as { id: number };
 
     try {
-      const body = completionSchema.parse(request.body);
+      const parsedBody = completionSchema.parse(request.body);
 
-      fastify.log.debug({ model: body.model, messageLength: body.message?.length || 0, userId: user.id, attachmentIds: body.attachmentIds || [] }, '[Chat] Request start');
+      fastify.log.debug({ model: parsedBody.model, messageLength: parsedBody.message?.length || 0, userId: user.id, attachmentIds: parsedBody.attachmentIds || [] }, '[Chat] Request start');
 
       // ── Model Orchestrator: auto-routing ──────────────────────────
       let routingDecision: RoutingDecision | null = null;
-      if (body.model === 'auto') {
+      let routedModel = parsedBody.model;
+      if (parsedBody.model === 'auto') {
         routingDecision = await modelRouter.route({
-          query: body.message,
-          conversationLength: 0, // will be updated after loading conversation
-          hasAttachments: (body.attachmentIds?.length || 0) > 0,
-          attachmentCount: body.attachmentIds?.length || 0,
+          query: parsedBody.message,
+          conversationLength: 0,
+          hasAttachments: (parsedBody.attachmentIds?.length || 0) > 0,
+          attachmentCount: parsedBody.attachmentIds?.length || 0,
           hasVisionAttachments: false,
           toolsRequested: false,
           userId: user.id,
         });
         if (routingDecision.model) {
           fastify.log.info(`[Router] Auto-routed to ${routingDecision.model} (tier=${routingDecision.tier}, reason=${routingDecision.reason})`);
-          body = { ...body, model: routingDecision.model };
+          routedModel = routingDecision.model;
         } else {
           fastify.log.warn('[Router] No routing tiers configured, falling back to user default');
         }
       }
+      const body = { ...parsedBody, model: routedModel };
 
       fastify.log.info(`[Chat] Request for model: ${body.model}`);
 

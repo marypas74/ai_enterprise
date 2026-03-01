@@ -369,6 +369,17 @@ export function useChatMessages(currentConversationId: number | null): UseChatMe
         (memories) => {
           setVectorMemories(memories);
         },
+        (routing) => {
+          setRoutingInfo(routing);
+          setMessages(prev => {
+            const newMessages = [...prev];
+            const last = newMessages[newMessages.length - 1];
+            if (last.role === 'assistant') {
+              newMessages[newMessages.length - 1] = { ...last, ai_model: routing.model };
+            }
+            return newMessages;
+          });
+        },
       );
     } catch (err) {
       setIsStreaming(false);
@@ -451,6 +462,7 @@ export function useChatMessages(currentConversationId: number | null): UseChatMe
     memoryContextActive,
     activeFormSession,
     showConsentModal,
+    routingInfo,
     currentModel,
     messagesEndRef,
     inputRef,

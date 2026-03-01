@@ -158,7 +158,8 @@ export async function streamChat(
   systemPrompt?: string,
   attachmentIds?: number[],
   onThinking?: (content: string, done: boolean) => void,
-  onVectorMemories?: (memories: { episodic: any[]; declarative: any[]; procedural: any[] }) => void
+  onVectorMemories?: (memories: { episodic: any[]; declarative: any[]; procedural: any[] }) => void,
+  onRouting?: (routing: { tier: string; model: string; reason: string; confidence: number; effort: string }) => void,
 ): Promise<void> {
   // Get token from Zustand store for consistency
   let token = useAuthStore.getState().accessToken || '';
@@ -231,6 +232,9 @@ export async function streamChat(
           if (data.error) {
             onError(data.error);
             return;
+          }
+          if (data.routing && onRouting) {
+            onRouting(data.routing);
           }
           if (data.type === 'vector_memories' && data.memories && onVectorMemories) {
             onVectorMemories(data.memories);
