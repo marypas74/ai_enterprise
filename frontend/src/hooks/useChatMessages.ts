@@ -61,6 +61,7 @@ interface UseChatMessagesReturn {
   memoryContextActive: boolean;
   activeFormSession: ActiveFormSession | null;
   showConsentModal: boolean;
+  routingInfo: { tier: string; model: string; reason: string; confidence: number; effort: string } | null;
   currentModel: Model;
   messagesEndRef: React.RefObject<HTMLDivElement>;
   inputRef: React.RefObject<HTMLTextAreaElement>;
@@ -99,6 +100,7 @@ export function useChatMessages(currentConversationId: number | null): UseChatMe
   const [memoryContextActive, setMemoryContextActive] = useState(false);
   const [activeFormSession, setActiveFormSession] = useState<ActiveFormSession | null>(null);
   const [showConsentModal, setShowConsentModal] = useState(false);
+  const [routingInfo, setRoutingInfo] = useState<{ tier: string; model: string; reason: string; confidence: number; effort: string } | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
