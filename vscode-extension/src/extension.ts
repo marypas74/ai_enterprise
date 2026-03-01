@@ -1487,7 +1487,7 @@ Output only the modified code, nothing else:`
 
         // Get version info - for debugging deployments
         vscode.commands.registerCommand('enterprise-ai-chat.getVersionInfo', async () => {
-            const extensionVersion = '1.8.6';
+            const extensionVersion = '1.8.7';
             let backendVersion = null;
 
             try {

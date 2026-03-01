@@ -824,7 +824,7 @@ export default function ChatPage() {
               </button>
 
               {showModelSelect && (
-                <div className="absolute top-full left-0 mt-1 w-72 card p-2 shadow-lg z-50 max-h-[70vh] overflow-y-auto">
+                <div className="absolute top-full left-0 mt-1 w-96 card p-2 shadow-lg z-50 max-h-[70vh] overflow-y-auto">
                   {modelsLoading ? (
                     <p className="px-3 py-2 text-sm text-surface-500">Loading models...</p>
                   ) : models.length === 0 ? (
@@ -845,26 +845,26 @@ export default function ChatPage() {
                             setShowModelSelect(false);
                           }}
                           className={clsx(
-                            'w-full flex items-center justify-between px-3 py-2 rounded-lg text-left transition-colors',
+                            'w-full flex items-start justify-between px-3 py-2.5 rounded-lg text-left transition-colors',
                             selectedModel === model.id
                               ? 'bg-primary-50 dark:bg-primary-900/20'
                               : 'hover:bg-surface-100 dark:hover:bg-surface-800'
                           )}
                         >
-                          <div>
-                            <p className="font-medium">
-                              {model.name}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{model.name}</span>
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-surface-100 dark:bg-surface-700 text-surface-500">{model.provider}</span>
                               {recommendedModel?.id === model.id && (
-                                <span className="ml-2 text-xs px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">Consigliato</span>
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">Consigliato</span>
                               )}
-                            </p>
-                            <p className="text-xs text-surface-500">{model.provider}</p>
+                            </div>
                             {model.description && (
-                              <p className="text-xs text-surface-400 dark:text-surface-500 mt-0.5 line-clamp-1">{model.description}</p>
+                              <p className="text-xs text-surface-500 dark:text-surface-400 mt-1 leading-relaxed">{model.description}</p>
                             )}
                           </div>
                           {selectedModel === model.id && (
-                            <div className="w-2 h-2 rounded-full bg-primary-500" />
+                            <div className="w-2 h-2 rounded-full bg-primary-500 mt-1.5 ml-2 shrink-0" />
                           )}
                         </button>
                       ))}
