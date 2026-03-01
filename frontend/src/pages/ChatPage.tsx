@@ -92,7 +92,7 @@ function getAttachmentIcon(mimeType: string) {
 
 export default function ChatPage() {
   const { user, logout } = useAuthStore();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 768);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentConversationId, setCurrentConversationId] = useState<number | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -835,7 +835,7 @@ export default function ChatPage() {
               </button>
 
               {showModelSelect && (
-                <div className="absolute top-full left-0 mt-1 w-[calc(100vw-2rem)] sm:w-96 card p-2 shadow-lg z-50 max-h-[70vh] overflow-y-auto">
+                <div className="fixed left-2 right-2 top-16 sm:absolute sm:top-full sm:left-0 sm:right-auto mt-1 sm:w-96 card p-2 shadow-lg z-50 max-h-[70vh] overflow-y-auto">
                   {modelsLoading ? (
                     <p className="px-3 py-2 text-sm text-surface-500">Loading models...</p>
                   ) : models.length === 0 ? (

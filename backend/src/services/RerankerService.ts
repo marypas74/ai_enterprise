@@ -56,7 +56,7 @@ export class RerankerService {
       }
     }
 
-    return 'qwen2.5:3b';
+    return 'qwen3:14b';
   }
 
   /**

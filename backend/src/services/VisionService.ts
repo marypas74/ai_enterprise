@@ -83,7 +83,7 @@ export class VisionService {
       }
     }
 
-    return 'llava:latest';
+    return 'qwen2.5vl:7b';
   }
 
   /**
