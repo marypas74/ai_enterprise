@@ -274,6 +274,21 @@ const ChatContainer: React.FC<ChatContainerProps> = ({ initialMessages = [] }) =
         </div>
       </header>
 
+      {/* AI Act: Disclosure Banner (Art. 50) */}
+      <div className="ai-disclosure-banner" style={{
+        padding: '8px 12px',
+        backgroundColor: 'var(--vscode-editorInfo-background, rgba(0, 120, 212, 0.1))',
+        borderBottom: '1px solid var(--vscode-editorInfo-foreground, rgba(0, 120, 212, 0.3))',
+        fontSize: '11px',
+        color: 'var(--vscode-foreground)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '6px'
+      }}>
+        <span style={{ fontSize: '13px' }}>&#8505;</span>
+        <span>Stai interagendo con un sistema di intelligenza artificiale. Le risposte sono generate da AI e potrebbero non essere accurate.</span>
+      </div>
+
       {/* Messages area */}
       <div
         ref={containerRef}

@@ -14,7 +14,10 @@ import {
     ChevronLeft,
     X,
     Lock,
-    Unlock
+    Unlock,
+    Download,
+    Trash2,
+    FileText
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import clsx from 'clsx';
@@ -322,6 +325,86 @@ export default function SettingsPage() {
                                     <p className="text-sm text-surface-500">
                                         Non condividere mai il tuo codice TOTP o il segreto MFA con nessuno. Gli amministratori di sistema non ti chiederanno mai queste informazioni.
                                     </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Privacy & Data Section (AI Act / GDPR) */}
+                        <div className="card p-6">
+                            <div className="flex items-center gap-3 mb-6">
+                                <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-600">
+                                    <Shield className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-bold">Privacy & Dati</h3>
+                                    <p className="text-sm text-surface-500">Gestisci i tuoi dati e la tua privacy (AI Act / GDPR)</p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-4">
+                                {/* Data Export */}
+                                <div className="flex items-center justify-between p-4 bg-surface-50 dark:bg-surface-800/50 rounded-lg">
+                                    <div className="flex items-center gap-3">
+                                        <Download className="w-5 h-5 text-blue-500" />
+                                        <div>
+                                            <p className="font-medium">Esporta i tuoi dati</p>
+                                            <p className="text-xs text-surface-500">Scarica una copia di tutti i tuoi dati (Art. 20 GDPR)</p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={async () => {
+                                            try {
+                                                setSuccess('');
+                                                const res = await api.post('/compliance/data-export');
+                                                setSuccess(`Richiesta export creata (ID: ${res.data.export_id}). Riceverai una notifica quando sarà pronto.`);
+                                            } catch { setError('Errore nella richiesta di export.'); }
+                                        }}
+                                        className="btn bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 text-sm"
+                                    >
+                                        Richiedi Export
+                                    </button>
+                                </div>
+
+                                {/* Privacy Policy Link */}
+                                <div className="flex items-center justify-between p-4 bg-surface-50 dark:bg-surface-800/50 rounded-lg">
+                                    <div className="flex items-center gap-3">
+                                        <FileText className="w-5 h-5 text-surface-500" />
+                                        <div>
+                                            <p className="font-medium">Privacy Policy & Termini</p>
+                                            <p className="text-xs text-surface-500">Informativa sul trattamento dei dati personali</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <Link to="/privacy" className="btn bg-surface-200 dark:bg-surface-700 text-surface-700 dark:text-surface-300 hover:bg-surface-300 dark:hover:bg-surface-600 px-3 py-2 text-sm">
+                                            Privacy
+                                        </Link>
+                                        <Link to="/terms" className="btn bg-surface-200 dark:bg-surface-700 text-surface-700 dark:text-surface-300 hover:bg-surface-300 dark:hover:bg-surface-600 px-3 py-2 text-sm">
+                                            Termini
+                                        </Link>
+                                    </div>
+                                </div>
+
+                                {/* Account Deletion */}
+                                <div className="flex items-center justify-between p-4 bg-red-50 dark:bg-red-900/10 rounded-lg border border-red-100 dark:border-red-900/30">
+                                    <div className="flex items-center gap-3">
+                                        <Trash2 className="w-5 h-5 text-red-500" />
+                                        <div>
+                                            <p className="font-medium text-red-700 dark:text-red-400">Elimina account</p>
+                                            <p className="text-xs text-red-600/70 dark:text-red-400/70">Cancellazione definitiva con periodo di grazia di 30 giorni</p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={async () => {
+                                            if (!confirm('Sei sicuro di voler richiedere la cancellazione del tuo account? Avrai 30 giorni per annullarla.')) return;
+                                            try {
+                                                await api.post('/compliance/delete-account');
+                                                setSuccess('Richiesta di cancellazione inviata. Hai 30 giorni per annullarla dalle impostazioni.');
+                                            } catch { setError('Errore nella richiesta di cancellazione.'); }
+                                        }}
+                                        className="btn bg-red-600 hover:bg-red-700 text-white px-4 py-2 text-sm"
+                                    >
+                                        Richiedi Cancellazione
+                                    </button>
                                 </div>
                             </div>
                         </div>

@@ -44,6 +44,8 @@ import { ingestionRoutes } from './modules/ingestion/routes.js';
 import { schedulerRoutes } from './modules/scheduler/routes.js';
 import { batchRoutes } from './modules/batch/routes.js';
 import { permissionRoutes } from './modules/admin/permissions.js';
+import { complianceRoutes } from './modules/compliance/routes.js';
+import { BiasMonitorService } from './modules/compliance/biasMonitorService.js';
 import { eventBus } from './services/EventBusService.js';
 import { HyDEService } from './services/HyDEService.js';
 import { AIProviderFactory } from './modules/ai/providers.js';
@@ -277,6 +279,7 @@ const appPlugin = fp(async function (fastify) {
   await fastify.register(schedulerRoutes, { prefix: '/api/scheduler' });
   await fastify.register(batchRoutes, { prefix: '/api/batch' });
   await fastify.register(permissionRoutes, { prefix: '/api/permissions' });
+  await fastify.register(complianceRoutes, { prefix: '/api' });
 
   // Debug WebSocket clients set (defined early so addHook can reference it)
   const debugClients = new Set<any>();
@@ -639,6 +642,13 @@ async function bootstrap() {
     const stopDecay = () => { memoryDecay.stop(); };
     process.on('SIGTERM', stopDecay);
     process.on('SIGINT', stopDecay);
+
+    // Initialize Bias Monitor Service (AI Act GAP-11)
+    const biasMonitor = new BiasMonitorService(fastify);
+    biasMonitor.start();
+    const stopBiasMonitor = () => { biasMonitor.stop(); };
+    process.on('SIGTERM', stopBiasMonitor);
+    process.on('SIGINT', stopBiasMonitor);
 
     // Initialize Conversation Cleanup Service (archive >24h, delete >60d)
     const conversationCleanup = new ConversationCleanupService();

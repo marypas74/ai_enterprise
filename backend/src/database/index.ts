@@ -380,6 +380,122 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
         INDEX idx_batch_id (batch_id),
         INDEX idx_user_batch (user_id, status)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+    },
+    // ── AI Act Compliance Tables ──────────────────────────────────────
+    {
+      name: 'user_consents',
+      sql: `CREATE TABLE IF NOT EXISTS user_consents (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        user_id BIGINT UNSIGNED NOT NULL,
+        consent_type ENUM('ai_disclosure','data_processing','terms_of_service','cookie') NOT NULL,
+        granted BOOLEAN NOT NULL DEFAULT FALSE,
+        ip_address VARCHAR(45),
+        user_agent TEXT,
+        granted_at TIMESTAMP NULL,
+        revoked_at TIMESTAMP NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        UNIQUE KEY uk_user_consent (user_id, consent_type)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+    },
+    {
+      name: 'ai_decision_log',
+      sql: `CREATE TABLE IF NOT EXISTS ai_decision_log (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        user_id BIGINT UNSIGNED NOT NULL,
+        conversation_id BIGINT UNSIGNED NULL,
+        message_id BIGINT UNSIGNED NULL,
+        ai_model VARCHAR(100) NOT NULL,
+        ai_provider VARCHAR(50) NOT NULL,
+        prompt_hash VARCHAR(64),
+        response_hash VARCHAR(64),
+        tokens_input INT UNSIGNED DEFAULT 0,
+        tokens_output INT UNSIGNED DEFAULT 0,
+        latency_ms INT UNSIGNED DEFAULT 0,
+        safety_flags JSON,
+        disclosure_shown BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_user_id (user_id),
+        INDEX idx_created_at (created_at),
+        INDEX idx_model (ai_model),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+    },
+    {
+      name: 'ai_content_labels',
+      sql: `CREATE TABLE IF NOT EXISTS ai_content_labels (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        message_id BIGINT UNSIGNED NOT NULL,
+        content_type ENUM('chat_response','document','code','summary') NOT NULL,
+        ai_model VARCHAR(100),
+        ai_provider VARCHAR(50),
+        generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE,
+        INDEX idx_message_id (message_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+    },
+    {
+      name: 'response_feedback',
+      sql: `CREATE TABLE IF NOT EXISTS response_feedback (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        message_id BIGINT UNSIGNED NOT NULL,
+        user_id BIGINT UNSIGNED NOT NULL,
+        rating TINYINT NOT NULL,
+        category ENUM('accurate','inaccurate','harmful','biased','helpful','other') NULL,
+        comment TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        UNIQUE KEY uk_user_message (user_id, message_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+    },
+    {
+      name: 'data_export_requests',
+      sql: `CREATE TABLE IF NOT EXISTS data_export_requests (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        user_id BIGINT UNSIGNED NOT NULL,
+        status ENUM('pending','processing','completed','failed','expired') DEFAULT 'pending',
+        format ENUM('json','zip') DEFAULT 'json',
+        file_path VARCHAR(500),
+        requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        completed_at TIMESTAMP NULL,
+        expires_at TIMESTAMP NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        INDEX idx_user_status (user_id, status)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+    },
+    {
+      name: 'account_deletion_requests',
+      sql: `CREATE TABLE IF NOT EXISTS account_deletion_requests (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        user_id BIGINT UNSIGNED NOT NULL,
+        status ENUM('pending','confirmed','completed','cancelled') DEFAULT 'pending',
+        reason TEXT,
+        requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        confirm_by TIMESTAMP NULL,
+        completed_at TIMESTAMP NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+    },
+    {
+      name: 'bias_monitoring_log',
+      sql: `CREATE TABLE IF NOT EXISTS bias_monitoring_log (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        period_start TIMESTAMP NOT NULL,
+        period_end TIMESTAMP NOT NULL,
+        ai_model VARCHAR(100) NOT NULL,
+        ai_provider VARCHAR(50) NOT NULL,
+        total_requests INT UNSIGNED DEFAULT 0,
+        refusal_count INT UNSIGNED DEFAULT 0,
+        error_count INT UNSIGNED DEFAULT 0,
+        avg_latency_ms INT UNSIGNED DEFAULT 0,
+        negative_feedback_count INT UNSIGNED DEFAULT 0,
+        positive_feedback_count INT UNSIGNED DEFAULT 0,
+        flagged_content_count INT UNSIGNED DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_period (period_start, period_end),
+        INDEX idx_model (ai_model)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
     }
   ];
 
@@ -411,6 +527,17 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
     { name: 'token_usage_add_cache_creation', sql: `ALTER TABLE token_usage ADD COLUMN cache_creation_tokens INT DEFAULT 0` },
     { name: 'token_usage_add_cache_read', sql: `ALTER TABLE token_usage ADD COLUMN cache_read_tokens INT DEFAULT 0` },
     { name: 'token_usage_add_thinking', sql: `ALTER TABLE token_usage ADD COLUMN thinking_tokens INT DEFAULT 0` },
+    // ── AI Act Compliance Columns ──────────────────────────────────────
+    { name: 'messages_add_is_ai_generated', sql: `ALTER TABLE messages ADD COLUMN is_ai_generated BOOLEAN DEFAULT FALSE` },
+    { name: 'messages_add_ai_model', sql: `ALTER TABLE messages ADD COLUMN ai_model VARCHAR(100) NULL` },
+    { name: 'messages_add_ai_provider', sql: `ALTER TABLE messages ADD COLUMN ai_provider VARCHAR(50) NULL` },
+    { name: 'conversations_add_ai_disclosure_shown', sql: `ALTER TABLE conversations ADD COLUMN ai_disclosure_shown BOOLEAN DEFAULT FALSE` },
+    { name: 'conversations_add_ai_disclosure_shown_at', sql: `ALTER TABLE conversations ADD COLUMN ai_disclosure_shown_at TIMESTAMP NULL` },
+    { name: 'ai_models_add_knowledge_cutoff', sql: `ALTER TABLE ai_models ADD COLUMN knowledge_cutoff VARCHAR(20) NULL` },
+    { name: 'ai_models_add_limitations', sql: `ALTER TABLE ai_models ADD COLUMN limitations TEXT NULL` },
+    { name: 'ai_models_add_bias_notes', sql: `ALTER TABLE ai_models ADD COLUMN bias_notes TEXT NULL` },
+    { name: 'ai_models_add_safety_rating', sql: `ALTER TABLE ai_models ADD COLUMN safety_rating VARCHAR(20) NULL` },
+    { name: 'ai_models_add_documentation_url', sql: `ALTER TABLE ai_models ADD COLUMN documentation_url VARCHAR(500) NULL` },
   ];
 
   for (const migration of alterMigrations) {
@@ -443,8 +570,68 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
     }
   }
 
+  // Seed AI Act compliance settings
+  await seedAIActSettings(pool, fastify);
+
   // Seed default prompt templates
   await seedPromptTemplates(pool, fastify);
+}
+
+async function seedAIActSettings(pool: mysql.Pool, fastify: FastifyInstance): Promise<void> {
+  const aiActSettings = [
+    { key: 'ai_act_compliance_enabled', value: 'true', type: 'boolean', desc: 'Enable AI Act compliance features', pub: true },
+    { key: 'ai_disclosure_banner_text', value: 'Stai interagendo con un sistema di intelligenza artificiale. Le risposte sono generate da modelli AI e potrebbero non essere sempre accurate.', type: 'string', desc: 'AI disclosure banner text shown to users', pub: true },
+    { key: 'ai_disclosure_banner_enabled', value: 'true', type: 'boolean', desc: 'Show AI disclosure banner in chat', pub: true },
+    { key: 'require_ai_consent_on_login', value: 'true', type: 'boolean', desc: 'Require AI usage consent before first chat', pub: true },
+    { key: 'ai_content_labeling_enabled', value: 'true', type: 'boolean', desc: 'Label AI-generated content with model info', pub: true },
+    { key: 'data_retention_days', value: '365', type: 'number', desc: 'Days to retain AI decision logs', pub: false },
+    { key: 'data_export_enabled', value: 'true', type: 'boolean', desc: 'Allow users to export their data', pub: true },
+    { key: 'account_deletion_grace_days', value: '30', type: 'number', desc: 'Grace period in days before account deletion', pub: false },
+    { key: 'bias_monitoring_enabled', value: 'true', type: 'boolean', desc: 'Enable periodic bias monitoring', pub: false },
+    { key: 'human_oversight_topics', value: '["medical","legal","financial","hiring"]', type: 'json', desc: 'Topics requiring human oversight warning', pub: false },
+    { key: 'feedback_enabled', value: 'true', type: 'boolean', desc: 'Enable thumbs up/down feedback on AI responses', pub: true },
+  ];
+
+  for (const s of aiActSettings) {
+    try {
+      await pool.execute(
+        `INSERT IGNORE INTO system_settings (setting_key, setting_value, setting_type, description, is_public)
+         VALUES (?, ?, ?, ?, ?)`,
+        [s.key, s.value, s.type, s.desc, s.pub]
+      );
+    } catch {
+      // Already exists, skip
+    }
+  }
+
+  // Seed model documentation (AI Act Art. 50)
+  const modelDocs = [
+    { pattern: 'gpt-4o%', cutoff: '2024-04', limitations: 'Può generare informazioni non accurate (allucinazioni). Non adatto per consulenza medica o legale. Possibili bias nei dati di training.', rating: 'high', url: 'https://platform.openai.com/docs/models' },
+    { pattern: 'gpt-4-turbo%', cutoff: '2024-04', limitations: 'Può generare informazioni non accurate. Non adatto per consulenza medica o legale.', rating: 'high', url: 'https://platform.openai.com/docs/models' },
+    { pattern: 'gpt-3.5%', cutoff: '2021-09', limitations: 'Modello meno capace. Maggiore tendenza ad allucinazioni. Contesto limitato.', rating: 'medium', url: 'https://platform.openai.com/docs/models' },
+    { pattern: 'claude-%', cutoff: '2025-04', limitations: 'Può generare informazioni non accurate. Non adatto per consulenza medica o legale. Possibili bias nei dati di training.', rating: 'high', url: 'https://docs.anthropic.com/en/docs/about-claude/models' },
+    { pattern: 'gemini-%', cutoff: '2024-08', limitations: 'Può generare informazioni non accurate. Contesto più breve rispetto ai concorrenti. Possibili bias nei dati di training.', rating: 'medium', url: 'https://ai.google.dev/gemini-api/docs' },
+  ];
+
+  for (const m of modelDocs) {
+    try {
+      await pool.execute(
+        `UPDATE ai_models SET
+          knowledge_cutoff = COALESCE(knowledge_cutoff, ?),
+          limitations = COALESCE(limitations, ?),
+          safety_rating = COALESCE(safety_rating, ?),
+          documentation_url = COALESCE(documentation_url, ?)
+         WHERE model_id LIKE ?`,
+        [m.cutoff, m.limitations, m.rating, m.url, m.pattern]
+      );
+    } catch (err: any) {
+      if (err?.errno !== 1054) {
+        fastify.log.warn({ err }, `[AI-Act] Model docs seed failed for ${m.pattern}`);
+      }
+    }
+  }
+
+  fastify.log.info('[AI-Act] Compliance settings and model documentation seeded');
 }
 
 async function seedPromptTemplates(pool: mysql.Pool, fastify: FastifyInstance): Promise<void> {

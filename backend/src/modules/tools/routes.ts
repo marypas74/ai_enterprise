@@ -6,6 +6,8 @@ import fs from 'fs/promises';
 import { existsSync, mkdirSync } from 'fs';
 import path from 'path';
 
+const AI_DISCLOSURE_FOOTER = '\n\n---\n[Avviso AI Act] Documento generato tramite intelligenza artificiale — Enterprise AI Chat. Le informazioni contenute potrebbero non essere accurate. Verificare con fonti autorevoli.';
+
 const generateDocxSchema = z.object({
     text: z.string().min(1),
     title: z.string().optional().default('Documento Generato')
@@ -37,7 +39,9 @@ export async function toolsRoutes(fastify: FastifyInstance) {
         try {
             const { text, title } = generateDocxSchema.parse(request.body);
 
-            const buffer = await generateDocxBuffer(text, title);
+            // AI Act Art. 50.2: mark AI-generated content
+            const textWithDisclosure = text + AI_DISCLOSURE_FOOTER;
+            const buffer = await generateDocxBuffer(textWithDisclosure, title);
 
             const filename = `${title.replace(/[^a-z0-9]/gi, '_')}_${Date.now()}.docx`;
             const filePath = path.join(GENERATED_DIR, filename);
@@ -79,7 +83,13 @@ export async function toolsRoutes(fastify: FastifyInstance) {
                 title: z.string().optional().default('Dati_Export')
             }).parse(request.body);
 
-            const buffer = await generateExcelBuffer(data, title);
+            // AI Act Art. 50.2: add disclosure metadata
+            const dataWithDisclosure = [
+              ...data,
+              {},
+              { [Object.keys(data[0] || {})[0] || 'Note']: '[Avviso AI Act] Dati generati tramite intelligenza artificiale — Enterprise AI Chat. Verificare con fonti autorevoli.' }
+            ];
+            const buffer = await generateExcelBuffer(dataWithDisclosure, title);
 
             const filename = `${title.replace(/[^a-z0-9]/gi, '_')}_${Date.now()}.xlsx`;
             const filePath = path.join(GENERATED_DIR, filename);
@@ -122,7 +132,15 @@ export async function toolsRoutes(fastify: FastifyInstance) {
     }, async (request, reply) => {
         try {
             const { slides, title } = request.body as { slides: any[], title?: string };
-            const buffer = await generatePptxBuffer(slides, title);
+            // AI Act Art. 50.2: add disclosure slide
+            const slidesWithDisclosure = [
+              ...slides,
+              {
+                title: 'Avviso AI Act',
+                content: 'Questa presentazione è stata generata tramite intelligenza artificiale (Enterprise AI Chat). Le informazioni contenute potrebbero non essere accurate. Si consiglia di verificare i contenuti con fonti autorevoli prima di qualsiasi utilizzo professionale.'
+              }
+            ];
+            const buffer = await generatePptxBuffer(slidesWithDisclosure, title);
 
             const filename = `presentation_${Date.now()}.pptx`;
             const filePath = path.join(GENERATED_DIR, filename);

@@ -173,8 +173,17 @@ export default function LoginPage() {
             </button>
           </form>
 
+          {/* AI Act Disclosure + Privacy links */}
+          <p className="mt-4 text-xs text-surface-500 text-center leading-relaxed">
+            Effettuando il login, dichiari di aver letto la{' '}
+            <a href="/privacy" className="text-primary-600 dark:text-primary-400 hover:underline">Privacy Policy</a>{' '}
+            e i{' '}
+            <a href="/terms" className="text-primary-600 dark:text-primary-400 hover:underline">Termini di Servizio</a>.
+            Questo servizio utilizza intelligenza artificiale.
+          </p>
+
           {/* Info */}
-          <div className="mt-6 text-center">
+          <div className="mt-4 text-center">
             <p className="text-sm text-surface-500">
               Contatta l'amministratore per richiedere un account
             </p>

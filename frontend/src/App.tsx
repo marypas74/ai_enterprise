@@ -9,6 +9,9 @@ import AutoClaudePage from './pages/AutoClaudePage';
 import ParlantPage from './pages/ParlantPage';
 import SettingsPage from './pages/SettingsPage';
 import PublicMonitorPage from './pages/PublicMonitorPage';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
+import TermsOfServicePage from './pages/TermsOfServicePage';
+import AITransparencyPage from './pages/AITransparencyPage';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
@@ -30,6 +33,8 @@ export default function App() {
     <div className="min-h-screen bg-surface-50 dark:bg-surface-950">
       <Routes>
         <Route path="/metrics" element={<PublicMonitorPage />} />
+        <Route path="/privacy" element={<PrivacyPolicyPage />} />
+        <Route path="/terms" element={<TermsOfServicePage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route
           path="/"
@@ -68,6 +73,14 @@ export default function App() {
           element={
             <PrivateRoute>
               <SettingsPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/transparency"
+          element={
+            <PrivateRoute>
+              <AITransparencyPage />
             </PrivateRoute>
           }
         />

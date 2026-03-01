@@ -37,12 +37,21 @@ import { BotIcon, BotIconType } from '../components/BotIcon';
 import { IconSelector, useSelectedIcon } from '../components/IconSelector';
 import ConversationalFormIndicator from '../components/ConversationalFormIndicator';
 import MemoryPanel from '../components/MemoryPanel';
+import AIDisclosureBanner from '../components/AIDisclosureBanner';
+import AIGeneratedLabel from '../components/AIGeneratedLabel';
+import FeedbackButtons from '../components/FeedbackButtons';
+import SensitiveTopicWarning from '../components/SensitiveTopicWarning';
+import ConsentModal from '../components/ConsentModal';
 
 interface Message {
   id?: number;
   role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp?: string;
+  ai_model?: string;
+  ai_provider?: string;
+  safety_disclaimer?: string;
+  safety_topics?: string[];
 }
 
 interface Conversation {
@@ -109,6 +118,7 @@ export default function ChatPage() {
     episodic: any[]; declarative: any[]; procedural: any[];
   } | null>(null);
   const [showVectorMemory, setShowVectorMemory] = useState(false);
+  const [showConsentModal, setShowConsentModal] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -154,6 +164,17 @@ export default function ChatPage() {
       else setActiveFormSession(prev => prev ? { ...prev, state: 'incomplete' } : null);
     } catch (err) { console.error('Failed to confirm form:', err); }
   };
+
+  // AI Act: Check consent status on mount
+  useEffect(() => {
+    api.get('/compliance/consent/status')
+      .then(res => {
+        const consents = res.data?.consents || [];
+        const hasAiConsent = consents.some((c: any) => c.consent_type === 'ai_disclosure' && c.granted);
+        if (!hasAiConsent) setShowConsentModal(true);
+      })
+      .catch(() => { /* consent endpoint may not be ready */ });
+  }, []);
 
   // Load memory context status
   useEffect(() => {
@@ -849,6 +870,9 @@ export default function ChatPage() {
           </div>
         </header>
 
+        {/* AI Act: Disclosure Banner (GAP-1) */}
+        <AIDisclosureBanner modelName={currentModel.name} conversationId={currentConversationId} />
+
         {/* Memory Panel Overlay */}
         {showMemoryPanel && (
           <div className="absolute right-4 top-16 z-40 w-80 max-h-[60vh] bg-surface-900 border border-surface-700 rounded-lg shadow-xl overflow-hidden">
@@ -998,7 +1022,21 @@ export default function ChatPage() {
                               </button>
                             </div>
                           )}
+                          {/* AI Act: Feedback buttons (GAP-9) */}
+                          {message.role === 'assistant' && message.id && !isStreaming && (
+                            <FeedbackButtons messageId={message.id} />
+                          )}
                         </div>
+                      )}
+                      {/* AI Act: AI Generated Label (GAP-2) */}
+                      {message.role === 'assistant' && message.content && !isStreaming && (
+                        <div className="mt-1">
+                          <AIGeneratedLabel model={message.ai_model} provider={message.ai_provider} />
+                        </div>
+                      )}
+                      {/* AI Act: Sensitive Topic Warning (GAP-10) */}
+                      {message.role === 'assistant' && message.safety_disclaimer && (
+                        <SensitiveTopicWarning disclaimer={message.safety_disclaimer} topics={message.safety_topics || []} />
                       )}
                     </div>
                   </div>
@@ -1114,6 +1152,11 @@ export default function ChatPage() {
           memories={vectorMemories}
           onClose={() => setShowVectorMemory(false)}
         />
+      )}
+
+      {/* AI Act: Consent Modal (GAP-4) */}
+      {showConsentModal && (
+        <ConsentModal onConsented={() => setShowConsentModal(false)} />
       )}
     </div>
   );

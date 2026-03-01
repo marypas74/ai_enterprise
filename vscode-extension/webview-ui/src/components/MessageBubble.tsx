@@ -158,6 +158,22 @@ const MessageBubble: React.FC<MessageBubbleProps> = memo(({
           </span>
         )}
       </div>
+
+      {/* AI Act: AI Generated Label (Art. 50.2) */}
+      {!isUser && !isStreaming && message.content && (
+        <div style={{
+          fontSize: '10px',
+          color: 'var(--vscode-descriptionForeground)',
+          marginTop: '4px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px',
+          opacity: 0.7
+        }}>
+          <span>✦</span>
+          <span>Generato da AI{message.model ? ` · ${message.model}` : ''}</span>
+        </div>
+      )}
     </div>
   );
 });

@@ -62,6 +62,7 @@ import MemoryStatsPage from './admin/MemoryStatsPage';
 import PermissionsPage from './admin/PermissionsPage';
 import HookTracePage from './admin/HookTracePage';
 import PluginGraphPage from './admin/PluginGraphPage';
+import ComplianceDashboardPage from './admin/ComplianceDashboardPage';
 
 interface User {
   id: number;
@@ -119,6 +120,7 @@ const NAV_ITEMS = [
   { path: '/admin/kanban', icon: LayoutDashboard, label: 'Kanban' },
   { path: '/admin/permissions', icon: Lock, label: 'Permessi' },
   { path: '/admin/sessions', icon: Wifi, label: 'Sessioni Attive' },
+  { path: '/admin/compliance', icon: Shield, label: 'AI Act Compliance' },
   { path: '/admin/audit', icon: Shield, label: 'Audit Log' },
   { path: '/admin/debug', icon: Bug, label: 'Debug Console' },
 ];
@@ -669,6 +671,7 @@ export default function AdminPage() {
           <Route path="/permissions" element={<PermissionsPage />} />
           <Route path="/users" element={<UsersGroupsPage />} />
           <Route path="/sessions" element={<SessionsPage />} />
+          <Route path="/compliance" element={<ComplianceDashboardPage />} />
           <Route path="/audit" element={<AuditLog />} />
           <Route path="/debug" element={<DebugPage />} />
         </Routes>

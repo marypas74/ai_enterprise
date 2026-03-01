@@ -5,6 +5,7 @@ export interface ChatMessage {
   content: string;
   timestamp: Date;
   isStreaming?: boolean;
+  model?: string;
 }
 
 // VS Code API type
