@@ -552,5 +552,424 @@ FASE 7 (Docs) ──────────────────────
 
 ---
 
+---
+
+## FASE 8 — Model Orchestrator: Routing Intelligente Automatico (Settimane 17-28)
+
+> **Obiettivo:** L'utente non sceglie il modello. Il sistema analizza ogni query e la instrada al modello ottimale per qualita/costo/latenza, come Perplexity e Gemini CLI.
+
+### Contesto e Ricerca
+
+**Stato dell'arte (Marzo 2026):**
+
+| Progetto | Approccio | Stars | Produzione |
+|----------|-----------|-------|------------|
+| [RouteLLM](https://github.com/lm-sys/RouteLLM) (LMSYS/UC Berkeley) | Classificatori ML (BERT, MF, LLM) su dati Chatbot Arena | 4.6k | Si — ICLR 2025 |
+| [LLMRouter](https://github.com/ulab-uiuc/LLMRouter) (UIUC) | 16+ algoritmi (KNN, SVM, MLP, GNN, BERT, RL) | 1.4k | Si — OpenClaw server |
+| [vLLM Semantic Router](https://github.com/vllm-project/semantic-router) | Classificazione semantica, Rust inference | 3.3k | Si — SOTA su RouterArena |
+| [Aurelio Semantic Router](https://github.com/aurelio-labs/semantic-router) | Embedding similarity, sub-millisecond | 3.3k | Si — MIT license |
+| [LiteLLM](https://github.com/BerriAI/litellm) | Gateway + load balancing + fallback | 37.4k | Si — enterprise |
+| [TensorZero](https://github.com/tensorzero/tensorzero) | Gateway Rust + A/B testing + feedback loop | 11k | Si |
+| [ClawRouter](https://github.com/BlockRunAI/ClawRouter) | 15 dimensioni scoring, <1ms routing | 3.8k | Si — TypeScript |
+
+**Benchmark chiave (LLMRouterBench, Gennaio 2026):** Molti router (inclusi commerciali) non battono in modo affidabile baseline semplici se valutati con protocolli unificati. Consiglio: **partire semplice, iterare con dati reali**.
+
+**Come lo fanno i big:**
+- **Perplexity:** Meta-router che valuta tipo task, complessita, latenza. Principio: *"usa il modello piu piccolo che da la migliore UX"*
+- **Google Gemini CLI:** Router automatico di default tra Flash e Pro basato su complessita
+- **Cursor Auto:** Router reliability-first (switch su degradazione/outage, non su complessita)
+- **OpenRouter Auto:** Meta-modello NotDiamond che analizza il prompt e sceglie tra 19+ modelli
+
+**Provider effort controls (alternativa intra-modello):**
+- **Anthropic:** `adaptive thinking` + parametro `effort` (low/medium/high/max)
+- **OpenAI:** `reasoning.effort` su modelli o-series
+- **Google:** `thinking_level` su Gemini 3
+
+### Infrastruttura Esistente (gia pronta)
+
+Il sistema ha gia le basi per il routing:
+
+| Componente | File | Stato |
+|------------|------|-------|
+| Multi-provider factory | `backend/src/modules/ai/AIProviderFactory.ts` | Funzionante |
+| Model capabilities inference | `backend/src/utils/model-capabilities.ts` | Funzionante |
+| MODEL_PRICING per costi | `backend/src/modules/ai/types.ts` | Aggiornato Mar 2026 |
+| Token tracking per-request | `backend/src/modules/chat/streaming.ts` | Funzionante |
+| Latency tracking in ai_decision_log | `backend/src/modules/chat/streaming.ts` | Funzionante |
+| Circuit breaker per provider | `backend/src/services/CircuitBreakerService.ts` | Funzionante |
+| Model config con context window | `backend/src/services/ModelConfigService.ts` | Funzionante |
+| Monthly cost aggregation | tabella `monthly_usage` | Funzionante |
+| Model recommendation (basic) | `backend/src/modules/chat/models.ts` | Da sostituire |
+
+### Architettura Target
+
+```
+                    ┌─────────────────────────────────────────────┐
+                    │              Model Orchestrator              │
+                    │                                             │
+  User Query ──────▶│  1. Query Analyzer (complessita/tipo)       │
+                    │  2. Model Scorer (quality/cost/latency)     │
+                    │  3. Model Selector (best match)             │
+                    │  4. Fallback Chain (circuit breaker)        │
+                    │  5. Feedback Loop (learn from outcomes)     │
+                    │                                             │
+                    └────────┬──────────┬──────────┬──────────────┘
+                             │          │          │
+                    ┌────────▼──┐ ┌─────▼─────┐ ┌─▼────────────┐
+                    │  Tier 1   │ │  Tier 2   │ │   Tier 3     │
+                    │  FAST     │ │  BALANCED  │ │   POWERFUL   │
+                    │           │ │           │ │              │
+                    │ Haiku 4.5 │ │ Sonnet 4.6│ │  Opus 4.6    │
+                    │ GPT-4.1m  │ │ GPT-4.1   │ │  GPT-5       │
+                    │ Gem Flash │ │ Gem Pro   │ │  o3           │
+                    │ Ollama    │ │           │ │              │
+                    │ (locale)  │ │           │ │              │
+                    └───────────┘ └───────────┘ └──────────────┘
+```
+
+### FASE 8.1 — Rule-Based Router (Settimane 17-18)
+
+> **"L'80% dei casi si gestisce con 5-10 regole semplici"** — LogRocket Production Guide
+
+**Nuovo file:** `backend/src/services/ModelRouter.ts`
+
+**Regole di routing:**
+
+| Segnale | Tier 1 (Fast) | Tier 2 (Balanced) | Tier 3 (Powerful) |
+|---------|---------------|-------------------|-------------------|
+| Lunghezza input | < 100 chars | 100-2000 chars | > 2000 chars |
+| Keyword match | saluto, grazie, ok | analizza, spiega, scrivi | ragiona, confronta, progetta, architettura |
+| Tipo task | traduzione, riformulazione | coding, analisi | reasoning multi-step, design |
+| Storico conversazione | < 3 messaggi | 3-10 messaggi | > 10 messaggi (contesto ricco) |
+| Allegati | nessuno | 1 documento | multi-documento, immagini |
+| Lingua richiesta | italiano semplice | tecnico | multi-lingua, legale |
+| Tool richiesti | nessuno | 1 tool | multi-tool, agentic |
+
+**Implementazione:**
+
+```typescript
+// backend/src/services/ModelRouter.ts
+interface RoutingDecision {
+  tier: 'fast' | 'balanced' | 'powerful';
+  model: string;
+  reason: string;
+  confidence: number;  // 0-1
+  estimatedCost: number;
+}
+
+interface RoutingContext {
+  query: string;
+  conversationLength: number;
+  hasAttachments: boolean;
+  attachmentTypes: string[];
+  userTier: string;        // 'free' | 'standard' | 'premium'
+  previousModelUsed?: string;
+  toolsRequested: string[];
+}
+
+class ModelRouter {
+  async route(ctx: RoutingContext): Promise<RoutingDecision> { ... }
+}
+```
+
+**Database:**
+```sql
+-- Nuova tabella per configurazione tiers
+CREATE TABLE model_routing_tiers (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  tier_name ENUM('fast', 'balanced', 'powerful'),
+  provider VARCHAR(50),
+  model_id VARCHAR(100),
+  priority INT DEFAULT 0,         -- ordine preferenza dentro il tier
+  max_concurrent INT DEFAULT 0,   -- 0 = illimitato
+  is_enabled BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Log decisioni routing per feedback loop
+CREATE TABLE routing_decisions (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  conversation_id INT,
+  user_id INT,
+  query_length INT,
+  query_complexity_score FLOAT,
+  selected_tier ENUM('fast', 'balanced', 'powerful'),
+  selected_model VARCHAR(100),
+  routing_reason VARCHAR(500),
+  routing_confidence FLOAT,
+  response_quality_score FLOAT NULL,  -- da feedback utente
+  latency_ms INT,
+  tokens_input INT,
+  tokens_output INT,
+  cost_usd DECIMAL(10,6),
+  user_override BOOLEAN DEFAULT FALSE, -- utente ha cambiato modello?
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_tier_date (selected_tier, created_at),
+  INDEX idx_user_override (user_override, created_at)
+);
+```
+
+**Frontend:**
+- Sostituire il model selector con un toggle "Auto/Manuale"
+- In modalita Auto: mostrare badge con tier selezionato (es. "Haiku 4.5 - Veloce")
+- Permettere override manuale con un click
+- Tracciare gli override come segnale per migliorare il router
+
+**Effort: ~30 ore**
+
+### FASE 8.2 — Adaptive Effort per Provider (Settimane 19-20)
+
+> Sfruttare i parametri `effort` nativi dei provider per ottimizzare **dentro** lo stesso modello.
+
+**Logica:** Anche quando il router seleziona un tier, il modello puo modulare il "quanto ragionare":
+
+| Complessita Query | Anthropic `effort` | OpenAI `reasoning.effort` | Google `thinking_level` |
+|-------------------|--------------------|---------------------------|-------------------------|
+| Semplice | `low` | `low` | `minimal` |
+| Media | `medium` | `medium` | `medium` |
+| Complessa | `high` | `high` | `high` |
+
+**Azioni:**
+- [ ] Aggiungere parametro `effort` a `AnthropicProvider.ts` (adaptive thinking)
+- [ ] Aggiungere parametro `reasoning.effort` a `OpenAIProvider.ts` (o-series)
+- [ ] Aggiungere parametro `thinking_level` a `GoogleProvider.ts` (Gemini 3)
+- [ ] Il `ModelRouter` calcola la complessita e passa l'effort level al provider
+- [ ] Tracciare thinking_tokens separatamente per analisi costo/beneficio
+
+**Risparmio stimato:** 20-40% sui costi di thinking tokens per query semplici inviate a modelli potenti.
+
+**Effort: ~12 ore**
+
+### FASE 8.3 — Cascade Pattern: Try Cheap First (Settimane 21-22)
+
+> Il pattern piu studiato in letteratura (RouteLLM, C3PO, Select-then-Route). Risparmio fino a 85%.
+
+**Logica:**
+1. Inviare la query al modello Tier 1 (fast/economico)
+2. Valutare la qualita della risposta con un **quality check rapido**
+3. Se insufficiente, escalare al Tier 2/3
+
+**Quality Check (senza LLM aggiuntivo):**
+- Lunghezza risposta vs attesa (troppo corta = bassa qualita)
+- Presenza di "non so", "non posso", pattern di rifiuto
+- Self-consistency: se la risposta contraddice dati nel contesto
+- Confidence del modello (logprobs dove disponibili)
+- Fallback rate tracking: se un modello fallback >20% delle volte su una categoria, promuovere direttamente
+
+**Nuovo file:** `backend/src/services/ResponseQualityChecker.ts`
+
+```typescript
+interface QualityAssessment {
+  score: number;           // 0-1
+  shouldEscalate: boolean;
+  reason: string;
+  metrics: {
+    responseLength: number;
+    containsRefusal: boolean;
+    containsUncertainty: boolean;
+    coherenceScore: number;
+  };
+}
+```
+
+**Gestione UX durante escalation:**
+- L'utente vede subito la risposta del modello fast (streaming)
+- Se escalation necessaria: mostrare notifica "Sto approfondendo con un modello piu potente..."
+- Sostituire la risposta con quella del modello superiore
+- Alternativa: mostrare entrambe e far scegliere all'utente (A/B implicito)
+
+**Effort: ~25 ore**
+
+### FASE 8.4 — Semantic Router per Task Classification (Settimane 23-24)
+
+> Ispirato a [Aurelio Semantic Router](https://github.com/aurelio-labs/semantic-router) — decisioni in microsecondi senza chiamate LLM.
+
+**Logica:** Usare gli embedding gia presenti nel sistema (EmbeddingService) per classificare le query in categorie predefinite, e ogni categoria ha un tier assegnato.
+
+**Route definitions:**
+
+```typescript
+const ROUTING_ROUTES = [
+  {
+    name: 'greeting',
+    tier: 'fast',
+    examples: [
+      'ciao', 'buongiorno', 'come stai', 'hello', 'hi',
+      'grazie', 'ok perfetto', 'va bene'
+    ]
+  },
+  {
+    name: 'simple_question',
+    tier: 'fast',
+    examples: [
+      'che ore sono', 'qual e la capitale di', 'traduci questa frase',
+      'come si dice in inglese', 'riassumi in una riga'
+    ]
+  },
+  {
+    name: 'coding',
+    tier: 'balanced',
+    examples: [
+      'scrivi una funzione che', 'correggi questo bug',
+      'spiega questo codice', 'aggiungi un test per',
+      'refactoring di questo metodo'
+    ]
+  },
+  {
+    name: 'analysis',
+    tier: 'balanced',
+    examples: [
+      'analizza questo documento', 'confronta queste opzioni',
+      'quali sono i pro e contro', 'spiega la differenza tra'
+    ]
+  },
+  {
+    name: 'complex_reasoning',
+    tier: 'powerful',
+    examples: [
+      'progetta un architettura per', 'scrivi un business plan',
+      'analizza criticamente', 'valuta i rischi di',
+      'proponi una strategia per', 'crea una roadmap'
+    ]
+  },
+  {
+    name: 'multi_step_agent',
+    tier: 'powerful',
+    examples: [
+      'cerca sul web e poi analizza', 'scarica il file e processalo',
+      'esegui questa pipeline', 'usa gli strumenti per'
+    ]
+  }
+];
+```
+
+**Implementazione:**
+- [ ] Generare embedding per tutti gli esempi al boot (one-time, cache in Redis)
+- [ ] Per ogni query in ingresso: generare embedding, calcolare cosine similarity con tutte le route
+- [ ] Selezionare la route con similarity piu alta (soglia minima: 0.65)
+- [ ] Se nessuna route matcha → fallback al rule-based router (Fase 8.1)
+
+**Vantaggio:** ~1-5ms di latenza aggiuntiva, zero costi LLM per il routing.
+
+**Effort: ~20 ore**
+
+### FASE 8.5 — Feedback Loop e Auto-Tuning (Settimane 25-26)
+
+> **"Monitor router accuracy, not just model accuracy"** — Community consensus
+
+**Segnali di feedback:**
+1. **Feedback esplicito utente** (FeedbackButtons gia presenti): thumbs up/down → `response_quality_score`
+2. **Override modello**: l'utente cambia da Auto a manuale → segnale che il router ha sbagliato
+3. **Escalation rate**: % di risposte che richiedono cascade → troppo alto = router troppo aggressivo
+4. **Latency satisfaction**: tempo di risposta vs aspettativa utente
+5. **Regeneration**: l'utente chiede di rigenerare → risposta inadeguata
+
+**Dashboard Admin:**
+```
+┌─────────────────────────────────────────────────────┐
+│  MODEL ORCHESTRATOR DASHBOARD                       │
+├─────────────────────────────────────────────────────┤
+│                                                     │
+│  Routing Distribution (last 7 days)                 │
+│  ████████████████████░░░░░░  Tier 1: 62%           │
+│  ████████████░░░░░░░░░░░░░  Tier 2: 30%           │
+│  ████░░░░░░░░░░░░░░░░░░░░  Tier 3:  8%           │
+│                                                     │
+│  Quality Metrics                                    │
+│  Positive feedback:     87%                         │
+│  Escalation rate:       12%                         │
+│  User override rate:     5%                         │
+│  False accept rate:      2.1%                       │
+│                                                     │
+│  Cost Savings vs "always Opus"                      │
+│  Questa settimana:  -67% ($142 → $47)              │
+│  Questo mese:       -61% ($580 → $226)             │
+│                                                     │
+│  Per-Tier Performance                               │
+│  Tier 1: avg 1.2s, $0.002/req, 91% satisfaction   │
+│  Tier 2: avg 3.4s, $0.018/req, 94% satisfaction   │
+│  Tier 3: avg 8.1s, $0.089/req, 97% satisfaction   │
+│                                                     │
+│  Routing Accuracy Trends        [7d] [30d] [90d]   │
+│  ▁▂▃▃▄▅▅▆▆▇▇█  improving ↑                        │
+└─────────────────────────────────────────────────────┘
+```
+
+**Azioni:**
+- [ ] Creare endpoint admin `GET /admin/orchestrator/stats` con metriche aggregage
+- [ ] Creare pagina frontend `/admin/orchestrator` con dashboard
+- [ ] Implementare auto-tuning: aggiustare soglie tier basandosi su override rate e feedback
+- [ ] Alert se override rate > 15% o escalation rate > 25%
+
+**Effort: ~25 ore**
+
+### FASE 8.6 — ML-Based Router (Settimane 27-28) [OPZIONALE]
+
+> Solo se le fasi precedenti mostrano che il rule-based + semantic non basta. **LLMRouterBench (Jan 2026) ha dimostrato che spesso router ML non battono baseline semplici.**
+
+**Approccio consigliato:** [RouteLLM](https://github.com/lm-sys/RouteLLM) con il router Matrix Factorization:
+- Leggero (non richiede GPU per inference)
+- Trainato su dati Chatbot Arena
+- Generalizza tra coppie di modelli diversi
+- Integrabile come microservizio Python
+
+**Alternativa self-hosted:** Trainare un classificatore DistilBERT sui dati di `routing_decisions` accumulati nelle fasi precedenti:
+- Input: query + metadata (lunghezza, ha allegati, num messaggi)
+- Output: tier prediction
+- Training data: decisioni con feedback positivo + override corrections
+
+**Effort: ~40 ore (include training pipeline, serving, integration)**
+
+---
+
+### Riepilogo Fase 8
+
+| Sotto-fase | Settimane | Effort | Risparmio Atteso | Complessita |
+|------------|-----------|--------|------------------|-------------|
+| 8.1 Rule-Based Router | 17-18 | 30h | 30-40% | Bassa |
+| 8.2 Adaptive Effort | 19-20 | 12h | +20% | Bassa |
+| 8.3 Cascade Pattern | 21-22 | 25h | +15-25% | Media |
+| 8.4 Semantic Router | 23-24 | 20h | +10% (accuratezza) | Media |
+| 8.5 Feedback Loop | 25-26 | 25h | Ottimizzazione continua | Media |
+| 8.6 ML Router [OPZ] | 27-28 | 40h | +5-10% | Alta |
+| **TOTALE** | **12 sett** | **152h** (112h senza 8.6) | **60-75%** | |
+
+**Risparmio cumulativo stimato:** Da "sempre Opus" a routing intelligente = **60-75% riduzione costi** mantenendo 95%+ della qualita percepita.
+
+### Dipendenze
+
+```
+FASE 8.1 (Rules) ───────────────────────────────────────────▶ PRODUZIONE
+     │                                                          ↑
+     ├──▶ FASE 8.2 (Effort) ──────────────────────────────────┤
+     │                                                          │
+     ├──▶ FASE 8.3 (Cascade) ─────────────────────────────────┤
+     │         │                                                │
+     │         └── richiede quality checker funzionante         │
+     │                                                          │
+     └──▶ FASE 8.4 (Semantic) ────────────────────────────────┤
+                                                                │
+          FASE 8.5 (Feedback) ── richiede dati da 8.1-8.4 ────┤
+                    │                                           │
+                    └──▶ FASE 8.6 (ML) ── richiede dati da 8.5 ┘
+```
+
+**Nota:** Ogni sotto-fase e deployabile indipendentemente. Si puo mettere in produzione gia dalla 8.1 e iterare.
+
+### Fonti Principali
+
+- [RouteLLM](https://github.com/lm-sys/RouteLLM) — ICLR 2025, 85% cost reduction su MT-Bench
+- [LLMRouter](https://github.com/ulab-uiuc/LLMRouter) — 16+ algoritmi di routing
+- [Aurelio Semantic Router](https://github.com/aurelio-labs/semantic-router) — Sub-millisecond routing
+- [LiteLLM Routing](https://docs.litellm.ai/docs/routing) — Gateway con 6 strategie
+- [Anthropic Adaptive Thinking](https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking)
+- [LLMRouterBench](https://arxiv.org/abs/2601.07206) — Benchmark unificato Jan 2026
+- [RouteLLM Paper](https://arxiv.org/abs/2406.18665) — Formalizzazione del problema
+- [LogRocket LLM Routing Guide](https://blog.logrocket.com/llm-routing-right-model-for-requests/)
+- [Perplexity Architecture](https://blog.bytebytego.com/p/how-perplexity-built-an-ai-google)
+- [OpenRouter Auto Router](https://openrouter.ai/docs/guides/routing/routers/auto-router)
+
+---
+
 *Documento generato dall'analisi automatica del codebase il 2026-03-01.*
 *Aggiornare questo documento ad ogni milestone raggiunta.*

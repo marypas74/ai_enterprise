@@ -38,16 +38,38 @@ export async function modelRoutes(fastify: FastifyInstance) {
        ORDER BY p.name, m.sort_order, m.display_name`
     );
 
-    // Transform to expected format
-    const result = models.map(m => ({
+    // Build result list with optional "auto" routing at the top
+    const result: Array<{ id: string; name: string; provider: string; description?: string; supportsStreaming: boolean; supportsFunctions: boolean; supportsVision: boolean }> = [];
+
+    // Add "Auto" smart routing option if enabled
+    try {
+      const [settingRows] = await fastify.db.execute(
+        `SELECT setting_value FROM model_routing_settings WHERE setting_key = 'auto_routing_enabled'`
+      ) as any;
+      const autoEnabled = settingRows?.[0]?.setting_value === 'true';
+      if (autoEnabled && models.length > 1) {
+        result.push({
+          id: 'auto',
+          name: 'Auto (Smart Routing)',
+          provider: 'Orchestrator',
+          description: 'Seleziona automaticamente il modello migliore in base alla complessità della richiesta',
+          supportsStreaming: true,
+          supportsFunctions: true,
+          supportsVision: true,
+        });
+      }
+    } catch { /* model_routing_settings table may not exist yet */ }
+
+    // Transform DB models to expected format
+    result.push(...models.map(m => ({
       id: m.model_id,
       name: m.display_name,
       provider: m.provider_name,
       description: m.description || undefined,
       supportsStreaming: m.supports_streaming,
       supportsFunctions: m.supports_functions,
-      supportsVision: m.supports_vision
-    }));
+      supportsVision: m.supports_vision,
+    })));
 
     // Also fetch Parlant agents if the service is healthy
     try {

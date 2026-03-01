@@ -496,6 +496,78 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
         INDEX idx_period (period_start, period_end),
         INDEX idx_model (ai_model)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+    },
+    // ── Model Orchestrator Tables (FASE 8) ─────────────────────────────
+    {
+      name: 'model_routing_tiers',
+      sql: `CREATE TABLE IF NOT EXISTS model_routing_tiers (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        tier_name ENUM('fast', 'balanced', 'powerful') NOT NULL,
+        provider VARCHAR(50) NOT NULL,
+        model_id VARCHAR(100) NOT NULL,
+        priority INT DEFAULT 0,
+        max_concurrent INT DEFAULT 0,
+        is_enabled BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_tier_enabled (tier_name, is_enabled),
+        UNIQUE KEY uk_tier_model (tier_name, model_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+    },
+    {
+      name: 'model_routing_tiers_seed',
+      sql: `INSERT IGNORE INTO model_routing_tiers (tier_name, provider, model_id, priority) VALUES
+        ('fast', 'anthropic', 'claude-haiku-4-5-20251001', 1),
+        ('fast', 'google', 'gemini-2.0-flash', 2),
+        ('fast', 'openai', 'gpt-4.1-mini', 3),
+        ('balanced', 'anthropic', 'claude-sonnet-4-6', 1),
+        ('balanced', 'openai', 'gpt-4.1', 2),
+        ('balanced', 'google', 'gemini-1.5-pro', 3),
+        ('powerful', 'anthropic', 'claude-opus-4-6', 1),
+        ('powerful', 'openai', 'o3-mini', 2)`
+    },
+    {
+      name: 'routing_decisions',
+      sql: `CREATE TABLE IF NOT EXISTS routing_decisions (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        conversation_id BIGINT UNSIGNED NULL,
+        user_id BIGINT UNSIGNED NOT NULL,
+        query_length INT UNSIGNED DEFAULT 0,
+        query_complexity_score FLOAT DEFAULT 0,
+        selected_tier ENUM('fast', 'balanced', 'powerful') NOT NULL,
+        selected_model VARCHAR(100) NOT NULL,
+        routing_reason VARCHAR(500),
+        routing_confidence FLOAT DEFAULT 0,
+        routing_method ENUM('rule', 'semantic', 'override') DEFAULT 'rule',
+        response_quality_score FLOAT NULL,
+        latency_ms INT UNSIGNED DEFAULT 0,
+        tokens_input INT UNSIGNED DEFAULT 0,
+        tokens_output INT UNSIGNED DEFAULT 0,
+        cost_usd DECIMAL(10,6) DEFAULT 0,
+        user_override BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_tier_date (selected_tier, created_at),
+        INDEX idx_user_override (user_override, created_at),
+        INDEX idx_user (user_id),
+        INDEX idx_method (routing_method)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+    },
+    {
+      name: 'model_routing_settings',
+      sql: `CREATE TABLE IF NOT EXISTS model_routing_settings (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        setting_key VARCHAR(100) NOT NULL UNIQUE,
+        setting_value VARCHAR(500) NOT NULL,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+    },
+    {
+      name: 'model_routing_settings_seed',
+      sql: `INSERT IGNORE INTO model_routing_settings (setting_key, setting_value) VALUES
+        ('auto_routing_enabled', 'true'),
+        ('cascade_enabled', 'false'),
+        ('semantic_routing_enabled', 'false'),
+        ('escalation_threshold', '0.5'),
+        ('max_escalation_rate', '0.25')`
     }
   ];
 

@@ -23,9 +23,11 @@ import {
   processAttachments, injectSystemPrompts, ensureItalianSystemPrompt,
   FALLBACK_MAP, isRetriableError
 } from './context-builder.js';
+import { getModelRouter, type RoutingDecision } from '../../services/ModelRouter.js';
 
 export async function completionRoutes(fastify: FastifyInstance) {
   const contentSafetyService = new ContentSafetyService(fastify);
+  const modelRouter = getModelRouter(fastify.db);
 
   fastify.post('/completions', {
     onRequest: [(fastify as any).authenticate],
@@ -41,6 +43,27 @@ export async function completionRoutes(fastify: FastifyInstance) {
       const body = completionSchema.parse(request.body);
 
       fastify.log.debug({ model: body.model, messageLength: body.message?.length || 0, userId: user.id, attachmentIds: body.attachmentIds || [] }, '[Chat] Request start');
+
+      // ── Model Orchestrator: auto-routing ──────────────────────────
+      let routingDecision: RoutingDecision | null = null;
+      if (body.model === 'auto') {
+        routingDecision = await modelRouter.route({
+          query: body.message,
+          conversationLength: 0, // will be updated after loading conversation
+          hasAttachments: (body.attachmentIds?.length || 0) > 0,
+          attachmentCount: body.attachmentIds?.length || 0,
+          hasVisionAttachments: false,
+          toolsRequested: false,
+          userId: user.id,
+        });
+        if (routingDecision.model) {
+          fastify.log.info(`[Router] Auto-routed to ${routingDecision.model} (tier=${routingDecision.tier}, reason=${routingDecision.reason})`);
+          body = { ...body, model: routingDecision.model };
+        } else {
+          fastify.log.warn('[Router] No routing tiers configured, falling back to user default');
+        }
+      }
+
       fastify.log.info(`[Chat] Request for model: ${body.model}`);
 
       // Check if this is a Parlant agent
@@ -197,6 +220,11 @@ export async function completionRoutes(fastify: FastifyInstance) {
       const sseWrite = createSseWriter(reply);
 
       sendInitialSseEvents(sseWrite, { model: body.model, providerName, safetyResult, recalledVectorMemories });
+
+      // Send routing decision to frontend if auto-routed
+      if (routingDecision) {
+        sseWrite(`data: ${JSON.stringify({ routing: { tier: routingDecision.tier, model: body.model, reason: routingDecision.reason, confidence: routingDecision.confidence, effort: routingDecision.effort }, done: false })}\n\n`);
+      }
 
       // Hook: before_llm_call
       try {
@@ -454,6 +482,19 @@ export async function completionRoutes(fastify: FastifyInstance) {
       } catch (compErr: any) { fastify.log.warn(`[Chat] Component token tracking failed: ${compErr.message}`); }
 
       await updateOne(fastify.db, 'UPDATE conversations SET updated_at = NOW() WHERE id = ?', [conversationId]);
+
+      // Record routing decision (async, non-blocking)
+      if (routingDecision) {
+        const latencyMs = Date.now() - streamStartTime;
+        modelRouter.recordDecision(routingDecision, {
+          query: body.message, conversationLength: messages.length,
+          hasAttachments: (body.attachmentIds?.length || 0) > 0,
+          attachmentCount: body.attachmentIds?.length || 0,
+          hasVisionAttachments: false, toolsRequested: !!toolDefs, userId: user.id,
+        }, { latencyMs, tokensInput, tokensOutput, costUsd: cost }).catch(err =>
+          fastify.log.warn(`[Router] Failed to record routing decision: ${err.message}`)
+        );
+      }
 
       // Auto-capture memory (async, non-blocking)
       try {
