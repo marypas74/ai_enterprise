@@ -55,7 +55,7 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
     numInferenceSteps = 20,
     guidanceScale = 7.5,
     seed = Math.floor(Math.random() * 2147483647),
-    model = 'flux.1-schnell',
+    model = 'stable-diffusion-1.5',
   } = options;
 
   const startTime = Date.now();

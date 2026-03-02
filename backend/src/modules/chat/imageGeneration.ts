@@ -14,7 +14,7 @@ const imageGenerationSchema = z.object({
   conversationId: z.number().optional(),
   width: z.number().min(256).max(2048).default(1024),
   height: z.number().min(256).max(2048).default(1024),
-  model: z.string().default('flux.1-schnell'),
+  model: z.string().default('stable-diffusion-1.5'),
   negativePrompt: z.string().max(1000).optional(),
   numInferenceSteps: z.number().min(1).max(100).default(20),
   guidanceScale: z.number().min(0).max(30).default(7.5),

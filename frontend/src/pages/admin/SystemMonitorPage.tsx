@@ -444,7 +444,6 @@ export default function SystemMonitorPage() {
               )}
             </div>
           </div>
-        </div>
 
           {/* OllamaDiffuser Status */}
           <div className="bg-surface-900 rounded-lg p-3 border border-surface-700">
@@ -457,9 +456,10 @@ export default function SystemMonitorPage() {
               <span className={`text-sm font-medium ${data?.diffuser?.status === 'ok' ? 'text-green-400' : 'text-red-400'}`}>
                 {data?.diffuser?.status === 'ok' ? 'Online' : 'Offline'}
               </span>
-              <span className="text-[10px] text-surface-500 ml-auto">flux.1-schnell</span>
+              <span className="text-[10px] text-surface-500 ml-auto">stable-diffusion-1.5</span>
             </div>
           </div>
+        </div>
 
         {/* Containers & Pods */}
         <div className="col-span-4 space-y-4">

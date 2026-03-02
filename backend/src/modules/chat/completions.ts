@@ -115,14 +115,14 @@ export async function completionRoutes(fastify: FastifyInstance) {
             const title = parsedBody.message.length > 50 ? parsedBody.message.substring(0, 50) + '...' : parsedBody.message;
             imgConvId = await insertOne(fastify.db,
               'INSERT INTO conversations (user_id, title, model) VALUES (?, ?, ?)',
-              [user.id, `[Image] ${title}`, 'flux.1-schnell']);
+              [user.id, `[Image] ${title}`, 'stable-diffusion-1.5']);
           }
           // Save user message
           await insertOne(fastify.db,
             'INSERT INTO messages (conversation_id, role, content, content_type) VALUES (?, ?, ?, ?)',
             [imgConvId, 'user', parsedBody.message, 'text']);
 
-          writeSse({ type: 'image_generating', model: 'flux.1-schnell', prompt: parsedBody.message, conversationId: imgConvId });
+          writeSse({ type: 'image_generating', model: 'stable-diffusion-1.5', prompt: parsedBody.message, conversationId: imgConvId });
 
           const result = await generateImage({ prompt: parsedBody.message });
 

@@ -11,7 +11,8 @@ import {
     Server,
     Gauge,
     Users,
-    Container
+    Container,
+    ImagePlus,
 } from 'lucide-react';
 
 // Using direct axios for public route to bypass intercepted auth logic if necessary
@@ -317,6 +318,20 @@ export default function PublicMonitorPage() {
                             <div className="text-center py-1 text-surface-600 italic text-[9px]">No_Models_Installed</div>
                         )}
                     </div>
+                </GridCard>
+
+                {/* IMAGE_GENERATION_ENGINE */}
+                <GridCard title="IMG_GEN_ENGINE" icon={ImagePlus} color="pink">
+                    <div className="flex items-center gap-2 mb-2">
+                        <div className={`w-2 h-2 rounded-full ${data?.diffuser?.status === 'ok' ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+                        <span className={`font-bold ${data?.diffuser?.status === 'ok' ? 'text-green-400' : 'text-red-400'}`}>
+                            {data?.diffuser?.status === 'ok' ? 'ONLINE' : 'OFFLINE'}
+                        </span>
+                    </div>
+                    <StatItem label="SERVICE" value="OllamaDiffuser" color="text-pink-400" />
+                    <StatItem label="MODEL" value="stable-diffusion-1.5" color="text-cyan-400" />
+                    <StatItem label="PROTOCOL" value="REST/HTTP" color="text-surface-400" />
+                    <StatItem label="ENDPOINT" value="/api/generate" color="text-surface-400" />
                 </GridCard>
 
                 {/* K8S_CLUSTER_STATE */}

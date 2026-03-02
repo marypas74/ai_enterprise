@@ -193,7 +193,7 @@ class ModelRouter {
       || IMAGE_KEYWORDS.some(kw => queryLowerCheck.includes(kw));
     if (isImage) {
       return {
-        tier: 'image', model: 'flux.1-schnell',
+        tier: 'image', model: 'stable-diffusion-1.5',
         reason: 'Image generation request detected',
         confidence: 0.9, effort: 'medium', estimatedCostPer1k: 0,
         routingMethod: 'rule', isImageGeneration: true,
