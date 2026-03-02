@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import {
   Send,
   Paperclip,
@@ -8,8 +8,10 @@ import {
   Code,
   File,
   Loader2,
+  Camera,
 } from 'lucide-react';
 import type { Attachment } from '../../hooks/useFileAttachments';
+import { isNativePlatform } from '../../utils/platform';
 
 // Helper to get icon for attachment type
 function getAttachmentIcon(mimeType: string) {
@@ -34,6 +36,7 @@ interface ChatInputAreaProps {
   onFileSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onRemoveAttachment: (index: number) => void;
   onOpenFilePicker: () => void;
+  onAddFile?: (file: File) => void;
 }
 
 export default function ChatInputArea({
@@ -50,9 +53,33 @@ export default function ChatInputArea({
   onFileSelect,
   onRemoveAttachment,
   onOpenFilePicker,
+  onAddFile,
 }: ChatInputAreaProps) {
+  const handleCameraCapture = useCallback(async () => {
+    if (!isNativePlatform() || !onAddFile) return;
+    try {
+      const { Camera: CapCamera, CameraResultType, CameraSource } = await import('@capacitor/camera');
+      const photo = await CapCamera.getPhoto({
+        quality: 80,
+        allowEditing: false,
+        resultType: CameraResultType.Uri,
+        source: CameraSource.Prompt,
+      });
+      if (photo.webPath) {
+        const response = await fetch(photo.webPath);
+        const blob = await response.blob();
+        const file = new File([blob], `photo_${Date.now()}.${photo.format}`, {
+          type: `image/${photo.format}`,
+        });
+        onAddFile(file);
+      }
+    } catch (err) {
+      console.error('Camera capture failed:', err);
+    }
+  }, [onAddFile]);
+
   return (
-    <div className="border-t border-surface-200 dark:border-surface-800 p-4">
+    <div className="border-t border-surface-200 dark:border-surface-800 p-4 chat-input-area">
       <div className="max-w-3xl mx-auto">
         {/* Attachments Preview */}
         {attachments.length > 0 && (
@@ -106,6 +133,18 @@ export default function ChatInputArea({
               <Paperclip className="w-5 h-5 text-surface-500" />
             )}
           </button>
+
+          {/* Camera button (mobile only) */}
+          {isNativePlatform() && (
+            <button
+              onClick={handleCameraCapture}
+              disabled={isStreaming || isUploading}
+              className="p-3 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors disabled:opacity-50"
+              title="Scatta foto"
+            >
+              <Camera className="w-5 h-5 text-surface-500" />
+            </button>
+          )}
 
           <div className="flex-1 relative">
             <textarea

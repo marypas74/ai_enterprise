@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { api, streamChat, generateDocument } from '../services/api';
+import { downloadFile } from '../utils/fileDownload';
 
 export interface Message {
   id?: number;

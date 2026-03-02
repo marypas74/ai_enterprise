@@ -16,6 +16,7 @@ interface UseFileAttachmentsReturn {
   fileInputRef: React.RefObject<HTMLInputElement>;
   setAttachments: React.Dispatch<React.SetStateAction<Attachment[]>>;
   handleFileSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  addFile: (file: File) => void;
   removeAttachment: (index: number) => void;
   uploadAttachments: (conversationId?: number) => Promise<number[]>;
   clearAttachments: () => void;
@@ -42,6 +43,15 @@ export function useFileAttachments(): UseFileAttachmentsReturn {
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
+  }, []);
+
+  const addFile = useCallback((file: File) => {
+    const attachment: Attachment = {
+      file,
+      status: 'pending',
+      preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined,
+    };
+    setAttachments(prev => [...prev, attachment]);
   }, []);
 
   const removeAttachment = useCallback((index: number) => {
@@ -107,6 +117,7 @@ export function useFileAttachments(): UseFileAttachmentsReturn {
     fileInputRef,
     setAttachments,
     handleFileSelect,
+    addFile,
     removeAttachment,
     uploadAttachments,
     clearAttachments,

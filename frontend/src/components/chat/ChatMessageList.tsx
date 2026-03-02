@@ -15,6 +15,8 @@ import { BotIcon, BotIconType } from '../BotIcon';
 import AIGeneratedLabel from '../AIGeneratedLabel';
 import FeedbackButtons from '../FeedbackButtons';
 import SensitiveTopicWarning from '../SensitiveTopicWarning';
+import { downloadFile } from '../../utils/fileDownload';
+import { isNativePlatform } from '../../utils/platform';
 import type { Message } from '../../hooks/useChatMessages';
 
 interface ChatMessageListProps {
@@ -139,11 +141,15 @@ export default function ChatMessageList({
                       },
                       a({ href, children, ...props }) {
                         if (href && href.includes('/api/tools/download/')) {
+                          const handleDownload = async (e: React.MouseEvent) => {
+                            e.preventDefault();
+                            await downloadFile(href, String(children));
+                          };
                           return (
                             <a
                               href={href}
-                              download
-                              className="inline-flex items-center gap-2 px-4 py-2 my-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-white no-underline transition-colors text-sm font-medium"
+                              onClick={handleDownload}
+                              className="inline-flex items-center gap-2 px-4 py-2 my-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-white no-underline transition-colors text-sm font-medium cursor-pointer"
                               {...props}
                             >
                               <Download className="w-4 h-4" />
@@ -151,7 +157,14 @@ export default function ChatMessageList({
                             </a>
                           );
                         }
-                        return <a href={href} target="_blank" rel="noopener noreferrer" {...props}>{children}</a>;
+                        const handleExternalClick = async (e: React.MouseEvent) => {
+                          if (isNativePlatform() && href) {
+                            e.preventDefault();
+                            const { Browser } = await import('@capacitor/browser');
+                            await Browser.open({ url: href });
+                          }
+                        };
+                        return <a href={href} target="_blank" rel="noopener noreferrer" onClick={handleExternalClick} {...props}>{children}</a>;
                       },
                     }}
                   >

@@ -14,6 +14,8 @@ import {
 } from 'lucide-react';
 import clsx from 'clsx';
 import { api } from '../../services/api';
+import { downloadBlob } from '../../utils/fileDownload';
+import { isNativePlatform } from '../../utils/platform';
 import type { Conversation } from '../../hooks/useChatConversations';
 
 interface ChatSidebarProps {
@@ -66,14 +68,7 @@ export default function ChatSidebar({
         if (match) filename = match[1];
       }
 
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', filename);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
+      await downloadBlob(new Blob([response.data]), filename);
     } catch (err) {
       console.error('Failed to download extension:', err);
       alert('Failed to download VS Code extension');
@@ -200,16 +195,18 @@ export default function ChatSidebar({
         </div>
       </div>
 
-      {/* VS Code Extension Download */}
-      <div className="px-4 pb-2">
-        <button
-          onClick={downloadExtension}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-surface-700 hover:bg-surface-800 transition-colors text-sm"
-        >
-          <Download className="w-4 h-4" />
-          <span>VS Code Extension</span>
-        </button>
-      </div>
+      {/* VS Code Extension Download (hidden on mobile) */}
+      {!isNativePlatform() && (
+        <div className="px-4 pb-2">
+          <button
+            onClick={downloadExtension}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-surface-700 hover:bg-surface-800 transition-colors text-sm"
+          >
+            <Download className="w-4 h-4" />
+            <span>VS Code Extension</span>
+          </button>
+        </div>
+      )}
 
       {/* Guide Downloads */}
       <div className="px-4 pb-2">

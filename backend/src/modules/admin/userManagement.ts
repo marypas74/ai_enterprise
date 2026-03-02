@@ -22,11 +22,11 @@ const updateUserSchema = z.object({
   role: z.enum(['admin', 'user']).optional(),
   is_active: z.boolean().optional(),
   password: z.string().min(8).optional(),
-  phone: z.string().optional(),
-  company: z.string().optional(),
-  department: z.string().optional(),
-  job_title: z.string().optional(),
-  notes: z.string().optional(),
+  phone: z.string().nullable().optional(),
+  company: z.string().nullable().optional(),
+  department: z.string().nullable().optional(),
+  job_title: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
 });
 
 // Types
