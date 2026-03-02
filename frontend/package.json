@@ -1,6 +1,6 @@
 {
   "name": "enterprise-ai-chat-frontend",
-  "version": "1.9.4",
+  "version": "1.9.5",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -30,6 +30,7 @@
     "@capacitor/status-bar": "^6.0.3",
     "@capacitor/toast": "^6.0.4",
     "axios": "^1.13.5",
+    "capacitor-stream-http": "^0.1.0",
     "clsx": "^2.1.0",
     "date-fns": "^4.1.0",
     "lucide-react": "^0.468.0",

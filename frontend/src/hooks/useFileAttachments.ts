@@ -1,5 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { api } from '../services/api';
+import { isNativePlatform } from '../utils/platform';
+import { useAuthStore } from './useAuthStore';
 
 export interface Attachment {
   id?: number;
@@ -9,6 +11,8 @@ export interface Attachment {
   contentType?: string;
   uploadedId?: number;
 }
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 interface UseFileAttachmentsReturn {
   attachments: Attachment[];
@@ -69,6 +73,8 @@ export function useFileAttachments(): UseFileAttachmentsReturn {
     if (attachments.length === 0) return [];
 
     setIsUploading(true);
+    // Mark all attachments as uploading
+    setAttachments(prev => prev.map(att => ({ ...att, status: 'uploading' as const })));
     const uploadedIds: number[] = [];
 
     try {
@@ -81,22 +87,52 @@ export function useFileAttachments(): UseFileAttachmentsReturn {
         formData.append('files', att.file);
       });
 
-      const response = await api.post('/attachments/upload', formData, {
-        headers: { 'Content-Type': undefined },
-      });
+      // On native platforms, use fetch with timeout instead of axios (which may hang in WebView)
+      if (isNativePlatform()) {
+        const token = useAuthStore.getState().accessToken || '';
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
 
-      if (response.data.attachments) {
-        uploadedIds.push(...response.data.attachments.map((a: any) => a.id));
+        try {
+          const response = await fetch(`${API_BASE_URL}/attachments/upload`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` },
+            body: formData,
+            signal: controller.signal,
+          });
+          clearTimeout(timeoutId);
+
+          if (response.ok) {
+            const data = await response.json();
+            if (data.attachments) {
+              uploadedIds.push(...data.attachments.map((a: any) => a.id));
+            }
+          }
+        } catch (fetchErr: any) {
+          clearTimeout(timeoutId);
+          console.error('[Upload Native] Error:', fetchErr?.message || fetchErr);
+        }
+      } else {
+        const response = await api.post('/attachments/upload', formData, {
+          headers: { 'Content-Type': undefined },
+        });
+
+        if (response.data.attachments) {
+          uploadedIds.push(...response.data.attachments.map((a: any) => a.id));
+        }
       }
 
-      // Clear attachments after upload
-      attachments.forEach(att => {
-        if (att.preview) URL.revokeObjectURL(att.preview);
-      });
-      setAttachments([]);
+      // Mark as uploaded and clear after brief delay to show checkmark
+      setAttachments(prev => prev.map(att => ({ ...att, status: 'uploaded' as const })));
+      setTimeout(() => {
+        attachments.forEach(att => {
+          if (att.preview) URL.revokeObjectURL(att.preview);
+        });
+        setAttachments([]);
+      }, 800);
     } catch (err: any) {
       console.error('Failed to upload attachments:', err);
-      console.error('[Upload] Error details:', err?.response?.data || err?.message || err);
+      setAttachments(prev => prev.map(att => ({ ...att, status: 'failed' as const })));
     } finally {
       setIsUploading(false);
     }

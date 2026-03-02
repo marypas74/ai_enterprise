@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { useAuthStore } from '../hooks/useAuthStore';
+import { isNativePlatform } from '../utils/platform';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -147,6 +148,87 @@ async function makeStreamRequest(
   });
 }
 
+// Helper to process a single SSE line and dispatch to callbacks
+function processSSELine(
+  line: string,
+  onChunk: (content: string) => void,
+  onDone: (conversationId: number) => void,
+  onError: (error: string) => void,
+  convId: number,
+  onThinking?: (content: string, done: boolean) => void,
+  onVectorMemories?: (memories: { episodic: any[]; declarative: any[]; procedural: any[] }) => void,
+  onRouting?: (routing: { tier: string; model: string; reason: string; confidence: number; effort: string }) => void,
+): boolean {
+  if (!line.startsWith('data: ')) return false;
+  try {
+    const data = JSON.parse(line.slice(6));
+    if (data.error) { onError(data.error); return true; }
+    if (data.routing && onRouting) onRouting(data.routing);
+    if (data.type === 'vector_memories' && data.memories && onVectorMemories) onVectorMemories(data.memories);
+    if (data.thinking && onThinking) onThinking(data.thinking, false);
+    if (data.thinkingDone && onThinking) onThinking('', true);
+    if (data.content) onChunk(data.content);
+    if (data.done) { onDone(data.conversationId || convId); return true; }
+  } catch { /* Ignore parse errors for incomplete chunks */ }
+  return false;
+}
+
+// Native streaming using capacitor-stream-http plugin (bypasses WebView fetch entirely)
+async function streamChatNative(
+  model: string,
+  message: string,
+  onChunk: (content: string) => void,
+  onDone: (conversationId: number) => void,
+  onError: (error: string) => void,
+  conversationId?: number,
+  systemPrompt?: string,
+  attachmentIds?: number[],
+  onThinking?: (content: string, done: boolean) => void,
+  onVectorMemories?: (memories: { episodic: any[]; declarative: any[]; procedural: any[] }) => void,
+  onRouting?: (routing: { tier: string; model: string; reason: string; confidence: number; effort: string }) => void,
+): Promise<void> {
+  const token = useAuthStore.getState().accessToken || '';
+  const { StreamHttp } = await import('capacitor-stream-http');
+
+  return new Promise<void>((resolve) => {
+    let buffer = '';
+    let resolved = false;
+    const done = () => { if (!resolved) { resolved = true; resolve(); } };
+
+    // Listen for chunks (plugin sends { id, chunk })
+    StreamHttp.addListener('chunk', (event) => {
+      buffer += event.chunk || '';
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+      for (const line of lines) {
+        if (processSSELine(line, onChunk, onDone, onError, 0, onThinking, onVectorMemories, onRouting)) {
+          done();
+          return;
+        }
+      }
+    });
+
+    StreamHttp.addListener('end', () => done());
+    StreamHttp.addListener('error', (event) => {
+      onError(event.error || 'Stream error');
+      done();
+    });
+
+    StreamHttp.startStream({
+      url: `${API_BASE_URL}/chat/completions`,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ model, message, conversationId, systemPrompt, attachmentIds }),
+    }).catch((err: any) => {
+      onError(err?.message || 'Failed to start stream');
+      done();
+    });
+  });
+}
+
 // Chat API with SSE streaming
 export async function streamChat(
   model: string,
@@ -161,101 +243,54 @@ export async function streamChat(
   onVectorMemories?: (memories: { episodic: any[]; declarative: any[]; procedural: any[] }) => void,
   onRouting?: (routing: { tier: string; model: string; reason: string; confidence: number; effort: string }) => void,
 ): Promise<void> {
-  // Get token from Zustand store for consistency
-  let token = useAuthStore.getState().accessToken || '';
+  // On native platforms, use capacitor-stream-http for real native streaming
+  if (isNativePlatform()) {
+    return streamChatNative(model, message, onChunk, onDone, onError, conversationId, systemPrompt, attachmentIds, onThinking, onVectorMemories, onRouting);
+  }
 
+  // Desktop: standard fetch + ReadableStream
+  let token = useAuthStore.getState().accessToken || '';
   let response = await makeStreamRequest(token, model, message, conversationId, systemPrompt, attachmentIds);
 
   // Handle 401 - try to refresh token first before logging out
   if (response.status === 401) {
-    console.warn('[StreamChat] Token expired - attempting refresh');
     try {
-      // Try to refresh the token
       const refreshResponse = await api.post('/auth/refresh');
       const { accessToken } = refreshResponse.data;
-
-      // Update store with new token
       useAuthStore.setState({ accessToken });
       token = accessToken;
-
-      // Retry the request with new token
       response = await makeStreamRequest(token, model, message, conversationId, systemPrompt, attachmentIds);
-
-      // If still 401 after refresh, then logout
-      if (response.status === 401) {
-        console.warn('[StreamChat] Still unauthorized after refresh - forcing logout');
-        forceLogout();
-        onError('Session expired. Please login again.');
-        return;
-      }
-    } catch (refreshError) {
-      console.warn('[StreamChat] Token refresh failed - forcing logout');
-      forceLogout();
-      onError('Session expired. Please login again.');
-      return;
+      if (response.status === 401) { forceLogout(); onError('Session expired. Please login again.'); return; }
+    } catch {
+      forceLogout(); onError('Session expired. Please login again.'); return;
     }
   }
 
   if (!response.ok) {
-    try {
-      const errorData = await response.json();
-      onError(errorData.error || 'Failed to send message');
-    } catch {
-      onError(`Request failed with status ${response.status}`);
-    }
+    try { const d = await response.json(); onError(d.error || 'Failed to send message'); }
+    catch { onError(`Request failed with status ${response.status}`); }
     return;
   }
 
   const convId = parseInt(response.headers.get('X-Conversation-Id') || '0');
   const reader = response.body?.getReader();
-  const decoder = new TextDecoder();
-
-  if (!reader) {
-    onError('No response stream');
-    return;
-  }
-
-  let buffer = '';
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n');
-    // Keep the last potentially incomplete line in the buffer
-    buffer = lines.pop() || '';
-
-    for (const line of lines) {
-      if (line.startsWith('data: ')) {
-        try {
-          const data = JSON.parse(line.slice(6));
-          if (data.error) {
-            onError(data.error);
-            return;
-          }
-          if (data.routing && onRouting) {
-            onRouting(data.routing);
-          }
-          if (data.type === 'vector_memories' && data.memories && onVectorMemories) {
-            onVectorMemories(data.memories);
-          }
-          if (data.thinking && onThinking) {
-            onThinking(data.thinking, false);
-          }
-          if (data.thinkingDone && onThinking) {
-            onThinking('', true);
-          }
-          if (data.content) {
-            onChunk(data.content);
-          }
-          if (data.done) {
-            onDone(data.conversationId || convId);
-            return;
-          }
-        } catch {
-          // Ignore parse errors for incomplete chunks
-        }
+  if (reader) {
+    const decoder = new TextDecoder();
+    let buffer = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+      for (const line of lines) {
+        if (processSSELine(line, onChunk, onDone, onError, convId, onThinking, onVectorMemories, onRouting)) return;
       }
+    }
+  } else {
+    const text = await response.text();
+    for (const line of text.split('\n')) {
+      if (processSSELine(line, onChunk, onDone, onError, convId, onThinking, onVectorMemories, onRouting)) return;
     }
   }
 }

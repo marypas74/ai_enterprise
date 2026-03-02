@@ -9,6 +9,8 @@ import {
   File as FileIcon,
   Loader2,
   Camera,
+  CheckCircle,
+  AlertCircle,
 } from 'lucide-react';
 import type { Attachment } from '../../hooks/useFileAttachments';
 import { isNativePlatform } from '../../utils/platform';
@@ -86,10 +88,17 @@ export default function ChatInputArea({
           <div className="flex flex-wrap gap-2 mb-3 p-2 bg-surface-50 dark:bg-surface-900 rounded-lg">
             {attachments.map((att, index) => {
               const IconComponent = getAttachmentIcon(att.file.type);
+              const isUploading = att.status === 'uploading';
+              const isUploaded = att.status === 'uploaded';
+              const isFailed = att.status === 'failed';
               return (
                 <div
                   key={index}
-                  className="relative flex items-center gap-2 px-3 py-2 bg-white dark:bg-surface-800 rounded-lg border border-surface-200 dark:border-surface-700 group"
+                  className={`relative flex items-center gap-2 px-3 py-2 bg-white dark:bg-surface-800 rounded-lg border group ${
+                    isUploaded ? 'border-primary-400 dark:border-primary-600' :
+                    isFailed ? 'border-red-400 dark:border-red-600' :
+                    'border-surface-200 dark:border-surface-700'
+                  }`}
                 >
                   {att.preview ? (
                     <img src={att.preview} alt="" className="w-8 h-8 object-cover rounded" />
@@ -97,12 +106,18 @@ export default function ChatInputArea({
                     <IconComponent className="w-5 h-5 text-surface-500" />
                   )}
                   <span className="text-sm truncate max-w-[120px]">{att.file.name}</span>
-                  <button
-                    onClick={() => onRemoveAttachment(index)}
-                    className="p-1 hover:bg-surface-100 dark:hover:bg-surface-700 rounded transition-colors"
-                  >
-                    <X className="w-4 h-4 text-surface-400" />
-                  </button>
+                  {/* Upload status indicator */}
+                  {isUploading && <Loader2 className="w-4 h-4 text-primary-500 animate-spin flex-shrink-0" />}
+                  {isUploaded && <CheckCircle className="w-4 h-4 text-primary-500 flex-shrink-0" />}
+                  {isFailed && <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />}
+                  {!isUploading && !isUploaded && (
+                    <button
+                      onClick={() => onRemoveAttachment(index)}
+                      className="p-1 hover:bg-surface-100 dark:hover:bg-surface-700 rounded transition-colors"
+                    >
+                      <X className="w-4 h-4 text-surface-400" />
+                    </button>
+                  )}
                 </div>
               );
             })}
