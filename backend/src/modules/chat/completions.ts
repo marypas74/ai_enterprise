@@ -44,6 +44,65 @@ export async function completionRoutes(fastify: FastifyInstance) {
 
       fastify.log.debug({ model: parsedBody.model, messageLength: parsedBody.message?.length || 0, userId: user.id, attachmentIds: parsedBody.attachmentIds || [] }, '[Chat] Request start');
 
+      // ── Image generation check (runs for ALL models, not just auto) ──
+      const IMAGE_PATTERN = /\b(genera|crea|creami|disegna|disegnami|fai|fammi|produci|illustra|generate|create|draw|make|paint|render)\b.*\b(immagine|immagini|foto|fotografia|disegno|illustrazione|image|picture|photo|drawing|illustration|portrait|artwork)\b/i;
+      const IMAGE_KW = ['genera immagine', 'crea immagine', 'disegna', 'disegnami', 'genera foto', 'crea foto', 'crea un disegno', 'generate image', 'create image', 'draw me', 'make a picture'];
+      const queryLc = parsedBody.message.toLowerCase();
+      const isImageRequest = IMAGE_PATTERN.test(parsedBody.message) || IMAGE_KW.some(kw => queryLc.includes(kw));
+
+      if (isImageRequest) {
+        fastify.log.info(`[Router] Image generation detected for: "${parsedBody.message.substring(0, 80)}"`);
+        const { generateImage } = await import('../../services/DiffuserProvider.js');
+        const raw = reply.raw;
+        raw.writeHead(200, {
+          'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive', 'X-Accel-Buffering': 'no',
+        });
+        const writeSse = (data: Record<string, unknown>) => {
+          if (!raw.writableEnded) raw.write(`data: ${JSON.stringify(data)}\n\n`);
+        };
+        try {
+          let imgConvId = parsedBody.conversationId;
+          if (imgConvId) {
+            const conv = await findOne<{ user_id: number }>(fastify.db,
+              'SELECT user_id FROM conversations WHERE id = ?', [imgConvId]);
+            if (!conv || conv.user_id !== user.id) {
+              writeSse({ content: 'Conversazione non trovata o accesso negato.', done: false });
+              writeSse({ done: true }); raw.end(); return;
+            }
+          }
+          if (!imgConvId) {
+            const title = parsedBody.message.length > 50 ? parsedBody.message.substring(0, 50) + '...' : parsedBody.message;
+            imgConvId = await insertOne(fastify.db,
+              'INSERT INTO conversations (user_id, title, model) VALUES (?, ?, ?)',
+              [user.id, `[Image] ${title}`, 'stable-diffusion-1.5']);
+          }
+          await insertOne(fastify.db,
+            'INSERT INTO messages (conversation_id, role, content, content_type) VALUES (?, ?, ?, ?)',
+            [imgConvId, 'user', parsedBody.message, 'text']);
+
+          writeSse({ type: 'image_generating', model: 'stable-diffusion-1.5', prompt: parsedBody.message, conversationId: imgConvId });
+          writeSse({ routing: { tier: 'image', model: 'stable-diffusion-1.5', reason: 'Image generation request detected', confidence: 0.9, effort: 'medium' } });
+
+          const result = await generateImage({ prompt: parsedBody.message });
+          const imageMarkdown = `![Generated Image](${result.url})\n\n*Model: ${result.model} | ${result.width}x${result.height} | Seed: ${result.seed} | ${(result.generationTimeMs / 1000).toFixed(1)}s*`;
+
+          await insertOne(fastify.db,
+            'INSERT INTO messages (conversation_id, role, content, content_type, model) VALUES (?, ?, ?, ?, ?)',
+            [imgConvId, 'assistant', imageMarkdown, 'image', result.model]);
+
+          writeSse({ type: 'image_ready', url: result.url, filename: result.filename, width: result.width, height: result.height, model: result.model, seed: result.seed, generationTimeMs: result.generationTimeMs, conversationId: imgConvId });
+          writeSse({ content: imageMarkdown, done: false });
+          writeSse({ done: true, conversationId: imgConvId });
+        } catch (err: any) {
+          fastify.log.error(`[ImageGen] Error: ${err.message}`);
+          writeSse({ content: 'Non sono riuscito a generare l\'immagine. Riprova piu\' tardi.', done: false });
+          writeSse({ done: true });
+        }
+        raw.end();
+        return;
+      }
+
       // ── Model Orchestrator: auto-routing ──────────────────────────
       let routingDecision: RoutingDecision | null = null;
       let routedModel = parsedBody.model;
