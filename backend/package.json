@@ -1,6 +1,6 @@
 {
   "name": "enterprise-ai-chat-backend",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Enterprise AI Chat Platform - Backend API",
   "main": "dist/index.js",
   "type": "module",
@@ -51,7 +51,7 @@
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.0",
-    "@types/node": "^22.0.0",
+    "@types/node": "^22.0.1",
     "@types/pdf-parse": "^1.1.5",
     "@typescript-eslint/eslint-plugin": "^8.56.0",
     "@typescript-eslint/parser": "^8.56.0",
