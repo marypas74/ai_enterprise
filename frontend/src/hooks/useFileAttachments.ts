@@ -87,30 +87,50 @@ export function useFileAttachments(): UseFileAttachmentsReturn {
         formData.append('files', att.file);
       });
 
-      // On native platforms, use fetch with timeout instead of axios (which may hang in WebView)
+      // On native platforms, use XMLHttpRequest instead of fetch/axios
+      // (fetch response.json() hangs in Capacitor WebView - known bug)
       if (isNativePlatform()) {
-        const token = useAuthStore.getState().accessToken || '';
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30000);
+        const doXhrUpload = (authToken: string): Promise<{ ids: number[]; status: number }> => {
+          return new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', `${API_BASE_URL}/attachments/upload`);
+            xhr.setRequestHeader('Authorization', `Bearer ${authToken}`);
+            xhr.timeout = 30000;
+            xhr.onload = () => {
+              if (xhr.status === 401) {
+                resolve({ ids: [], status: 401 });
+                return;
+              }
+              try {
+                const data = JSON.parse(xhr.responseText);
+                resolve({ ids: data.attachments?.map((a: any) => a.id) || [], status: xhr.status });
+              } catch { resolve({ ids: [], status: xhr.status }); }
+            };
+            xhr.onerror = () => reject(new Error('Upload failed'));
+            xhr.ontimeout = () => reject(new Error('Upload timeout'));
+            xhr.send(formData);
+          });
+        };
 
         try {
-          const response = await fetch(`${API_BASE_URL}/attachments/upload`, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${token}` },
-            body: formData,
-            signal: controller.signal,
-          });
-          clearTimeout(timeoutId);
+          let token = useAuthStore.getState().accessToken || '';
+          let result = await doXhrUpload(token);
 
-          if (response.ok) {
-            const data = await response.json();
-            if (data.attachments) {
-              uploadedIds.push(...data.attachments.map((a: any) => a.id));
+          // Token expired - try refresh and retry
+          if (result.status === 401) {
+            try {
+              const refreshRes = await api.post('/auth/refresh');
+              const newToken = refreshRes.data.accessToken;
+              useAuthStore.setState({ accessToken: newToken });
+              result = await doXhrUpload(newToken);
+            } catch {
+              console.error('[Upload Native] Token refresh failed');
             }
           }
-        } catch (fetchErr: any) {
-          clearTimeout(timeoutId);
-          console.error('[Upload Native] Error:', fetchErr?.message || fetchErr);
+
+          uploadedIds.push(...result.ids);
+        } catch (xhrErr: any) {
+          console.error('[Upload Native XHR] Error:', xhrErr?.message || xhrErr);
         }
       } else {
         const response = await api.post('/attachments/upload', formData, {

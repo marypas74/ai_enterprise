@@ -281,9 +281,17 @@ export async function completionRoutes(fastify: FastifyInstance) {
               if (budgetTokens >= 1024) completionExtras.thinking = { type: 'enabled' as const, budgetTokens };
             }
           } else if (isOllama) {
-            // Ollama bug workaround (ollama/ollama#10976):
-            // think:true + tools = empty content. Disable thinking when tools are present.
-            if (toolDefs && toolDefs.length > 0) {
+            // Ollama bug workaround (ollama/ollama#10976 + #11381):
+            // qwen3 + tools = empty content or filtered tool calls.
+            // When attachments are present, tools aren't useful (user wants content analysis),
+            // so strip tools and enable thinking for best results.
+            const isQwen3 = /qwen3/i.test(body.model);
+            const hasAttachmentContext = (body.attachmentIds?.length || 0) > 0;
+            if (isQwen3 && hasAttachmentContext && toolDefs && toolDefs.length > 0) {
+              fastify.log.info(`[Chat] Ollama qwen3 + attachments: stripping tools to avoid empty response (ollama#10976/#11381)`);
+              toolDefs = undefined;
+              completionExtras.thinking = { type: 'enabled' as const };
+            } else if (toolDefs && toolDefs.length > 0) {
               fastify.log.info(`[Chat] Ollama thinking disabled: tools present (ollama#10976 workaround)`);
             } else {
               completionExtras.thinking = { type: 'enabled' as const };
