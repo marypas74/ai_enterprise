@@ -71,7 +71,17 @@ export async function completionRoutes(fastify: FastifyInstance) {
           fastify.log.info(`[Router] Auto-routed to ${routingDecision.model} (tier=${routingDecision.tier}, reason=${routingDecision.reason})`);
           routedModel = routingDecision.model;
         } else {
-          fastify.log.warn('[Router] No routing tiers configured, falling back to user default');
+          // Fallback: pick first enabled chat model from DB
+          const fallbackRow = await findOne<{ model_id: string }>(fastify.db,
+            `SELECT m.model_id FROM ai_models m JOIN ai_providers p ON m.provider_id = p.id
+             WHERE m.is_enabled = TRUE AND p.is_enabled = TRUE AND m.model_type IN ('chat','completion')
+             ORDER BY m.sort_order ASC LIMIT 1`);
+          if (fallbackRow) {
+            routedModel = fallbackRow.model_id;
+            fastify.log.warn(`[Router] No tier match, fallback to ${routedModel}`);
+          } else {
+            return reply.status(503).send({ error: 'No AI models available. Contact administrator.' });
+          }
         }
       }
       const body = { ...parsedBody, model: routedModel };

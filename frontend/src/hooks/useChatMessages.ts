@@ -145,7 +145,12 @@ export function useChatMessages(currentConversationId: number | null): UseChatMe
         ]);
         const availableModels = modelsRes.data as Model[];
         setModels(availableModels);
-        if (recRes?.data?.recommended && availableModels.some(m => m.id === recRes.data.recommended.id)) {
+
+        // Auto (Smart Routing) is always default when available
+        const autoModel = availableModels.find(m => m.id === 'auto');
+        if (autoModel && !selectedModel) {
+          setSelectedModel('auto');
+        } else if (recRes?.data?.recommended && availableModels.some(m => m.id === recRes.data.recommended.id)) {
           setRecommendedModel({ ...recRes.data.recommended, load: recRes.data.load });
           if (!selectedModel) {
             setSelectedModel(recRes.data.recommended.id);

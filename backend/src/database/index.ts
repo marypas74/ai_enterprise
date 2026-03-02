@@ -514,16 +514,28 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
     },
     {
-      name: 'model_routing_tiers_seed',
-      sql: `INSERT IGNORE INTO model_routing_tiers (tier_name, provider, model_id, priority) VALUES
-        ('fast', 'anthropic', 'claude-haiku-4-5-20251001', 1),
-        ('fast', 'google', 'gemini-2.0-flash', 2),
-        ('fast', 'openai', 'gpt-4.1-mini', 3),
-        ('balanced', 'anthropic', 'claude-sonnet-4-6', 1),
-        ('balanced', 'openai', 'gpt-4.1', 2),
-        ('balanced', 'google', 'gemini-1.5-pro', 3),
-        ('powerful', 'anthropic', 'claude-opus-4-6', 1),
-        ('powerful', 'openai', 'o3-mini', 2)`
+      name: 'model_routing_tiers_auto_seed',
+      sql: `INSERT IGNORE INTO model_routing_tiers (tier_name, provider, model_id, priority)
+        SELECT 'fast', p.name, m.model_id, m.sort_order
+        FROM ai_models m JOIN ai_providers p ON m.provider_id = p.id
+        WHERE m.is_enabled = TRUE AND p.is_enabled = TRUE AND m.model_type IN ('chat','completion')
+        ORDER BY m.sort_order ASC LIMIT 4`
+    },
+    {
+      name: 'model_routing_tiers_auto_seed_balanced',
+      sql: `INSERT IGNORE INTO model_routing_tiers (tier_name, provider, model_id, priority)
+        SELECT 'balanced', p.name, m.model_id, m.sort_order
+        FROM ai_models m JOIN ai_providers p ON m.provider_id = p.id
+        WHERE m.is_enabled = TRUE AND p.is_enabled = TRUE AND m.model_type IN ('chat','completion')
+        ORDER BY m.sort_order ASC LIMIT 4 OFFSET 4`
+    },
+    {
+      name: 'model_routing_tiers_auto_seed_powerful',
+      sql: `INSERT IGNORE INTO model_routing_tiers (tier_name, provider, model_id, priority)
+        SELECT 'powerful', p.name, m.model_id, m.sort_order
+        FROM ai_models m JOIN ai_providers p ON m.provider_id = p.id
+        WHERE m.is_enabled = TRUE AND p.is_enabled = TRUE AND m.model_type IN ('chat','completion')
+        ORDER BY m.sort_order DESC LIMIT 4`
     },
     {
       name: 'routing_decisions',

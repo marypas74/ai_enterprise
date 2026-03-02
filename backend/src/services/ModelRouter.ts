@@ -153,10 +153,15 @@ export class ModelRouter {
 
     try {
       const [rows] = await this.db.execute(
-        `SELECT tier_name, model_id, provider, priority
-         FROM model_routing_tiers
-         WHERE is_enabled = TRUE
-         ORDER BY tier_name, priority ASC`
+        `SELECT rt.tier_name, rt.model_id, rt.provider, rt.priority
+         FROM model_routing_tiers rt
+         INNER JOIN ai_models m ON rt.model_id = m.model_id
+         INNER JOIN ai_providers p ON m.provider_id = p.id
+         WHERE rt.is_enabled = TRUE
+           AND m.is_enabled = TRUE
+           AND p.is_enabled = TRUE
+           AND m.model_type IN ('chat', 'completion')
+         ORDER BY rt.tier_name, rt.priority ASC`
       ) as any;
       this.tierModels = rows as TierModel[];
       this.lastFetched = Date.now();
