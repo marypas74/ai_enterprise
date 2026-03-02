@@ -20,7 +20,7 @@ const createUserSchema = z.object({
 const updateUserSchema = z.object({
   name: z.string().min(1).optional(),
   role: z.enum(['admin', 'user']).optional(),
-  is_active: z.boolean().optional(),
+  is_active: z.preprocess((val) => val === 1 || val === true, z.boolean()).optional(),
   password: z.string().min(8).optional(),
   phone: z.string().nullable().optional(),
   company: z.string().nullable().optional(),
