@@ -239,6 +239,7 @@ export async function completionRoutes(fastify: FastifyInstance) {
       let tokensInput = 0;
       let tokensOutput = 0;
       let toolDefs: ReturnType<typeof selectTools> | undefined;
+      let costModel = body.model; // Tracks actual model used (may change on escalation)
       const sseWrite = createSseWriter(reply);
 
       sendInitialSseEvents(sseWrite, { model: body.model, providerName, safetyResult, recalledVectorMemories });
@@ -279,7 +280,15 @@ export async function completionRoutes(fastify: FastifyInstance) {
               const budgetTokens = Math.min(16000, maxOut - 1024);
               if (budgetTokens >= 1024) completionExtras.thinking = { type: 'enabled' as const, budgetTokens };
             }
-          } else if (isOllama) { completionExtras.thinking = { type: 'enabled' as const }; }
+          } else if (isOllama) {
+            // Ollama bug workaround (ollama/ollama#10976):
+            // think:true + tools = empty content. Disable thinking when tools are present.
+            if (toolDefs && toolDefs.length > 0) {
+              fastify.log.info(`[Chat] Ollama thinking disabled: tools present (ollama#10976 workaround)`);
+            } else {
+              completionExtras.thinking = { type: 'enabled' as const };
+            }
+          }
         }
 
         if (isAnthropic) {
@@ -360,7 +369,55 @@ export async function completionRoutes(fastify: FastifyInstance) {
 
         if (toolRound >= MAX_TOOL_ROUNDS) fastify.log.warn(`[Chat] Tool call loop hit max rounds (${MAX_TOOL_ROUNDS})`);
 
-        recordProviderSuccess(body.model);
+        // Empty response detection — known Ollama issue (think+tools=empty, or model produced no content)
+        if (fullResponse.trim().length === 0 && isOllama) {
+          fastify.log.warn(`[Chat] Empty response from ${body.model}, attempting escalation to balanced tier`);
+          recordProviderError(body.model); // Record failure for original model
+          const escalatedModel = await findOne<{ model_id: string }>(fastify.db,
+            `SELECT rt.model_id FROM model_routing_tiers rt
+             INNER JOIN ai_models m ON rt.model_id = m.model_id
+             INNER JOIN ai_providers p ON m.provider_id = p.id
+             WHERE rt.tier_name = 'balanced' AND rt.is_enabled = TRUE AND m.is_enabled = TRUE AND p.is_enabled = TRUE
+               AND rt.model_id != ?
+             ORDER BY rt.priority ASC LIMIT 1`, [body.model]);
+
+          if (escalatedModel && isProviderHealthy(escalatedModel.model_id)) {
+            reply.raw.write(`data: ${JSON.stringify({ content: `> Il modello ${body.model} non ha generato contenuto. Sto riprovando con ${escalatedModel.model_id}...\n\n`, done: false })}\n\n`);
+            try {
+              const escProvider = AIProviderFactory.getProvider(escalatedModel.model_id);
+              const escConfig = await ModelConfigService.getConfig(fastify.db, escalatedModel.model_id);
+              // Disable thinking for escalated Ollama call (safety — avoid same bug)
+              const escStream = escProvider.streamComplete({
+                model: escalatedModel.model_id, messages, maxTokens: escConfig.maxOutputTokens,
+                temperature: escConfig.temperature, stream: true, tools: toolDefs,
+              });
+              for await (const chunk of escStream) {
+                if (chunk.thinking) sseWrite(`data: ${JSON.stringify({ thinking: chunk.thinking, done: false })}\n\n`);
+                if (chunk.thinkingDone) sseWrite(`data: ${JSON.stringify({ thinkingDone: true, done: false })}\n\n`);
+                if (chunk.content) {
+                  fullResponse += chunk.content;
+                  reply.raw.write(`data: ${JSON.stringify({ content: chunk.content, done: false })}\n\n`);
+                }
+              }
+              recordProviderSuccess(escalatedModel.model_id);
+              costModel = escalatedModel.model_id;
+              providerName = AIProviderFactory.getProviderName(escalatedModel.model_id);
+              fastify.log.info(`[Chat] Escalation to ${escalatedModel.model_id} produced ${fullResponse.length} chars`);
+            } catch (escErr: any) {
+              recordProviderError(escalatedModel.model_id);
+              fastify.log.error(`[Chat] Escalation stream failed: ${escErr.message}`);
+            }
+          }
+
+          // If still empty after escalation, show an error message
+          if (fullResponse.trim().length === 0) {
+            const emptyMsg = 'Il modello non ha generato una risposta. Riprova o seleziona un modello diverso.';
+            reply.raw.write(`data: ${JSON.stringify({ content: emptyMsg, done: false })}\n\n`);
+            fullResponse = emptyMsg;
+          }
+        } else {
+          recordProviderSuccess(body.model);
+        }
         tokensInput = Math.ceil(messages.reduce((acc, m) => {
           const contentLen = typeof m.content === 'string' ? m.content.length : 0;
           const toolCallsLen = (m as any).tool_calls ? JSON.stringify((m as any).tool_calls).length : 0;
@@ -486,15 +543,15 @@ export async function completionRoutes(fastify: FastifyInstance) {
         if (sendHookResult.data && typeof sendHookResult.data === 'string') fullResponse = sendHookResult.data;
       } catch (hookErr: any) { fastify.log.warn(`[Hook] before_message_send failed: ${hookErr.message}`); }
 
-      // Save assistant message
+      // Save assistant message (use costModel which may be the escalated model)
       const assistantMsgId = await insertOne(fastify.db,
         'INSERT INTO messages (conversation_id, role, content, tokens_input, tokens_output, is_ai_generated, ai_model, ai_provider) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        [conversationId, 'assistant', fullResponse, tokensInput, tokensOutput, true, body.model, providerName]);
+        [conversationId, 'assistant', fullResponse, tokensInput, tokensOutput, true, costModel, providerName]);
 
-      const cost = calculateCost(body.model, tokensInput, tokensOutput);
+      const cost = calculateCost(costModel, tokensInput, tokensOutput);
 
       const usageId = await recordUsageAndAudit(fastify, {
-        userId: user.id, conversationId, providerName, model: body.model,
+        userId: user.id, conversationId, providerName, model: costModel,
         tokensInput, tokensOutput, cost, cacheCreationTokens, cacheReadTokens, thinkingTokens,
         assistantMsgId, userMessage, fullResponse, streamStartTime, safetyResult
       });

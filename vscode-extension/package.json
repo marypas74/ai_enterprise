@@ -2,7 +2,7 @@
   "name": "enterprise-ai-chat",
   "displayName": "Enterprise AI Chat",
   "description": "Integrate with Enterprise AI Chat platform for AI-powered code assistance",
-  "version": "1.9.1",
+  "version": "1.9.2",
   "publisher": "enterprise-ai",
   "icon": "resources/icon.png",
   "engines": {

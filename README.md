@@ -2,7 +2,7 @@
 
 Enterprise-grade AI chat platform with multi-provider support, intelligent model orchestration, autonomous AI agents, project management, and VS Code extension.
 
-**Current version: 1.9.1**
+**Current version: 1.9.2**
 
 ## Features
 
@@ -33,7 +33,7 @@ Enterprise-grade AI chat platform with multi-provider support, intelligent model
 │                      Backend (Fastify 5 + TypeScript)                         │
 │  20+ modules │ JWT/MFA auth │ WebSocket │ SSE streaming │ Zod validation      │
 ├──────────────────────────────────────────────────────────────────────────────┤
-│                         Model Orchestrator (v1.9.1)                           │
+│                         Model Orchestrator (v1.9.2)                           │
 │                                                                              │
 │  User Query ──▶ ModelRouter ──▶ Tier Selection ──▶ Provider                  │
 │                    │                │                  │                      │
@@ -67,7 +67,7 @@ Enterprise-grade AI chat platform with multi-provider support, intelligent model
 
 ## Model Orchestrator
 
-The Model Orchestrator (v1.9.1) automatically selects the optimal AI model for each query, similar to how Perplexity and Gemini CLI work.
+The Model Orchestrator (v1.9.2) automatically selects the optimal AI model for each query, similar to how Perplexity and Gemini CLI work.
 
 ### How It Works
 
@@ -311,6 +311,9 @@ kubectl scale deployment backend --replicas=2 frontend --replicas=2 -n enterpris
 ```
 
 ## Changelog
+
+### v1.9.2 (2026-03-02)
+- Version bump
 
 ### v1.9.1 (2026-03-02)
 - **Embedding Model Upgrade**: Switched from nomic-embed-text (768d, EN-only) to qwen3-embedding:0.6b (1024d, 100+ languages, MTEB 70.7)

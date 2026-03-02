@@ -66,6 +66,10 @@ const CODING_KEYWORDS = [
   'typescript', 'javascript', 'python', 'sql', 'api',
 ];
 
+// Document creation/conversion keywords → needs at least balanced tier
+// Verbs aligned with detectDocumentFormat keywords in streaming.ts
+const DOC_CREATION_PATTERN = /\b(crea|creami|genera|salva|esporta|converti|convertilo|trasforma|produci|fai|scrivi|create|generate|save|export|convert|make|write)\b.*\b(word|docx|excel|xlsx|powerpoint|pptx|pdf|documento|file|presentazione|foglio|spreadsheet|tabella|slides?|diapositiv[ae])\b/i;
+
 // ─── Complexity scoring (pure function) ─────────────────────────────
 function computeComplexityScore(ctx: RoutingContext): number {
   const queryLen = ctx.query.length;
@@ -87,10 +91,21 @@ function computeComplexityScore(ctx: RoutingContext): number {
   if (ctx.hasVisionAttachments) score += 1;
   if (ctx.toolsRequested) score += 2;
 
+  // Document creation detection — needs real processing, not a simple chat
+  const isDocCreation = DOC_CREATION_PATTERN.test(ctx.query);
+
   // Keyword signals
-  if (FAST_KEYWORDS.some(kw => queryLower.includes(kw)) && queryLen < 100) score -= 2;
+  // FAST penalty only when no doc creation or attachments (pure simple greeting/translation)
+  if (FAST_KEYWORDS.some(kw => queryLower.includes(kw)) && queryLen < 100
+      && !isDocCreation && !ctx.hasAttachments) {
+    score -= 2;
+  }
   if (POWERFUL_KEYWORDS.some(kw => queryLower.includes(kw))) score += 3;
   if (CODING_KEYWORDS.some(kw => queryLower.includes(kw))) score += 1;
+
+  // Document creation with attachments → balanced minimum
+  if (isDocCreation) score += 2;
+  if (isDocCreation && ctx.hasAttachments) score += 1;
 
   // Multi-part queries
   const questionCount = (ctx.query.match(/\?/g) || []).length;
@@ -179,7 +194,8 @@ class ModelRouter {
     if (ctx.hasAttachments) reasons.push(`${ctx.attachmentCount} attachment(s)`);
     if (ctx.toolsRequested) reasons.push('tools requested');
     if (POWERFUL_KEYWORDS.some(kw => queryLower.includes(kw))) reasons.push('complex keywords');
-    if (FAST_KEYWORDS.some(kw => queryLower.includes(kw)) && ctx.query.length < 100) reasons.push('simple greeting');
+    if (DOC_CREATION_PATTERN.test(ctx.query)) reasons.push('document creation');
+    if (FAST_KEYWORDS.some(kw => queryLower.includes(kw)) && ctx.query.length < 100 && !DOC_CREATION_PATTERN.test(ctx.query) && !ctx.hasAttachments) reasons.push('simple greeting');
 
     return {
       tier, model,
