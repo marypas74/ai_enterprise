@@ -744,6 +744,7 @@ export class MetricsService {
                 activeModels: ollamaActiveModels,
                 installedModels: ollamaInstalledModels
             },
+            diffuser: await MetricsService.getDiffuserStatus(),
             disk: diskStats,
             io: ioStats,
             thermal: thermalStats,
@@ -754,6 +755,22 @@ export class MetricsService {
             k8sPods,
             activeUsers
         };
+    }
+
+    private static async getDiffuserStatus(): Promise<{ status: 'ok' | 'unavailable' }> {
+        const baseUrl = process.env.DIFFUSER_BASE_URL || 'http://10.0.1.1:8086/diffuser';
+        const authKey = process.env.DIFFUSER_AUTH_KEY || process.env.OLLAMA_AUTH_KEY || '';
+        if (!authKey) return { status: 'unavailable' };
+        try {
+            const response = await fetch(`${baseUrl}/api/generate`, {
+                method: 'HEAD',
+                headers: { 'X-Ollama-Key': authKey },
+                signal: AbortSignal.timeout(5_000),
+            });
+            return { status: (response.ok || response.status === 405) ? 'ok' : 'unavailable' };
+        } catch {
+            return { status: 'unavailable' };
+        }
     }
 
     private static formatUptime(seconds: number) {

@@ -139,6 +139,33 @@ export default function ChatMessageList({
                           </SyntaxHighlighter>
                         );
                       },
+                      img({ src, alt, ...props }) {
+                        const isGenerated = src?.startsWith('/api/tools/download/');
+                        return (
+                          <div className="my-3">
+                            <img
+                              src={src}
+                              alt={alt || 'Generated image'}
+                              className="rounded-lg max-w-full max-h-[512px] object-contain border border-surface-200 dark:border-surface-700"
+                              loading="lazy"
+                              {...props}
+                            />
+                            {isGenerated && (
+                              <div className="mt-2 flex items-center gap-2">
+                                <a
+                                  href={src}
+                                  download
+                                  onClick={async (e) => { e.preventDefault(); await downloadFile(src!, alt || 'image.png'); }}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary-600 hover:bg-primary-700 text-white no-underline transition-colors text-xs font-medium cursor-pointer"
+                                >
+                                  <Download className="w-3.5 h-3.5" />
+                                  Scarica
+                                </a>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      },
                       a({ href, children, ...props }) {
                         if (href && href.includes('/api/tools/download/')) {
                           const handleDownload = async (e: React.MouseEvent) => {

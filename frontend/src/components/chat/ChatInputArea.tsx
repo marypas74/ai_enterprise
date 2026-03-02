@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import type { Attachment } from '../../hooks/useFileAttachments';
 import { isNativePlatform } from '../../utils/platform';
+import VoiceButton from './VoiceButton';
 
 // Helper to get icon for attachment type
 function getAttachmentIcon(mimeType: string) {
@@ -160,6 +161,14 @@ export default function ChatInputArea({
               <Camera className="w-5 h-5 text-surface-500" />
             </button>
           )}
+
+          {/* Voice input button */}
+          <VoiceButton
+            onTranscription={(text) => {
+              onInputChange(input ? `${input} ${text}` : text);
+            }}
+            disabled={isStreaming}
+          />
 
           <div className="flex-1 relative">
             <textarea

@@ -84,6 +84,65 @@ export async function completionRoutes(fastify: FastifyInstance) {
           }
         }
       }
+      // ── Image generation redirect ───────────────────────────────────
+      if (routingDecision?.isImageGeneration) {
+        fastify.log.info(`[Router] Image generation detected, redirecting to DiffuserProvider`);
+        const { generateImage } = await import('../../services/DiffuserProvider.js');
+        const raw = reply.raw;
+        raw.writeHead(200, {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+          'X-Accel-Buffering': 'no',
+        });
+        const writeSse = (data: Record<string, unknown>) => {
+          if (!raw.writableEnded) raw.write(`data: ${JSON.stringify(data)}\n\n`);
+        };
+        try {
+          // Get or create conversation (with ownership check)
+          let imgConvId = parsedBody.conversationId;
+          if (imgConvId) {
+            const conv = await findOne<{ user_id: number }>(fastify.db,
+              'SELECT user_id FROM conversations WHERE id = ?', [imgConvId]);
+            if (!conv || conv.user_id !== user.id) {
+              writeSse({ content: 'Conversazione non trovata o accesso negato.', done: false });
+              writeSse({ done: true });
+              raw.end();
+              return;
+            }
+          }
+          if (!imgConvId) {
+            const title = parsedBody.message.length > 50 ? parsedBody.message.substring(0, 50) + '...' : parsedBody.message;
+            imgConvId = await insertOne(fastify.db,
+              'INSERT INTO conversations (user_id, title, model) VALUES (?, ?, ?)',
+              [user.id, `[Image] ${title}`, 'flux.1-schnell']);
+          }
+          // Save user message
+          await insertOne(fastify.db,
+            'INSERT INTO messages (conversation_id, role, content, content_type) VALUES (?, ?, ?, ?)',
+            [imgConvId, 'user', parsedBody.message, 'text']);
+
+          writeSse({ type: 'image_generating', model: 'flux.1-schnell', prompt: parsedBody.message, conversationId: imgConvId });
+
+          const result = await generateImage({ prompt: parsedBody.message });
+
+          const imageMarkdown = `![Generated Image](${result.url})\n\n*Model: ${result.model} | ${result.width}x${result.height} | Seed: ${result.seed} | ${(result.generationTimeMs / 1000).toFixed(1)}s*`;
+          await insertOne(fastify.db,
+            'INSERT INTO messages (conversation_id, role, content, content_type, model) VALUES (?, ?, ?, ?, ?)',
+            [imgConvId, 'assistant', imageMarkdown, 'image', result.model]);
+
+          writeSse({ type: 'image_ready', url: result.url, filename: result.filename, width: result.width, height: result.height, model: result.model, seed: result.seed, generationTimeMs: result.generationTimeMs, conversationId: imgConvId });
+          writeSse({ content: imageMarkdown, done: false });
+          writeSse({ done: true });
+        } catch (err: any) {
+          fastify.log.error(`[ImageGen] Error: ${err.message}`);
+          writeSse({ content: 'Non sono riuscito a generare l\'immagine. Riprova più tardi.', done: false });
+          writeSse({ done: true });
+        }
+        raw.end();
+        return;
+      }
+
       const body = { ...parsedBody, model: routedModel };
 
       fastify.log.info(`[Chat] Request for model: ${body.model}`);
