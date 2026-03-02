@@ -349,11 +349,11 @@ export async function toolsRoutes(fastify: FastifyInstance) {
         }
     });
 
-    // GET: Download file
+    // GET: Download file — no JWT auth required (capability URL via unguessable timestamp filename)
     fastify.get('/tools/download/:filename', {
-        onRequest: [(fastify as any).authenticate],
         schema: {
             tags: ['Tools'],
+            description: 'Download a generated document by filename (public, secured by unguessable filename)',
             params: {
                 type: 'object',
                 properties: {
