@@ -27,8 +27,8 @@ data:
   RATE_LIMIT_MAX: "100"
   RATE_LIMIT_WINDOW_MS: "60000"
 
-  # CORS - Update with your domain
-  CORS_ORIGIN: "https://plane.lushlolli.com"
+  # CORS - Update with your domain (comma-separated for multiple origins)
+  CORS_ORIGIN: "https://plane.lushlolli.com,https://localhost,capacitor://localhost"
 
   # Ollama (external Docker container on host, HTTP + header auth)
   OLLAMA_BASE_URL: "http://10.0.1.1:8086/ollama"

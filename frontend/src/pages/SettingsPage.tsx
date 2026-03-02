@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../hooks/useAuthStore';
 import { api } from '../services/api';
+import { downloadBlob } from '../utils/fileDownload';
 import {
     Shield,
     Key,
@@ -410,12 +411,7 @@ export default function SettingsPage() {
                                                             onClick={async () => {
                                                                 try {
                                                                     const res = await api.get(`/compliance/data-export/${exp.id}`, { responseType: 'blob' });
-                                                                    const url = URL.createObjectURL(res.data);
-                                                                    const a = document.createElement('a');
-                                                                    a.href = url;
-                                                                    a.download = `data-export-${exp.id}.json`;
-                                                                    a.click();
-                                                                    URL.revokeObjectURL(url);
+                                                                    await downloadBlob(new Blob([res.data]), `data-export-${exp.id}.json`);
                                                                 } catch { setError('Errore nel download del file export.'); }
                                                             }}
                                                             className="text-blue-600 hover:text-blue-700 font-medium"

@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../hooks/useAuthStore';
-import { MessageSquare, Mail, Lock, AlertCircle } from 'lucide-react';
+import { MessageSquare, Mail, Lock, AlertCircle, Smartphone, Download } from 'lucide-react';
 import { APP_VERSION } from '../version';
+import { isNativePlatform } from '../utils/platform';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -188,6 +189,20 @@ export default function LoginPage() {
               Contatta l'amministratore per richiedere un account
             </p>
           </div>
+
+          {/* Android App Download (hidden in native app) */}
+          {!isNativePlatform() && (
+            <div className="mt-4">
+              <a
+                href={`${import.meta.env.VITE_API_URL || '/api'}/public/downloads/apk`}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-surface-200 dark:border-surface-700 hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors text-sm text-surface-600 dark:text-surface-400"
+              >
+                <Smartphone className="w-4 h-4" />
+                <span>Scarica App Android</span>
+                <Download className="w-3.5 h-3.5" />
+              </a>
+            </div>
+          )}
         </div>
 
         {/* Footer */}

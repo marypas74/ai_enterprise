@@ -6,7 +6,7 @@ import {
   Image,
   FileText,
   Code,
-  File,
+  File as FileIcon,
   Loader2,
   Camera,
 } from 'lucide-react';
@@ -19,7 +19,7 @@ function getAttachmentIcon(mimeType: string) {
   if (mimeType.includes('pdf') || mimeType.includes('document') || mimeType.includes('text/plain')) return FileText;
   if (mimeType.includes('javascript') || mimeType.includes('typescript') || mimeType.includes('json') ||
     mimeType.includes('python') || mimeType.includes('java') || mimeType.includes('html') || mimeType.includes('css')) return Code;
-  return File;
+  return FileIcon;
 }
 
 interface ChatInputAreaProps {

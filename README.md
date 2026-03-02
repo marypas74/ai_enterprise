@@ -2,7 +2,7 @@
 
 Enterprise-grade AI chat platform with multi-provider support, intelligent model orchestration, autonomous AI agents, project management, and VS Code extension.
 
-**Current version: 1.9.3**
+**Current version: 1.9.4**
 
 ## Features
 
@@ -33,7 +33,7 @@ Enterprise-grade AI chat platform with multi-provider support, intelligent model
 │                      Backend (Fastify 5 + TypeScript)                         │
 │  20+ modules │ JWT/MFA auth │ WebSocket │ SSE streaming │ Zod validation      │
 ├──────────────────────────────────────────────────────────────────────────────┤
-│                         Model Orchestrator (v1.9.3)                           │
+│                         Model Orchestrator (v1.9.4)                           │
 │                                                                              │
 │  User Query ──▶ ModelRouter ──▶ Tier Selection ──▶ Provider                  │
 │                    │                │                  │                      │
@@ -67,7 +67,7 @@ Enterprise-grade AI chat platform with multi-provider support, intelligent model
 
 ## Model Orchestrator
 
-The Model Orchestrator (v1.9.3) automatically selects the optimal AI model for each query, similar to how Perplexity and Gemini CLI work.
+The Model Orchestrator (v1.9.4) automatically selects the optimal AI model for each query, similar to how Perplexity and Gemini CLI work.
 
 ### How It Works
 
@@ -311,6 +311,15 @@ kubectl scale deployment backend --replicas=2 frontend --replicas=2 -n enterpris
 ```
 
 ## Changelog
+
+### v1.9.4 (2026-03-02)
+- Fix: admin user update validation — Zod schema now accepts `null` for optional profile fields (phone, company, department, job_title, notes), fixing "Validation failed" on password change
+- Fix: `File` icon import shadowing DOM `File` constructor in ChatInputArea (renamed to `FileIcon`)
+- CORS: multi-origin support (comma-separated `CORS_ORIGIN` env var) for Capacitor/mobile app
+- APK download endpoint (`GET /api/public/downloads/apk`) — serves latest APK from APK directory
+- Login page: Android app download link (hidden in native app)
+- Settings page: file download refactored to use `downloadBlob` utility
+- Android/Capacitor: initial project setup with `.gitignore` entries
 
 ### v1.9.3 (2026-03-02)
 - Fix: file download route removed JWT auth requirement (capability URL pattern via unguessable filenames)

@@ -429,12 +429,7 @@ export function useChatMessages(currentConversationId: number | null): UseChatMe
         `Chat_${format.toUpperCase()}`,
       );
       if (result.success && result.url) {
-        const link = document.createElement('a');
-        link.href = result.url;
-        link.setAttribute('download', result.filename);
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
+        await downloadFile(result.url, result.filename);
       }
     } catch (err) {
       console.error('Failed to generate document:', err);

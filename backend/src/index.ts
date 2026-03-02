@@ -476,9 +476,13 @@ const appPlugin = fp(async function (fastify) {
 });
 
 async function bootstrap() {
-  // CORS
+  // CORS - support multiple origins (comma-separated in env var)
+  const corsOriginEnv = process.env.CORS_ORIGIN || 'http://localhost:5173';
+  const corsOrigins = corsOriginEnv.includes(',')
+    ? corsOriginEnv.split(',').map(o => o.trim())
+    : corsOriginEnv;
   await fastify.register(cors, {
-    origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+    origin: corsOrigins,
     credentials: true
   });
 

@@ -46,3 +46,12 @@ venv/
 *.tar
 *.tar.gz
 *.tar.bz2
+
+# Android / Capacitor
+frontend/android/app/build/
+frontend/android/.gradle/
+frontend/android/build/
+frontend/android/captures/
+frontend/android/local.properties
+*.apk
+*.aab
