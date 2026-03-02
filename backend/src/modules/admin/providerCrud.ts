@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { findOne, findAll, insertOne, updateOne } from '../../database/index.js';
 import { encrypt, decrypt } from '../../utils/crypto.js';
 import { getOllamaModelSyncService } from '../../services/OllamaModelSyncService.js';
+import { clearEmbeddingCache } from '../../services/EmbeddingService.js';
 
 // Types
 interface Provider {
@@ -237,6 +238,9 @@ export async function providerCrudRoutes(fastify: FastifyInstance) {
         [id, key, storedValue, isSecret, storedValue, isSecret]
       );
     }
+
+    // Invalidate cached embedding provider when settings change (base_url, api_key, etc.)
+    clearEmbeddingCache();
 
     // Log audit
     await insertOne(
@@ -487,6 +491,8 @@ export async function providerCrudRoutes(fastify: FastifyInstance) {
         `UPDATE ai_models SET ${updates.join(', ')} WHERE id = ?`,
         values
       );
+      // Invalidate cached embedding provider when any model is updated
+      clearEmbeddingCache();
     }
 
     // If is_enabled changed, sync with Ollama if it's an Ollama model

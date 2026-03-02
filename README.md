@@ -2,7 +2,7 @@
 
 Enterprise-grade AI chat platform with multi-provider support, intelligent model orchestration, autonomous AI agents, project management, and VS Code extension.
 
-**Current version: 1.9.0**
+**Current version: 1.9.1**
 
 ## Features
 
@@ -33,7 +33,7 @@ Enterprise-grade AI chat platform with multi-provider support, intelligent model
 │                      Backend (Fastify 5 + TypeScript)                         │
 │  20+ modules │ JWT/MFA auth │ WebSocket │ SSE streaming │ Zod validation      │
 ├──────────────────────────────────────────────────────────────────────────────┤
-│                         Model Orchestrator (v1.9.0)                           │
+│                         Model Orchestrator (v1.9.1)                           │
 │                                                                              │
 │  User Query ──▶ ModelRouter ──▶ Tier Selection ──▶ Provider                  │
 │                    │                │                  │                      │
@@ -67,7 +67,7 @@ Enterprise-grade AI chat platform with multi-provider support, intelligent model
 
 ## Model Orchestrator
 
-The Model Orchestrator (v1.9.0) automatically selects the optimal AI model for each query, similar to how Perplexity and Gemini CLI work.
+The Model Orchestrator (v1.9.1) automatically selects the optimal AI model for each query, similar to how Perplexity and Gemini CLI work.
 
 ### How It Works
 
@@ -311,6 +311,14 @@ kubectl scale deployment backend --replicas=2 frontend --replicas=2 -n enterpris
 ```
 
 ## Changelog
+
+### v1.9.1 (2026-03-02)
+- **Embedding Model Upgrade**: Switched from nomic-embed-text (768d, EN-only) to qwen3-embedding:0.6b (1024d, 100+ languages, MTEB 70.7)
+- EmbeddingService refactored: dynamic dimension probing, Ollama /api/embed batch support, fetch timeouts, race-condition guard
+- Qdrant collections migrated from 768d to 1024d (document_chunks, episodic_memory, declarative_memory, procedural_memory)
+- Cache key includes model ID to prevent stale hits on model switch
+- `clearEmbeddingCache()` wired into admin provider/model update routes
+- model-capabilities.ts: added qwen3-embedding, granite-embedding, embeddinggemma patterns
 
 ### v1.9.0 (2026-03-01)
 - **Model Orchestrator**: Intelligent auto-routing across fast/balanced/powerful tiers

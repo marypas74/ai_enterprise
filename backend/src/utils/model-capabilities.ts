@@ -20,7 +20,10 @@ const NO_TOOL_PATTERNS = [
   /^snowflake-arctic-embed/i,
   /^bge-/i,
   /^paraphrase-/i,
-  /embed/i,          // Any embedding model
+  /^qwen3-embedding/i,
+  /^granite-embedding/i,
+  /^embeddinggemma/i,
+  /[-_]embed[-_:]|[-_]embed$/i,  // Embedding models with word boundary
   /^translategemma/i, // Translation-only model
 ];
 

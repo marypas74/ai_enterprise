@@ -971,5 +971,262 @@ FASE 8.1 (Rules) ─────────────────────
 
 ---
 
+## FASE 9 — Upgrade Modello Embedding: Velocizzazione Auto-Routing & RAG (Settimane 29-31)
+
+> **Obiettivo:** Sostituire `nomic-embed-text` (768d, 274MB) con un modello più veloce e/o di qualità superiore per ridurre la latenza dell'auto-routing e migliorare la pipeline RAG/memory.
+
+### Stato Attuale
+
+| Componente | Valore Corrente | Note |
+|---|---|---|
+| **Modello embedding** | `nomic-embed-text:latest` (274MB) | 768 dimensioni, 8192 token context |
+| **Modello alternativo installato** | `bge-m3:latest` (1.2GB) | 1024 dimensioni, 8192 token context |
+| **Vector store** | Qdrant v1.12.1 (K8s StatefulSet) | Collezioni: `document_chunks`, `episodic_memory`, `declarative_memory`, `procedural_memory` |
+| **Caching** | Redis (SHA-256 hash → embedding JSON, TTL 24h) | Funzionante |
+| **Latenza stimata nomic** | ~3ms per query (RTX 5090) | Accettabile ma migliorabile |
+| **Supporto lingue** | Solo inglese (nomic-embed-text v1.5) | **PROBLEMA: il sistema usa italiano + inglese** |
+
+### Hardware Disponibile
+
+| Componente | Specifica |
+|---|---|
+| CPU | Intel Core Ultra 9 285K (24 core, 7.3 GHz boost) |
+| RAM | 64 GB DDR5 |
+| GPU | NVIDIA RTX 5090, 32 GB VRAM, CUDA 13.1 |
+| Ollama | Docker container con GPU passthrough |
+
+### Analisi Comparativa — Modelli Embedding (Marzo 2026)
+
+> Ricerca effettuata su: GitHub, Reddit, StackOverflow, Hugging Face MTEB Leaderboard, blog Elephas/Collabnix/BentoML/AIMultiple, paper ICLR/arxiv.
+
+**Legenda:** ✅ = supportato | ❌ = non supportato | 🟡 = parziale
+
+| # | Modello | Params | Dim. | Context | Size Disco | MTEB Score | Latenza RTX 5090 | Multilingua (IT) | Ollama |
+|---|---------|--------|------|---------|-----------|------------|-------------------|-------------------|--------|
+| 1 | **granite-embedding:30m** | 30M | 384 | 512 | 63 MB | ~52 | **<1ms** | ❌ EN only | ✅ |
+| 2 | **snowflake-arctic-embed:110m** | 110M | 768 | 512 | 220 MB | ~55 | **~2ms** | 🟡 limitato | ✅ |
+| 3 | **nomic-embed-text** (attuale) | 137M | 768 | 8192 | 274 MB | 62.4 | **~3ms** | ❌ EN only | ✅ |
+| 4 | **embeddinggemma:300m** | 308M | 768 | 2048 | ~200 MB (QAT) | 61.2 (multi) | **~3-5ms** | ✅ 100+ lingue | ✅ |
+| 5 | **nomic-embed-text-v2-moe** | 475M (305M attivi) | 768 | 8192 | ~550 MB | MIRACL 65.8 | **~4-6ms** | ✅ 100+ lingue | ✅ |
+| 6 | **qwen3-embedding:0.6b** | 600M | 32-1024 | 32K | 639 MB | **70.7 (EN v2)** / 64.3 (multi) | **~5-8ms** | ✅ 100+ lingue | ✅ |
+| 7 | **bge-m3** (installato) | 567M | 1024 | 8192 | 1.2 GB | ~63 / retrieval 72% | **~6-10ms** | ✅ 100+ lingue | ✅ |
+| 8 | **snowflake-arctic-embed2:568m** | 568M | 1024 | 8192 | 1.1 GB | ~55 (nDCG@10) | **~5-8ms** | ✅ IT testato (CLEF) | ✅ |
+| 9 | **mxbai-embed-large** | 335M | 1024 | 512 | 670 MB | 64.7 (retrieval) | **~4-6ms** | ❌ EN only | ✅ |
+
+### Problema Critico: Nomic è Solo Inglese
+
+`nomic-embed-text` v1.5 **non supporta l'italiano**. Il sistema Enterprise AI Chat è usato in italiano come lingua primaria. Gli embedding generati per query in italiano producono rappresentazioni semantiche di bassa qualità, degradando:
+- La classificazione semantica nell'auto-routing (se riattivata)
+- La ricerca RAG nei documenti in italiano
+- La memoria vettoriale episodica/dichiarativa
+
+### Raccomandazione
+
+**Approccio a 2 livelli (speed + quality):**
+
+| Uso | Modello Raccomandato | Perché |
+|-----|---------------------|--------|
+| **Auto-routing (classificazione tier)** | `snowflake-arctic-embed:110m` | <2ms, 768d, sufficiente per classificare 6 categorie di task. Matryoshka a 256d per ulteriore velocità |
+| **RAG + Memory vettoriale** | `qwen3-embedding:0.6b` | MTEB 70.7 (top <1B), 32K context, multilingua (IT+EN), dimensioni flessibili |
+
+**Alternativa single-model:** `bge-m3` (già installato) — multilingua eccellente, 1024d, 8K context, ma ~6-10ms. Accettabile se la semplicità di un singolo modello è prioritaria.
+
+### Fonti della Ricerca
+
+- [MTEB Leaderboard — Hugging Face](https://huggingface.co/spaces/mteb/leaderboard) (classifica embedding, Marzo 2026)
+- [Qwen3-Embedding-0.6B — HuggingFace](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B) (paper + benchmark)
+- [Qwen3 Embedding Blog](https://qwenlm.github.io/blog/qwen3-embedding/) (architettura instruction-aware)
+- [BGE-M3 — HuggingFace](https://huggingface.co/BAAI/bge-m3) (dense + sparse + multi-vector)
+- [Snowflake Arctic Embed 2.0 — Blog](https://www.snowflake.com/en/engineering-blog/snowflake-arctic-embed-2-multilingual/) (benchmark CLEF su IT)
+- [EmbeddingGemma — Google Blog](https://developers.googleblog.com/en/introducing-embeddinggemma/) (QAT quantization)
+- [Nomic Embed v2-MoE — HuggingFace](https://huggingface.co/nomic-ai/nomic-embed-text-v2-moe) (MoE architecture)
+- [Collabnix Ollama Embedding Guide](https://collabnix.com/ollama-embedded-models-the-complete-technical-guide-to-local-ai-embeddings-in-2025/)
+- [Elephas — 13 Best Embedding Models 2026](https://elephas.app/blog/best-embedding-models)
+- [BentoML — Open Source Embedding Guide](https://www.bentoml.com/blog/a-guide-to-open-source-embedding-models)
+- [AIMultiple — Open Source Embedding Benchmark](https://research.aimultiple.com/open-source-embedding-models/)
+- [RTX 5090 Ollama Benchmark — DatabaseMart](https://www.databasemart.com/blog/ollama-gpu-benchmark-rtx5090)
+- [Ollama vs vLLM — Red Hat](https://developers.redhat.com/articles/2025/08/08/ollama-vs-vllm-deep-dive-performance-benchmarking)
+
+---
+
+### FASE 9.1 — Pull & Benchmark Modelli Candidati (Settimana 29)
+
+**Obiettivo:** Scaricare i modelli candidati e misurare latenza reale sull'hardware in uso.
+
+**Azioni:**
+
+```bash
+# Pull modelli candidati
+docker exec ollama ollama pull qwen3-embedding:0.6b
+docker exec ollama ollama pull snowflake-arctic-embed:110m
+docker exec ollama ollama pull embeddinggemma:300m
+docker exec ollama ollama pull nomic-embed-text-v2-moe
+
+# bge-m3 già installato — verificare versione
+docker exec ollama ollama list | grep bge
+```
+
+**Script di benchmark:**
+
+```bash
+# Test latenza per ogni modello (10 iterazioni, query tipiche IT+EN)
+for MODEL in nomic-embed-text bge-m3 qwen3-embedding:0.6b snowflake-arctic-embed:110m embeddinggemma:300m nomic-embed-text-v2-moe; do
+  echo "--- $MODEL ---"
+  for i in $(seq 1 10); do
+    START=$(date +%s%N)
+    curl -s http://10.0.1.1:8086/ollama/api/embed \
+      -H "X-Ollama-Key: mTLS-k8s-backend-2026" \
+      -d "{\"model\":\"$MODEL\",\"input\":\"Analizza l'architettura del microservizio di autenticazione e proponi miglioramenti\"}" > /dev/null
+    END=$(date +%s%N)
+    echo "  Run $i: $(( (END - START) / 1000000 ))ms"
+  done
+done
+```
+
+**Output atteso:** Tabella con p50, p95, p99 per ogni modello su query in italiano.
+
+**Effort:** ~4 ore
+
+---
+
+### FASE 9.2 — Migrazione Qdrant Collections (Settimana 29-30)
+
+> **ATTENZIONE:** Cambiare modello embedding = cambiare dimensionalità dei vettori. Le collezioni Qdrant esistenti **non sono compatibili** e devono essere ricreate.
+
+**Piano di migrazione:**
+
+1. **Backup collezioni esistenti** (export metadata)
+   ```bash
+   # Snapshot Qdrant
+   curl -X POST 'http://qdrant:6333/collections/document_chunks/snapshots'
+   curl -X POST 'http://qdrant:6333/collections/episodic_memory/snapshots'
+   curl -X POST 'http://qdrant:6333/collections/declarative_memory/snapshots'
+   curl -X POST 'http://qdrant:6333/collections/procedural_memory/snapshots'
+   ```
+
+2. **Eliminare collezioni vecchie** (i vettori a 768d non sono riusabili)
+
+3. **Ricreare collezioni** con nuove dimensioni
+   - Se `qwen3-embedding:0.6b` → 1024d (o custom)
+   - Se `bge-m3` → 1024d
+   - Se `snowflake-arctic-embed:110m` → 768d (o Matryoshka 256d)
+
+4. **Re-embedding batch** di tutti i documenti esistenti
+   - Query tutti i chunk dalla tabella `document_chunks` del DB
+   - Rigenerare embedding con il nuovo modello
+   - Upsert in Qdrant in batch da 20
+
+**Effort:** ~8 ore
+
+---
+
+### FASE 9.3 — Aggiornamento EmbeddingService.ts (Settimana 30)
+
+**Modifiche necessarie in `backend/src/services/EmbeddingService.ts`:**
+
+1. **Aggiornare la detection delle dimensioni** (riga 90-93):
+   ```typescript
+   // Vecchio (hardcoded)
+   let dimensions = 1536;
+   if (embeddingModel.model_id.includes('nomic')) dimensions = 768;
+   if (embeddingModel.model_id.includes('3-large')) dimensions = 3072;
+
+   // Nuovo (dinamico — query le dimensioni reali dall'API)
+   // Opzione A: Detect da risposta Ollama (embedding.length)
+   // Opzione B: Tabella ai_models con colonna embedding_dimensions
+   // Opzione C: Mappa configurabile EMBEDDING_DIMENSIONS
+   ```
+
+2. **Supporto Ollama `/api/embed` (nuovo endpoint):**
+   - Ollama ha deprecato `/api/embeddings` a favore di `/api/embed`
+   - Il nuovo endpoint supporta batch nativo (`input: string[]`)
+   - Aggiungere supporto batch per Ollama (attualmente solo sequenziale)
+
+3. **Supporto Matryoshka (dimensioni ridotte):**
+   - Aggiungere parametro opzionale `truncateDimensions` a `generateEmbedding()`
+   - Per il routing: usare 256d (veloce)
+   - Per RAG: usare dimensioni piene (1024d)
+
+4. **Invalidazione cache:**
+   - Quando si cambia modello, i vecchi embedding in Redis sono invalidi
+   - Flush delle chiavi `embedding:*` durante la migrazione
+
+**Effort:** ~6 ore
+
+---
+
+### FASE 9.4 — Riattivazione Semantic Router (Opzionale — Settimana 30-31)
+
+> Nella FASE 8 il SemanticRouter è stato eliminato (dead code). Con un modello embedding multilingua e veloce, ha senso riattivarlo.
+
+**Se riattivato:**
+1. Creare `SemanticRouterV2.ts` — versione snella
+2. Pre-calcolare embedding per le 6 categorie di task (dal ROADMAP FASE 8.4)
+3. Cache in Redis (ricalcolo solo al cambio modello)
+4. Cosine similarity su vettori a 256d (Matryoshka) → <1ms su RTX 5090
+5. Soglia minima: 0.65 — sotto la soglia, fallback al rule-based router
+6. Integrazione nel `ModelRouter.route()` come metodo aggiuntivo
+
+**Effort:** ~8 ore (opzionale)
+
+---
+
+### FASE 9.5 — Pulizia & Rimozione Modelli Obsoleti (Settimana 31)
+
+**Azioni:**
+
+1. **Rimuovere nomic-embed-text da Ollama** (se sostituito):
+   ```bash
+   docker exec ollama ollama rm nomic-embed-text
+   ```
+
+2. **Aggiornare DB `ai_models`**: disabilitare il vecchio modello, abilitare il nuovo
+
+3. **Aggiornare `model-capabilities.ts`**: aggiungere pattern per il nuovo modello
+
+4. **Verificare tutte le collezioni Qdrant**: dimensioni corrette, conteggio vettori
+
+5. **Benchmark finale**: confronto latenza prima/dopo su 100 query reali
+
+6. **Aggiornare README.md**: documentare il nuovo modello embedding
+
+**Effort:** ~4 ore
+
+---
+
+### Timeline Riepilogativa FASE 9
+
+```
+Settimana 29   Settimana 30        Settimana 31
+│               │                   │
+├── 9.1 ────┐   ├── 9.3 ──────────┐ ├── 9.5 ────┐
+│  Pull &    │   │  EmbeddingService│ │  Cleanup   │
+│  Benchmark │   │  refactoring     │ │  & verify  │
+│            │   │                  │ │            │
+├── 9.2 ────┤   ├── 9.4 ──────────┤ │            │
+│  Qdrant    │   │  SemanticRouter  │ │            │
+│  migration │   │  V2 (opzionale)  │ │            │
+└────────────┘   └──────────────────┘ └────────────┘
+```
+
+**Effort totale FASE 9:** ~30 ore (22 ore core + 8 ore opzionali per SemanticRouter V2)
+
+**Prerequisiti:**
+- FASE 8.1 completata (ModelRouter funzionante) ✅
+- Hardware RTX 5090 operativo ✅
+- Qdrant K8s StatefulSet attivo ✅
+
+**Dipendenze:**
+```
+FASE 9.1 (Benchmark) ───▶ FASE 9.2 (Qdrant) ───▶ FASE 9.3 (Service)
+                                                        │
+                                                   FASE 9.4 (Semantic, opzionale)
+                                                        │
+                                                   FASE 9.5 (Cleanup)
+```
+
+---
+
 *Documento generato dall'analisi automatica del codebase il 2026-03-01.*
+*Aggiornato il 2026-03-02 con FASE 9 — Upgrade Modello Embedding.*
 *Aggiornare questo documento ad ogni milestone raggiunta.*
