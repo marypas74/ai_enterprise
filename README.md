@@ -2,7 +2,7 @@
 
 Enterprise-grade AI chat platform with multi-provider support, intelligent model orchestration, autonomous AI agents, project management, and VS Code extension.
 
-**Current version: 1.9.2**
+**Current version: 1.9.3**
 
 ## Features
 
@@ -33,7 +33,7 @@ Enterprise-grade AI chat platform with multi-provider support, intelligent model
 │                      Backend (Fastify 5 + TypeScript)                         │
 │  20+ modules │ JWT/MFA auth │ WebSocket │ SSE streaming │ Zod validation      │
 ├──────────────────────────────────────────────────────────────────────────────┤
-│                         Model Orchestrator (v1.9.2)                           │
+│                         Model Orchestrator (v1.9.3)                           │
 │                                                                              │
 │  User Query ──▶ ModelRouter ──▶ Tier Selection ──▶ Provider                  │
 │                    │                │                  │                      │
@@ -67,7 +67,7 @@ Enterprise-grade AI chat platform with multi-provider support, intelligent model
 
 ## Model Orchestrator
 
-The Model Orchestrator (v1.9.2) automatically selects the optimal AI model for each query, similar to how Perplexity and Gemini CLI work.
+The Model Orchestrator (v1.9.3) automatically selects the optimal AI model for each query, similar to how Perplexity and Gemini CLI work.
 
 ### How It Works
 
@@ -311,6 +311,12 @@ kubectl scale deployment backend --replicas=2 frontend --replicas=2 -n enterpris
 ```
 
 ## Changelog
+
+### v1.9.3 (2026-03-02)
+- Fix: file download route removed JWT auth requirement (capability URL pattern via unguessable filenames)
+- Fix: fast-tier models max_output_tokens increased from 1024 to 8192 (was causing truncated responses)
+- Router: added Italian coding keywords (programma, script, algoritmo, database, backend, frontend)
+- Router: document creation detection prevents fast-tier penalty when attachments present
 
 ### v1.9.2 (2026-03-02)
 - Version bump

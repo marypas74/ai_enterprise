@@ -64,6 +64,7 @@ const CODING_KEYWORDS = [
   'codice', 'code', 'funzione', 'function', 'classe', 'class',
   'bug', 'fix', 'debug', 'test', 'refactor',
   'typescript', 'javascript', 'python', 'sql', 'api',
+  'programma', 'script', 'algoritmo', 'database', 'backend', 'frontend',
 ];
 
 // Document creation/conversion keywords → needs at least balanced tier
