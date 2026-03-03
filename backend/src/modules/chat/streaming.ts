@@ -282,7 +282,10 @@ export function detectDocumentFormat(
     'creami un documento', 'crea un documento', 'converti in word', 'esporta in word',
     'genera un documento', 'genera documento', 'crea il word', 'crea il documento',
     'salva in word', 'salva come documento', 'converti in docx', 'trasforma in word',
-    'convertilo in word', 'fai un word', 'fai un documento', 'crea il file'];
+    'convertilo in word', 'fai un word', 'fai un documento', 'crea il file',
+    'file docx', 'file word', 'in un file docx', 'in un file word',
+    'convert to word', 'convert to docx', 'convert into word', 'convert into docx',
+    'convertire in docx', 'convertire in word', 'convertilo in docx'];
 
   const hasPptxKeyword = pptxKeywords.some(kw => msgLower.includes(kw));
   const hasXlsxKeyword = xlsxKeywords.some(kw => msgLower.includes(kw));
@@ -294,7 +297,7 @@ export function detectDocumentFormat(
     return 'xlsx';
   } else if (mentionsPdf && !mentionsWord) {
     return 'pdf';
-  } else if (hasDocxKeyword || (mentionsWord && hasCreationVerb) || (hasAttachments && mentionsWord)) {
+  } else if (hasDocxKeyword || (mentionsWord && hasCreationVerb) || (hasAttachments && mentionsWord) || (hasAttachments && /\b(docx|\.docx)\b/i.test(msgLower))) {
     return 'docx';
   }
 

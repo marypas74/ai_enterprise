@@ -134,8 +134,35 @@ export default function ChatInputArea({
           accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.json,.xml,.yaml,.yml,.js,.ts,.jsx,.tsx,.py,.java,.c,.cpp,.h,.html,.css,.jpg,.jpeg,.png,.gif,.webp,.svg,.mp3,.wav,.ogg,.zip,.tar,.gz"
         />
 
-        {/* Input row: textarea + send */}
+        {/* Input row: attach + textarea + send */}
         <div className="relative flex items-end gap-2">
+          {/* Attach & Camera buttons (left of textarea) */}
+          <div className="flex items-center gap-0.5 pb-1.5">
+            <button
+              onClick={onOpenFilePicker}
+              disabled={isStreaming || isUploading}
+              className="p-2 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors disabled:opacity-50"
+              title="Allega file"
+            >
+              {isUploading ? (
+                <Loader2 className="w-5 h-5 text-surface-500 animate-spin" />
+              ) : (
+                <Paperclip className="w-5 h-5 text-surface-500" />
+              )}
+            </button>
+
+            {isNativePlatform() && (
+              <button
+                onClick={handleCameraCapture}
+                disabled={isStreaming || isUploading}
+                className="p-2 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors disabled:opacity-50"
+                title="Scatta foto"
+              >
+                <Camera className="w-5 h-5 text-surface-500" />
+              </button>
+            )}
+          </div>
+
           <div className="flex-1 relative">
             <textarea
               ref={inputRef}
@@ -162,32 +189,8 @@ export default function ChatInputArea({
           </div>
         </div>
 
-        {/* Toolbar row: attach, camera, voice mode */}
-        <div className="flex items-center gap-1 mt-1.5">
-          <button
-            onClick={onOpenFilePicker}
-            disabled={isStreaming || isUploading}
-            className="p-2 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors disabled:opacity-50"
-            title="Allega file"
-          >
-            {isUploading ? (
-              <Loader2 className="w-4 h-4 text-surface-500 animate-spin" />
-            ) : (
-              <Paperclip className="w-4 h-4 text-surface-500" />
-            )}
-          </button>
-
-          {isNativePlatform() && (
-            <button
-              onClick={handleCameraCapture}
-              disabled={isStreaming || isUploading}
-              className="p-2 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors disabled:opacity-50"
-              title="Scatta foto"
-            >
-              <Camera className="w-4 h-4 text-surface-500" />
-            </button>
-          )}
-
+        {/* Model name indicator */}
+        <div className="flex items-center mt-1">
           <span className="flex-1 text-xs text-surface-400 text-right truncate">
             {currentModelName}
           </span>

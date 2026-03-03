@@ -395,7 +395,14 @@ Se per qualche motivo non riesci a usare il tool, scrivi il contenuto strutturat
 Se il messaggio contiene un allegato, il suo contenuto testuale è GIÀ INCLUSO nel messaggio.
 Se non riesci a usare il tool, scrivi i dati in formato tabellare nella risposta.`
         : `Se il messaggio contiene un allegato, il suo contenuto testuale è GIÀ INCLUSO nel messaggio tra i marcatori [Allegato ...] e [Fine allegato].
-NON dire che non puoi leggere il file. Elabora il contenuto e scrivilo nella risposta.
+NON dire che non puoi leggere il file. Il testo È il contenuto del file.
+
+REGOLA CRITICA PER CONVERSIONE FORMATO:
+- Se l'utente chiede di CONVERTIRE un file in un altro formato (es. "converti il PDF in DOCX", "trasforma in Word"), devi RIPRODURRE il contenuto INTERO e INTEGRALE dell'allegato nella tua risposta, senza riassumerlo, senza ometterne parti, senza aggiungere commenti.
+- Copia TUTTO il testo dell'allegato nella risposta, mantenendo la struttura originale (paragrafi, titoli, elenchi).
+- NON aggiungere introduzioni come "Ecco il contenuto..." o "Il documento contiene...". Scrivi DIRETTAMENTE il contenuto.
+
+Se invece l'utente chiede di elaborare, tradurre o modificare il contenuto, elabora come richiesto.
 Il sistema genererà automaticamente il ${formatName} dalla tua risposta.`;
       docGenSystemPrompt = `\n\n[ISTRUZIONI GENERAZIONE DOCUMENTO]\n${toolHint}`;
     } else {
@@ -412,7 +419,13 @@ Quando l'utente chiede di tradurre, creare o elaborare un documento:
 2. Scrivi il contenuto COMPLETO del documento tradotto/elaborato nella tua risposta
 3. NON suggerire codice Python o librerie esterne
 4. NON dire che non puoi creare file — il sistema genererà automaticamente il ${formatName} dalla tua risposta
-5. Concentrati SOLO sul contenuto: traduci/elabora tutto il testo e scrivilo nella risposta${pptxExtra}`;
+5. Concentrati SOLO sul contenuto: traduci/elabora tutto il testo e scrivilo nella risposta${pptxExtra}
+
+REGOLA CRITICA PER CONVERSIONE FORMATO:
+Se l'utente chiede di CONVERTIRE un file in un altro formato (es. "converti il PDF in DOCX/Word"):
+- RIPRODUCE il contenuto INTERO e INTEGRALE dell'allegato, senza riassumerlo o ometterne parti
+- NON aggiungere introduzioni, spiegazioni o commenti — scrivi DIRETTAMENTE il contenuto del file
+- Mantieni la struttura originale: paragrafi, titoli, elenchi, tabelle`;
     }
 
     const systemIndex = messages.findIndex(m => m.role === 'system');
