@@ -257,7 +257,10 @@ export function detectDocumentFormat(
 ): false | 'docx' | 'pptx' | 'xlsx' | 'pdf' {
   const msgLower = message.toLowerCase();
   const hasAttachments = attachmentIds && attachmentIds.length > 0;
-  const hasCreationVerb = /\b(crea|genera|salva|esporta|converti|trasforma|fai|scrivi|produci|create|generate|save|export|convert|make|write)\b/i.test(msgLower);
+  // Italian verbs: match all conjugations (creami, creare, generami, etc.) by dropping trailing \b
+  // Also includes "voglio" (lo voglio in pdf), "dammi" (dammi il pdf), "metti" (mettilo in pdf)
+  const hasCreationVerb = /\b(crea|genera|salva|esporta|converti|trasforma|fa[im]|scrivi|produci|voglio|dammi|metti)\w*\b/i.test(msgLower)
+    || /\b(create|generate|save|export|convert|make|write)\b/i.test(msgLower);
 
   const mentionsPptx = /\b(powerpoint|pptx|\.pptx|presentazione|slides?|diapositiv[ae])\b/i.test(msgLower);
   const mentionsXlsx = /\b(excel|xlsx|\.xlsx|foglio.*calcolo|spreadsheet|tabella)\b/i.test(msgLower);
