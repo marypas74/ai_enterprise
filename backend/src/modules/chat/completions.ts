@@ -130,6 +130,11 @@ export async function completionRoutes(fastify: FastifyInstance) {
               'image', result.model]);
 
           writeSse({ done: true, conversationId: imgConvId });
+
+          // Store in vector memory (episodic)
+          storeEpisodic(fastify.db, user.id, imgConvId, parsedBody.message,
+            `[Image generated] Prompt: ${sdPrompt} | Model: ${result.model} | ${result.width}x${result.height}`
+          ).catch(err => fastify.log.warn(`[VectorMemory] Image episodic store failed: ${err.message}`));
         } catch (err: any) {
           fastify.log.error(`[ImageGen] Error: ${err.message}`);
           writeSse({ content: '\n\nNon sono riuscito a generare l\'immagine. Riprova piu\' tardi.', done: false });
