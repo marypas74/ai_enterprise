@@ -62,6 +62,7 @@ export async function completionRoutes(fastify: FastifyInstance) {
           if (!raw.writableEnded) raw.write(`data: ${JSON.stringify(data)}\n\n`);
         };
         try {
+          // Ownership check
           let imgConvId = parsedBody.conversationId;
           if (imgConvId) {
             const conv = await findOne<{ user_id: number }>(fastify.db,
@@ -81,22 +82,57 @@ export async function completionRoutes(fastify: FastifyInstance) {
             'INSERT INTO messages (conversation_id, role, content, content_type) VALUES (?, ?, ?, ?)',
             [imgConvId, 'user', parsedBody.message, 'text']);
 
-          writeSse({ type: 'image_generating', model: 'stable-diffusion-1.5', prompt: parsedBody.message, conversationId: imgConvId });
           writeSse({ routing: { tier: 'image', model: 'stable-diffusion-1.5', reason: 'Image generation request detected', confidence: 0.9, effort: 'medium' } });
 
-          const result = await generateImage({ prompt: parsedBody.message });
-          const imageMarkdown = `![Generated Image](${result.url})\n\n*Model: ${result.model} | ${result.width}x${result.height} | Seed: ${result.seed} | ${(result.generationTimeMs / 1000).toFixed(1)}s*`;
+          // Step 1: Use LLM to generate an optimized English prompt for Stable Diffusion
+          writeSse({ content: 'Sto analizzando la tua richiesta e preparando il prompt per la generazione...\n\n', done: false });
+
+          let sdPrompt = parsedBody.message; // fallback: use original prompt
+          try {
+            // Use a fast Ollama model to create an optimized SD prompt
+            const promptGenMessages = [
+              { role: 'system', content: 'You are an expert at creating Stable Diffusion image prompts. Given a user request (in any language), output ONLY a detailed English prompt optimized for Stable Diffusion 1.5. Include style keywords, lighting, composition details. Output ONLY the prompt text, nothing else.' },
+              { role: 'user', content: parsedBody.message }
+            ];
+            const ollamaUrl = process.env.OLLAMA_BASE_URL || 'http://10.0.1.1:8086/ollama';
+            const ollamaKey = process.env.OLLAMA_AUTH_KEY || '';
+            const promptResponse = await fetch(`${ollamaUrl}/api/chat`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-Ollama-Key': ollamaKey },
+              body: JSON.stringify({ model: 'qwen3:30b-a3b', messages: promptGenMessages, stream: false, options: { num_predict: 200 } }),
+              signal: AbortSignal.timeout(15000),
+            });
+            if (promptResponse.ok) {
+              const promptResult = await promptResponse.json() as { message?: { content?: string } };
+              const generatedPrompt = promptResult?.message?.content?.trim();
+              if (generatedPrompt && generatedPrompt.length > 10) {
+                sdPrompt = generatedPrompt;
+                writeSse({ content: `**Prompt ottimizzato:** *${sdPrompt}*\n\nSto generando l'immagine...\n\n`, done: false });
+              }
+            }
+          } catch {
+            // LLM prompt generation failed, use original prompt
+            writeSse({ content: 'Sto generando l\'immagine...\n\n', done: false });
+          }
+
+          // Step 2: Generate the image with the optimized prompt
+          const result = await generateImage({ prompt: sdPrompt });
+
+          // Step 3: Build response with image and description
+          const imageMarkdown = `![Generated Image](${result.url})\n\n*Modello: ${result.model} | Risoluzione: ${result.width}x${result.height} | Seed: ${result.seed} | Tempo: ${(result.generationTimeMs / 1000).toFixed(1)}s*`;
+
+          writeSse({ content: imageMarkdown, done: false });
 
           await insertOne(fastify.db,
             'INSERT INTO messages (conversation_id, role, content, content_type, ai_model, is_ai_generated) VALUES (?, ?, ?, ?, ?, 1)',
-            [imgConvId, 'assistant', imageMarkdown, 'image', result.model]);
+            [imgConvId, 'assistant',
+              `Sto analizzando la tua richiesta e preparando il prompt per la generazione...\n\n**Prompt ottimizzato:** *${sdPrompt}*\n\nSto generando l'immagine...\n\n${imageMarkdown}`,
+              'image', result.model]);
 
-          writeSse({ type: 'image_ready', url: result.url, filename: result.filename, width: result.width, height: result.height, model: result.model, seed: result.seed, generationTimeMs: result.generationTimeMs, conversationId: imgConvId });
-          writeSse({ content: imageMarkdown, done: false });
           writeSse({ done: true, conversationId: imgConvId });
         } catch (err: any) {
           fastify.log.error(`[ImageGen] Error: ${err.message}`);
-          writeSse({ content: 'Non sono riuscito a generare l\'immagine. Riprova piu\' tardi.', done: false });
+          writeSse({ content: '\n\nNon sono riuscito a generare l\'immagine. Riprova piu\' tardi.', done: false });
           writeSse({ done: true });
         }
         raw.end();
