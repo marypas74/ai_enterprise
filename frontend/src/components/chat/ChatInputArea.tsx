@@ -130,72 +130,28 @@ export default function ChatInputArea({
           </div>
         )}
 
+        {/* Hidden file input */}
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={onFileSelect}
+          multiple
+          className="hidden"
+          accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.json,.xml,.yaml,.yml,.js,.ts,.jsx,.tsx,.py,.java,.c,.cpp,.h,.html,.css,.jpg,.jpeg,.png,.gif,.webp,.svg,.mp3,.wav,.ogg,.zip,.tar,.gz"
+        />
+
+        {/* Input row: textarea + send */}
         <div className="relative flex items-end gap-2">
-          {/* Hidden file input */}
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={onFileSelect}
-            multiple
-            className="hidden"
-            accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.json,.xml,.yaml,.yml,.js,.ts,.jsx,.tsx,.py,.java,.c,.cpp,.h,.html,.css,.jpg,.jpeg,.png,.gif,.webp,.svg,.mp3,.wav,.ogg,.zip,.tar,.gz"
-          />
-
-          {/* Attach button */}
-          <button
-            onClick={onOpenFilePicker}
-            disabled={isStreaming || isUploading}
-            className="p-3 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors disabled:opacity-50"
-            title="Allega file"
-          >
-            {isUploading ? (
-              <Loader2 className="w-5 h-5 text-surface-500 animate-spin" />
-            ) : (
-              <Paperclip className="w-5 h-5 text-surface-500" />
-            )}
-          </button>
-
-          {/* Camera button (mobile only) */}
-          {isNativePlatform() && (
-            <button
-              onClick={handleCameraCapture}
-              disabled={isStreaming || isUploading}
-              className="p-3 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors disabled:opacity-50"
-              title="Scatta foto"
-            >
-              <Camera className="w-5 h-5 text-surface-500" />
-            </button>
-          )}
-
-          {/* Voice mode toggle (TTS + Avatar) */}
-          {onToggleVoiceMode && (
-            <button
-              onClick={onToggleVoiceMode}
-              className={clsx(
-                'p-2 rounded-lg transition-colors',
-                voiceModeEnabled
-                  ? 'text-violet-400 bg-violet-500/10'
-                  : 'text-surface-400 hover:text-violet-400'
-              )}
-              title={voiceModeEnabled ? 'Voce attiva' : 'Attiva voce'}
-            >
-              <Volume2 className="w-5 h-5" />
-            </button>
-          )}
-
           <div className="flex-1 relative">
             <textarea
               ref={inputRef}
               value={input}
               onChange={(e) => onInputChange(e.target.value)}
               onKeyDown={onKeyDown}
-              placeholder={attachments.length > 0 ? 'Aggiungi un messaggio per gli allegati...' : 'Messaggio...'}
+              placeholder={attachments.length > 0 ? 'Aggiungi un messaggio...' : 'Messaggio...'}
               rows={1}
               className="input resize-none min-h-[48px] max-h-[200px] py-3 pr-12"
-              style={{
-                height: 'auto',
-                minHeight: '48px',
-              }}
+              style={{ height: 'auto', minHeight: '48px' }}
               onInput={(e) => {
                 const target = e.target as HTMLTextAreaElement;
                 target.style.height = 'auto';
@@ -211,10 +167,52 @@ export default function ChatInputArea({
             </button>
           </div>
         </div>
-        <p className="mt-2 text-xs text-center text-surface-400">
-          {currentModelName} pu\u00F2 produrre informazioni imprecise
-          {attachments.length > 0 && ` \u2022 ${attachments.length} allegat${attachments.length === 1 ? 'o' : 'i'} pront${attachments.length === 1 ? 'o' : 'i'}`}
-        </p>
+
+        {/* Toolbar row: attach, camera, voice mode */}
+        <div className="flex items-center gap-1 mt-1.5">
+          <button
+            onClick={onOpenFilePicker}
+            disabled={isStreaming || isUploading}
+            className="p-2 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors disabled:opacity-50"
+            title="Allega file"
+          >
+            {isUploading ? (
+              <Loader2 className="w-4 h-4 text-surface-500 animate-spin" />
+            ) : (
+              <Paperclip className="w-4 h-4 text-surface-500" />
+            )}
+          </button>
+
+          {isNativePlatform() && (
+            <button
+              onClick={handleCameraCapture}
+              disabled={isStreaming || isUploading}
+              className="p-2 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors disabled:opacity-50"
+              title="Scatta foto"
+            >
+              <Camera className="w-4 h-4 text-surface-500" />
+            </button>
+          )}
+
+          {onToggleVoiceMode && (
+            <button
+              onClick={onToggleVoiceMode}
+              className={clsx(
+                'p-2 rounded-lg transition-colors',
+                voiceModeEnabled
+                  ? 'text-violet-400 bg-violet-500/10'
+                  : 'text-surface-400 hover:text-violet-400'
+              )}
+              title={voiceModeEnabled ? 'Voce attiva' : 'Attiva voce'}
+            >
+              <Volume2 className="w-4 h-4" />
+            </button>
+          )}
+
+          <span className="flex-1 text-xs text-surface-400 text-right truncate">
+            {currentModelName}
+          </span>
+        </div>
       </div>
     </div>
   );

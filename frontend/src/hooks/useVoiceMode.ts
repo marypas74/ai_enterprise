@@ -36,7 +36,9 @@ export function useVoiceMode() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const doneTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const voiceModeEnabledRef = useRef(voiceModeEnabled);
+  const orbStateRef = useRef(orbState);
   useEffect(() => { voiceModeEnabledRef.current = voiceModeEnabled; }, [voiceModeEnabled]);
+  useEffect(() => { orbStateRef.current = orbState; }, [orbState]);
 
   const stopAudio = useCallback(() => {
     if (audioRef.current) {
@@ -73,7 +75,8 @@ export function useVoiceMode() {
         speed: Math.min(Math.max(voiceSettings.speed, 0.25), 4.0),
       }, { responseType: 'blob' });
 
-      const audioBlob = new Blob([response.data], { type: 'audio/mpeg' });
+      const contentType = response.headers?.['content-type'] || 'audio/mpeg';
+      const audioBlob = new Blob([response.data], { type: contentType });
       const audioUrl = URL.createObjectURL(audioBlob);
       const audio = new Audio(audioUrl);
       audioRef.current = audio;
@@ -128,35 +131,36 @@ export function useVoiceMode() {
     setOrbState('hidden');
   }, [stopAudio]);
 
-  // State machine callbacks - called by ChatPage
+  // State machine callbacks - use refs to avoid stale closures
+  // (these are called from useEffect in ChatPage where orbState may be stale)
   const onStreamStart = useCallback(() => {
-    if (!voiceModeEnabled) return;
+    if (!voiceModeEnabledRef.current) return;
     setOrbState('idle');
-  }, [voiceModeEnabled]);
+  }, []);
 
   const onThinkingStart = useCallback(() => {
-    if (orbState === 'hidden') return;
+    if (orbStateRef.current === 'hidden') return;
     setOrbState('thinking');
-  }, [orbState]);
+  }, []);
 
   const onThinkingDone = useCallback(() => {
-    if (orbState !== 'thinking') return;
+    if (orbStateRef.current !== 'thinking') return;
     setOrbState('idle');
-  }, [orbState]);
+  }, []);
 
   const onStreamDone = useCallback((responseText: string) => {
-    if (orbState === 'hidden') return;
+    if (orbStateRef.current === 'hidden') return;
     if (responseText.trim()) {
       playTTSWithLifecycle(responseText);
     } else {
       transitionToDone();
     }
-  }, [orbState, playTTSWithLifecycle, transitionToDone]);
+  }, [playTTSWithLifecycle, transitionToDone]);
 
   const onStreamError = useCallback(() => {
-    if (orbState === 'hidden') return;
+    if (orbStateRef.current === 'hidden') return;
     transitionToDone();
-  }, [orbState, transitionToDone]);
+  }, [transitionToDone]);
 
   return {
     voiceModeEnabled,
