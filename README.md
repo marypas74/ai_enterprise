@@ -2,7 +2,7 @@
 
 Enterprise-grade AI chat platform with multi-provider support, intelligent model orchestration, autonomous AI agents, project management, and VS Code extension.
 
-**Current version: 2.0.0**
+**Current version: 2.1.0**
 
 ## Features
 
@@ -15,7 +15,10 @@ Enterprise-grade AI chat platform with multi-provider support, intelligent model
 - **Plugin System**: File-based plugins with EventBus hooks, MCP server support
 - **EU AI Act Compliance**: Art. 50.1/50.2 disclosure, consent management, bias monitoring, audit logging
 - **VS Code Extension**: Full IDE integration with chat, code actions, agent sessions, inline editing
-- **Real-time Chat**: SSE streaming with markdown rendering, file attachments, conversation management
+- **Voice Interface**: Speech-to-text (OpenAI Whisper) + text-to-speech (OpenAI TTS / local Piper TTS fallback) with animated Avatar Orb overlay
+- **Image Generation**: OllamaDiffuser integration for text-to-image (FLUX.1 schnell) inline in chat
+- **Android APK**: Capacitor 6 wrapper with native SSE streaming, camera, haptics — direct APK download
+- **Real-time Chat**: SSE streaming with markdown rendering, file attachments, conversation management, session persistence
 - **Admin Dashboard**: User/group management, provider configuration, orchestrator dashboard, system monitoring
 - **Security**: JWT + MFA (TOTP), Zod input validation, rate limiting, OWASP hardening
 - **Kubernetes Ready**: Production deployment with MicroK8s, auto-scaling, backup CronJobs
@@ -311,6 +314,27 @@ kubectl scale deployment backend --replicas=2 frontend --replicas=2 -n enterpris
 ```
 
 ## Changelog
+
+### v2.1.0 (2026-03-04)
+- **PDF-to-DOCX Conversion Fix**: System prompt now instructs AI to reproduce full content verbatim when converting formats (not summarize)
+- **Session Persistence**: `currentConversationId` persisted in localStorage — conversation restored after page reload
+- **New Chat Bug Fix**: Conversation ID now saved after backend creation, preventing new chat on every query
+- **Avatar Orb + Voice Mode**: Animated ChatGPT-style pulsating orb overlay during AI responses with TTS playback
+- **Local Piper TTS**: Fallback to local Piper TTS server when OpenAI API unavailable
+- **Android APK**: Capacitor 6 wrapper with native SSE streaming, camera capture, haptic feedback
+- **UX Cleanup**: Removed duplicate voice toggle button, removed VS Code Extension download from sidebar
+- **Attach Button Redesign**: Paperclip/camera buttons moved inline-left of textarea (ChatGPT-style)
+- **Security Fixes**:
+  - CRITICAL: Disabled `webContentsDebuggingEnabled` in production APK
+  - CRITICAL: Path traversal fix in extension download route (version validation + containment check)
+  - HIGH: StreamHttp listener leak on Android native streaming
+  - HIGH: Audio resource leak in voice mode (stop previous before new)
+  - HIGH: Sync file I/O blocking event loop in PDF generation → async `fs/promises`
+  - HIGH: Temp file leak on PDF conversion failure (try/finally cleanup)
+  - HIGH: Rate limiting on voice STT (15/min) and TTS (20/min) endpoints
+  - MEDIUM: Removed `http://` from image URL allowlist (anti-tracking)
+- **Dead Code Cleanup**: 11 orphaned files, 3 unused deps removed (knip analysis, -975 lines)
+- **K8s Cleanup**: Removed unused open-webui and litellm deployments
 
 ### v2.0.0 (2026-03-02)
 - **Image Generation**: OllamaDiffuser integration via Docker container + nginx proxy
