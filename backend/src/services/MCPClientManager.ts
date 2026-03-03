@@ -11,7 +11,7 @@ import { findMany } from '../database/index.js';
 import type mysql from 'mysql2/promise';
 
 // Read version from package.json at module load
-let APP_VERSION = '2.0.8';
+let APP_VERSION = '2.0.9';
 try {
   const __dirname = dirname(fileURLToPath(import.meta.url));
   const pkg = JSON.parse(readFileSync(resolve(__dirname, '../../package.json'), 'utf-8'));
