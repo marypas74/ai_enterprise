@@ -36,14 +36,38 @@ interface UseChatConversationsReturn {
   deleteAllConversations: () => void;
 }
 
+const LAST_CONVERSATION_KEY = 'last-conversation-id';
+
+function loadLastConversationId(): number | null {
+  try {
+    const stored = localStorage.getItem(LAST_CONVERSATION_KEY);
+    if (stored) {
+      const parsed = parseInt(stored, 10);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+  } catch { /* ignore */ }
+  return null;
+}
+
 export function useChatConversations(): UseChatConversationsReturn {
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [currentConversationId, setCurrentConversationId] = useState<number | null>(null);
+  const [currentConversationId, setCurrentConversationId] = useState<number | null>(loadLastConversationId);
   const [showArchived, setShowArchived] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [hasMoreConversations, setHasMoreConversations] = useState(true);
   const [conversationsOffset, setConversationsOffset] = useState(0);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
+
+  // Persist currentConversationId to localStorage
+  useEffect(() => {
+    try {
+      if (currentConversationId !== null) {
+        localStorage.setItem(LAST_CONVERSATION_KEY, String(currentConversationId));
+      } else {
+        localStorage.removeItem(LAST_CONVERSATION_KEY);
+      }
+    } catch { /* ignore */ }
+  }, [currentConversationId]);
 
   const loadConversations = useCallback(async (archived = false, offset = 0, initial = false) => {
     setIsLoadingHistory(true);

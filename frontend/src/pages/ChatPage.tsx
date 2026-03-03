@@ -75,8 +75,16 @@ export default function ChatPage() {
       chatMessages.setSelectedModel(result.model);
     } catch (err) {
       console.error('Failed to load conversation:', err);
+      conversations.setCurrentConversationId(null);
     }
   };
+
+  // Restore persisted conversation on mount
+  useEffect(() => {
+    if (conversations.currentConversationId && chatMessages.messages.length === 0) {
+      handleLoadConversation(conversations.currentConversationId);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // When starting a new conversation, clear messages and attachments
   const handleNewConversation = () => {
@@ -386,8 +394,6 @@ export default function ChatPage() {
           onRemoveAttachment={fileAttachments.removeAttachment}
           onOpenFilePicker={() => fileAttachments.fileInputRef.current?.click()}
           onAddFile={fileAttachments.addFile}
-          voiceModeEnabled={voiceMode.voiceModeEnabled}
-          onToggleVoiceMode={voiceMode.toggleVoiceMode}
         />
       </main>
 

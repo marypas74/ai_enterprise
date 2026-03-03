@@ -5,7 +5,6 @@ import {
   LogOut,
   MessageSquare,
   Trash2,
-  Download,
   BookOpen,
   Loader2,
   Archive,
@@ -14,8 +13,6 @@ import {
 } from 'lucide-react';
 import clsx from 'clsx';
 import { api } from '../../services/api';
-import { downloadBlob } from '../../utils/fileDownload';
-import { isNativePlatform } from '../../utils/platform';
 import type { Conversation } from '../../hooks/useChatConversations';
 
 interface ChatSidebarProps {
@@ -55,26 +52,6 @@ export default function ChatSidebar({
   onLoadMore,
   onLogout,
 }: ChatSidebarProps) {
-  const downloadExtension = async () => {
-    try {
-      const response = await api.get('/downloads/vscode-extension/latest', {
-        responseType: 'blob',
-      });
-
-      const contentDisposition = response.headers['content-disposition'];
-      let filename = 'enterprise-ai-chat.vsix';
-      if (contentDisposition) {
-        const match = contentDisposition.match(/filename="(.+)"/);
-        if (match) filename = match[1];
-      }
-
-      await downloadBlob(new Blob([response.data]), filename);
-    } catch (err) {
-      console.error('Failed to download extension:', err);
-      alert('Failed to download VS Code extension');
-    }
-  };
-
   const openGuide = async (type: 'user' | 'admin') => {
     try {
       const response = await api.get(`/downloads/guides/${type}`, {
@@ -194,19 +171,6 @@ export default function ChatSidebar({
           </button>
         </div>
       </div>
-
-      {/* VS Code Extension Download (hidden on mobile) */}
-      {!isNativePlatform() && (
-        <div className="px-4 pb-2">
-          <button
-            onClick={downloadExtension}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-surface-700 hover:bg-surface-800 transition-colors text-sm"
-          >
-            <Download className="w-4 h-4" />
-            <span>VS Code Extension</span>
-          </button>
-        </div>
-      )}
 
       {/* Guide Downloads */}
       <div className="px-4 pb-2">
