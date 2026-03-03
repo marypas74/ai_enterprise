@@ -2,7 +2,7 @@
 
 Enterprise-grade AI chat platform with multi-provider support, intelligent model orchestration, autonomous AI agents, project management, and VS Code extension.
 
-**Current version: 1.9.5**
+**Current version: 2.0.0**
 
 ## Features
 
@@ -33,7 +33,7 @@ Enterprise-grade AI chat platform with multi-provider support, intelligent model
 │                      Backend (Fastify 5 + TypeScript)                         │
 │  20+ modules │ JWT/MFA auth │ WebSocket │ SSE streaming │ Zod validation      │
 ├──────────────────────────────────────────────────────────────────────────────┤
-│                         Model Orchestrator (v1.9.5)                           │
+│                         Model Orchestrator (v2.0.0)                           │
 │                                                                              │
 │  User Query ──▶ ModelRouter ──▶ Tier Selection ──▶ Provider                  │
 │                    │                │                  │                      │
@@ -67,7 +67,7 @@ Enterprise-grade AI chat platform with multi-provider support, intelligent model
 
 ## Model Orchestrator
 
-The Model Orchestrator (v1.9.5) automatically selects the optimal AI model for each query, similar to how Perplexity and Gemini CLI work.
+The Model Orchestrator (v2.0.0) automatically selects the optimal AI model for each query, similar to how Perplexity and Gemini CLI work.
 
 ### How It Works
 
@@ -312,15 +312,24 @@ kubectl scale deployment backend --replicas=2 frontend --replicas=2 -n enterpris
 
 ## Changelog
 
+### v2.0.0 (2026-03-02)
+- **Image Generation**: OllamaDiffuser integration via Docker container + nginx proxy
+  - DiffuserProvider: async REST client for text-to-image generation (FLUX.1 schnell)
+  - `POST /api/chat/image/generate`: SSE endpoint with conversation tracking
+  - ModelRouter: auto-detects image requests (IT/EN keywords) and routes to diffuser tier
+  - Orchestrator integration: image generation inline from chat completions endpoint
+  - Frontend: custom `<img>` renderer with download button for generated images
+  - SystemMonitor: OllamaDiffuser health status indicator
+- **Voice Interface** (Android APK, stile OpenAI):
+  - `POST /api/chat/voice/transcribe`: OpenAI Whisper STT with MIME/size validation
+  - `POST /api/chat/voice/synthesize`: OpenAI TTS (6 voices, 2 models)
+  - VoiceButton component: MediaRecorder capture, unmount cleanup, permission handling
+- Security: IDOR fix on conversation ownership, error message sanitization, strict Zod enums
+
 ### v1.9.5 (2026-03-02)
-- Fix: admin user update `is_active` field — MariaDB returns tinyint (0/1) instead of boolean, Zod now coerces numeric values to boolean via `z.preprocess()`
-- Fix: admin user update Zod schema accepts `null` for optional profile fields (phone, company, department, job_title, notes)
-- Fix: `File` icon import shadowing DOM `File` constructor in ChatInputArea (renamed to `FileIcon`)
-- CORS: multi-origin support (comma-separated `CORS_ORIGIN` env var) for Capacitor/mobile app
-- APK download endpoint (`GET /api/public/downloads/apk`) — serves latest APK from APK directory
-- Login page: Android app download link (hidden in native app)
-- Settings page: file download refactored to use `downloadBlob` utility
-- Android/Capacitor: initial project setup with `.gitignore` entries
+- Fix: admin user update `is_active` field — Zod coerces MariaDB tinyint to boolean
+- Fix: admin user update Zod schema accepts `null` for optional profile fields
+- Fix: `File` icon import shadowing DOM `File` constructor in ChatInputArea
 
 ### v1.9.3 (2026-03-02)
 - Fix: file download route removed JWT auth requirement (capability URL pattern via unguessable filenames)

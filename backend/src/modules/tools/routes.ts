@@ -364,12 +364,13 @@ export async function toolsRoutes(fastify: FastifyInstance) {
     }, async (request, reply) => {
         const { filename } = request.params as { filename: string };
 
-        // Security check
-        if (filename.includes('..') || filename.includes('/')) {
+        // Security: path traversal prevention via path.resolve
+        const resolved = path.resolve(GENERATED_DIR, filename);
+        if (!resolved.startsWith(path.resolve(GENERATED_DIR) + path.sep) && resolved !== path.resolve(GENERATED_DIR)) {
             return reply.status(400).send({ error: 'Invalid filename' });
         }
 
-        let filePath = path.join(GENERATED_DIR, filename);
+        let filePath = resolved;
         const ext = path.extname(filename).toLowerCase();
 
         try {

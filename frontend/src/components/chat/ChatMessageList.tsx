@@ -19,6 +19,80 @@ import { downloadFile } from '../../utils/fileDownload';
 import { isNativePlatform } from '../../utils/platform';
 import type { Message } from '../../hooks/useChatMessages';
 
+// Stable markdown components defined OUTSIDE the render function
+// to prevent React from re-creating DOM elements on each re-render
+// (fixes image flickering/reload on scroll — see remarkjs/react-markdown#881)
+const MarkdownCode = ({ className, children, ...props }: any) => {
+  const match = /language-(\w+)/.exec(className || '');
+  const inline = !match;
+  return inline ? (
+    <code className={className} {...props}>{children}</code>
+  ) : (
+    <SyntaxHighlighter style={oneDark as any} language={match[1]} PreTag="div">
+      {String(children).replace(/\n$/, '')}
+    </SyntaxHighlighter>
+  );
+};
+
+const MarkdownImg = ({ src, alt, ...props }: any) => {
+  const isGenerated = typeof src === 'string' && src.startsWith('/api/tools/download/');
+  // Only render images from our API or standard https URLs (block javascript:, data: etc.)
+  const isSafeSrc = typeof src === 'string' && (src.startsWith('/api/') || src.startsWith('https://') || src.startsWith('http://'));
+  const safeFilename = ((alt || 'image') as string).replace(/[^a-zA-Z0-9._-]/g, '_').substring(0, 100) + '.png';
+
+  if (!isSafeSrc) return null;
+
+  return (
+    <div className="my-3">
+      <img
+        src={src}
+        alt={alt || 'Generated image'}
+        className="rounded-lg max-w-full max-h-[512px] object-contain border border-surface-200 dark:border-surface-700"
+        loading="lazy"
+      />
+      {isGenerated && (
+        <div className="mt-2 flex items-center gap-2">
+          <a
+            href={src}
+            download
+            onClick={async (e: React.MouseEvent) => { e.preventDefault(); await downloadFile(src!, safeFilename); }}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary-600 hover:bg-primary-700 text-white no-underline transition-colors text-xs font-medium cursor-pointer"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Scarica
+          </a>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const MarkdownLink = ({ href, children, ...props }: any) => {
+  if (href && href.includes('/api/tools/download/')) {
+    const handleDownload = async (e: React.MouseEvent) => {
+      e.preventDefault();
+      await downloadFile(href, String(children));
+    };
+    return (
+      <a href={href} onClick={handleDownload}
+        className="inline-flex items-center gap-2 px-4 py-2 my-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-white no-underline transition-colors text-sm font-medium cursor-pointer"
+        {...props}>
+        <Download className="w-4 h-4" />{children}
+      </a>
+    );
+  }
+  const handleExternalClick = async (e: React.MouseEvent) => {
+    if (isNativePlatform() && href) {
+      e.preventDefault();
+      const { Browser } = await import('@capacitor/browser');
+      await Browser.open({ url: href });
+    }
+  };
+  return <a href={href} target="_blank" rel="noopener noreferrer" onClick={handleExternalClick} {...props}>{children}</a>;
+};
+
+const markdownComponents = { code: MarkdownCode, img: MarkdownImg, a: MarkdownLink };
+
 interface ChatMessageListProps {
   messages: Message[];
   isStreaming: boolean;
@@ -120,54 +194,7 @@ export default function ChatMessageList({
                     <span></span>
                   </div>
                 ) : (
-                  <ReactMarkdown
-                    components={{
-                      code({ className, children, ...props }) {
-                        const match = /language-(\w+)/.exec(className || '');
-                        const inline = !match;
-                        return inline ? (
-                          <code className={className} {...props}>
-                            {children}
-                          </code>
-                        ) : (
-                          <SyntaxHighlighter
-                            style={oneDark as any}
-                            language={match[1]}
-                            PreTag="div"
-                          >
-                            {String(children).replace(/\n$/, '')}
-                          </SyntaxHighlighter>
-                        );
-                      },
-                      a({ href, children, ...props }) {
-                        if (href && href.includes('/api/tools/download/')) {
-                          const handleDownload = async (e: React.MouseEvent) => {
-                            e.preventDefault();
-                            await downloadFile(href, String(children));
-                          };
-                          return (
-                            <a
-                              href={href}
-                              onClick={handleDownload}
-                              className="inline-flex items-center gap-2 px-4 py-2 my-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-white no-underline transition-colors text-sm font-medium cursor-pointer"
-                              {...props}
-                            >
-                              <Download className="w-4 h-4" />
-                              {children}
-                            </a>
-                          );
-                        }
-                        const handleExternalClick = async (e: React.MouseEvent) => {
-                          if (isNativePlatform() && href) {
-                            e.preventDefault();
-                            const { Browser } = await import('@capacitor/browser');
-                            await Browser.open({ url: href });
-                          }
-                        };
-                        return <a href={href} target="_blank" rel="noopener noreferrer" onClick={handleExternalClick} {...props}>{children}</a>;
-                      },
-                    }}
-                  >
+                  <ReactMarkdown components={markdownComponents}>
                     {message.content}
                   </ReactMarkdown>
                 )}

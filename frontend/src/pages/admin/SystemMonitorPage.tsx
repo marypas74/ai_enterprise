@@ -12,7 +12,8 @@ import {
   Clock,
   Gauge,
   Zap,
-  Box
+  Box,
+  ImagePlus,
 } from 'lucide-react';
 
 interface SystemData {
@@ -86,6 +87,9 @@ interface SystemData {
       expires_at: string;
       size_vram: number;
     }>;
+  };
+  diffuser?: {
+    status: 'ok' | 'unavailable';
   };
 }
 
@@ -438,6 +442,21 @@ export default function SystemMonitorPage() {
               ) : (
                 <div className="text-center py-4 text-surface-500 text-xs">No models currently loaded</div>
               )}
+            </div>
+          </div>
+
+          {/* OllamaDiffuser Status */}
+          <div className="bg-surface-900 rounded-lg p-3 border border-surface-700">
+            <div className="flex items-center gap-2 mb-3">
+              <ImagePlus className="w-4 h-4 text-pink-400" />
+              <span className="text-pink-400 font-semibold">OLLAMADIFFUSER (Image Gen)</span>
+            </div>
+            <div className="flex items-center gap-2 p-2 bg-surface-800 rounded border border-surface-700">
+              <div className={`w-2.5 h-2.5 rounded-full ${data?.diffuser?.status === 'ok' ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+              <span className={`text-sm font-medium ${data?.diffuser?.status === 'ok' ? 'text-green-400' : 'text-red-400'}`}>
+                {data?.diffuser?.status === 'ok' ? 'Online' : 'Offline'}
+              </span>
+              <span className="text-[10px] text-surface-500 ml-auto">stable-diffusion-1.5</span>
             </div>
           </div>
         </div>

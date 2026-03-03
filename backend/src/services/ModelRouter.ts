@@ -11,7 +11,7 @@ import { isProviderHealthy } from './CircuitBreakerService.js';
 import { MODEL_PRICING } from '../modules/ai/types.js';
 
 // ─── Types ──────────────────────────────────────────────────────────
-type RoutingTier = 'fast' | 'balanced' | 'powerful';
+type RoutingTier = 'fast' | 'balanced' | 'powerful' | 'image';
 
 export interface RoutingDecision {
   readonly tier: RoutingTier;
@@ -21,6 +21,7 @@ export interface RoutingDecision {
   readonly effort: 'low' | 'medium' | 'high';
   readonly estimatedCostPer1k: number;
   readonly routingMethod: 'rule' | 'semantic' | 'override';
+  readonly isImageGeneration?: boolean;
 }
 
 interface RoutingContext {
@@ -65,6 +66,17 @@ const CODING_KEYWORDS = [
   'bug', 'fix', 'debug', 'test', 'refactor',
   'typescript', 'javascript', 'python', 'sql', 'api',
   'programma', 'script', 'algoritmo', 'database', 'backend', 'frontend',
+];
+
+// Image generation keywords — detected BEFORE complexity scoring to short-circuit routing
+const IMAGE_GENERATION_PATTERN = /\b(genera|crea|creami|disegna|disegnami|fai|fammi|produci|illustra|generate|create|draw|make|paint|render)\b.*\b(immagine|immagini|foto|fotografia|disegno|illustrazione|image|picture|photo|drawing|illustration|portrait|artwork)\b/i;
+
+const IMAGE_KEYWORDS = [
+  'genera immagine', 'crea immagine', 'disegna', 'disegnami',
+  'genera foto', 'crea foto', 'fammi vedere come',
+  'genera una foto', 'illustra', 'crea un disegno',
+  'generate image', 'create image', 'draw me', 'make a picture',
+  'generate a photo', 'create a drawing', 'paint me',
 ];
 
 // Document creation/conversion keywords → needs at least balanced tier
@@ -124,7 +136,7 @@ function scoreToTier(score: number): RoutingTier {
   return 'powerful';
 }
 
-const TIER_EFFORT = { fast: 'low', balanced: 'medium', powerful: 'high' } as const;
+const TIER_EFFORT = { fast: 'low', balanced: 'medium', powerful: 'high', image: 'medium' } as const;
 
 // ─── Router ─────────────────────────────────────────────────────────
 class ModelRouter {
@@ -175,6 +187,19 @@ class ModelRouter {
   }
 
   async route(ctx: RoutingContext): Promise<RoutingDecision> {
+    // ── Image generation short-circuit ──────────────────────────────
+    const queryLowerCheck = ctx.query.toLowerCase();
+    const isImage = IMAGE_GENERATION_PATTERN.test(ctx.query)
+      || IMAGE_KEYWORDS.some(kw => queryLowerCheck.includes(kw));
+    if (isImage) {
+      return {
+        tier: 'image', model: 'stable-diffusion-1.5',
+        reason: 'Image generation request detected',
+        confidence: 0.9, effort: 'medium', estimatedCostPer1k: 0,
+        routingMethod: 'rule', isImageGeneration: true,
+      };
+    }
+
     const score = computeComplexityScore(ctx);
     const tier = scoreToTier(score);
     const model = await this.selectModelFromTier(tier);
