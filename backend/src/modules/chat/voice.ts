@@ -23,6 +23,7 @@ export async function voiceRoutes(fastify: FastifyInstance) {
   // ── Speech-to-Text (Whisper) ──────────────────────────────────────
   fastify.post('/voice/transcribe', {
     onRequest: [(fastify as any).authenticate],
+    config: { rateLimit: { max: 15, timeWindow: '1 minute' } },
     schema: {
       description: 'Transcribe audio to text using OpenAI Whisper',
       tags: ['chat'],
@@ -101,6 +102,7 @@ export async function voiceRoutes(fastify: FastifyInstance) {
   // ── Text-to-Speech (TTS) ──────────────────────────────────────────
   fastify.post('/voice/synthesize', {
     onRequest: [(fastify as any).authenticate],
+    config: { rateLimit: { max: 20, timeWindow: '1 minute' } },
     schema: {
       description: 'Convert text to speech using OpenAI TTS',
       tags: ['chat'],

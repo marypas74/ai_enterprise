@@ -29,8 +29,9 @@ function saveSettings(enabled: boolean, settings: VoiceSettings): void {
 }
 
 export function useVoiceMode() {
-  const [voiceModeEnabled, setVoiceModeEnabled] = useState(() => loadSettings().enabled);
-  const [voiceSettings, setVoiceSettingsState] = useState<VoiceSettings>(() => loadSettings().settings);
+  const initialSettings = loadSettings();
+  const [voiceModeEnabled, setVoiceModeEnabled] = useState(initialSettings.enabled);
+  const [voiceSettings, setVoiceSettingsState] = useState<VoiceSettings>(initialSettings.settings);
   const [orbState, setOrbState] = useState<OrbState>('hidden');
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -68,6 +69,7 @@ export function useVoiceMode() {
   }, []);
 
   const playTTSWithLifecycle = useCallback(async (text: string) => {
+    stopAudio(); // Stop any previous playback first
     try {
       const response = await api.post('/chat/voice/synthesize', {
         text: text.substring(0, 4096),
@@ -83,14 +85,18 @@ export function useVoiceMode() {
 
       audio.onended = () => {
         URL.revokeObjectURL(audioUrl);
-        audioRef.current = null;
-        transitionToDone();
+        if (audioRef.current === audio) {
+          audioRef.current = null;
+          transitionToDone();
+        }
       };
 
       audio.onerror = () => {
         URL.revokeObjectURL(audioUrl);
-        audioRef.current = null;
-        transitionToDone();
+        if (audioRef.current === audio) {
+          audioRef.current = null;
+          transitionToDone();
+        }
       };
 
       setOrbState('speaking');
@@ -107,7 +113,7 @@ export function useVoiceMode() {
       console.error('[VoiceMode] TTS playback failed:', err);
       transitionToDone();
     }
-  }, [voiceSettings, transitionToDone]);
+  }, [voiceSettings, transitionToDone, stopAudio]);
 
   const toggleVoiceMode = useCallback(() => {
     setVoiceModeEnabled(prev => {

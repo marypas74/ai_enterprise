@@ -37,7 +37,7 @@ const MarkdownCode = ({ className, children, ...props }: any) => {
 const MarkdownImg = ({ src, alt, ...props }: any) => {
   const isGenerated = typeof src === 'string' && src.startsWith('/api/tools/download/');
   // Only render images from our API or standard https URLs (block javascript:, data: etc.)
-  const isSafeSrc = typeof src === 'string' && (src.startsWith('/api/') || src.startsWith('https://') || src.startsWith('http://'));
+  const isSafeSrc = typeof src === 'string' && (src.startsWith('/api/') || src.startsWith('https://'));
   const safeFilename = ((alt || 'image') as string).replace(/[^a-zA-Z0-9._-]/g, '_').substring(0, 100) + '.png';
 
   if (!isSafeSrc) return null;

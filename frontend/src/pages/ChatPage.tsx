@@ -90,7 +90,10 @@ export default function ChatPage() {
     chatMessages.sendMessage(
       conversations.currentConversationId,
       conversations.showArchived,
-      () => conversations.loadConversations(conversations.showArchived, 0, true),
+      (newConversationId: number) => {
+        conversations.setCurrentConversationId(newConversationId);
+        conversations.loadConversations(conversations.showArchived, 0, true);
+      },
       fileAttachments.attachments,
       fileAttachments.uploadAttachments,
     );

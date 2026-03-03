@@ -1,6 +1,6 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { readdir, stat, createReadStream } from 'fs';
-import { join, dirname } from 'path';
+import { join, dirname, resolve, sep } from 'path';
 import { promisify } from 'util';
 import { fileURLToPath } from 'url';
 
@@ -171,6 +171,12 @@ export async function downloadRoutes(fastify: FastifyInstance) {
     try {
       const params = request.params as { version: string };
       const version = params.version;
+
+      // Validate version format to prevent path traversal
+      if (version !== 'latest' && !/^\d+\.\d+\.\d+$/.test(version)) {
+        return reply.status(400).send({ error: 'Invalid version format. Expected X.Y.Z or "latest".' });
+      }
+
       let filename: string;
 
       if (version === 'latest') {
@@ -200,6 +206,13 @@ export async function downloadRoutes(fastify: FastifyInstance) {
       }
 
       const filepath = join(EXTENSION_DIR, filename);
+
+      // Path containment check (defense in depth)
+      const resolvedDir = resolve(EXTENSION_DIR);
+      const resolvedFile = resolve(filepath);
+      if (!resolvedFile.startsWith(resolvedDir + sep)) {
+        return reply.status(400).send({ error: 'Invalid path' });
+      }
 
       // Check if file exists
       try {

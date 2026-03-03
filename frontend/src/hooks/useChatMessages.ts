@@ -74,7 +74,7 @@ interface UseChatMessagesReturn {
   setShowVectorMemory: (show: boolean) => void;
   setShowMemoryPanel: (show: boolean) => void;
   setShowConsentModal: (show: boolean) => void;
-  sendMessage: (currentConversationId: number | null, showArchived: boolean, onConversationCreated: () => void, attachments: any[], uploadAttachments: (conversationId?: number) => Promise<number[]>) => Promise<void>;
+  sendMessage: (currentConversationId: number | null, showArchived: boolean, onConversationCreated: (conversationId: number) => void, attachments: any[], uploadAttachments: (conversationId?: number) => Promise<number[]>) => Promise<void>;
   undoLastMessage: (currentConversationId: number | null) => Promise<void>;
   handleGenerateDocument: (msgIndex: number, format: 'docx' | 'pdf', currentConversationId: number | null) => Promise<void>;
   handleKeyDown: (e: React.KeyboardEvent, sendFn: () => void) => void;
@@ -276,7 +276,7 @@ export function useChatMessages(currentConversationId: number | null): UseChatMe
   const sendMessage = useCallback(async (
     convId: number | null,
     showArchived: boolean,
-    onConversationCreated: () => void,
+    onConversationCreated: (conversationId: number) => void,
     attachments: any[],
     uploadAttachments: (conversationId?: number) => Promise<number[]>,
   ) => {
@@ -342,8 +342,8 @@ export function useChatMessages(currentConversationId: number | null): UseChatMe
         },
         (conversationId) => {
           setIsStreaming(false);
-          if (!convId) {
-            onConversationCreated();
+          if (!convId && conversationId) {
+            onConversationCreated(conversationId);
           }
         },
         (error) => {

@@ -190,13 +190,20 @@ async function streamChatNative(
   const token = useAuthStore.getState().accessToken || '';
   const { StreamHttp } = await import('capacitor-stream-http');
 
-  return new Promise<void>((resolve) => {
+  return new Promise<void>(async (resolve) => {
     let buffer = '';
     let resolved = false;
-    const done = () => { if (!resolved) { resolved = true; resolve(); } };
+    const listeners: Array<{ remove: () => void }> = [];
+    const done = () => {
+      if (!resolved) {
+        resolved = true;
+        listeners.forEach(l => l.remove());
+        resolve();
+      }
+    };
 
     // Listen for chunks (plugin sends { id, chunk })
-    StreamHttp.addListener('chunk', (event) => {
+    listeners.push(await StreamHttp.addListener('chunk', (event: any) => {
       buffer += event.chunk || '';
       const lines = buffer.split('\n');
       buffer = lines.pop() || '';
@@ -206,13 +213,13 @@ async function streamChatNative(
           return;
         }
       }
-    });
+    }));
 
-    StreamHttp.addListener('end', () => done());
-    StreamHttp.addListener('error', (event) => {
+    listeners.push(await StreamHttp.addListener('end', () => done()));
+    listeners.push(await StreamHttp.addListener('error', (event: any) => {
       onError(event.error || 'Stream error');
       done();
-    });
+    }));
 
     StreamHttp.startStream({
       url: `${API_BASE_URL}/chat/completions`,

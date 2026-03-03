@@ -26,10 +26,8 @@ export async function initCapacitor(): Promise<void> {
     }
   });
 
-  CapApp.addListener('appStateChange', (state) => {
-    if (state.isActive) {
-      console.log('[Capacitor] App resumed');
-    }
+  CapApp.addListener('appStateChange', () => {
+    // App resumed — no action needed
   });
 
   Keyboard.addListener('keyboardWillShow', (info) => {
