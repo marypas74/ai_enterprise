@@ -44,11 +44,13 @@ export async function completionRoutes(fastify: FastifyInstance) {
 
       fastify.log.debug({ model: parsedBody.model, messageLength: parsedBody.message?.length || 0, userId: user.id, attachmentIds: parsedBody.attachmentIds || [] }, '[Chat] Request start');
 
-      // ── Image generation check (only for 'auto' model to avoid hijacking explicit model selection) ──
+      // ── Image generation check ──
+      // Triggers for: model='auto' with image keywords, OR model='stable-diffusion-*' (direct diffuser model)
+      const isDiffuserModel = parsedBody.model.startsWith('stable-diffusion');
       const IMAGE_PATTERN = /\b(genera|crea|creami|disegna|disegnami|fai|fammi|produci|illustra|generate|create|draw|make|paint|render)\b.*\b(immagine|immagini|foto|fotografia|disegno|illustrazione|image|picture|photo|drawing|illustration|portrait|artwork)\b/i;
       const IMAGE_KW = ['genera immagine', 'crea immagine', 'disegna', 'disegnami', 'genera foto', 'crea foto', 'crea un disegno', 'generate image', 'create image', 'draw me', 'make a picture'];
       const queryLc = parsedBody.message.toLowerCase();
-      const isImageRequest = parsedBody.model === 'auto' && (IMAGE_PATTERN.test(parsedBody.message) || IMAGE_KW.some(kw => queryLc.includes(kw)));
+      const isImageRequest = isDiffuserModel || (parsedBody.model === 'auto' && (IMAGE_PATTERN.test(parsedBody.message) || IMAGE_KW.some(kw => queryLc.includes(kw))));
 
       if (isImageRequest) {
         fastify.log.info(`[Router] Image generation detected for: "${parsedBody.message.substring(0, 80)}"`);
