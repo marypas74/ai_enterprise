@@ -10,6 +10,7 @@ import { insertOne } from '../../database/index.js';
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const OPENAI_BASE_URL = 'https://api.openai.com/v1';
+const PIPER_TTS_URL = process.env.PIPER_TTS_URL || 'http://10.0.1.1:5500';
 
 const synthesizeSchema = z.object({
   text: z.string().min(1).max(4096),
@@ -106,10 +107,6 @@ export async function voiceRoutes(fastify: FastifyInstance) {
       security: [{ bearerAuth: [] }],
     },
   }, async (request: FastifyRequest, reply: FastifyReply) => {
-    if (!OPENAI_API_KEY) {
-      return reply.status(503).send({ error: 'OpenAI API key not configured for voice synthesis' });
-    }
-
     let body: z.infer<typeof synthesizeSchema>;
     try {
       body = synthesizeSchema.parse(request.body);
@@ -120,38 +117,50 @@ export async function voiceRoutes(fastify: FastifyInstance) {
       throw err;
     }
 
+    // Try OpenAI first, fall back to local Piper TTS
+    if (OPENAI_API_KEY && !OPENAI_API_KEY.startsWith('REPLACE')) {
+      try {
+        const response = await fetch(`${OPENAI_BASE_URL}/audio/speech`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${OPENAI_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: body.model, input: body.text, voice: body.voice,
+            speed: body.speed, response_format: 'mp3',
+          }),
+          signal: AbortSignal.timeout(30_000),
+        });
+        if (response.ok) {
+          const audioBuffer = Buffer.from(await response.arrayBuffer());
+          return reply.header('Content-Type', 'audio/mpeg').header('Content-Length', audioBuffer.length).send(audioBuffer);
+        }
+        fastify.log.warn(`[Voice] OpenAI TTS failed (${response.status}), falling back to Piper`);
+      } catch (err: any) {
+        fastify.log.warn(`[Voice] OpenAI TTS error: ${err.message}, falling back to Piper`);
+      }
+    }
+
+    // Fallback: Piper TTS (local, no API key needed)
     try {
-      const response = await fetch(`${OPENAI_BASE_URL}/audio/speech`, {
+      fastify.log.info(`[Voice] Using Piper local TTS at ${PIPER_TTS_URL}`);
+      const piperResponse = await fetch(`${PIPER_TTS_URL}/api/tts`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${OPENAI_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: body.model,
-          input: body.text,
-          voice: body.voice,
-          speed: body.speed,
-          response_format: 'mp3',
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: body.text }),
         signal: AbortSignal.timeout(30_000),
       });
-
-      if (!response.ok) {
-        const errorText = await response.text().catch(() => 'Unknown error');
-        fastify.log.error(`[Voice] TTS API error (${response.status}): ${errorText}`);
-        return reply.status(502).send({ error: 'Speech synthesis service unavailable. Please try again.' });
+      if (!piperResponse.ok) {
+        const errText = await piperResponse.text().catch(() => '');
+        fastify.log.error(`[Voice] Piper TTS error (${piperResponse.status}): ${errText}`);
+        return reply.status(502).send({ error: 'Speech synthesis unavailable.' });
       }
-
-      const audioBuffer = Buffer.from(await response.arrayBuffer());
-
-      return reply
-        .header('Content-Type', 'audio/mpeg')
-        .header('Content-Length', audioBuffer.length)
-        .send(audioBuffer);
+      const audioBuffer = Buffer.from(await piperResponse.arrayBuffer());
+      return reply.header('Content-Type', 'audio/wav').header('Content-Length', audioBuffer.length).send(audioBuffer);
     } catch (err: any) {
-      fastify.log.error(`[Voice] TTS error: ${err.message}`);
-      return reply.status(500).send({ error: 'Speech synthesis failed. Please try again.' });
+      fastify.log.error(`[Voice] Piper TTS error: ${err.message}`);
+      return reply.status(500).send({ error: 'Speech synthesis failed.' });
     }
   });
 }
