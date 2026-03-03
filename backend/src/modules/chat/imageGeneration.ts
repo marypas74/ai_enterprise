@@ -127,7 +127,7 @@ export async function imageGenerationRoutes(fastify: FastifyInstance) {
       const imageMarkdown = `![Generated Image](${result.url})\n\n*Model: ${result.model} | ${result.width}x${result.height} | Seed: ${result.seed} | ${(result.generationTimeMs / 1000).toFixed(1)}s*`;
       await insertOne(
         fastify.db,
-        'INSERT INTO messages (conversation_id, role, content, content_type, model) VALUES (?, ?, ?, ?, ?)',
+        'INSERT INTO messages (conversation_id, role, content, content_type, ai_model, is_ai_generated) VALUES (?, ?, ?, ?, ?, 1)',
         [conversationId, 'assistant', imageMarkdown, 'image', result.model]
       );
 
