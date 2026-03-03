@@ -1,0 +1,174 @@
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { api } from '../services/api';
+import { isNativePlatform } from '../utils/platform';
+
+export type OrbState = 'hidden' | 'idle' | 'thinking' | 'speaking' | 'done';
+
+export interface VoiceSettings {
+  voice: 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer';
+  speed: number;
+}
+
+const STORAGE_KEY = 'voice-mode-settings';
+const DONE_TIMEOUT_MS = 1500;
+
+function loadSettings(): { enabled: boolean; settings: VoiceSettings } {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) return JSON.parse(stored);
+  } catch {
+    localStorage.removeItem(STORAGE_KEY);
+  }
+  return { enabled: false, settings: { voice: 'nova', speed: 1.0 } };
+}
+
+function saveSettings(enabled: boolean, settings: VoiceSettings): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ enabled, settings }));
+  } catch { /* ignore */ }
+}
+
+export function useVoiceMode() {
+  const [voiceModeEnabled, setVoiceModeEnabled] = useState(() => loadSettings().enabled);
+  const [voiceSettings, setVoiceSettingsState] = useState<VoiceSettings>(() => loadSettings().settings);
+  const [orbState, setOrbState] = useState<OrbState>('hidden');
+
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const doneTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const voiceModeEnabledRef = useRef(voiceModeEnabled);
+  useEffect(() => { voiceModeEnabledRef.current = voiceModeEnabled; }, [voiceModeEnabled]);
+
+  const stopAudio = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.onended = null;
+      audioRef.current.onerror = null;
+      const src = audioRef.current.src;
+      audioRef.current = null;
+      if (src.startsWith('blob:')) URL.revokeObjectURL(src);
+    }
+  }, []);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      stopAudio();
+      if (doneTimerRef.current) clearTimeout(doneTimerRef.current);
+    };
+  }, [stopAudio]);
+
+  const transitionToDone = useCallback(() => {
+    setOrbState('done');
+    doneTimerRef.current = setTimeout(() => {
+      setOrbState('hidden');
+      doneTimerRef.current = null;
+    }, DONE_TIMEOUT_MS);
+  }, []);
+
+  const playTTSWithLifecycle = useCallback(async (text: string) => {
+    try {
+      const response = await api.post('/chat/voice/synthesize', {
+        text: text.substring(0, 4096),
+        voice: voiceSettings.voice,
+        speed: Math.min(Math.max(voiceSettings.speed, 0.25), 4.0),
+      }, { responseType: 'blob' });
+
+      const audioBlob = new Blob([response.data], { type: 'audio/mpeg' });
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
+      audioRef.current = audio;
+
+      audio.onended = () => {
+        URL.revokeObjectURL(audioUrl);
+        audioRef.current = null;
+        transitionToDone();
+      };
+
+      audio.onerror = () => {
+        URL.revokeObjectURL(audioUrl);
+        audioRef.current = null;
+        transitionToDone();
+      };
+
+      setOrbState('speaking');
+
+      // Haptic feedback on native
+      if (isNativePlatform()) {
+        import('@capacitor/haptics').then(({ Haptics, ImpactStyle }) => {
+          Haptics.impact({ style: ImpactStyle.Medium }).catch(() => {});
+        }).catch(() => {});
+      }
+
+      await audio.play();
+    } catch (err) {
+      console.error('[VoiceMode] TTS playback failed:', err);
+      transitionToDone();
+    }
+  }, [voiceSettings, transitionToDone]);
+
+  const toggleVoiceMode = useCallback(() => {
+    setVoiceModeEnabled(prev => {
+      const next = !prev;
+      saveSettings(next, voiceSettings);
+      return next;
+    });
+  }, [voiceSettings]);
+
+  const setVoiceSettings = useCallback((settings: VoiceSettings) => {
+    setVoiceSettingsState(settings);
+    saveSettings(voiceModeEnabledRef.current, settings);
+  }, []);
+
+  const dismissOrb = useCallback(() => {
+    stopAudio();
+    if (doneTimerRef.current) {
+      clearTimeout(doneTimerRef.current);
+      doneTimerRef.current = null;
+    }
+    setOrbState('hidden');
+  }, [stopAudio]);
+
+  // State machine callbacks - called by ChatPage
+  const onStreamStart = useCallback(() => {
+    if (!voiceModeEnabled) return;
+    setOrbState('idle');
+  }, [voiceModeEnabled]);
+
+  const onThinkingStart = useCallback(() => {
+    if (orbState === 'hidden') return;
+    setOrbState('thinking');
+  }, [orbState]);
+
+  const onThinkingDone = useCallback(() => {
+    if (orbState !== 'thinking') return;
+    setOrbState('idle');
+  }, [orbState]);
+
+  const onStreamDone = useCallback((responseText: string) => {
+    if (orbState === 'hidden') return;
+    if (responseText.trim()) {
+      playTTSWithLifecycle(responseText);
+    } else {
+      transitionToDone();
+    }
+  }, [orbState, playTTSWithLifecycle, transitionToDone]);
+
+  const onStreamError = useCallback(() => {
+    if (orbState === 'hidden') return;
+    transitionToDone();
+  }, [orbState, transitionToDone]);
+
+  return {
+    voiceModeEnabled,
+    orbState,
+    voiceSettings,
+    toggleVoiceMode,
+    setVoiceSettings,
+    dismissOrb,
+    onStreamStart,
+    onThinkingStart,
+    onThinkingDone,
+    onStreamDone,
+    onStreamError,
+  };
+}

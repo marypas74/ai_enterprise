@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '../hooks/useAuthStore';
 import { useChatConversations } from '../hooks/useChatConversations';
 import { useChatMessages } from '../hooks/useChatMessages';
 import { useFileAttachments } from '../hooks/useFileAttachments';
+import { useVoiceMode } from '../hooks/useVoiceMode';
 import { useSelectedIcon } from '../components/IconSelector';
 import {
   Menu,
@@ -13,6 +14,7 @@ import {
   RotateCcw,
   Brain,
   Database,
+  Volume2,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { IconSelector } from '../components/IconSelector';
@@ -23,6 +25,7 @@ import ConsentModal from '../components/ConsentModal';
 import ChatSidebar from '../components/chat/ChatSidebar';
 import ChatMessageList from '../components/chat/ChatMessageList';
 import ChatInputArea from '../components/chat/ChatInputArea';
+import AvatarOrb from '../components/chat/AvatarOrb';
 
 export default function ChatPage() {
   const { user, logout } = useAuthStore();
@@ -32,6 +35,37 @@ export default function ChatPage() {
   const conversations = useChatConversations();
   const chatMessages = useChatMessages(conversations.currentConversationId);
   const fileAttachments = useFileAttachments();
+  const voiceMode = useVoiceMode();
+  const prevStreamingRef = useRef(false);
+
+  // Drive voice mode state machine from streaming state
+  useEffect(() => {
+    const wasStreaming = prevStreamingRef.current;
+    prevStreamingRef.current = chatMessages.isStreaming;
+
+    if (chatMessages.isStreaming && !wasStreaming) {
+      voiceMode.onStreamStart();
+    }
+    if (!chatMessages.isStreaming && wasStreaming) {
+      const last = chatMessages.messages[chatMessages.messages.length - 1];
+      if (last?.role === 'assistant' && last.content) {
+        voiceMode.onStreamDone(last.content);
+      } else {
+        voiceMode.onStreamError();
+      }
+    }
+  }, [chatMessages.isStreaming, chatMessages.messages, voiceMode.onStreamStart, voiceMode.onStreamDone, voiceMode.onStreamError]);
+
+  // Drive thinking state
+  useEffect(() => {
+    const last = chatMessages.messages[chatMessages.messages.length - 1];
+    if (!last || last.role !== 'assistant') return;
+    if (last.thinking && !last.thinkingDone) {
+      voiceMode.onThinkingStart();
+    } else if (last.thinkingDone) {
+      voiceMode.onThinkingDone();
+    }
+  }, [chatMessages.messages, voiceMode.onThinkingStart, voiceMode.onThinkingDone]);
 
   // When a conversation is selected, load its messages
   const handleLoadConversation = async (id: number) => {
@@ -242,6 +276,23 @@ export default function ChatPage() {
               </button>
             </div>
 
+            {/* Voice Mode Toggle */}
+            <button
+              onClick={voiceMode.toggleVoiceMode}
+              className={clsx(
+                'relative p-2 rounded-lg transition-colors',
+                voiceMode.voiceModeEnabled
+                  ? 'bg-violet-500/20 text-violet-400'
+                  : 'hover:bg-surface-100 dark:hover:bg-surface-800 text-surface-500 hover:text-violet-400'
+              )}
+              title={voiceMode.voiceModeEnabled ? 'Disattiva voce' : 'Attiva voce'}
+            >
+              <Volume2 className="w-5 h-5" />
+              {voiceMode.voiceModeEnabled && (
+                <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-violet-500 rounded-full" />
+              )}
+            </button>
+
             {user?.role === 'admin' && (
               <a
                 href="/admin"
@@ -331,6 +382,9 @@ export default function ChatPage() {
           onFileSelect={fileAttachments.handleFileSelect}
           onRemoveAttachment={fileAttachments.removeAttachment}
           onOpenFilePicker={() => fileAttachments.fileInputRef.current?.click()}
+          onAddFile={fileAttachments.addFile}
+          voiceModeEnabled={voiceMode.voiceModeEnabled}
+          onToggleVoiceMode={voiceMode.toggleVoiceMode}
         />
       </main>
 
@@ -339,6 +393,16 @@ export default function ChatPage() {
         <MemoryPanel
           memories={chatMessages.vectorMemories}
           onClose={() => chatMessages.setShowVectorMemory(false)}
+        />
+      )}
+
+      {/* Avatar Orb Overlay (Voice Mode) */}
+      {voiceMode.orbState !== 'hidden' && (
+        <AvatarOrb
+          state={voiceMode.orbState}
+          onDismiss={voiceMode.dismissOrb}
+          botIcon={selectedBotIcon}
+          modelName={chatMessages.currentModel.name}
         />
       )}
 

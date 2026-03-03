@@ -11,7 +11,9 @@ import {
   Camera,
   CheckCircle,
   AlertCircle,
+  Volume2,
 } from 'lucide-react';
+import clsx from 'clsx';
 import type { Attachment } from '../../hooks/useFileAttachments';
 import { isNativePlatform } from '../../utils/platform';
 
@@ -39,6 +41,8 @@ interface ChatInputAreaProps {
   onRemoveAttachment: (index: number) => void;
   onOpenFilePicker: () => void;
   onAddFile?: (file: File) => void;
+  voiceModeEnabled?: boolean;
+  onToggleVoiceMode?: () => void;
 }
 
 export default function ChatInputArea({
@@ -56,6 +60,8 @@ export default function ChatInputArea({
   onRemoveAttachment,
   onOpenFilePicker,
   onAddFile,
+  voiceModeEnabled,
+  onToggleVoiceMode,
 }: ChatInputAreaProps) {
   const handleCameraCapture = useCallback(async () => {
     if (!isNativePlatform() || !onAddFile) return;
@@ -158,6 +164,22 @@ export default function ChatInputArea({
               title="Scatta foto"
             >
               <Camera className="w-5 h-5 text-surface-500" />
+            </button>
+          )}
+
+          {/* Voice mode toggle (TTS + Avatar) */}
+          {onToggleVoiceMode && (
+            <button
+              onClick={onToggleVoiceMode}
+              className={clsx(
+                'p-2 rounded-lg transition-colors',
+                voiceModeEnabled
+                  ? 'text-violet-400 bg-violet-500/10'
+                  : 'text-surface-400 hover:text-violet-400'
+              )}
+              title={voiceModeEnabled ? 'Voce attiva' : 'Attiva voce'}
+            >
+              <Volume2 className="w-5 h-5" />
             </button>
           )}
 

@@ -137,3 +137,66 @@ button, nav, header, aside {
   padding-bottom: calc(var(--safe-area-inset-bottom) + var(--keyboard-height));
   transition: padding-bottom 0.2s ease;
 }
+
+/* ── Avatar Orb Animations ─────────────────────────────── */
+
+/* Idle: gentle breathing */
+@keyframes orb-breathe {
+  0%, 100% { transform: scale(1); opacity: 0.3; }
+  50% { transform: scale(1.05); opacity: 0.5; }
+}
+.orb-breathe { animation: orb-breathe 3s ease-in-out infinite; }
+.orb-breathe.orb-delay-1 { animation-delay: 0.3s; }
+.orb-breathe.orb-delay-2 { animation-delay: 0.6s; }
+
+/* Thinking: fast pulsing */
+@keyframes orb-think {
+  0%, 100% { transform: scale(0.95); opacity: 0.2; }
+  50% { transform: scale(1.1); opacity: 0.6; }
+}
+.orb-think { animation: orb-think 1s ease-in-out infinite; }
+.orb-think.orb-delay-1 { animation-delay: 0.15s; }
+.orb-think.orb-delay-2 { animation-delay: 0.3s; }
+
+/* Speaking: wave-like expansion */
+@keyframes orb-speak {
+  0% { transform: scale(1); opacity: 0.5; }
+  50% { transform: scale(1.15); opacity: 0.2; }
+  100% { transform: scale(1); opacity: 0.5; }
+}
+.orb-speak { animation: orb-speak 1.2s ease-in-out infinite; }
+.orb-speak.orb-delay-1 { animation-delay: 0.2s; }
+.orb-speak.orb-delay-2 { animation-delay: 0.4s; }
+
+/* Core glow states */
+@keyframes orb-core-breathe {
+  0%, 100% { box-shadow: 0 0 15px rgba(139, 92, 246, 0.2); transform: scale(1); }
+  50% { box-shadow: 0 0 25px rgba(139, 92, 246, 0.4); transform: scale(1.02); }
+}
+.orb-core-breathe { animation: orb-core-breathe 3s ease-in-out infinite; }
+
+@keyframes orb-core-think {
+  0%, 100% { box-shadow: 0 0 10px rgba(245, 158, 11, 0.3); transform: scale(1); }
+  50% { box-shadow: 0 0 30px rgba(245, 158, 11, 0.5); transform: scale(1.05); }
+}
+.orb-core-think { animation: orb-core-think 0.8s ease-in-out infinite; }
+
+@keyframes orb-core-speak {
+  0%, 100% { box-shadow: 0 0 20px rgba(139, 92, 246, 0.3); }
+  50% { box-shadow: 0 0 40px rgba(139, 92, 246, 0.6), 0 0 80px rgba(139, 92, 246, 0.2); }
+}
+.orb-core-speak { animation: orb-core-speak 1.2s ease-in-out infinite; }
+
+/* Fade out */
+@keyframes orb-fade-out {
+  0% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(0.8); }
+}
+.orb-fade-out { animation: orb-fade-out 0.8s ease-out forwards; }
+
+/* Overlay entrance/exit */
+@keyframes orb-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.orb-overlay-enter { animation: orb-overlay-in 0.3s ease-out forwards; }
