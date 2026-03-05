@@ -131,7 +131,7 @@ export default function PublicMonitorPage() {
                         <Activity className="w-6 h-6 text-green-500" />
                         VITAL_SIGNS_OS
                     </h1>
-                    <span className="text-surface-500 text-[10px]">FE: 2.1.0_STABLE | BE: 2.1.0_STABLE | NODE: {data?.hostname}</span>
+                    <span className="text-surface-500 text-[10px]">FE: 2.1.4_STABLE | BE: 2.1.4_STABLE | NODE: {data?.hostname}</span>
                 </div>
                 <div className="text-right">
                     <div className="text-green-500 animate-pulse text-xs font-bold font-mono">● LIVE_STREAM_ACTIVE</div>
@@ -352,10 +352,9 @@ export default function PublicMonitorPage() {
                     <div className="space-y-1 max-h-[100px] overflow-y-auto pr-1">
                         {data?.k8sPods?.map((p: any, i: number) => (
                             <div key={i} className="flex items-center gap-1.5 whitespace-nowrap overflow-hidden group">
-                                <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                                    p.status === 'Running' ? 'bg-green-500' :
+                                <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${p.status === 'Running' ? 'bg-green-500' :
                                     p.status === 'Pending' ? 'bg-yellow-500 animate-pulse' : 'bg-red-500'
-                                }`} />
+                                    }`} />
                                 <span className="text-[8px] truncate flex-1 text-surface-400 group-hover:text-surface-200">{p.name}</span>
                                 <span className="text-[7px] text-surface-600 flex-shrink-0">{p.ready}</span>
                             </div>
@@ -465,9 +464,8 @@ export default function PublicMonitorPage() {
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center justify-between gap-1">
                                             <span className="text-[10px] text-pink-300 truncate font-bold">{u.name || u.email}</span>
-                                            <span className={`text-[7px] px-1 rounded ${
-                                                u.role === 'admin' ? 'bg-red-500/20 text-red-400' : 'bg-blue-500/20 text-blue-400'
-                                            }`}>{u.role}</span>
+                                            <span className={`text-[7px] px-1 rounded ${u.role === 'admin' ? 'bg-red-500/20 text-red-400' : 'bg-blue-500/20 text-blue-400'
+                                                }`}>{u.role}</span>
                                         </div>
                                         <div className="flex items-center justify-between text-[8px] text-surface-500">
                                             <span className="truncate">{u.email}</span>

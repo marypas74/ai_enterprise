@@ -35,6 +35,6 @@ describe('version', () => {
 
   it('should match the current version in package.json', () => {
     // The version should be 1.8.10 based on what we read
-    expect(APP_VERSION).toBe('1.8.10');
+    expect(APP_VERSION).toBe('2.1.4');
   });
 });
