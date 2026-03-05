@@ -129,7 +129,9 @@ async function makeStreamRequest(
   message: string,
   conversationId?: number,
   systemPrompt?: string,
-  attachmentIds?: number[]
+  attachmentIds?: number[],
+  useRag?: boolean,
+  documentIds?: number[]
 ): Promise<Response> {
   return fetch(`${API_BASE_URL}/chat/completions`, {
     method: 'POST',
@@ -143,7 +145,9 @@ async function makeStreamRequest(
       message,
       conversationId,
       systemPrompt,
-      attachmentIds
+      attachmentIds,
+      use_rag: useRag,
+      document_ids: documentIds,
     })
   });
 }
@@ -186,6 +190,8 @@ async function streamChatNative(
   onThinking?: (content: string, done: boolean) => void,
   onVectorMemories?: (memories: { episodic: any[]; declarative: any[]; procedural: any[] }) => void,
   onRouting?: (routing: { tier: string; model: string; reason: string; confidence: number; effort: string }) => void,
+  useRag?: boolean,
+  documentIds?: number[],
 ): Promise<void> {
   const token = useAuthStore.getState().accessToken || '';
   const { StreamHttp } = await import('capacitor-stream-http');
@@ -228,7 +234,7 @@ async function streamChatNative(
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
       },
-      body: JSON.stringify({ model, message, conversationId, systemPrompt, attachmentIds }),
+      body: JSON.stringify({ model, message, conversationId, systemPrompt, attachmentIds, use_rag: useRag, document_ids: documentIds }),
     }).catch((err: any) => {
       onError(err?.message || 'Failed to start stream');
       done();
@@ -249,15 +255,17 @@ export async function streamChat(
   onThinking?: (content: string, done: boolean) => void,
   onVectorMemories?: (memories: { episodic: any[]; declarative: any[]; procedural: any[] }) => void,
   onRouting?: (routing: { tier: string; model: string; reason: string; confidence: number; effort: string }) => void,
+  useRag?: boolean,
+  documentIds?: number[],
 ): Promise<void> {
   // On native platforms, use capacitor-stream-http for real native streaming
   if (isNativePlatform()) {
-    return streamChatNative(model, message, onChunk, onDone, onError, conversationId, systemPrompt, attachmentIds, onThinking, onVectorMemories, onRouting);
+    return streamChatNative(model, message, onChunk, onDone, onError, conversationId, systemPrompt, attachmentIds, onThinking, onVectorMemories, onRouting, useRag, documentIds);
   }
 
   // Desktop: standard fetch + ReadableStream
   let token = useAuthStore.getState().accessToken || '';
-  let response = await makeStreamRequest(token, model, message, conversationId, systemPrompt, attachmentIds);
+  let response = await makeStreamRequest(token, model, message, conversationId, systemPrompt, attachmentIds, useRag, documentIds);
 
   // Handle 401 - try to refresh token first before logging out
   if (response.status === 401) {
@@ -266,7 +274,7 @@ export async function streamChat(
       const { accessToken } = refreshResponse.data;
       useAuthStore.setState({ accessToken });
       token = accessToken;
-      response = await makeStreamRequest(token, model, message, conversationId, systemPrompt, attachmentIds);
+      response = await makeStreamRequest(token, model, message, conversationId, systemPrompt, attachmentIds, useRag, documentIds);
       if (response.status === 401) { forceLogout(); onError('Session expired. Please login again.'); return; }
     } catch {
       forceLogout(); onError('Session expired. Please login again.'); return;
@@ -318,4 +326,29 @@ export async function generateDocument(
     title: title || 'Documento_Chat'
   });
   return response.data;
+}
+
+// ─── Document Management API ─────────────────────────────────────────────────
+
+export async function listDocuments() {
+  const response = await api.get('/documents');
+  return response.data.documents as any[];
+}
+
+export async function uploadDocumentApi(file: File) {
+  const form = new FormData();
+  form.append('file', file);
+  const response = await api.post('/documents/upload', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return response.data.document;
+}
+
+export async function deleteDocumentApi(id: number) {
+  await api.delete(`/documents/${id}`);
+}
+
+export async function getDocumentStatus(id: number) {
+  const response = await api.get(`/documents/${id}`);
+  return response.data.document;
 }

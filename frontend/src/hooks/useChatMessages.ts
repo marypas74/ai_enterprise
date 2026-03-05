@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { api, streamChat, generateDocument } from '../services/api';
 import { downloadFile } from '../utils/fileDownload';
+import { useDocumentStore } from './useDocumentStore';
 
 export interface Message {
   id?: number;
@@ -13,6 +14,11 @@ export interface Message {
   safety_topics?: string[];
   thinking?: string;
   thinkingDone?: boolean;
+  vectorMemories?: {
+    episodic: any[];
+    declarative: any[];
+    procedural: any[];
+  };
 }
 
 export interface Model {
@@ -74,7 +80,7 @@ interface UseChatMessagesReturn {
   setShowVectorMemory: (show: boolean) => void;
   setShowMemoryPanel: (show: boolean) => void;
   setShowConsentModal: (show: boolean) => void;
-  sendMessage: (currentConversationId: number | null, showArchived: boolean, onConversationCreated: (conversationId: number) => void, attachments: any[], uploadAttachments: (conversationId?: number) => Promise<number[]>) => Promise<void>;
+  sendMessage: (currentConversationId: number | null, showArchived: boolean, onConversationCreated: (conversationId: number) => void, attachments: any[], uploadAttachments: (conversationId?: number) => Promise<number[]>, overrideMessage?: string) => Promise<void>;
   undoLastMessage: (currentConversationId: number | null) => Promise<void>;
   handleGenerateDocument: (msgIndex: number, format: 'docx' | 'pdf', currentConversationId: number | null) => Promise<void>;
   handleKeyDown: (e: React.KeyboardEvent, sendFn: () => void) => void;
@@ -279,10 +285,12 @@ export function useChatMessages(currentConversationId: number | null): UseChatMe
     onConversationCreated: (conversationId: number) => void,
     attachments: any[],
     uploadAttachments: (conversationId?: number) => Promise<number[]>,
+    overrideMessage?: string,
   ) => {
-    if ((!input.trim() && attachments.length === 0) || isStreaming) return;
+    const messageText = overrideMessage ?? input;
+    if ((!messageText.trim() && attachments.length === 0) || isStreaming) return;
 
-    const userMessage = input.trim();
+    const userMessage = messageText.trim();
     const hasAttachments = attachments.length > 0;
     const attachmentNames = attachments.map((a: any) => a.file.name);
 
@@ -374,6 +382,14 @@ export function useChatMessages(currentConversationId: number | null): UseChatMe
         },
         (memories) => {
           setVectorMemories(memories);
+          setMessages(prev => {
+            const newMessages = [...prev];
+            const last = newMessages[newMessages.length - 1];
+            if (last && last.role === 'assistant') {
+              newMessages[newMessages.length - 1] = { ...last, vectorMemories: memories };
+            }
+            return newMessages;
+          });
         },
         (routing) => {
           setRoutingInfo(routing);
@@ -386,6 +402,11 @@ export function useChatMessages(currentConversationId: number | null): UseChatMe
             return newMessages;
           });
         },
+        // RAG mode params — read latest state at call time
+        useDocumentStore.getState().chatMode === 'rag' || undefined,
+        useDocumentStore.getState().chatMode === 'rag' && useDocumentStore.getState().selectedDocumentIds.length > 0
+          ? useDocumentStore.getState().selectedDocumentIds
+          : undefined,
       );
     } catch (err) {
       setIsStreaming(false);

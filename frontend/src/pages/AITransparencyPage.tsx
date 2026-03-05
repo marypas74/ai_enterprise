@@ -22,11 +22,29 @@ interface ModelInfo {
   documentation_url: string | null;
 }
 
+interface UsageByProvider {
+  provider: string;
+  total_tokens_input: number;
+  total_tokens_output: number;
+  request_count: number;
+}
+
+interface ModelUsed {
+  ai_model: string;
+  ai_provider: string;
+  cnt: number;
+}
+
+interface FeedbackStats {
+  total: number;
+  positive: number;
+  negative: number;
+}
+
 interface TransparencyData {
-  models_used: number;
-  total_messages: number;
-  total_tokens: number;
-  decision_log_count: number;
+  usage_by_provider: UsageByProvider[];
+  models_used: ModelUsed[];
+  feedback: FeedbackStats;
   models: ModelInfo[];
 }
 
@@ -109,17 +127,21 @@ export default function AITransparencyPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
               <div className="card p-6 text-center">
                 <BarChart3 className="w-6 h-6 text-primary-500 mx-auto mb-2" />
-                <p className="text-2xl font-bold">{data?.total_messages || 0}</p>
-                <p className="text-sm text-surface-500">Messaggi AI ricevuti</p>
+                <p className="text-2xl font-bold">
+                  {(data?.usage_by_provider || []).reduce((sum, u) => sum + (u.request_count || 0), 0)}
+                </p>
+                <p className="text-sm text-surface-500">Richieste AI totali</p>
               </div>
               <div className="card p-6 text-center">
                 <Brain className="w-6 h-6 text-violet-500 mx-auto mb-2" />
-                <p className="text-2xl font-bold">{data?.models_used || 0}</p>
+                <p className="text-2xl font-bold">{(data?.models_used || []).length}</p>
                 <p className="text-sm text-surface-500">Modelli utilizzati</p>
               </div>
               <div className="card p-6 text-center">
                 <Info className="w-6 h-6 text-blue-500 mx-auto mb-2" />
-                <p className="text-2xl font-bold">{data?.decision_log_count || 0}</p>
+                <p className="text-2xl font-bold">
+                  {(data?.models_used || []).reduce((sum, m) => sum + (m.cnt || 0), 0)}
+                </p>
                 <p className="text-sm text-surface-500">Decisioni AI registrate</p>
               </div>
             </div>

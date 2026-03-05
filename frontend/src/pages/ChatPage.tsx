@@ -26,11 +26,15 @@ import ChatSidebar from '../components/chat/ChatSidebar';
 import ChatMessageList from '../components/chat/ChatMessageList';
 import ChatInputArea from '../components/chat/ChatInputArea';
 import AvatarOrb from '../components/chat/AvatarOrb';
+import { RagModeBadge } from '../components/chat/RagModeBadge';
+import { useDocumentStore } from '../hooks/useDocumentStore';
 
 export default function ChatPage() {
   const { user, logout } = useAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 768);
   const [selectedBotIcon, setSelectedBotIcon] = useSelectedIcon();
+  const { chatMode } = useDocumentStore();
+  const isRagMode = chatMode === 'rag';
 
   const conversations = useChatConversations();
   const chatMessages = useChatMessages(conversations.currentConversationId);
@@ -70,9 +74,28 @@ export default function ChatPage() {
   // When a conversation is selected, load its messages
   const handleLoadConversation = async (id: number) => {
     try {
-      const result = await conversations.loadConversation(id);
-      chatMessages.setMessages(result.messages);
-      chatMessages.setSelectedModel(result.model);
+      const { messages, conversation } = await conversations.loadConversation(id);
+      chatMessages.setMessages(messages);
+      chatMessages.setSelectedModel(conversation.model);
+
+      // Restore chat mode and selected documents
+      if (conversation.chat_mode) {
+        useDocumentStore.getState().setChatMode(conversation.chat_mode);
+      }
+
+      if (conversation.document_ids) {
+        const docIds = typeof conversation.document_ids === 'string'
+          ? JSON.parse(conversation.document_ids)
+          : conversation.document_ids;
+
+        // Reset and apply new selection
+        useDocumentStore.getState().clearSelection();
+        if (Array.isArray(docIds)) {
+          docIds.forEach((docId: number) => useDocumentStore.getState().toggleDocumentId(docId));
+        }
+      } else if (conversation.chat_mode === 'rag') {
+        useDocumentStore.getState().clearSelection();
+      }
     } catch (err) {
       console.error('Failed to load conversation:', err);
       conversations.setCurrentConversationId(null);
@@ -91,10 +114,11 @@ export default function ChatPage() {
     conversations.startNewConversation();
     chatMessages.setMessages([]);
     fileAttachments.clearAttachments();
+    useDocumentStore.getState().clearSelection();
   };
 
   // Send message wrapper
-  const handleSendMessage = () => {
+  const handleSendMessage = (overrideMessage?: string) => {
     chatMessages.sendMessage(
       conversations.currentConversationId,
       conversations.showArchived,
@@ -104,7 +128,13 @@ export default function ChatPage() {
       },
       fileAttachments.attachments,
       fileAttachments.uploadAttachments,
+      overrideMessage,
     );
+  };
+
+  // Voice transcription → auto-send immediately
+  const handleVoiceTranscription = (text: string) => {
+    handleSendMessage(text);
   };
 
   // Undo last message
@@ -237,10 +267,17 @@ export default function ChatPage() {
             </div>
           </div>
 
+          {/* RAG Mode Badge */}
+          <div className="hidden md:block">
+            <RagModeBadge />
+          </div>
+
           <div className="flex items-center gap-1 sm:gap-2">
-            <div className="hidden sm:block">
-              <IconSelector onIconChange={setSelectedBotIcon} />
-            </div>
+            {!isRagMode && (
+              <div className="hidden sm:block">
+                <IconSelector onIconChange={setSelectedBotIcon} />
+              </div>
+            )}
 
             <div className="hidden sm:flex items-center gap-1">
               {conversations.currentConversationId && chatMessages.messages.length > 0 && (
@@ -287,22 +324,23 @@ export default function ChatPage() {
               </button>
             </div>
 
-            {/* Voice Mode Toggle */}
-            <button
-              onClick={voiceMode.toggleVoiceMode}
-              className={clsx(
-                'relative p-2 rounded-lg transition-colors',
-                voiceMode.voiceModeEnabled
-                  ? 'bg-violet-500/20 text-violet-400'
-                  : 'hover:bg-surface-100 dark:hover:bg-surface-800 text-surface-500 hover:text-violet-400'
-              )}
-              title={voiceMode.voiceModeEnabled ? 'Disattiva voce' : 'Attiva voce'}
-            >
-              <Volume2 className="w-5 h-5" />
-              {voiceMode.voiceModeEnabled && (
-                <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-violet-500 rounded-full" />
-              )}
-            </button>
+            {!isRagMode && (
+              <button
+                onClick={voiceMode.toggleVoiceMode}
+                className={clsx(
+                  'relative p-2 rounded-lg transition-colors',
+                  voiceMode.voiceModeEnabled
+                    ? 'bg-violet-500/20 text-violet-400'
+                    : 'hover:bg-surface-100 dark:hover:bg-surface-800 text-surface-500 hover:text-violet-400'
+                )}
+                title={voiceMode.voiceModeEnabled ? 'Disattiva voce' : 'Attiva voce'}
+              >
+                <Volume2 className="w-5 h-5" />
+                {voiceMode.voiceModeEnabled && (
+                  <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-violet-500 rounded-full" />
+                )}
+              </button>
+            )}
 
             {user?.role === 'admin' && (
               <a
@@ -394,6 +432,8 @@ export default function ChatPage() {
           onRemoveAttachment={fileAttachments.removeAttachment}
           onOpenFilePicker={() => fileAttachments.fileInputRef.current?.click()}
           onAddFile={fileAttachments.addFile}
+          onVoiceTranscription={handleVoiceTranscription}
+          onModeChange={handleNewConversation}
         />
       </main>
 
@@ -410,6 +450,7 @@ export default function ChatPage() {
         <AvatarOrb
           state={voiceMode.orbState}
           onDismiss={voiceMode.dismissOrb}
+          onStopSpeaking={voiceMode.stopSpeaking}
           botIcon={selectedBotIcon}
           modelName={chatMessages.currentModel.name}
         />

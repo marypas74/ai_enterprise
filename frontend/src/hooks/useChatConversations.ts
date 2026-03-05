@@ -28,7 +28,7 @@ interface UseChatConversationsReturn {
   setConfirmAction: (action: ConfirmAction | null) => void;
   loadConversations: (archived?: boolean, offset?: number, initial?: boolean) => Promise<void>;
   loadMoreConversations: () => void;
-  loadConversation: (id: number) => Promise<{ messages: any[]; model: string }>;
+  loadConversation: (id: number) => Promise<{ messages: any[]; conversation: any }>;
   startNewConversation: () => void;
   deleteConversation: (id: number, e: React.MouseEvent) => void;
   toggleArchive: (id: number, currentStatus: boolean, e: React.MouseEvent) => Promise<void>;
@@ -102,12 +102,12 @@ export function useChatConversations(): UseChatConversationsReturn {
     loadConversations(showArchived, nextOffset);
   }, [conversationsOffset, showArchived, loadConversations]);
 
-  const loadConversation = useCallback(async (id: number): Promise<{ messages: any[]; model: string }> => {
+  const loadConversation = useCallback(async (id: number): Promise<{ messages: any[]; conversation: any }> => {
     const response = await api.get(`/chat/conversations/${id}/messages`);
     setCurrentConversationId(id);
     return {
       messages: response.data.messages.filter((m: any) => m.role !== 'system'),
-      model: response.data.conversation.model,
+      conversation: response.data.conversation,
     };
   }, []);
 

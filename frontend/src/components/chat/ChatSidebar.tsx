@@ -10,9 +10,11 @@ import {
   Archive,
   History as HistoryIcon,
   ArchiveRestore,
+  FolderOpen,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { api } from '../../services/api';
+import { useDocumentStore } from '../../hooks/useDocumentStore';
 import type { Conversation } from '../../hooks/useChatConversations';
 
 interface ChatSidebarProps {
@@ -52,6 +54,8 @@ export default function ChatSidebar({
   onLoadMore,
   onLogout,
 }: ChatSidebarProps) {
+  const { chatMode } = useDocumentStore();
+
   const openGuide = async (type: 'user' | 'admin') => {
     try {
       const response = await api.get(`/downloads/guides/${type}`, {
@@ -78,6 +82,19 @@ export default function ChatSidebar({
           <span>New Chat</span>
         </button>
       </div>
+
+      {/* Documenti link - Only show in RAG mode */}
+      {chatMode === 'rag' && (
+        <div className="px-4 pb-2">
+          <Link
+            to="/documents"
+            className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-indigo-900/30 hover:bg-indigo-900/20 text-indigo-400 hover:text-indigo-300 transition-colors text-sm font-medium"
+          >
+            <FolderOpen className="w-4 h-4" />
+            <span>Documenti</span>
+          </Link>
+        </div>
+      )}
 
       {/* Conversations List */}
       <div className="flex-1 overflow-y-auto px-2">

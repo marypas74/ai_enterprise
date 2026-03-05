@@ -51,7 +51,9 @@ export class OllamaProvider implements AIProvider {
         ...(useThinking ? { think: true } : {}),
         options: {
           num_predict: options.maxTokens || 4096,
-          temperature: options.temperature || 0.7
+          temperature: options.temperature || 0.7,
+          // Ensure enough context for tool definitions (default 2048 is too small)
+          ...(options.tools && options.tools.length > 0 ? { num_ctx: 8192 } : {})
         },
         keep_alive: this.keepAlive
       }),
@@ -104,7 +106,9 @@ export class OllamaProvider implements AIProvider {
           ...(useThinking ? { think: true } : {}),
           options: {
             num_predict: options.maxTokens || 4096,
-            temperature: options.temperature || 0.7
+            temperature: options.temperature || 0.7,
+            // Ensure enough context for tool definitions (default 2048 is too small)
+            ...(useTools && useTools.length > 0 ? { num_ctx: 8192 } : {})
           },
           keep_alive: this.keepAlive
         }),

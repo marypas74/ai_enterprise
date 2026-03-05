@@ -21,7 +21,9 @@ import {
     FileText,
     Eye,
     XCircle,
-    RefreshCw
+    RefreshCw,
+    ShieldAlert,
+    Save
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import clsx from 'clsx';
@@ -49,6 +51,10 @@ export default function SettingsPage() {
     const [showMfaDisableModal, setShowMfaDisableModal] = useState(false);
     const [mfaDisableCode, setMfaDisableCode] = useState('');
 
+    // Guardrail Policy State
+    const [guardrailPolicy, setGuardrailPolicy] = useState('');
+    const [isSavingPolicy, setIsSavingPolicy] = useState(false);
+
     // Load latest user status + deletion status
     useEffect(() => {
         const loadStatus = async () => {
@@ -58,6 +64,7 @@ export default function SettingsPage() {
                     api.get('/compliance/consent/status').catch(() => null),
                 ]);
                 setMfaEnabled(!!meRes.data.mfa_enabled);
+                setGuardrailPolicy(meRes.data.guardrail_policy || '');
                 if (consentRes?.data?.deletion_pending) {
                     setDeletionPending(true);
                 }
@@ -118,6 +125,20 @@ export default function SettingsPage() {
             setError(err.response?.data?.error || 'Errore nella disattivazione. Verifica il codice.');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleSaveGuardrail = async () => {
+        setIsSavingPolicy(true);
+        setError('');
+        try {
+            await api.put('/auth/me/guardrail', { guardrail_policy: guardrailPolicy });
+            setSuccess('Policy Guardrail aggiornata con successo! Verrà applicata alle prossime conversazioni.');
+            setTimeout(() => setSuccess(''), 5000);
+        } catch (err: any) {
+            setError(err.response?.data?.error || 'Errore nel salvataggio della policy.');
+        } finally {
+            setIsSavingPolicy(false);
         }
     };
 
@@ -342,6 +363,50 @@ export default function SettingsPage() {
                                     <p className="text-sm text-surface-500">
                                         Non condividere mai il tuo codice TOTP o il segreto MFA con nessuno. Gli amministratori di sistema non ti chiederanno mai queste informazioni.
                                     </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Roadmap Speciale & Guardrail Policy */}
+                        <div className="card p-6">
+                            <div className="flex items-center gap-3 mb-6">
+                                <div className="p-2 rounded-lg bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600">
+                                    <ShieldAlert className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-bold">Roadmap Speciale \ Guardrail Policy</h3>
+                                    <p className="text-sm text-surface-500">Definisci regole guida e vincoli per l'agente AI a protezione dei tuoi dati</p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-4">
+                                <p className="text-sm text-surface-600 dark:text-surface-400">
+                                    Questa policy agisce come un <strong>guardrail globale</strong> per tutte le chat. Puoi istruire l'AI a filtrare nomi di aziende, persone, macchinari o seguire specifici comportamenti di ragionamento sui documenti caricati.
+                                </p>
+                                <textarea
+                                    value={guardrailPolicy}
+                                    onChange={(e) => setGuardrailPolicy(e.target.value)}
+                                    placeholder="ESEMPIO: Non menzionare mai nei risultati o nei ragionamenti nomi di aziende o persone, usa sempre i tag [AZIENDA_OSCURATA] o [PERSONA] in fase di output. Segui una linea logica puramente scientifica..."
+                                    className="input w-full min-h-[160px] resize-y font-mono text-sm leading-relaxed p-4 bg-surface-50 dark:bg-surface-900/50"
+                                />
+                                <div className="flex justify-end pt-2">
+                                    <button
+                                        onClick={handleSaveGuardrail}
+                                        disabled={isSavingPolicy}
+                                        className="btn btn-primary flex items-center gap-2"
+                                    >
+                                        {isSavingPolicy ? (
+                                            <>
+                                                <RefreshCw className="w-4 h-4 animate-spin" />
+                                                Salvataggio...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Save className="w-4 h-4" />
+                                                Salva Policy
+                                            </>
+                                        )}
+                                    </button>
                                 </div>
                             </div>
                         </div>

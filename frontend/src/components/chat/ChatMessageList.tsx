@@ -1,11 +1,14 @@
 import React from 'react';
 import {
+  Brain,
+  Paperclip,
+  Database,
+  ExternalLink,
   User,
   ChevronDown,
   Download,
   FileText,
   Loader2,
-  Brain,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -18,6 +21,7 @@ import SensitiveTopicWarning from '../SensitiveTopicWarning';
 import { downloadFile } from '../../utils/fileDownload';
 import { isNativePlatform } from '../../utils/platform';
 import type { Message } from '../../hooks/useChatMessages';
+import { useDocumentStore } from '../../hooks/useDocumentStore';
 
 // Stable markdown components defined OUTSIDE the render function
 // to prevent React from re-creating DOM elements on each re-render
@@ -118,7 +122,23 @@ export default function ChatMessageList({
   onToggleThinking,
   onGenerateDocument,
 }: ChatMessageListProps) {
+  const { chatMode } = useDocumentStore();
+  const isRagMode = chatMode === 'rag';
+
   if (messages.length === 0) {
+    if (isRagMode) {
+      return (
+        <div className="h-full flex flex-col items-center justify-center text-center px-4 animate-in fade-in duration-700">
+          <div className="w-20 h-20 rounded-3xl bg-indigo-600/10 flex items-center justify-center mb-8 border border-indigo-600/20 text-indigo-600">
+            <Brain className="w-10 h-10" />
+          </div>
+          <h2 className="text-3xl font-bold mb-3 tracking-tight">Modalità Analisi Documenti</h2>
+          <p className="text-surface-500 max-w-md text-lg leading-relaxed">
+            Seleziona i documenti caricati o caricali ora per iniziare un'analisi professionale basata sui tuoi dati.
+          </p>
+        </div>
+      );
+    }
     return (
       <div className="h-full flex flex-col items-center justify-center text-center px-4">
         <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center mb-6 text-white">
@@ -143,20 +163,22 @@ export default function ChatMessageList({
           )}
         >
           <div className="flex gap-4 max-w-3xl mx-auto">
-            <div
-              className={clsx(
-                'w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0',
-                message.role === 'user'
-                  ? 'bg-primary-600'
-                  : 'bg-gradient-to-br from-violet-500 to-purple-600'
-              )}
-            >
-              {message.role === 'user' ? (
-                <User className="w-5 h-5 text-white" />
-              ) : (
-                <BotIcon type={selectedBotIcon} size={20} className="text-white" />
-              )}
-            </div>
+            {!isRagMode && (
+              <div
+                className={clsx(
+                  'w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0',
+                  message.role === 'user'
+                    ? 'bg-primary-600'
+                    : 'bg-gradient-to-br from-violet-500 to-purple-600'
+                )}
+              >
+                {message.role === 'user' ? (
+                  <User className="w-5 h-5 text-white" />
+                ) : (
+                  <BotIcon type={selectedBotIcon} size={20} className="text-white" />
+                )}
+              </div>
+            )}
             <div className="flex-1 min-w-0">
               {/* Thinking block */}
               {message.role === 'assistant' && message.thinking && (
@@ -186,6 +208,7 @@ export default function ChatMessageList({
                   <span>Sta ragionando...</span>
                 </div>
               )}
+
               <div className="prose dark:prose-invert prose-sm max-w-none">
                 {message.role === 'assistant' && message.content === '' && !message.thinking ? (
                   <div className="typing-indicator">
@@ -199,27 +222,62 @@ export default function ChatMessageList({
                   </ReactMarkdown>
                 )}
               </div>
+
+              {/* Vector Memory / Sources display (GAP-RAG) */}
+              {message.role === 'assistant' && message.vectorMemories && (message.vectorMemories.declarative.length > 0 || message.vectorMemories.episodic.length > 0) && (
+                <div className="mt-6 pt-4 border-t border-surface-200 dark:border-surface-800 animate-in fade-in slide-in-from-top-2 duration-700">
+                  <div className="flex items-center gap-2 mb-4 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-[0.2em]">
+                    <Database className="w-3.5 h-3.5" />
+                    <span>Fonti ed Estratti ({(message.vectorMemories.declarative.length || 0) + (message.vectorMemories.episodic.length || 0)})</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {[...message.vectorMemories.declarative, ...message.vectorMemories.episodic].slice(0, 4).map((source, sIdx) => (
+                      <div key={sIdx} className="group relative p-3 rounded-xl bg-surface-50/50 dark:bg-surface-800/20 border border-surface-200/60 dark:border-surface-700/40 hover:border-indigo-500/30 hover:bg-white dark:hover:bg-surface-800/40 shadow-sm transition-all duration-300">
+                        <div className="flex items-start justify-between mb-2">
+                          <span className="text-[9px] font-bold text-surface-400 dark:text-surface-500 uppercase">Riferimento #{sIdx + 1}</span>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-12 h-1 bg-surface-200 dark:bg-surface-700 rounded-full overflow-hidden">
+                              <div className="h-full bg-indigo-500" style={{ width: `${Math.min(source.score * 100, 100)}%` }} />
+                            </div>
+                            <span className="text-[9px] text-surface-500 font-medium">{(source.score * 100).toFixed(0)}%</span>
+                          </div>
+                        </div>
+                        <p className="text-[11px] text-surface-600 dark:text-surface-300 line-clamp-2 leading-relaxed italic">
+                          "{source.content}"
+                        </p>
+                        {source.metadata?.originalName && (
+                          <div className="mt-2.5 flex items-center gap-1.5 text-[10px] text-indigo-600/70 dark:text-indigo-400/70 font-semibold group-hover:text-indigo-600 transition-colors">
+                            <Paperclip className="w-3 h-3" />
+                            <span className="truncate">{source.metadata.originalName}</span>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {message.timestamp && (
-                <div className="mt-1 text-xs text-surface-400 flex items-center gap-3">
+                <div className="mt-4 text-[10px] text-surface-400 flex items-center gap-3">
                   <span>{message.timestamp}</span>
                   {message.role === 'assistant' && message.content.length > 50 && !isStreaming && currentConversationId && (
                     <div className="flex items-center gap-1">
                       <button
                         onClick={() => onGenerateDocument(index, 'docx')}
                         disabled={generatingDoc !== null}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-surface-100 dark:bg-surface-800 hover:bg-primary-100 dark:hover:bg-primary-900/30 text-surface-600 dark:text-surface-400 hover:text-primary-700 dark:hover:text-primary-400 transition-colors disabled:opacity-50"
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] bg-surface-100 dark:bg-surface-800 hover:bg-primary-100 dark:hover:bg-primary-900/30 text-surface-600 dark:text-surface-400 hover:text-primary-700 dark:hover:text-primary-400 transition-colors disabled:opacity-50"
                         title="Scarica come Word"
                       >
-                        {generatingDoc === index ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileText className="w-3 h-3" />}
+                        {generatingDoc === index ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <FileText className="w-2.5 h-2.5" />}
                         Word
                       </button>
                       <button
                         onClick={() => onGenerateDocument(index, 'pdf')}
                         disabled={generatingDoc !== null}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-surface-100 dark:bg-surface-800 hover:bg-red-100 dark:hover:bg-red-900/30 text-surface-600 dark:text-surface-400 hover:text-red-700 dark:hover:text-red-400 transition-colors disabled:opacity-50"
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] bg-surface-100 dark:bg-surface-800 hover:bg-red-100 dark:hover:bg-red-900/30 text-surface-600 dark:text-surface-400 hover:text-red-700 dark:hover:text-red-400 transition-colors disabled:opacity-50"
                         title="Scarica come PDF"
                       >
-                        {generatingDoc === index ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileText className="w-3 h-3" />}
+                        {generatingDoc === index ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <FileText className="w-2.5 h-2.5" />}
                         PDF
                       </button>
                     </div>
@@ -230,6 +288,7 @@ export default function ChatMessageList({
                   )}
                 </div>
               )}
+
               {/* AI Act: AI Generated Label (GAP-2) */}
               {message.role === 'assistant' && message.content && (index < messages.length - 1 || !isStreaming) && (
                 <div className="mt-1">
