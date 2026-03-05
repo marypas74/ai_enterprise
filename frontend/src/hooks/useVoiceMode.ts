@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { api } from '../services/api';
 import { isNativePlatform } from '../utils/platform';
+import { preprocessForTTS } from '../utils/ttsPreprocess';
 
 export type OrbState = 'hidden' | 'idle' | 'thinking' | 'speaking' | 'done';
 
@@ -71,8 +72,13 @@ export function useVoiceMode() {
   const playTTSWithLifecycle = useCallback(async (text: string) => {
     stopAudio(); // Stop any previous playback first
     try {
+      const cleanText = preprocessForTTS(text);
+      if (!cleanText) {
+        transitionToDone();
+        return;
+      }
       const response = await api.post('/chat/voice/synthesize', {
-        text: text.substring(0, 4096),
+        text: cleanText.substring(0, 4096),
         voice: voiceSettings.voice,
         speed: Math.min(Math.max(voiceSettings.speed, 0.25), 4.0),
       }, { responseType: 'blob' });
@@ -128,6 +134,11 @@ export function useVoiceMode() {
     saveSettings(voiceModeEnabledRef.current, settings);
   }, []);
 
+  const stopSpeaking = useCallback(() => {
+    stopAudio();
+    transitionToDone();
+  }, [stopAudio, transitionToDone]);
+
   const dismissOrb = useCallback(() => {
     stopAudio();
     if (doneTimerRef.current) {
@@ -174,6 +185,7 @@ export function useVoiceMode() {
     voiceSettings,
     toggleVoiceMode,
     setVoiceSettings,
+    stopSpeaking,
     dismissOrb,
     onStreamStart,
     onThinkingStart,

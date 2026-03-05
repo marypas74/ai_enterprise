@@ -12,6 +12,37 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const OPENAI_BASE_URL = 'https://api.openai.com/v1';
 const PIPER_TTS_URL = process.env.PIPER_TTS_URL || 'http://10.0.1.1:5500';
 
+/**
+ * Server-side safety net: clean text for TTS synthesis.
+ * Strips markdown, code blocks, URLs, and HTML tags.
+ */
+function cleanTextForTTS(text: string): string {
+  let result = text;
+  result = result.replace(/```[\s\S]*?```/g, ' Codice omesso. ');
+  result = result.replace(/`([^`]+)`/g, '$1');
+  result = result.replace(/^#{1,6}\s+/gm, '');
+  result = result.replace(/\*\*\*(.+?)\*\*\*/g, '$1');
+  result = result.replace(/\*\*(.+?)\*\*/g, '$1');
+  result = result.replace(/\*(.+?)\*/g, '$1');
+  result = result.replace(/___(.+?)___/g, '$1');
+  result = result.replace(/__(.+?)__/g, '$1');
+  result = result.replace(/_(.+?)_/g, '$1');
+  result = result.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+  result = result.replace(/https?:\/\/[^\s)]+/g, 'un link');
+  result = result.replace(/^[-*_]{3,}\s*$/gm, '');
+  result = result.replace(/^>\s*/gm, '');
+  result = result.replace(/^[\t ]*[-*]\s+/gm, '');
+  result = result.replace(/^[\t ]*\d+\.\s+/gm, '');
+  result = result.replace(/^\|.*\|$/gm, '');
+  result = result.replace(/^[-|: ]+$/gm, '');
+  result = result.replace(/<[^>]+>/g, '');
+  result = result.replace(/\n{2,}/g, '. ');
+  result = result.replace(/\n/g, ' ');
+  result = result.replace(/\s{2,}/g, ' ');
+  result = result.replace(/\.\s*\.\s*/g, '. ');
+  return result.trim();
+}
+
 const synthesizeSchema = z.object({
   text: z.string().min(1).max(4096),
   voice: z.enum(['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']).default('nova'),
@@ -119,6 +150,12 @@ export async function voiceRoutes(fastify: FastifyInstance) {
       throw err;
     }
 
+    // Clean text for natural speech
+    const ttsText = cleanTextForTTS(body.text);
+    if (!ttsText) {
+      return reply.status(400).send({ error: 'No speakable text after preprocessing' });
+    }
+
     // Try OpenAI first, fall back to local Piper TTS
     if (OPENAI_API_KEY && !OPENAI_API_KEY.startsWith('REPLACE')) {
       try {
@@ -130,7 +167,7 @@ export async function voiceRoutes(fastify: FastifyInstance) {
           },
           body: JSON.stringify({
             model: body.model,
-            input: body.text,
+            input: ttsText,
             voice: body.voice,
             speed: body.speed,
             response_format: 'mp3',
@@ -157,7 +194,7 @@ export async function voiceRoutes(fastify: FastifyInstance) {
       const piperResponse = await fetch(`${PIPER_TTS_URL}/api/tts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: body.text }),
+        body: JSON.stringify({ text: ttsText }),
         signal: AbortSignal.timeout(30_000),
       });
 

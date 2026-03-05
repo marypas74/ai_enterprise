@@ -1,4 +1,4 @@
-import { X } from 'lucide-react';
+import { X, Square } from 'lucide-react';
 import clsx from 'clsx';
 import { BotIcon, BotIconType } from '../BotIcon';
 import type { OrbState } from '../../hooks/useVoiceMode';
@@ -6,6 +6,7 @@ import type { OrbState } from '../../hooks/useVoiceMode';
 interface AvatarOrbProps {
   state: OrbState;
   onDismiss: () => void;
+  onStopSpeaking?: () => void;
   botIcon: BotIconType;
   modelName: string;
 }
@@ -46,7 +47,7 @@ function stateLabel(state: OrbState): string {
   }
 }
 
-export default function AvatarOrb({ state, onDismiss, botIcon, modelName }: AvatarOrbProps) {
+export default function AvatarOrb({ state, onDismiss, onStopSpeaking, botIcon, modelName }: AvatarOrbProps) {
   if (state === 'hidden') return null;
 
   const label = stateLabel(state);
@@ -100,6 +101,20 @@ export default function AvatarOrb({ state, onDismiss, botIcon, modelName }: Avat
         <p className="mt-8 text-surface-300 text-sm font-medium" aria-live="polite" aria-atomic="true">
           {label}
         </p>
+      )}
+
+      {/* Stop speaking button */}
+      {state === 'speaking' && onStopSpeaking && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onStopSpeaking();
+          }}
+          aria-label="Ferma lettura"
+          className="mt-6 p-4 rounded-full bg-red-500/20 hover:bg-red-500/30 text-red-400 hover:text-red-300 transition-colors border border-red-500/30"
+        >
+          <Square className="w-6 h-6 fill-current" />
+        </button>
       )}
 
       {/* Dismiss hint */}
