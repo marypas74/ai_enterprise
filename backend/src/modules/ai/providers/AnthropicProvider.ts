@@ -33,7 +33,7 @@ export class AnthropicProvider implements AIProvider {
         'Authorization': `Bearer ${this.oauthToken}`,
         'anthropic-version': '2023-06-01',
         'anthropic-beta': 'oauth-2025-04-20',  // Required for OAuth tokens
-        'User-Agent': 'Claude-Code/2.1.4'  // Identify as Claude Code
+        'User-Agent': 'Claude-Code/2.1.5'  // Identify as Claude Code
       },
       body: JSON.stringify({ ...body, stream })
     });

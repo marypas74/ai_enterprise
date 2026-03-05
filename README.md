@@ -2,7 +2,7 @@
 
 Enterprise-grade AI chat platform with multi-provider support, intelligent model orchestration, autonomous AI agents, project management, and VS Code extension.
 
-**Current version: 2.1.1**
+**Current version: 2.1.5**
 
 ## Features
 

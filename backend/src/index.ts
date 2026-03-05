@@ -546,7 +546,7 @@ async function bootstrap() {
       info: {
         title: 'Enterprise AI Chat API',
         description: 'Multi-provider AI chat platform with agent orchestration, project management, and RAG pipeline',
-        version: process.env.APP_VERSION || '2.1.4'
+        version: process.env.APP_VERSION || '2.1.5'
       },
       servers: [
         { url: `http://localhost:${process.env.PORT || 3000}`, description: 'Local' },
