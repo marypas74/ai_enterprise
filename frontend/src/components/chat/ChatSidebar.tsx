@@ -96,7 +96,7 @@ export default function ChatSidebar({
         </div>
       )}
 
-      {/* Conversations List */}
+      {/* Conversations List - Grouped by chat_mode */}
       <div className="flex-1 overflow-y-auto px-2">
         <div className="flex items-center justify-between px-2 mb-2 text-xs font-semibold text-surface-500 uppercase tracking-wider">
           <span>{showArchived ? 'Archived' : 'Recent Chats'}</span>
@@ -117,8 +117,11 @@ export default function ChatSidebar({
           <p className="text-center text-xs text-surface-500 py-4 italic">
             No {showArchived ? 'archived' : ''} conversations.
           </p>
-        ) : (
-          conversations.map((conv) => (
+        ) : (() => {
+          const ragChats = conversations.filter(c => c.chat_mode === 'rag');
+          const freeChats = conversations.filter(c => c.chat_mode !== 'rag');
+
+          const renderConversation = (conv: Conversation) => (
             <div
               key={conv.id}
               onClick={() => onLoadConversation(conv.id)}
@@ -129,7 +132,11 @@ export default function ChatSidebar({
                   : 'hover:bg-surface-800/50'
               )}
             >
-              <MessageSquare className="w-4 h-4 flex-shrink-0 text-surface-400" />
+              {conv.chat_mode === 'rag' ? (
+                <FolderOpen className="w-4 h-4 flex-shrink-0 text-indigo-400" />
+              ) : (
+                <MessageSquare className="w-4 h-4 flex-shrink-0 text-surface-400" />
+              )}
               <span className="flex-1 truncate text-sm mr-2">{conv.title}</span>
               <div className="flex items-center gap-1 transition-opacity">
                 <button
@@ -152,8 +159,36 @@ export default function ChatSidebar({
                 </button>
               </div>
             </div>
-          ))
-        )}
+          );
+
+          return (
+            <>
+              {/* RAG / Document Chats */}
+              {ragChats.length > 0 && (
+                <div className="mb-3">
+                  <div className="flex items-center gap-1.5 px-2 mb-1.5 text-[10px] font-bold text-indigo-400 uppercase tracking-wider">
+                    <FolderOpen className="w-3 h-3" />
+                    <span>Chat Documenti</span>
+                    <span className="ml-auto text-surface-500 font-normal">{ragChats.length}</span>
+                  </div>
+                  {ragChats.map(renderConversation)}
+                </div>
+              )}
+
+              {/* Free / Generic Chats */}
+              {freeChats.length > 0 && (
+                <div className="mb-3">
+                  <div className="flex items-center gap-1.5 px-2 mb-1.5 text-[10px] font-bold text-surface-400 uppercase tracking-wider">
+                    <MessageSquare className="w-3 h-3" />
+                    <span>Chat Libere</span>
+                    <span className="ml-auto text-surface-500 font-normal">{freeChats.length}</span>
+                  </div>
+                  {freeChats.map(renderConversation)}
+                </div>
+              )}
+            </>
+          );
+        })()}
 
         {hasMoreConversations && conversations.length >= 20 && (
           <button

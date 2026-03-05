@@ -102,12 +102,8 @@ export default function ChatPage() {
     }
   };
 
-  // Restore persisted conversation on mount
-  useEffect(() => {
-    if (conversations.currentConversationId && chatMessages.messages.length === 0) {
-      handleLoadConversation(conversations.currentConversationId);
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // NOTE: No auto-restore of last conversation on mount.
+  // Users always start with a fresh chat. They can resume via sidebar.
 
   // When starting a new conversation, clear messages and attachments
   const handleNewConversation = () => {

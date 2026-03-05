@@ -7,6 +7,7 @@ export interface Conversation {
   model: string;
   is_archived: boolean;
   updated_at: string;
+  chat_mode?: 'free' | 'rag' | null;
 }
 
 interface ConfirmAction {
@@ -51,7 +52,8 @@ function loadLastConversationId(): number | null {
 
 export function useChatConversations(): UseChatConversationsReturn {
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [currentConversationId, setCurrentConversationId] = useState<number | null>(loadLastConversationId);
+  // Always start with a fresh chat on site access (don't auto-restore last conversation)
+  const [currentConversationId, setCurrentConversationId] = useState<number | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [hasMoreConversations, setHasMoreConversations] = useState(true);
