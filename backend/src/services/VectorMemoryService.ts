@@ -278,7 +278,7 @@ export async function storeProcedural(
 
 // ---- Recall ----
 
-async function searchCollection(
+export async function searchCollection(
   db: mysql.Pool,
   collection: MemoryCollection,
   query: string,

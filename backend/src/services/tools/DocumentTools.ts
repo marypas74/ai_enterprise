@@ -16,21 +16,33 @@ export function getDocumentToolDefinitions(): ToolDefinition[] {
   return [
     {
       name: 'generate_word_document',
-      description: 'Generate a Word (.docx) document from the provided text content. The file will be saved in the project directory.',
+      description: `Generate a Word (.docx) document and return a download link. YOU MUST use this tool whenever the user asks to create, generate, or convert content into a .docx or Word file. Do NOT write the document content in the chat — always use this tool instead.
+
+WHEN TO USE:
+- User says "crea un docx", "genera un documento Word", "create a Word file", "convert to docx"
+- User uploads a PDF/image and asks for a docx version
+- User asks for a report, letter, essay, or any written document in Word format
+
+WHEN NOT TO USE:
+- User asks you to explain, summarize, or analyze text (respond in chat instead)
+- User asks for a PDF (use auto-generate, not this tool)
+- User just wants information displayed in the chat
+
+IMPORTANT: Put the FULL document content in the "content" parameter. Do NOT truncate or summarize.`,
       input_schema: {
         type: 'object',
         properties: {
           path: {
             type: 'string',
-            description: 'The relative path where the Word document should be saved (e.g., "outputs/report.docx")'
+            description: 'Relative path for the file, e.g. "outputs/report.docx". Must end in .docx.'
           },
           content: {
             type: 'string',
-            description: 'The text content to be included in the Word document'
+            description: 'The FULL text content for the Word document. Include all text — do not truncate or summarize.'
           },
           title: {
             type: 'string',
-            description: 'Optional title of the document'
+            description: 'Document title shown in the header'
           }
         },
         required: ['path', 'content']
@@ -38,22 +50,31 @@ export function getDocumentToolDefinitions(): ToolDefinition[] {
     },
     {
       name: 'generate_excel_document',
-      description: 'Generate an Excel (.xlsx) spreadsheet from a JSON array of objects. Each object represents a row, and its keys represent columns. The file will be saved in the project directory.',
+      description: `Generate an Excel (.xlsx) spreadsheet and return a download link. YOU MUST use this tool whenever the user asks to create, generate, or export data as an Excel or .xlsx file. Do NOT dump tabular data in the chat — use this tool instead.
+
+WHEN TO USE:
+- User says "crea un Excel", "genera un foglio di calcolo", "create a spreadsheet", "export to xlsx"
+- User has data that needs to be in tabular format
+- User asks for a CSV/spreadsheet with structured data
+
+WHEN NOT TO USE:
+- User wants to see a small data summary in chat
+- User asks for a chart or visualization (not supported)`,
       input_schema: {
         type: 'object',
         properties: {
           path: {
             type: 'string',
-            description: 'The relative path where the Excel file should be saved (e.g., "data/report.xlsx")'
+            description: 'Relative path for the file, e.g. "data/report.xlsx". Must end in .xlsx.'
           },
           data: {
             type: 'array',
             items: { type: 'object' },
-            description: 'Array of objects representing the rows of the spreadsheet'
+            description: 'Array of objects where each object is a row. Keys become column headers. Example: [{"Name":"Alice","Age":30},{"Name":"Bob","Age":25}]'
           },
           sheetName: {
             type: 'string',
-            description: 'Optional name of the worksheet'
+            description: 'Worksheet tab name'
           }
         },
         required: ['path', 'data']
@@ -61,13 +82,21 @@ export function getDocumentToolDefinitions(): ToolDefinition[] {
     },
     {
       name: 'generate_powerpoint_document',
-      description: 'Generate a PowerPoint (.pptx) presentation from an array of slide objects. The file will be saved in the project directory.',
+      description: `Generate a PowerPoint (.pptx) presentation and return a download link. YOU MUST use this tool whenever the user asks to create a presentation or .pptx file. Do NOT write slide content in the chat — use this tool instead.
+
+WHEN TO USE:
+- User says "crea una presentazione", "genera un PowerPoint", "create a pptx", "make slides"
+- User wants content organized into slides
+
+WHEN NOT TO USE:
+- User asks for a document or report (use generate_word_document instead)
+- User just wants a text outline in chat`,
       input_schema: {
         type: 'object',
         properties: {
           path: {
             type: 'string',
-            description: 'The relative path where the PowerPoint file should be saved (e.g., "presentations/deck.pptx")'
+            description: 'Relative path for the file, e.g. "presentations/deck.pptx". Must end in .pptx.'
           },
           slides: {
             type: 'array',
@@ -79,11 +108,11 @@ export function getDocumentToolDefinitions(): ToolDefinition[] {
               },
               required: ['title', 'content']
             },
-            description: 'Array of objects representing the slides ({title: string, content: string})'
+            description: 'Array of slide objects. Each has a "title" and "content" string.'
           },
           title: {
             type: 'string',
-            description: 'Optional overall title of the presentation'
+            description: 'Presentation title for the first slide'
           }
         },
         required: ['path', 'slides']

@@ -148,3 +148,29 @@ export async function convertToPdfRemote(
   const arrayBuffer = await response.arrayBuffer();
   return Buffer.from(arrayBuffer);
 }
+
+/**
+ * Convert a PDF to DOCX via doc-processor service (format-preserving)
+ */
+export async function convertToDocxRemote(
+  buffer: Buffer,
+  filename: string
+): Promise<Buffer> {
+  const formData = new FormData();
+  const blob = new Blob([buffer], { type: 'application/pdf' });
+  formData.append('file', blob, filename);
+
+  const response = await fetch(`${DOC_PROCESSOR_URL}/convert/docx`, {
+    method: 'POST',
+    body: formData,
+    signal: AbortSignal.timeout(120000)
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+    throw new Error(`doc-processor convert/docx failed: ${(error as any).error}`);
+  }
+
+  const arrayBuffer = await response.arrayBuffer();
+  return Buffer.from(arrayBuffer);
+}

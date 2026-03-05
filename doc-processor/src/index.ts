@@ -313,6 +313,62 @@ fastify.post('/convert/pdf', async (request, reply) => {
 });
 
 // ============================================================
+// POST /convert/docx — Convert uploaded PDF to DOCX (format-preserving)
+// ============================================================
+fastify.post('/convert/docx', async (request, reply) => {
+  const data = await request.file();
+  if (!data) {
+    return reply.status(400).send({ error: 'No file uploaded' });
+  }
+
+  const buffer = await data.toBuffer();
+  const filename = data.filename;
+
+  try {
+    const tmpDir = path.join(os.tmpdir(), `convert_docx_${Date.now()}`);
+    await fs.mkdir(tmpDir, { recursive: true });
+    const inputPath = path.join(tmpDir, filename);
+    const baseName = path.basename(filename, path.extname(filename));
+    const docxPath = path.join(tmpDir, `${baseName}.docx`);
+    await fs.writeFile(inputPath, buffer);
+
+    let method = 'unknown';
+
+    // Primary: pdf2docx (best quality — preserves tables, images, layout)
+    try {
+      const pyScript = `from pdf2docx import Converter; cv = Converter(r'${inputPath}'); cv.convert(r'${docxPath}'); cv.close()`;
+      await execAsync(`python3 -c "${pyScript}"`, { timeout: 120000 });
+      await fs.access(docxPath);
+      method = 'pdf2docx';
+    } catch (pdf2docxErr: any) {
+      fastify.log.warn(`[Convert DOCX] pdf2docx failed: ${pdf2docxErr.message}, trying LibreOffice...`);
+      // Fallback: LibreOffice writer_pdf_import
+      const loCmd = `soffice --headless --infilter="writer_pdf_import" --convert-to docx:"MS Word 2007 XML" --outdir "${tmpDir}" "${inputPath}"`;
+      await execAsync(loCmd, { timeout: 60000 });
+      // LibreOffice names output after input
+      const loDocx = path.join(tmpDir, `${path.basename(inputPath, '.pdf')}.docx`);
+      await fs.access(loDocx);
+      if (loDocx !== docxPath) {
+        await fs.rename(loDocx, docxPath);
+      }
+      method = 'libreoffice';
+    }
+
+    const docxBuffer = await fs.readFile(docxPath);
+    await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+
+    fastify.log.info(`[Convert DOCX] ${filename} -> DOCX via ${method} (${docxBuffer.length} bytes)`);
+
+    reply.header('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    reply.header('Content-Disposition', `attachment; filename="${baseName}.docx"`);
+    return reply.send(docxBuffer);
+  } catch (error: any) {
+    fastify.log.error(`[Convert DOCX] Error: ${error.message}`);
+    return reply.status(500).send({ error: `PDF to DOCX conversion failed: ${error.message}` });
+  }
+});
+
+// ============================================================
 // Start server
 // ============================================================
 try {
