@@ -41,4 +41,9 @@ initCapacitor().then(() => {
       </ErrorBoundary>
     </React.StrictMode>
   );
+
+  // Register PWA service worker (web only, not Capacitor native)
+  if ('serviceWorker' in navigator && !window.location.href.includes('capacitor')) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  }
 });

@@ -6,6 +6,7 @@ const config: CapacitorConfig = {
   webDir: 'dist',
   server: {
     androidScheme: 'https',
+    iosScheme: 'https',
     allowNavigation: [
       'https://plane.lushlolli.com/*',
     ],
@@ -37,6 +38,10 @@ const config: CapacitorConfig = {
     buildOptions: {
       releaseType: 'APK',
     },
+  },
+  ios: {
+    contentInset: 'automatic',
+    allowsLinkPreview: false,
   },
 };
 
