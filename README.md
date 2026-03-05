@@ -2,7 +2,7 @@
 
 Enterprise-grade AI chat platform with multi-provider support, intelligent model orchestration, autonomous AI agents, project management, and VS Code extension.
 
-**Current version: 2.1.0**
+**Current version: 2.1.1**
 
 ## Features
 
@@ -18,6 +18,7 @@ Enterprise-grade AI chat platform with multi-provider support, intelligent model
 - **Voice Interface**: Speech-to-text (OpenAI Whisper) + text-to-speech (OpenAI TTS / local Piper TTS fallback) with animated Avatar Orb overlay
 - **Image Generation**: OllamaDiffuser integration for text-to-image (FLUX.1 schnell) inline in chat
 - **Android APK**: Capacitor 6 wrapper with native SSE streaming, camera, haptics — direct APK download
+- **iOS (PWA)**: Progressive Web App with manifest, service worker, and Apple meta tags — installable from Safari
 - **Real-time Chat**: SSE streaming with markdown rendering, file attachments, conversation management, session persistence
 - **Admin Dashboard**: User/group management, provider configuration, orchestrator dashboard, system monitoring
 - **Security**: JWT + MFA (TOTP), Zod input validation, rate limiting, OWASP hardening
@@ -149,6 +150,7 @@ enterprise-ai-chat/
 │   │   │   ├── memory/         # Vector memory + observations
 │   │   │   ├── tools/          # DOCX/XLSX/PPTX/PDF generation
 │   │   │   ├── attachments/    # File upload + processing
+│   │   │   ├── documents/      # Document management routes
 │   │   │   ├── compliance/     # EU AI Act (consent, feedback, audit)
 │   │   │   ├── orchestrator/   # Terminal slot management
 │   │   │   ├── parlant/        # Parlant AI proxy
@@ -168,10 +170,14 @@ enterprise-ai-chat/
 │   └── Dockerfile
 ├── frontend/                   # React 18 + Vite + Tailwind
 │   ├── src/
-│   │   ├── pages/              # 11 route pages
-│   │   ├── hooks/              # Zustand stores (auth, agents, parlant)
+│   │   ├── pages/              # 12 route pages (incl. Documents, Transparency)
+│   │   ├── hooks/              # Zustand stores (auth, agents, parlant, documents)
 │   │   ├── components/         # Reusable UI components
+│   │   ├── utils/              # Utilities (TTS preprocessing)
 │   │   └── services/           # API client (axios + SSE with routing events)
+│   ├── public/                 # PWA manifest, icons, service worker
+│   ├── android/                # Capacitor Android project
+│   ├── ios/                    # Capacitor iOS project
 │   ├── nginx.conf              # Production config (gzip, cache, CSP)
 │   └── Dockerfile
 ├── vscode-extension/           # VS Code companion extension
@@ -314,6 +320,23 @@ kubectl scale deployment backend --replicas=2 frontend --replicas=2 -n enterpris
 ```
 
 ## Changelog
+
+### v2.1.1 (2026-03-05)
+- **Voice Mode Improvements**:
+  - Android microphone permissions (RECORD_AUDIO, MODIFY_AUDIO_SETTINGS) for WebView voice capture
+  - TTS text preprocessing pipeline: strips markdown, code blocks, URLs, HTML for natural speech output
+  - Backend TTS text cleaning (server-side safety net, same pipeline)
+  - Stop/interrupt button on AvatarOrb during speech playback
+  - Upgraded Piper TTS voice model to `it_IT-paola-medium` (higher quality)
+- **iOS Capacitor Project**: Initialized with microphone/camera/photo permissions, version 2.1.1
+- **PWA Support**: Web app manifest, service worker (network-first + cache fallback), Apple meta tags — installable from Safari on iOS
+- **Document Management**: New documents module with backend routes, frontend page, RAG mode toggle/badge components
+- **Qwen3 Thinking Fix** (ollama#10976/#11381):
+  - Always strip tools for qwen3 models when thinking is enabled (root cause: tools + think = empty content)
+  - 3-phase empty response recovery: retry without thinking → escalate to balanced tier → error message
+  - Track `hadThinkingContent` flag during streaming for smart recovery
+- **Transparency Page Fix**: Fixed React error #31 — `models_used` was rendered as object instead of computed stats
+- **Backend Core**: Enhanced AI providers (Anthropic/OpenAI) with thinking support, improved streaming, context builder, MCP client manager
 
 ### v2.1.0 (2026-03-04)
 - **PDF-to-DOCX Conversion Fix**: System prompt now instructs AI to reproduce full content verbatim when converting formats (not summarize)

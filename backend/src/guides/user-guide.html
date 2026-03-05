@@ -1,666 +1,1128 @@
 <!DOCTYPE html>
 <html lang="it">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Enterprise AI Chat - Guida Utente</title>
-<style>
-  :root { --primary: #6366f1; --primary-dark: #4f46e5; --bg: #0f172a; --surface: #1e293b; --surface-2: #334155; --text: #e2e8f0; --text-muted: #94a3b8; --accent: #22d3ee; --border: #334155; --success: #22c55e; --warning: #f59e0b; --danger: #ef4444; }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; }
-  .container { max-width: 900px; margin: 0 auto; padding: 40px 24px; }
-  h1 { font-size: 2.5rem; font-weight: 800; background: linear-gradient(135deg, var(--primary), var(--accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 8px; }
-  .subtitle { color: var(--text-muted); font-size: 1.1rem; margin-bottom: 48px; }
-  .version { display: inline-block; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 4px 14px; font-size: 0.8rem; color: var(--accent); margin-bottom: 12px; }
-  h2 { font-size: 1.6rem; font-weight: 700; color: var(--accent); margin-top: 56px; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid var(--border); }
-  h3 { font-size: 1.2rem; font-weight: 600; color: var(--text); margin-top: 32px; margin-bottom: 12px; }
-  h4 { font-size: 1rem; font-weight: 600; color: var(--primary); margin-top: 20px; margin-bottom: 8px; }
-  p { margin-bottom: 14px; color: var(--text); }
-  ul, ol { margin-bottom: 16px; padding-left: 24px; }
-  li { margin-bottom: 8px; color: var(--text); }
-  li strong { color: var(--accent); }
-  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 20px; }
-  .card-title { font-weight: 600; color: var(--primary); margin-bottom: 10px; font-size: 1.05rem; }
-  .badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; margin-right: 6px; }
-  .badge-primary { background: rgba(99,102,241,0.2); color: #818cf8; }
-  .badge-accent { background: rgba(34,211,238,0.2); color: #22d3ee; }
-  .badge-success { background: rgba(34,197,94,0.2); color: #4ade80; }
-  .badge-warning { background: rgba(245,158,11,0.2); color: #fbbf24; }
-  .tip { background: rgba(34,211,238,0.1); border-left: 4px solid var(--accent); padding: 16px 20px; border-radius: 0 8px 8px 0; margin: 20px 0; }
-  .tip-title { font-weight: 700; color: var(--accent); margin-bottom: 4px; }
-  .warning { background: rgba(245,158,11,0.1); border-left: 4px solid var(--warning); padding: 16px 20px; border-radius: 0 8px 8px 0; margin: 20px 0; }
-  .warning-title { font-weight: 700; color: var(--warning); margin-bottom: 4px; }
-  .toc { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px 32px; margin-bottom: 40px; }
-  .toc-title { font-weight: 700; font-size: 1.1rem; margin-bottom: 16px; color: var(--primary); }
-  .toc a { color: var(--text-muted); text-decoration: none; display: block; padding: 4px 0; transition: color 0.2s; }
-  .toc a:hover { color: var(--accent); }
-  .toc ol { counter-reset: toc-counter; list-style: none; padding-left: 0; }
-  .toc ol li { counter-increment: toc-counter; }
-  .toc ol li::before { content: counter(toc-counter) ". "; color: var(--primary); font-weight: 600; }
-  .step { display: flex; gap: 16px; margin-bottom: 16px; align-items: flex-start; }
-  .step-num { flex-shrink: 0; width: 32px; height: 32px; background: var(--primary); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.9rem; }
-  .step-content { flex: 1; }
-  table { width: 100%; border-collapse: collapse; margin: 16px 0; }
-  th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); }
-  th { background: var(--surface-2); color: var(--accent); font-weight: 600; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; }
-  td { color: var(--text); font-size: 0.95rem; }
-  tr:hover td { background: rgba(99,102,241,0.05); }
-  code { background: var(--surface-2); padding: 2px 8px; border-radius: 4px; font-size: 0.9rem; color: #f472b6; }
-  .footer { margin-top: 80px; padding-top: 24px; border-top: 1px solid var(--border); text-align: center; color: var(--text-muted); font-size: 0.85rem; }
-  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  @media (max-width: 640px) { .grid-2 { grid-template-columns: 1fr; } h1 { font-size: 1.8rem; } }
-  @media print { body { background: white; color: #1e293b; } .card { border-color: #e2e8f0; } h1 { -webkit-text-fill-color: var(--primary); } h2 { color: var(--primary-dark); } }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Enterprise AI Chat - Guida Utente</title>
+  <style>
+    :root {
+      --primary: #6366f1;
+      --primary-dark: #4f46e5;
+      --bg: #0f172a;
+      --surface: #1e293b;
+      --surface-2: #334155;
+      --text: #e2e8f0;
+      --text-muted: #94a3b8;
+      --accent: #22d3ee;
+      --border: #334155;
+      --success: #22c55e;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 40px 24px;
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 1.1rem;
+      margin-bottom: 48px;
+    }
+
+    .version {
+      display: inline-block;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 4px 14px;
+      font-size: 0.8rem;
+      color: var(--accent);
+      margin-bottom: 12px;
+    }
+
+    h2 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin-top: 56px;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid var(--border);
+    }
+
+    h3 {
+      font-size: 1.2rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-top: 32px;
+      margin-bottom: 12px;
+    }
+
+    h4 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--primary);
+      margin-top: 20px;
+      margin-bottom: 8px;
+    }
+
+    p {
+      margin-bottom: 14px;
+      color: var(--text);
+    }
+
+    ul,
+    ol {
+      margin-bottom: 16px;
+      padding-left: 24px;
+    }
+
+    li {
+      margin-bottom: 8px;
+      color: var(--text);
+    }
+
+    li strong {
+      color: var(--accent);
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+
+    .card-title {
+      font-weight: 600;
+      color: var(--primary);
+      margin-bottom: 10px;
+      font-size: 1.05rem;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      margin-right: 6px;
+    }
+
+    .badge-primary {
+      background: rgba(99, 102, 241, 0.2);
+      color: #818cf8;
+    }
+
+    .badge-accent {
+      background: rgba(34, 211, 238, 0.2);
+      color: #22d3ee;
+    }
+
+    .badge-success {
+      background: rgba(34, 197, 94, 0.2);
+      color: #4ade80;
+    }
+
+    .badge-warning {
+      background: rgba(245, 158, 11, 0.2);
+      color: #fbbf24;
+    }
+
+    .tip {
+      background: rgba(34, 211, 238, 0.1);
+      border-left: 4px solid var(--accent);
+      padding: 16px 20px;
+      border-radius: 0 8px 8px 0;
+      margin: 20px 0;
+    }
+
+    .tip-title {
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 4px;
+    }
+
+    .warning {
+      background: rgba(245, 158, 11, 0.1);
+      border-left: 4px solid var(--warning);
+      padding: 16px 20px;
+      border-radius: 0 8px 8px 0;
+      margin: 20px 0;
+    }
+
+    .warning-title {
+      font-weight: 700;
+      color: var(--warning);
+      margin-bottom: 4px;
+    }
+
+    .toc {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px 32px;
+      margin-bottom: 40px;
+    }
+
+    .toc-title {
+      font-weight: 700;
+      font-size: 1.1rem;
+      margin-bottom: 16px;
+      color: var(--primary);
+    }
+
+    .toc a {
+      color: var(--text-muted);
+      text-decoration: none;
+      display: block;
+      padding: 4px 0;
+      transition: color 0.2s;
+    }
+
+    .toc a:hover {
+      color: var(--accent);
+    }
+
+    .toc ol {
+      counter-reset: toc-counter;
+      list-style: none;
+      padding-left: 0;
+    }
+
+    .toc ol li {
+      counter-increment: toc-counter;
+    }
+
+    .toc ol li::before {
+      content: counter(toc-counter) ". ";
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+    .step {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 16px;
+      align-items: flex-start;
+    }
+
+    .step-num {
+      flex-shrink: 0;
+      width: 32px;
+      height: 32px;
+      background: var(--primary);
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 0.9rem;
+    }
+
+    .step-content {
+      flex: 1;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+    }
+
+    th,
+    td {
+      padding: 10px 14px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+
+    th {
+      background: var(--surface-2);
+      color: var(--accent);
+      font-weight: 600;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    td {
+      color: var(--text);
+      font-size: 0.95rem;
+    }
+
+    tr:hover td {
+      background: rgba(99, 102, 241, 0.05);
+    }
+
+    code {
+      background: var(--surface-2);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.9rem;
+      color: #f472b6;
+    }
+
+    .footer {
+      margin-top: 80px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    @media (max-width: 640px) {
+      .grid-2 {
+        grid-template-columns: 1fr;
+      }
+
+      h1 {
+        font-size: 1.8rem;
+      }
+    }
+
+    @media print {
+      body {
+        background: white;
+        color: #1e293b;
+      }
+
+      .card {
+        border-color: #e2e8f0;
+      }
+
+      h1 {
+        -webkit-text-fill-color: var(--primary);
+      }
+
+      h2 {
+        color: var(--primary-dark);
+      }
+    }
+  </style>
 </head>
+
 <body>
-<div class="container">
+  <div class="container">
 
-<span class="version">v1.8.5</span>
-<h1>Enterprise AI Chat</h1>
-<p class="subtitle">Guida Utente Completa - Piattaforma di Intelligenza Artificiale Conversazionale Enterprise</p>
+    <span class="version">v2.1.4</span>
+    <h1>Enterprise AI Chat</h1>
+    <p class="subtitle">Guida Utente Completa - Piattaforma di Intelligenza Artificiale Conversazionale Enterprise</p>
 
-<div class="toc">
-  <div class="toc-title">Indice</div>
-  <ol>
-    <li><a href="#intro">Introduzione alla Piattaforma</a></li>
-    <li><a href="#login">Accesso e Autenticazione</a></li>
-    <li><a href="#chat">Chat con l'AI</a></li>
-    <li><a href="#modelli">Modelli AI Disponibili</a></li>
-    <li><a href="#allegati">Allegati e Documenti</a></li>
-    <li><a href="#conversazioni">Gestione Conversazioni</a></li>
-    <li><a href="#export">Esportazione Documenti</a></li>
-    <li><a href="#memoria">Sistema di Memoria</a></li>
-    <li><a href="#progetti">Progetti e Kanban</a></li>
-    <li><a href="#agenti">Agenti AI Autonomi</a></li>
-    <li><a href="#parlant">Parlant - Framework Agenti</a></li>
-    <li><a href="#scheduler">Programmazione Attivita</a></li>
-    <li><a href="#impostazioni">Impostazioni e Sicurezza</a></li>
-    <li><a href="#compliance">Trasparenza e Conformita AI Act</a></li>
-    <li><a href="#estensione">Estensione VS Code</a></li>
-    <li><a href="#shortcuts">Scorciatoie e Suggerimenti</a></li>
-  </ol>
-</div>
+    <div class="toc">
+      <div class="toc-title">Indice</div>
+      <ol>
+        <li><a href="#intro">Introduzione alla Piattaforma</a></li>
+        <li><a href="#login">Accesso e Autenticazione</a></li>
+        <li><a href="#chat">Chat con l'AI</a></li>
+        <li><a href="#modelli">Modelli AI Disponibili</a></li>
+        <li><a href="#allegati">Allegati e Documenti</a></li>
+        <li><a href="#conversazioni">Gestione Conversazioni</a></li>
+        <li><a href="#export">Esportazione Documenti</a></li>
+        <li><a href="#memoria">Sistema di Memoria</a></li>
+        <li><a href="#progetti">Progetti e Kanban</a></li>
+        <li><a href="#agenti">Agenti AI Autonomi</a></li>
+        <li><a href="#parlant">Parlant - Framework Agenti</a></li>
+        <li><a href="#scheduler">Programmazione Attivita</a></li>
+        <li><a href="#impostazioni">Impostazioni e Sicurezza</a></li>
+        <li><a href="#compliance">Trasparenza e Conformita AI Act</a></li>
+        <li><a href="#estensione">Estensione VS Code</a></li>
+        <li><a href="#shortcuts">Scorciatoie e Suggerimenti</a></li>
+      </ol>
+    </div>
 
-<!-- SECTION 1: INTRO -->
-<h2 id="intro">1. Introduzione alla Piattaforma</h2>
+    <!-- SECTION 1: INTRO -->
+    <h2 id="intro">1. Introduzione alla Piattaforma</h2>
 
-<p><strong>Enterprise AI Chat</strong> e una piattaforma aziendale di intelligenza artificiale conversazionale che consente di interagire con i piu avanzati modelli AI del mercato attraverso un'interfaccia unificata, sicura e conforme alle normative europee sull'AI (AI Act).</p>
+    <p><strong>Enterprise AI Chat</strong> e una piattaforma aziendale di intelligenza artificiale conversazionale che
+      consente di interagire con i piu avanzati modelli AI del mercato attraverso un'interfaccia unificata, sicura e
+      conforme alle normative europee sull'AI (AI Act).</p>
 
-<div class="card">
-  <div class="card-title">Cosa puoi fare con la piattaforma</div>
-  <ul>
-    <li><strong>Conversare con AI</strong> - Chat interattiva con modelli di OpenAI (GPT-4, GPT-4o), Anthropic (Claude), Google (Gemini) e modelli locali (Ollama)</li>
-    <li><strong>Allegare documenti</strong> - Carica PDF, Word, Excel, PowerPoint, immagini e file di codice per farli analizzare dall'AI</li>
-    <li><strong>Generare documenti</strong> - Esporta le conversazioni o genera nuovi documenti in Word, Excel, PowerPoint e PDF</li>
-    <li><strong>Gestire progetti</strong> - Organizza il lavoro con bacheche Kanban, task, priorita e assegnazioni</li>
-    <li><strong>Usare agenti autonomi</strong> - Configura agenti AI che eseguono compiti complessi in autonomia con accesso a tool e codice</li>
-    <li><strong>Memoria persistente</strong> - L'AI ricorda le tue preferenze, decisioni e pattern tra una sessione e l'altra</li>
-    <li><strong>Programmazione attivita</strong> - Pianifica messaggi ed azioni automatiche con lo scheduler</li>
-  </ul>
-</div>
+    <div class="card">
+      <div class="card-title">Cosa puoi fare con la piattaforma</div>
+      <ul>
+        <li><strong>Conversare con AI</strong> - Chat interattiva con modelli di OpenAI (GPT-4, GPT-4o), Anthropic
+          (Claude), Google (Gemini) e modelli locali (Ollama)</li>
+        <li><strong>Allegare documenti</strong> - Carica PDF, Word, Excel, PowerPoint, immagini e file di codice per
+          farli analizzare dall'AI</li>
+        <li><strong>Generare documenti</strong> - Esporta le conversazioni o genera nuovi documenti in Word, Excel,
+          PowerPoint e PDF</li>
+        <li><strong>Gestire progetti</strong> - Organizza il lavoro con bacheche Kanban, task, priorita e assegnazioni
+        </li>
+        <li><strong>Usare agenti autonomi</strong> - Configura agenti AI che eseguono compiti complessi in autonomia con
+          accesso a tool e codice</li>
+        <li><strong>Memoria persistente</strong> - L'AI ricorda le tue preferenze, decisioni e pattern tra una sessione
+          e l'altra</li>
+        <li><strong>Programmazione attivita</strong> - Pianifica messaggi ed azioni automatiche con lo scheduler</li>
+      </ul>
+    </div>
 
-<h3>Architettura del Sistema</h3>
-<p>La piattaforma e composta da diversi componenti che lavorano insieme:</p>
+    <h3>Architettura del Sistema</h3>
+    <p>La piattaforma e composta da diversi componenti che lavorano insieme:</p>
 
-<div class="grid-2">
-  <div class="card">
-    <div class="card-title">Frontend (React)</div>
-    <p>Interfaccia web moderna costruita con React 18, Vite e Tailwind CSS. Supporta streaming in tempo reale, dark mode e design responsive.</p>
-  </div>
-  <div class="card">
-    <div class="card-title">Backend (Fastify)</div>
-    <p>Server API costruito con Fastify 5 e TypeScript. Gestisce autenticazione, routing AI, elaborazione documenti, memoria e 20+ moduli funzionali.</p>
-  </div>
-  <div class="card">
-    <div class="card-title">Database (MariaDB + Redis)</div>
-    <p>MariaDB per la persistenza dei dati (conversazioni, utenti, configurazioni). Redis per caching delle sessioni e code di messaggi.</p>
-  </div>
-  <div class="card">
-    <div class="card-title">Infrastruttura (Kubernetes)</div>
-    <p>Deploy su MicroK8s con replica multiple, bilanciamento del carico, tunnel Cloudflare per accesso sicuro e certificati TLS.</p>
-  </div>
-</div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Frontend (React)</div>
+        <p>Interfaccia web moderna costruita con React 18, Vite e Tailwind CSS. Supporta streaming in tempo reale, dark
+          mode e design responsive.</p>
+      </div>
+      <div class="card">
+        <div class="card-title">Backend (Fastify)</div>
+        <p>Server API costruito con Fastify 5 e TypeScript. Gestisce autenticazione, routing AI, elaborazione documenti,
+          memoria e 20+ moduli funzionali.</p>
+      </div>
+      <div class="card">
+        <div class="card-title">Database (MariaDB + Redis)</div>
+        <p>MariaDB per la persistenza dei dati (conversazioni, utenti, configurazioni). Redis per caching delle sessioni
+          e code di messaggi.</p>
+      </div>
+      <div class="card">
+        <div class="card-title">Infrastruttura (Kubernetes)</div>
+        <p>Deploy su MicroK8s con replica multiple, bilanciamento del carico, tunnel Cloudflare per accesso sicuro e
+          certificati TLS.</p>
+      </div>
+    </div>
 
-<!-- SECTION 2: LOGIN -->
-<h2 id="login">2. Accesso e Autenticazione</h2>
+    <!-- SECTION 2: LOGIN -->
+    <h2 id="login">2. Accesso e Autenticazione</h2>
 
-<h3>Login</h3>
-<p>Accedi alla piattaforma inserendo le tue credenziali:</p>
+    <h3>Login</h3>
+    <p>Accedi alla piattaforma inserendo le tue credenziali:</p>
 
-<div class="step">
-  <div class="step-num">1</div>
-  <div class="step-content">Naviga all'indirizzo della piattaforma (es: <code>https://plane.lushlolli.com</code>)</div>
-</div>
-<div class="step">
-  <div class="step-num">2</div>
-  <div class="step-content">Inserisci il tuo <strong>indirizzo email</strong> e la <strong>password</strong></div>
-</div>
-<div class="step">
-  <div class="step-num">3</div>
-  <div class="step-content">Se hai abilitato l'<strong>MFA (Multi-Factor Authentication)</strong>, inserisci il codice a 6 cifre dalla tua app di autenticazione</div>
-</div>
-<div class="step">
-  <div class="step-num">4</div>
-  <div class="step-content">Al primo accesso, accetta i termini di utilizzo, l'informativa sulla privacy e il consenso all'elaborazione AI</div>
-</div>
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-content">Naviga all'indirizzo della piattaforma (es: <code>https://plane.lushlolli.com</code>)
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-content">Inserisci il tuo <strong>indirizzo email</strong> e la <strong>password</strong></div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-content">Se hai abilitato l'<strong>MFA (Multi-Factor Authentication)</strong>, inserisci il
+        codice a 6 cifre dalla tua app di autenticazione</div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-content">Al primo accesso, accetta i termini di utilizzo, l'informativa sulla privacy e il
+        consenso all'elaborazione AI</div>
+    </div>
 
-<div class="tip">
-  <div class="tip-title">Suggerimento</div>
-  <p>La sessione rimane attiva per 7 giorni. Se accedi da un nuovo dispositivo, la sessione precedente viene automaticamente terminata per sicurezza (sessione singola).</p>
-</div>
+    <div class="tip">
+      <div class="tip-title">Suggerimento</div>
+      <p>La sessione rimane attiva per 7 giorni. Se accedi da un nuovo dispositivo, la sessione precedente viene
+        automaticamente terminata per sicurezza (sessione singola).</p>
+    </div>
 
-<h3>Autenticazione a Due Fattori (MFA)</h3>
-<p>Per proteggere il tuo account, puoi abilitare l'autenticazione TOTP:</p>
+    <h3>Autenticazione a Due Fattori (MFA)</h3>
+    <p>Per proteggere il tuo account, puoi abilitare l'autenticazione TOTP:</p>
 
-<ol>
-  <li>Vai su <strong>Impostazioni</strong> (icona ingranaggio nella sidebar)</li>
-  <li>Nella sezione <strong>Sicurezza &amp; MFA</strong>, clicca su "Configura MFA"</li>
-  <li>Scansiona il <strong>codice QR</strong> con un'app come Google Authenticator o Microsoft Authenticator</li>
-  <li>Inserisci il codice a 6 cifre per verificare la configurazione</li>
-  <li>Da questo momento, ad ogni login ti verra richiesto il codice MFA</li>
-</ol>
+    <ol>
+      <li>Vai su <strong>Impostazioni</strong> (icona ingranaggio nella sidebar)</li>
+      <li>Nella sezione <strong>Sicurezza &amp; MFA</strong>, clicca su "Configura MFA"</li>
+      <li>Scansiona il <strong>codice QR</strong> con un'app come Google Authenticator o Microsoft Authenticator</li>
+      <li>Inserisci il codice a 6 cifre per verificare la configurazione</li>
+      <li>Da questo momento, ad ogni login ti verra richiesto il codice MFA</li>
+    </ol>
 
-<div class="warning">
-  <div class="warning-title">Importante</div>
-  <p>Conserva la chiave segreta in un luogo sicuro. Se perdi l'accesso all'app di autenticazione, dovrai contattare un amministratore per il reset.</p>
-</div>
+    <div class="warning">
+      <div class="warning-title">Importante</div>
+      <p>Conserva la chiave segreta in un luogo sicuro. Se perdi l'accesso all'app di autenticazione, dovrai contattare
+        un amministratore per il reset.</p>
+    </div>
 
-<!-- SECTION 3: CHAT -->
-<h2 id="chat">3. Chat con l'AI</h2>
+    <!-- SECTION 3: CHAT -->
+    <h2 id="chat">3. Chat con l'AI</h2>
 
-<p>La pagina principale della piattaforma e l'interfaccia di chat, dove puoi conversare con i modelli AI disponibili.</p>
+    <p>La pagina principale della piattaforma e l'interfaccia di chat, dove puoi conversare con i modelli AI
+      disponibili.</p>
 
-<h3>Interfaccia di Chat</h3>
-<p>L'interfaccia e divisa in tre aree principali:</p>
+    <h3>Interfaccia di Chat</h3>
+    <p>L'interfaccia e divisa in tre aree principali:</p>
 
-<div class="card">
-  <div class="card-title">Sidebar (Barra Laterale)</div>
-  <ul>
-    <li><strong>Nuova Chat</strong> - Pulsante "+" per avviare una nuova conversazione</li>
-    <li><strong>Elenco Conversazioni</strong> - Cronologia di tutte le tue chat, ordinate per data di ultimo aggiornamento</li>
-    <li><strong>Ricerca</strong> - Cerca tra le conversazioni per titolo</li>
-    <li><strong>Archivio</strong> - Visualizza/ripristina conversazioni archiviate</li>
-    <li><strong>Gestione</strong> - Archivia o elimina tutte le conversazioni</li>
-    <li><strong>Download VS Code Extension</strong> - Scarica l'estensione per l'editor</li>
-    <li><strong>Guide</strong> - Scarica le guide utente e amministratore</li>
-    <li><strong>Menu Utente</strong> - Nome, email, link a impostazioni e logout</li>
-  </ul>
-</div>
+    <div class="card">
+      <div class="card-title">Sidebar (Barra Laterale)</div>
+      <ul>
+        <li><strong>Nuova Chat</strong> - Pulsante "+" per avviare una nuova conversazione</li>
+        <li><strong>Elenco Conversazioni</strong> - Cronologia di tutte le tue chat, ordinate per data di ultimo
+          aggiornamento</li>
+        <li><strong>Ricerca</strong> - Cerca tra le conversazioni per titolo</li>
+        <li><strong>Archivio</strong> - Visualizza/ripristina conversazioni archiviate</li>
+        <li><strong>Gestione</strong> - Archivia o elimina tutte le conversazioni</li>
+        <li><strong>Download VS Code Extension</strong> - Scarica l'estensione per l'editor</li>
+        <li><strong>Guide</strong> - Scarica le guide utente e amministratore</li>
+        <li><strong>Menu Utente</strong> - Nome, email, link a impostazioni e logout</li>
+      </ul>
+    </div>
 
-<div class="card">
-  <div class="card-title">Area Chat Centrale</div>
-  <ul>
-    <li><strong>Selettore Modello</strong> - Scegli quale modello AI usare (nell'header)</li>
-    <li><strong>Messaggi</strong> - Visualizzazione della conversazione con rendering Markdown, evidenziazione sintassi codice, e formattazione avanzata</li>
-    <li><strong>Campo di Input</strong> - Area testuale per scrivere i messaggi con supporto multilinea</li>
-    <li><strong>Allegati</strong> - Pulsante per allegare file (clip)</li>
-    <li><strong>Invio</strong> - Pulsante di invio del messaggio</li>
-  </ul>
-</div>
+    <div class="card">
+      <div class="card-title">Area Chat Centrale</div>
+      <ul>
+        <li><strong>Selettore Modello</strong> - Scegli quale modello AI usare (nell'header)</li>
+        <li><strong>Messaggi</strong> - Visualizzazione della conversazione con rendering Markdown, evidenziazione
+          sintassi codice, e formattazione avanzata</li>
+        <li><strong>Campo di Input</strong> - Area testuale per scrivere i messaggi con supporto multilinea</li>
+        <li><strong>Allegati</strong> - Pulsante per allegare file (clip)</li>
+        <li><strong>Invio</strong> - Pulsante di invio del messaggio</li>
+      </ul>
+    </div>
 
-<div class="card">
-  <div class="card-title">Pannelli Laterali Destro</div>
-  <ul>
-    <li><strong>Pannello Memoria</strong> - Mostra le osservazioni della memoria personale</li>
-    <li><strong>Memoria Vettoriale</strong> - Mostra i risultati della ricerca semantica (episodica, dichiarativa, procedurale)</li>
-  </ul>
-</div>
+    <div class="card">
+      <div class="card-title">Pannelli Laterali Destro</div>
+      <ul>
+        <li><strong>Pannello Memoria</strong> - Mostra le osservazioni della memoria personale</li>
+        <li><strong>Memoria Vettoriale</strong> - Mostra i risultati della ricerca semantica (episodica, dichiarativa,
+          procedurale)</li>
+      </ul>
+    </div>
 
-<h3>Come Inviare un Messaggio</h3>
-<div class="step">
-  <div class="step-num">1</div>
-  <div class="step-content">Seleziona il <strong>modello AI</strong> desiderato dal menu a tendina nell'header (es: GPT-4o, Claude 3.5 Sonnet, Gemini 2.0 Flash)</div>
-</div>
-<div class="step">
-  <div class="step-num">2</div>
-  <div class="step-content">Scrivi il tuo messaggio nell'area di input in basso</div>
-</div>
-<div class="step">
-  <div class="step-num">3</div>
-  <div class="step-content">(Opzionale) Allega file cliccando sull'icona <strong>graffetta</strong></div>
-</div>
-<div class="step">
-  <div class="step-num">4</div>
-  <div class="step-content">Premi <strong>Invio</strong> o clicca il pulsante di invio</div>
-</div>
-<div class="step">
-  <div class="step-num">5</div>
-  <div class="step-content">La risposta dell'AI appare in <strong>streaming</strong> (in tempo reale, parola per parola)</div>
-</div>
+    <h3>Modalità di Chat</h3>
+    <p>La piattaforma offre due modalità principali di interazione, selezionabili tramite il toggle sopra l'area di
+      input:</p>
 
-<h3>Funzionalita dei Messaggi</h3>
-<p>Ogni messaggio dell'AI supporta diverse funzionalita:</p>
-<ul>
-  <li><strong>Rendering Markdown</strong> - Titoli, elenchi, grassetto, corsivo, tabelle</li>
-  <li><strong>Codice con Syntax Highlighting</strong> - Blocchi di codice colorati per tutti i linguaggi principali</li>
-  <li><strong>Thinking (Ragionamento Esteso)</strong> - Alcuni modelli (Claude) mostrano il processo di ragionamento prima della risposta, espandibile/comprimibile</li>
-  <li><strong>Feedback</strong> - Pulsanti pollice su/giu per valutare la qualita della risposta</li>
-  <li><strong>Etichetta AI</strong> - Ogni risposta e contrassegnata come "Generato dall'AI" per conformita AI Act</li>
-  <li><strong>Avviso Argomenti Sensibili</strong> - Se l'AI rileva temi sensibili (salute, legale, finanza) mostra un avviso di disclaimer</li>
-</ul>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title"><span class="badge badge-primary">Chat Libera</span></div>
+        <p>Modalità standard per conversazioni generiche, assistenza al codice, scrittura e analisi senza vincoli di
+          documenti specifici.</p>
+      </div>
+      <div class="card">
+        <div class="card-title"><span class="badge badge-accent">Chiedi ai Documenti (RAG)</span></div>
+        <p>Modalità ottimizzata per interrogare la tua base di conoscenza. L'AI utilizzerà i documenti caricati e
+          selezionati per fornire risposte precise e documentate.</p>
+      </div>
+    </div>
 
-<h3>Prompt di Sistema</h3>
-<p>Puoi opzionalmente impostare un <strong>system prompt</strong> per guidare il comportamento dell'AI in una conversazione specifica. Questo e utile per:</p>
-<ul>
-  <li>Definire il ruolo dell'AI (es: "Sei un esperto di diritto italiano")</li>
-  <li>Impostare il formato delle risposte (es: "Rispondi sempre in italiano con elenchi puntati")</li>
-  <li>Fornire contesto specifico per un progetto</li>
-</ul>
+    <div class="tip">
+      <div class="tip-title">Isolamento della Chat</div>
+      <p>Per garantire la massima precisione e sicurezza del contesto, il passaggio tra le modalità "Chat Libera" e
+        "Chiedi ai Documenti" comporta la pulizia automatica della finestra di chat corrente.</p>
+    </div>
 
-<!-- SECTION 4: MODELLI -->
-<h2 id="modelli">4. Modelli AI Disponibili</h2>
+    <h3>Come Inviare un Messaggio</h3>
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-content">Seleziona il <strong>modello AI</strong> desiderato dal menu a tendina nell'header (es:
+        GPT-4o, Claude 3.5 Sonnet, Gemini 2.0 Flash)</div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-content">Scrivi il tuo messaggio nell'area di input in basso</div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-content">(Opzionale) Allega file cliccando sull'icona <strong>graffetta</strong></div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-content">Premi <strong>Invio</strong> o clicca il pulsante di invio</div>
+    </div>
+    <div class="step">
+      <div class="step-num">5</div>
+      <div class="step-content">La risposta dell'AI appare in <strong>streaming</strong> (in tempo reale, parola per
+        parola)</div>
+    </div>
 
-<p>La piattaforma supporta molteplici provider e modelli AI. I modelli disponibili dipendono dalla configurazione dell'amministratore.</p>
-
-<table>
-  <thead>
-    <tr><th>Provider</th><th>Modelli Tipici</th><th>Punti di Forza</th></tr>
-  </thead>
-  <tbody>
-    <tr><td><span class="badge badge-success">OpenAI</span></td><td>GPT-4o, GPT-4o-mini, GPT-4 Turbo, o1, o3-mini</td><td>Versatilita, velocita, tool use</td></tr>
-    <tr><td><span class="badge badge-primary">Anthropic</span></td><td>Claude 3.5 Sonnet, Claude 3 Opus, Claude 3 Haiku</td><td>Ragionamento profondo, sicurezza, contesto lungo</td></tr>
-    <tr><td><span class="badge badge-accent">Google</span></td><td>Gemini 2.0 Flash, Gemini 1.5 Pro, Gemini 2.5 Pro</td><td>Multimodale, velocita, costo ridotto</td></tr>
-    <tr><td><span class="badge badge-warning">Ollama</span></td><td>Llama 3, Qwen 2.5, Phi-3, Gemma 2</td><td>Privacy totale (locale), nessun costo API</td></tr>
-  </tbody>
-</table>
-
-<div class="tip">
-  <div class="tip-title">Modello Consigliato</div>
-  <p>La piattaforma mostra un indicatore di carico in tempo reale. I modelli con carico basso (verde) offrono tempi di risposta piu rapidi. Il sistema suggerisce automaticamente il modello piu adatto in base all'utilizzo corrente.</p>
-</div>
-
-<h3>Cambio Modello durante la Chat</h3>
-<p>Puoi cambiare modello AI in qualsiasi momento durante una conversazione. Il modello selezionato verra utilizzato per il prossimo messaggio, mantenendo il contesto della conversazione.</p>
-
-<!-- SECTION 5: ALLEGATI -->
-<h2 id="allegati">5. Allegati e Documenti</h2>
-
-<p>Puoi allegare file ai tuoi messaggi per farli analizzare dall'AI.</p>
-
-<h3>Formati Supportati</h3>
-<table>
-  <thead>
-    <tr><th>Categoria</th><th>Formati</th><th>Elaborazione</th></tr>
-  </thead>
-  <tbody>
-    <tr><td>Documenti</td><td>PDF, DOCX, TXT, RTF</td><td>Estrazione testo, OCR per scansioni</td></tr>
-    <tr><td>Fogli di Calcolo</td><td>XLSX, CSV</td><td>Parsing tabelle e dati strutturati</td></tr>
-    <tr><td>Presentazioni</td><td>PPTX</td><td>Estrazione testo slide</td></tr>
-    <tr><td>Immagini</td><td>PNG, JPG, GIF, WebP</td><td>OCR (Tesseract), analisi visiva</td></tr>
-    <tr><td>Codice</td><td>JS, TS, Python, Java, HTML, CSS, JSON</td><td>Analisi e comprensione diretta</td></tr>
-  </tbody>
-</table>
-
-<h3>Come Allegare File</h3>
-<ol>
-  <li>Clicca sull'icona <strong>graffetta</strong> accanto al campo di input</li>
-  <li>Seleziona uno o piu file dal tuo computer</li>
-  <li>I file vengono caricati e processati automaticamente (vedrai un indicatore di stato)</li>
-  <li>Una volta pronti, scrivi il tuo messaggio e invia</li>
-  <li>L'AI avra accesso al contenuto dei documenti allegati</li>
-</ol>
-
-<div class="tip">
-  <div class="tip-title">Suggerimento</div>
-  <p>Per documenti scansionati, il sistema utilizza OCR (Tesseract) per estrarre il testo. La qualita dell'estrazione dipende dalla qualita della scansione. I documenti vengono automaticamente indicizzati nella memoria vettoriale per ricerche semantiche future.</p>
-</div>
-
-<!-- SECTION 6: CONVERSAZIONI -->
-<h2 id="conversazioni">6. Gestione Conversazioni</h2>
-
-<h3>Operazioni Disponibili</h3>
-<ul>
-  <li><strong>Nuova Conversazione</strong> - Clicca "+" nella sidebar per iniziare una nuova chat</li>
-  <li><strong>Cambiare Conversazione</strong> - Clicca su qualsiasi conversazione nella sidebar per riaprirla</li>
-  <li><strong>Archiviare</strong> - Sposta una conversazione nell'archivio (click destro o menu)</li>
-  <li><strong>Ripristinare</strong> - Nella vista archivio, ripristina conversazioni archiviate</li>
-  <li><strong>Eliminare</strong> - Elimina definitivamente una conversazione</li>
-  <li><strong>Operazioni di Massa</strong> - "Archivia Tutti" o "Elimina Tutti" dalla sezione Gestione</li>
-  <li><strong>Annulla Ultimo Messaggio</strong> - Rimuovi l'ultimo messaggio inviato e la risposta</li>
-</ul>
-
-<h3>Ricerca Conversazioni</h3>
-<p>Usa il campo di ricerca nella sidebar per filtrare le conversazioni per titolo. Le conversazioni vengono caricate in modo paginato (scroll infinito) per ottimizzare le prestazioni.</p>
-
-<!-- SECTION 7: EXPORT -->
-<h2 id="export">7. Esportazione Documenti</h2>
-
-<p>Puoi esportare le conversazioni e generare documenti professionali in diversi formati.</p>
-
-<h3>Formati di Esportazione</h3>
-<div class="grid-2">
-  <div class="card">
-    <div class="card-title">Word (DOCX)</div>
-    <p>Documento formattato con intestazioni, paragrafi e stili professionali. Include nota di conformita AI Act.</p>
-  </div>
-  <div class="card">
-    <div class="card-title">Excel (XLSX)</div>
-    <p>Dati strutturati in formato tabellare. Ideale per esportare conversazioni con dati numerici.</p>
-  </div>
-  <div class="card">
-    <div class="card-title">PowerPoint (PPTX)</div>
-    <p>Presentazione con slide generate dal contenuto della chat. Utile per report e meeting.</p>
-  </div>
-  <div class="card">
-    <div class="card-title">PDF</div>
-    <p>Conversione automatica dei formati Office in PDF tramite LibreOffice. Formato universale per condivisione.</p>
-  </div>
-</div>
-
-<h3>Come Esportare</h3>
-<ol>
-  <li>Apri la conversazione che vuoi esportare</li>
-  <li>Clicca il pulsante <strong>Download</strong> (icona freccia giu) nel messaggio dell'AI</li>
-  <li>Seleziona il formato desiderato</li>
-  <li>Il file viene generato dal server e scaricato automaticamente</li>
-</ol>
-
-<div class="tip">
-  <div class="tip-title">Conformita AI Act</div>
-  <p>Tutti i documenti generati includono automaticamente una nota in calce che indica che il contenuto e stato generato con l'assistenza dell'intelligenza artificiale, come richiesto dall'Articolo 50 del Regolamento Europeo sull'AI (AI Act).</p>
-</div>
-
-<!-- SECTION 8: MEMORIA -->
-<h2 id="memoria">8. Sistema di Memoria</h2>
-
-<p>Il sistema di memoria consente all'AI di ricordare informazioni tra le sessioni, personalizzando le risposte in base alla tua esperienza.</p>
-
-<h3>Tipi di Memoria</h3>
-<table>
-  <thead>
-    <tr><th>Tipo</th><th>Descrizione</th><th>Esempio</th></tr>
-  </thead>
-  <tbody>
-    <tr><td><span class="badge badge-primary">Insight</span></td><td>Intuizioni e scoperte</td><td>"L'utente preferisce Python per data science"</td></tr>
-    <tr><td><span class="badge badge-accent">Decisione</span></td><td>Decisioni prese</td><td>"Si e scelto di usare PostgreSQL come database"</td></tr>
-    <tr><td><span class="badge badge-success">Pattern</span></td><td>Schemi ricorrenti</td><td>"L'utente chiede spesso informazioni su REST API"</td></tr>
-    <tr><td><span class="badge badge-warning">Preferenza</span></td><td>Preferenze personali</td><td>"L'utente preferisce risposte concise in italiano"</td></tr>
-    <tr><td><span class="badge badge-primary">Fatto</span></td><td>Informazioni fattuali</td><td>"L'azienda usa Kubernetes su AWS"</td></tr>
-    <tr><td><span class="badge badge-accent">Errore</span></td><td>Errori da evitare</td><td>"Non usare commonLabels in kustomization.yaml"</td></tr>
-    <tr><td><span class="badge badge-success">Manuale</span></td><td>Note manuali dell'utente</td><td>Qualsiasi informazione inserita manualmente</td></tr>
-  </tbody>
-</table>
-
-<h3>Memoria Vettoriale (RAG)</h3>
-<p>Oltre alla memoria testuale, il sistema usa un motore di ricerca semantica vettoriale con tre collezioni:</p>
-<ul>
-  <li><strong>Episodica</strong> - Ricordi di conversazioni passate e interazioni</li>
-  <li><strong>Dichiarativa</strong> - Conoscenze e fatti appresi</li>
-  <li><strong>Procedurale</strong> - Procedure e metodi da seguire</li>
-</ul>
-<p>Queste memorie vengono automaticamente iniettate nel contesto delle nuove conversazioni, consentendo all'AI di richiamare informazioni rilevanti senza doverle riscrivere.</p>
-
-<h3>Working Memory (Memoria di Lavoro)</h3>
-<p>Ogni conversazione ha una "memoria di lavoro" temporanea che tiene traccia del contesto della sessione corrente, ottimizzando i token utilizzati.</p>
-
-<h3>Gestione Memoria</h3>
-<p>Nelle impostazioni della memoria puoi:</p>
-<ul>
-  <li>Abilitare/disabilitare la cattura automatica</li>
-  <li>Attivare/disattivare l'iniezione nel contesto</li>
-  <li>Impostare il numero massimo di osservazioni</li>
-  <li>Definire la soglia di importanza minima</li>
-  <li>Configurare i giorni di ritenzione</li>
-</ul>
-
-<!-- SECTION 9: PROGETTI -->
-<h2 id="progetti">9. Progetti e Kanban</h2>
-
-<p>La piattaforma include un sistema completo di gestione progetti con bacheche Kanban.</p>
-
-<h3>Creare un Progetto</h3>
-<div class="step">
-  <div class="step-num">1</div>
-  <div class="step-content">Vai alla pagina <strong>Progetti</strong> dal menu di navigazione</div>
-</div>
-<div class="step">
-  <div class="step-num">2</div>
-  <div class="step-content">Clicca su <strong>"Nuovo Progetto"</strong></div>
-</div>
-<div class="step">
-  <div class="step-num">3</div>
-  <div class="step-content">Inserisci nome, descrizione e colore del progetto</div>
-</div>
-<div class="step">
-  <div class="step-num">4</div>
-  <div class="step-content">Il progetto viene creato con una bacheca Kanban predefinita</div>
-</div>
-
-<h3>Bacheca Kanban</h3>
-<p>Ogni progetto ha una o piu bacheche Kanban con colonne personalizzabili:</p>
-<ul>
-  <li><strong>Colonne Standard</strong> - Backlog, Da Fare, In Corso, Revisione, Completato</li>
-  <li><strong>Colonne Personalizzate</strong> - Aggiungi, rinomina o elimina colonne</li>
-  <li><strong>Limiti WIP</strong> - Imposta limiti massimi di card per colonna</li>
-</ul>
-
-<h3>Gestione Card (Task)</h3>
-<p>Le card rappresentano i task da completare:</p>
-<ul>
-  <li><strong>Titolo e Descrizione</strong> - Descrivi il task in dettaglio</li>
-  <li><strong>Priorita</strong> - Bassa, Media, Alta, Urgente (con colori distinti)</li>
-  <li><strong>Scadenza</strong> - Imposta una data di scadenza</li>
-  <li><strong>Assegnazione</strong> - Assegna il task a un membro del progetto</li>
-  <li><strong>Etichette</strong> - Aggiungi tag colorati per categorizzare</li>
-  <li><strong>Drag &amp; Drop</strong> - Sposta le card tra le colonne trascinandole</li>
-  <li><strong>Registro Attivita</strong> - Ogni modifica viene tracciata automaticamente</li>
-</ul>
-
-<h3>Condivisione Progetti</h3>
-<p>Puoi condividere i tuoi progetti con altri utenti della piattaforma, permettendo la collaborazione sui task.</p>
-
-<!-- SECTION 10: AGENTI -->
-<h2 id="agenti">10. Agenti AI Autonomi (Auto-Claude)</h2>
-
-<p>Il sistema di agenti autonomi permette di delegare compiti complessi all'AI, che li eseguira in autonomia utilizzando tool, terminali e accesso al codice.</p>
-
-<h3>Accesso</h3>
-<p>Vai alla pagina <strong>Auto-Claude</strong> dal menu di navigazione per accedere al dashboard degli agenti.</p>
-
-<h3>Dashboard Orchestratore</h3>
-<p>Il dashboard mostra:</p>
-<ul>
-  <li><strong>Slot Terminali</strong> - 12 slot disponibili per esecuzioni parallele</li>
-  <li><strong>Sessioni Attive</strong> - Numero di agenti in esecuzione</li>
-  <li><strong>Tasso di Successo</strong> - Percentuale di completamento con successo</li>
-  <li><strong>Durata Media</strong> - Tempo medio di esecuzione</li>
-</ul>
-
-<h3>Creare una Sessione Agente</h3>
-<div class="step">
-  <div class="step-num">1</div>
-  <div class="step-content">Clicca <strong>"Nuova Sessione"</strong></div>
-</div>
-<div class="step">
-  <div class="step-num">2</div>
-  <div class="step-content">Configura la sessione:
+    <h3>Funzionalita dei Messaggi</h3>
+    <p>Ogni messaggio dell'AI supporta diverse funzionalita:</p>
     <ul>
-      <li><strong>Nome</strong> - Nome descrittivo per la sessione</li>
-      <li><strong>Task</strong> - Descrizione del compito da svolgere</li>
-      <li><strong>Modello</strong> - Modello AI da utilizzare</li>
-      <li><strong>Template</strong> - (Opzionale) Scegli un template predefinito</li>
-      <li><strong>Iterazioni Massime</strong> - Limite di cicli</li>
-      <li><strong>Timeout</strong> - Tempo massimo in secondi</li>
-      <li><strong>Auto-commit</strong> - Commit automatico delle modifiche al codice</li>
-      <li><strong>Esegui Test</strong> - Esecuzione automatica dei test</li>
-      <li><strong>Crea Worktree</strong> - Isola le modifiche in un branch separato</li>
+      <li><strong>Rendering Markdown</strong> - Titoli, elenchi, grassetto, corsivo, tabelle</li>
+      <li><strong>Codice con Syntax Highlighting</strong> - Blocchi di codice colorati per tutti i linguaggi principali
+      </li>
+      <li><strong>Thinking (Ragionamento Esteso)</strong> - Alcuni modelli (Claude) mostrano il processo di ragionamento
+        prima della risposta, espandibile/comprimibile</li>
+      <li><strong>Feedback</strong> - Pulsanti pollice su/giu per valutare la qualita della risposta</li>
+      <li><strong>Etichetta AI</strong> - Ogni risposta e contrassegnata come "Generato dall'AI" per conformita AI Act
+      </li>
+      <li><strong>Avviso Argomenti Sensibili</strong> - Se l'AI rileva temi sensibili (salute, legale, finanza) mostra
+        un avviso di disclaimer</li>
     </ul>
+
+    <h3>Prompt di Sistema</h3>
+    <p>Puoi opzionalmente impostare un <strong>system prompt</strong> per guidare il comportamento dell'AI in una
+      conversazione specifica. Questo e utile per:</p>
+    <ul>
+      <li>Definire il ruolo dell'AI (es: "Sei un esperto di diritto italiano")</li>
+      <li>Impostare il formato delle risposte (es: "Rispondi sempre in italiano con elenchi puntati")</li>
+      <li>Fornire contesto specifico per un progetto</li>
+    </ul>
+
+    <!-- SECTION 4: MODELLI -->
+    <h2 id="modelli">4. Modelli AI Disponibili</h2>
+
+    <p>La piattaforma supporta molteplici provider e modelli AI. I modelli disponibili dipendono dalla configurazione
+      dell'amministratore.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Provider</th>
+          <th>Modelli Tipici</th>
+          <th>Punti di Forza</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="badge badge-success">OpenAI</span></td>
+          <td>GPT-4o, GPT-4o-mini, GPT-4 Turbo, o1, o3-mini</td>
+          <td>Versatilita, velocita, tool use</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-primary">Anthropic</span></td>
+          <td>Claude 3.5 Sonnet, Claude 3 Opus, Claude 3 Haiku</td>
+          <td>Ragionamento profondo, sicurezza, contesto lungo</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-accent">Google</span></td>
+          <td>Gemini 2.0 Flash, Gemini 1.5 Pro, Gemini 2.5 Pro</td>
+          <td>Multimodale, velocita, costo ridotto</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-warning">Ollama</span></td>
+          <td>Llama 3, Qwen 2.5, Phi-3, Gemma 2</td>
+          <td>Privacy totale (locale), nessun costo API</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="tip">
+      <div class="tip-title">Modello Consigliato</div>
+      <p>La piattaforma mostra un indicatore di carico in tempo reale. I modelli con carico basso (verde) offrono tempi
+        di risposta piu rapidi. Il sistema suggerisce automaticamente il modello piu adatto in base all'utilizzo
+        corrente.</p>
+    </div>
+
+    <h3>Cambio Modello durante la Chat</h3>
+    <p>Puoi cambiare modello AI in qualsiasi momento durante una conversazione. Il modello selezionato verra utilizzato
+      per il prossimo messaggio, mantenendo il contesto della conversazione.</p>
+
+    <!-- SECTION 5: ALLEGATI -->
+    <h2 id="allegati">5. Allegati e Documenti</h2>
+
+    <p>Puoi allegare file ai tuoi messaggi per farli analizzare dall'AI.</p>
+
+    <h3>Formati Supportati</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Categoria</th>
+          <th>Formati</th>
+          <th>Elaborazione</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Documenti</td>
+          <td>PDF, DOCX, TXT, RTF</td>
+          <td>Estrazione testo, OCR per scansioni</td>
+        </tr>
+        <tr>
+          <td>Fogli di Calcolo</td>
+          <td>XLSX, CSV</td>
+          <td>Parsing tabelle e dati strutturati</td>
+        </tr>
+        <tr>
+          <td>Presentazioni</td>
+          <td>PPTX</td>
+          <td>Estrazione testo slide</td>
+        </tr>
+        <tr>
+          <td>Immagini</td>
+          <td>PNG, JPG, GIF, WebP</td>
+          <td>OCR (Tesseract), analisi visiva</td>
+        </tr>
+        <tr>
+          <td>Codice</td>
+          <td>JS, TS, Python, Java, HTML, CSS, JSON</td>
+          <td>Analisi e comprensione diretta</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Come Allegare File</h3>
+    <ol>
+      <li>Clicca sull'icona <strong>graffetta</strong> accanto al campo di input</li>
+      <li>Seleziona uno o piu file dal tuo computer</li>
+      <li>I file vengono caricati e processati automaticamente (vedrai un indicatore di stato)</li>
+      <li>Una volta pronti, scrivi il tuo messaggio e invia</li>
+      <li>L'AI avra accesso al contenuto dei documenti allegati</li>
+    </ol>
+
+    <div class="tip">
+      <div class="tip-title">Suggerimento</div>
+      <p>Per documenti scansionati, il sistema utilizza OCR (Tesseract) per estrarre il testo. La qualita
+        dell'estrazione dipende dalla qualita della scansione. I documenti vengono automaticamente indicizzati nella
+        memoria vettoriale per ricerche semantiche future.</p>
+    </div>
+
+    <!-- SECTION 6: CONVERSAZIONI -->
+    <h2 id="conversazioni">6. Gestione Conversazioni</h2>
+
+    <h3>Operazioni Disponibili</h3>
+    <ul>
+      <li><strong>Nuova Conversazione</strong> - Clicca "+" nella sidebar per iniziare una nuova chat. Questa azione
+        pulisce l'interfaccia corrente permettendo di iniziare da zero, mentre la cronologia rimane accessibile nella
+        sidebar.</li>
+      <li><strong>Cambiare Conversazione</strong> - Clicca su qualsiasi conversazione nella sidebar per riaprirla</li>
+      <li><strong>Archiviare</strong> - Sposta una conversazione nell'archivio (click destro o menu)</li>
+      <li><strong>Ripristinare</strong> - Nella vista archivio, ripristina conversazioni archiviate</li>
+      <li><strong>Eliminare</strong> - Elimina definitivamente una conversazione</li>
+      <li><strong>Operazioni di Massa</strong> - "Archivia Tutti" o "Elimina Tutti" dalla sezione Gestione</li>
+      <li><strong>Annulla Ultimo Messaggio</strong> - Rimuovi l'ultimo messaggio inviato e la risposta</li>
+    </ul>
+
+    <h3>Ricerca Conversazioni</h3>
+    <p>Usa il campo di ricerca nella sidebar per filtrare le conversazioni per titolo. Le conversazioni vengono caricate
+      in modo paginato (scroll infinito) per ottimizzare le prestazioni.</p>
+
+    <!-- SECTION 7: EXPORT -->
+    <h2 id="export">7. Esportazione Documenti</h2>
+
+    <p>Puoi esportare le conversazioni e generare documenti professionali in diversi formati.</p>
+
+    <h3>Formati di Esportazione</h3>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Word (DOCX)</div>
+        <p>Documento formattato con intestazioni, paragrafi e stili professionali. Include nota di conformita AI Act.
+        </p>
+      </div>
+      <div class="card">
+        <div class="card-title">Excel (XLSX)</div>
+        <p>Dati strutturati in formato tabellare. Ideale per esportare conversazioni con dati numerici.</p>
+      </div>
+      <div class="card">
+        <div class="card-title">PowerPoint (PPTX)</div>
+        <p>Presentazione con slide generate dal contenuto della chat. Utile per report e meeting.</p>
+      </div>
+      <div class="card">
+        <div class="card-title">PDF</div>
+        <p>Conversione automatica dei formati Office in PDF tramite LibreOffice. Formato universale per condivisione.
+        </p>
+      </div>
+    </div>
+
+    <h3>Come Esportare</h3>
+    <ol>
+      <li>Apri la conversazione che vuoi esportare</li>
+      <li>Clicca il pulsante <strong>Download</strong> (icona freccia giu) nel messaggio dell'AI</li>
+      <li>Seleziona il formato desiderato</li>
+      <li>Il file viene generato dal server e scaricato automaticamente</li>
+    </ol>
+
+    <div class="tip">
+      <div class="tip-title">Conformita AI Act</div>
+      <p>Tutti i documenti generati includono automaticamente una nota in calce che indica che il contenuto e stato
+        generato con l'assistenza dell'intelligenza artificiale, come richiesto dall'Articolo 50 del Regolamento Europeo
+        sull'AI (AI Act).</p>
+    </div>
+
+    <!-- SECTION 8: MEMORIA -->
+    <h2 id="memoria">8. Sistema di Memoria</h2>
+
+    <p>Il sistema di memoria consente all'AI di ricordare informazioni tra le sessioni, personalizzando le risposte in
+      base alla tua esperienza.</p>
+
+    <h3>Tipi di Memoria</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Tipo</th>
+          <th>Descrizione</th>
+          <th>Esempio</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="badge badge-primary">Insight</span></td>
+          <td>Intuizioni e scoperte</td>
+          <td>"L'utente preferisce Python per data science"</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-accent">Decisione</span></td>
+          <td>Decisioni prese</td>
+          <td>"Si e scelto di usare PostgreSQL come database"</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-success">Pattern</span></td>
+          <td>Schemi ricorrenti</td>
+          <td>"L'utente chiede spesso informazioni su REST API"</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-warning">Preferenza</span></td>
+          <td>Preferenze personali</td>
+          <td>"L'utente preferisce risposte concise in italiano"</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-primary">Fatto</span></td>
+          <td>Informazioni fattuali</td>
+          <td>"L'azienda usa Kubernetes su AWS"</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-accent">Errore</span></td>
+          <td>Errori da evitare</td>
+          <td>"Non usare commonLabels in kustomization.yaml"</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-success">Manuale</span></td>
+          <td>Note manuali dell'utente</td>
+          <td>Qualsiasi informazione inserita manualmente</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Memoria Vettoriale (RAG)</h3>
+    <p>Oltre alla memoria testuale, il sistema usa un motore di ricerca semantica vettoriale con tre collezioni:</p>
+    <ul>
+      <li><strong>Episodica</strong> - Ricordi di conversazioni passate e interazioni</li>
+      <li><strong>Dichiarativa</strong> - Conoscenze e fatti appresi</li>
+      <li><strong>Procedurale</strong> - Procedure e metodi da seguire</li>
+    </ul>
+    <p>Queste memorie vengono automaticamente iniettate nel contesto delle nuove conversazioni, consentendo all'AI di
+      richiamare informazioni rilevanti senza doverle riscrivere.</p>
+
+    <h3>Working Memory (Memoria di Lavoro)</h3>
+    <p>Ogni conversazione ha una "memoria di lavoro" temporanea che tiene traccia del contesto della sessione corrente,
+      ottimizzando i token utilizzati.</p>
+
+    <h3>Gestione Memoria</h3>
+    <p>Nelle impostazioni della memoria puoi:</p>
+    <ul>
+      <li>Abilitare/disabilitare la cattura automatica</li>
+      <li>Attivare/disattivare l'iniezione nel contesto</li>
+      <li>Impostare il numero massimo di osservazioni</li>
+      <li>Definire la soglia di importanza minima</li>
+      <li>Configurare i giorni di ritenzione</li>
+    </ul>
+
+    <!-- SECTION 9: PROGETTI -->
+    <h2 id="progetti">9. Progetti e Kanban</h2>
+
+    <p>La piattaforma include un sistema completo di gestione progetti con bacheche Kanban.</p>
+
+    <h3>Creare un Progetto</h3>
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-content">Vai alla pagina <strong>Progetti</strong> dal menu di navigazione</div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-content">Clicca su <strong>"Nuovo Progetto"</strong></div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-content">Inserisci nome, descrizione e colore del progetto</div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-content">Il progetto viene creato con una bacheca Kanban predefinita</div>
+    </div>
+
+    <h3>Bacheca Kanban</h3>
+    <p>Ogni progetto ha una o piu bacheche Kanban con colonne personalizzabili:</p>
+    <ul>
+      <li><strong>Colonne Standard</strong> - Backlog, Da Fare, In Corso, Revisione, Completato</li>
+      <li><strong>Colonne Personalizzate</strong> - Aggiungi, rinomina o elimina colonne</li>
+      <li><strong>Limiti WIP</strong> - Imposta limiti massimi di card per colonna</li>
+    </ul>
+
+    <h3>Gestione Card (Task)</h3>
+    <p>Le card rappresentano i task da completare:</p>
+    <ul>
+      <li><strong>Titolo e Descrizione</strong> - Descrivi il task in dettaglio</li>
+      <li><strong>Priorita</strong> - Bassa, Media, Alta, Urgente (con colori distinti)</li>
+      <li><strong>Scadenza</strong> - Imposta una data di scadenza</li>
+      <li><strong>Assegnazione</strong> - Assegna il task a un membro del progetto</li>
+      <li><strong>Etichette</strong> - Aggiungi tag colorati per categorizzare</li>
+      <li><strong>Drag &amp; Drop</strong> - Sposta le card tra le colonne trascinandole</li>
+      <li><strong>Registro Attivita</strong> - Ogni modifica viene tracciata automaticamente</li>
+    </ul>
+
+    <h3>Condivisione Progetti</h3>
+    <p>Puoi condividere i tuoi progetti con altri utenti della piattaforma, permettendo la collaborazione sui task.</p>
+
+    <!-- SECTION 10: AGENTI -->
+    <h2 id="agenti">10. Agenti AI Autonomi (Auto-Claude)</h2>
+
+    <p>Il sistema di agenti autonomi permette di delegare compiti complessi all'AI, che li eseguira in autonomia
+      utilizzando tool, terminali e accesso al codice.</p>
+
+    <h3>Accesso</h3>
+    <p>Vai alla pagina <strong>Auto-Claude</strong> dal menu di navigazione per accedere al dashboard degli agenti.</p>
+
+    <h3>Dashboard Orchestratore</h3>
+    <p>Il dashboard mostra:</p>
+    <ul>
+      <li><strong>Slot Terminali</strong> - 12 slot disponibili per esecuzioni parallele</li>
+      <li><strong>Sessioni Attive</strong> - Numero di agenti in esecuzione</li>
+      <li><strong>Tasso di Successo</strong> - Percentuale di completamento con successo</li>
+      <li><strong>Durata Media</strong> - Tempo medio di esecuzione</li>
+    </ul>
+
+    <h3>Creare una Sessione Agente</h3>
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-content">Clicca <strong>"Nuova Sessione"</strong></div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-content">Configura la sessione:
+        <ul>
+          <li><strong>Nome</strong> - Nome descrittivo per la sessione</li>
+          <li><strong>Task</strong> - Descrizione del compito da svolgere</li>
+          <li><strong>Modello</strong> - Modello AI da utilizzare</li>
+          <li><strong>Template</strong> - (Opzionale) Scegli un template predefinito</li>
+          <li><strong>Iterazioni Massime</strong> - Limite di cicli</li>
+          <li><strong>Timeout</strong> - Tempo massimo in secondi</li>
+          <li><strong>Auto-commit</strong> - Commit automatico delle modifiche al codice</li>
+          <li><strong>Esegui Test</strong> - Esecuzione automatica dei test</li>
+          <li><strong>Crea Worktree</strong> - Isola le modifiche in un branch separato</li>
+        </ul>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-content">Clicca <strong>"Avvia"</strong> per iniziare l'esecuzione</div>
+    </div>
+
+    <h3>Monitoraggio</h3>
+    <ul>
+      <li><strong>Log in Tempo Reale</strong> - Visualizza i log dell'agente colorati per tipo (info, warning, errore)
+      </li>
+      <li><strong>Stato</strong> - Pending, Initializing, Running, Paused, Completed, Failed, Cancelled</li>
+      <li><strong>Pausa/Ripresa</strong> - Metti in pausa e riprendi l'esecuzione</li>
+      <li><strong>Cancellazione</strong> - Annulla l'esecuzione in corso</li>
+    </ul>
+
+    <h3>Template Agente</h3>
+    <p>I template predefiniti accelerano la creazione di sessioni per scenari comuni:</p>
+    <ul>
+      <li><span class="badge badge-primary">Development</span> Sviluppo di nuove funzionalita</li>
+      <li><span class="badge badge-accent">Testing</span> Scrittura e esecuzione test</li>
+      <li><span class="badge badge-success">Documentation</span> Generazione documentazione</li>
+      <li><span class="badge badge-warning">Research</span> Ricerca e analisi</li>
+      <li><span class="badge badge-primary">Automation</span> Automazione di processi</li>
+    </ul>
+
+    <!-- SECTION 11: PARLANT -->
+    <h2 id="parlant">11. Parlant - Framework Agenti</h2>
+
+    <p>Parlant e un framework Python per la creazione di agenti AI con comportamento guidato da linee guida.</p>
+
+    <h3>Concetti Chiave</h3>
+    <ul>
+      <li><strong>Agenti</strong> - Entita AI con personalita e competenze definite</li>
+      <li><strong>Guidelines (Linee Guida)</strong> - Regole condizione-azione che governano il comportamento (es:
+        "Quando l'utente chiede di X, allora rispondi con Y")</li>
+      <li><strong>Sessioni</strong> - Contesti di conversazione con l'agente</li>
+      <li><strong>Tool</strong> - Strumenti API che l'agente puo utilizzare</li>
+    </ul>
+
+    <h3>Come Funziona</h3>
+    <ol>
+      <li>Crea un agente con nome e descrizione</li>
+      <li>Definisci le linee guida come coppie condizione/azione</li>
+      <li>Avvia una sessione di conversazione</li>
+      <li>L'agente applica automaticamente le linee guida pertinenti</li>
+    </ol>
+
+    <!-- SECTION 12: SCHEDULER -->
+    <h2 id="scheduler">12. Programmazione Attivita</h2>
+
+    <p>Lo scheduler (White Rabbit Scheduler) permette di programmare azioni automatiche.</p>
+
+    <h3>Tipi di Job</h3>
+    <ul>
+      <li><strong>One Shot</strong> - Esecuzione singola in un momento specifico</li>
+      <li><strong>Intervallo</strong> - Ripetizione a intervalli regolari</li>
+      <li><strong>Cron</strong> - Pianificazione avanzata con espressioni cron</li>
+    </ul>
+
+    <h3>Azioni Disponibili</h3>
+    <ul>
+      <li><strong>Messaggio Programmato</strong> - Invia un messaggio all'AI a un orario stabilito</li>
+      <li><strong>Webhook</strong> - Chiama un URL esterno</li>
+      <li><strong>Hook</strong> - Esegui un hook del sistema</li>
+      <li><strong>Plugin Action</strong> - Esegui un'azione di un plugin</li>
+    </ul>
+
+    <!-- SECTION 13: IMPOSTAZIONI -->
+    <h2 id="impostazioni">13. Impostazioni e Sicurezza</h2>
+
+    <h3>Profilo Utente</h3>
+    <p>La pagina impostazioni mostra il tuo profilo con avatar, nome, email e ruolo.</p>
+
+    <h3>Sicurezza Account</h3>
+    <ul>
+      <li><strong>MFA</strong> - Configura o disabilita l'autenticazione a due fattori</li>
+      <li><strong>Sessione Singola</strong> - Un solo dispositivo attivo alla volta</li>
+      <li><strong>Password</strong> - Hash bcrypt (il cambio password potrebbe essere gestito dall'admin)</li>
+    </ul>
+
+    <h3>Dati Personali (GDPR)</h3>
+    <ul>
+      <li><strong>Esportazione Dati</strong> - Richiedi una copia di tutti i tuoi dati (GDPR Art. 20)</li>
+      <li><strong>Eliminazione Account</strong> - Richiedi la cancellazione completa del tuo account e di tutti i dati
+        associati</li>
+    </ul>
+
+    <div class="warning">
+      <div class="warning-title">Eliminazione Account</div>
+      <p>La richiesta di eliminazione richiede una conferma via codice email. Una volta confermata, tutti i tuoi dati
+        (conversazioni, memorie, progetti, documenti) verranno eliminati permanentemente.</p>
+    </div>
+
+    <!-- SECTION 14: COMPLIANCE -->
+    <h2 id="compliance">14. Trasparenza e Conformita AI Act</h2>
+
+    <p>La piattaforma e progettata per la conformita al <strong>Regolamento Europeo sull'Intelligenza Artificiale (AI
+        Act)</strong>.</p>
+
+    <h3>Diritti dell'Utente</h3>
+    <ul>
+      <li><strong>Disclosure (Art. 50)</strong> - Sei sempre informato che stai interagendo con un sistema AI</li>
+      <li><strong>Feedback</strong> - Puoi valutare ogni risposta dell'AI per segnalare imprecisioni o bias</li>
+      <li><strong>Trasparenza Modelli</strong> - Accedi alla pagina Trasparenza per vedere documentazione su ogni
+        modello AI utilizzato</li>
+      <li><strong>Diritto alla Spiegazione</strong> - Le decisioni AI vengono registrate con modello, provider, token e
+        latenza</li>
+      <li><strong>Portabilita Dati</strong> - Esporta tutti i tuoi dati in formato standard</li>
+      <li><strong>Diritto all'Oblio</strong> - Richiedi l'eliminazione completa dei tuoi dati</li>
+    </ul>
+
+    <h3>Banner e Avvisi</h3>
+    <ul>
+      <li><strong>Banner AI Disclosure</strong> - Presente su ogni pagina della chat</li>
+      <li><strong>Etichetta "Generato dall'AI"</strong> - Su ogni messaggio dell'assistente</li>
+      <li><strong>Avviso Argomenti Sensibili</strong> - Quando l'AI tratta temi delicati</li>
+      <li><strong>Nota Conformita nei Documenti</strong> - In calce a ogni documento generato</li>
+    </ul>
+
+    <!-- SECTION 15: ESTENSIONE -->
+    <h2 id="estensione">15. Estensione VS Code</h2>
+
+    <p>La piattaforma include un'estensione companion per Visual Studio Code che integra le funzionalita AI direttamente
+      nell'editor.</p>
+
+    <h3>Funzionalita</h3>
+    <ul>
+      <li><strong>Chat nell'Editor</strong> - Apri una finestra di chat AI direttamente in VS Code</li>
+      <li><strong>Spiegazione Codice</strong> - Seleziona codice e chiedi all'AI di spiegarlo</li>
+      <li><strong>Fix Codice</strong> - L'AI suggerisce correzioni per errori</li>
+      <li><strong>Miglioramento Codice</strong> - Ottimizzazione e refactoring suggeriti dall'AI</li>
+      <li><strong>Sessioni Agente</strong> - Avvia agenti autonomi direttamente dall'editor</li>
+      <li><strong>Inline Edit</strong> - Modifica codice inline con suggerimenti AI</li>
+      <li><strong>30+ Comandi</strong> - Comandi accessibili dalla palette comandi di VS Code</li>
+    </ul>
+
+    <h3>Installazione</h3>
+    <ol>
+      <li>Scarica il file <code>.vsix</code> dalla sidebar della chat (pulsante "VS Code Extension")</li>
+      <li>In VS Code, apri il menu Estensioni</li>
+      <li>Clicca "..." &gt; "Installa da VSIX..."</li>
+      <li>Seleziona il file scaricato</li>
+      <li>Configura l'URL del server nelle impostazioni dell'estensione</li>
+    </ol>
+
+    <!-- SECTION 16: SHORTCUTS -->
+    <h2 id="shortcuts">16. Scorciatoie e Suggerimenti</h2>
+
+    <div class="card">
+      <div class="card-title">Scorciatoie Utili</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Azione</th>
+            <th>Come</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Invia messaggio</td>
+            <td>Premi <code>Invio</code></td>
+          </tr>
+          <tr>
+            <td>Nuova riga nel messaggio</td>
+            <td><code>Shift + Invio</code></td>
+          </tr>
+          <tr>
+            <td>Nuova conversazione</td>
+            <td>Clicca "+" nella sidebar</td>
+          </tr>
+          <tr>
+            <td>Allega file</td>
+            <td>Clicca icona graffetta o trascina file</td>
+          </tr>
+          <tr>
+            <td>Cambia modello</td>
+            <td>Menu a tendina nell'header</td>
+          </tr>
+          <tr>
+            <td>Chiudi sidebar</td>
+            <td>Clicca icona X nell'header</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Suggerimenti per Risultati Migliori</div>
+      <ul>
+        <li><strong>Sii specifico</strong> - Piu dettagli fornisci, migliore sara la risposta</li>
+        <li><strong>Usa il system prompt</strong> - Definisci il ruolo dell'AI per risposte piu mirate</li>
+        <li><strong>Allega contesto</strong> - Se hai documenti di riferimento, allegali alla chat</li>
+        <li><strong>Feedback</strong> - Usa i pulsanti pollice su/giu per migliorare il sistema nel tempo</li>
+        <li><strong>Modelli diversi</strong> - Prova modelli diversi per compiti diversi (es: GPT-4o per codice veloce,
+          Claude per ragionamento approfondito)</li>
+        <li><strong>Memoria</strong> - L'AI impara dalle tue interazioni; piu la usi, piu personalizzate saranno le
+          risposte</li>
+      </ul>
+    </div>
+
+    <div class="footer">
+      <p>Enterprise AI Chat v2.1.4 - Guida Utente</p>
+      <p>Questa piattaforma e conforme al Regolamento Europeo sull'AI (AI Act) - Articolo 50</p>
+      <p>Documento generato automaticamente - Ultimo aggiornamento: Marzo 2026</p>
+    </div>
+
   </div>
-</div>
-<div class="step">
-  <div class="step-num">3</div>
-  <div class="step-content">Clicca <strong>"Avvia"</strong> per iniziare l'esecuzione</div>
-</div>
-
-<h3>Monitoraggio</h3>
-<ul>
-  <li><strong>Log in Tempo Reale</strong> - Visualizza i log dell'agente colorati per tipo (info, warning, errore)</li>
-  <li><strong>Stato</strong> - Pending, Initializing, Running, Paused, Completed, Failed, Cancelled</li>
-  <li><strong>Pausa/Ripresa</strong> - Metti in pausa e riprendi l'esecuzione</li>
-  <li><strong>Cancellazione</strong> - Annulla l'esecuzione in corso</li>
-</ul>
-
-<h3>Template Agente</h3>
-<p>I template predefiniti accelerano la creazione di sessioni per scenari comuni:</p>
-<ul>
-  <li><span class="badge badge-primary">Development</span> Sviluppo di nuove funzionalita</li>
-  <li><span class="badge badge-accent">Testing</span> Scrittura e esecuzione test</li>
-  <li><span class="badge badge-success">Documentation</span> Generazione documentazione</li>
-  <li><span class="badge badge-warning">Research</span> Ricerca e analisi</li>
-  <li><span class="badge badge-primary">Automation</span> Automazione di processi</li>
-</ul>
-
-<!-- SECTION 11: PARLANT -->
-<h2 id="parlant">11. Parlant - Framework Agenti</h2>
-
-<p>Parlant e un framework Python per la creazione di agenti AI con comportamento guidato da linee guida.</p>
-
-<h3>Concetti Chiave</h3>
-<ul>
-  <li><strong>Agenti</strong> - Entita AI con personalita e competenze definite</li>
-  <li><strong>Guidelines (Linee Guida)</strong> - Regole condizione-azione che governano il comportamento (es: "Quando l'utente chiede di X, allora rispondi con Y")</li>
-  <li><strong>Sessioni</strong> - Contesti di conversazione con l'agente</li>
-  <li><strong>Tool</strong> - Strumenti API che l'agente puo utilizzare</li>
-</ul>
-
-<h3>Come Funziona</h3>
-<ol>
-  <li>Crea un agente con nome e descrizione</li>
-  <li>Definisci le linee guida come coppie condizione/azione</li>
-  <li>Avvia una sessione di conversazione</li>
-  <li>L'agente applica automaticamente le linee guida pertinenti</li>
-</ol>
-
-<!-- SECTION 12: SCHEDULER -->
-<h2 id="scheduler">12. Programmazione Attivita</h2>
-
-<p>Lo scheduler (White Rabbit Scheduler) permette di programmare azioni automatiche.</p>
-
-<h3>Tipi di Job</h3>
-<ul>
-  <li><strong>One Shot</strong> - Esecuzione singola in un momento specifico</li>
-  <li><strong>Intervallo</strong> - Ripetizione a intervalli regolari</li>
-  <li><strong>Cron</strong> - Pianificazione avanzata con espressioni cron</li>
-</ul>
-
-<h3>Azioni Disponibili</h3>
-<ul>
-  <li><strong>Messaggio Programmato</strong> - Invia un messaggio all'AI a un orario stabilito</li>
-  <li><strong>Webhook</strong> - Chiama un URL esterno</li>
-  <li><strong>Hook</strong> - Esegui un hook del sistema</li>
-  <li><strong>Plugin Action</strong> - Esegui un'azione di un plugin</li>
-</ul>
-
-<!-- SECTION 13: IMPOSTAZIONI -->
-<h2 id="impostazioni">13. Impostazioni e Sicurezza</h2>
-
-<h3>Profilo Utente</h3>
-<p>La pagina impostazioni mostra il tuo profilo con avatar, nome, email e ruolo.</p>
-
-<h3>Sicurezza Account</h3>
-<ul>
-  <li><strong>MFA</strong> - Configura o disabilita l'autenticazione a due fattori</li>
-  <li><strong>Sessione Singola</strong> - Un solo dispositivo attivo alla volta</li>
-  <li><strong>Password</strong> - Hash bcrypt (il cambio password potrebbe essere gestito dall'admin)</li>
-</ul>
-
-<h3>Dati Personali (GDPR)</h3>
-<ul>
-  <li><strong>Esportazione Dati</strong> - Richiedi una copia di tutti i tuoi dati (GDPR Art. 20)</li>
-  <li><strong>Eliminazione Account</strong> - Richiedi la cancellazione completa del tuo account e di tutti i dati associati</li>
-</ul>
-
-<div class="warning">
-  <div class="warning-title">Eliminazione Account</div>
-  <p>La richiesta di eliminazione richiede una conferma via codice email. Una volta confermata, tutti i tuoi dati (conversazioni, memorie, progetti, documenti) verranno eliminati permanentemente.</p>
-</div>
-
-<!-- SECTION 14: COMPLIANCE -->
-<h2 id="compliance">14. Trasparenza e Conformita AI Act</h2>
-
-<p>La piattaforma e progettata per la conformita al <strong>Regolamento Europeo sull'Intelligenza Artificiale (AI Act)</strong>.</p>
-
-<h3>Diritti dell'Utente</h3>
-<ul>
-  <li><strong>Disclosure (Art. 50)</strong> - Sei sempre informato che stai interagendo con un sistema AI</li>
-  <li><strong>Feedback</strong> - Puoi valutare ogni risposta dell'AI per segnalare imprecisioni o bias</li>
-  <li><strong>Trasparenza Modelli</strong> - Accedi alla pagina Trasparenza per vedere documentazione su ogni modello AI utilizzato</li>
-  <li><strong>Diritto alla Spiegazione</strong> - Le decisioni AI vengono registrate con modello, provider, token e latenza</li>
-  <li><strong>Portabilita Dati</strong> - Esporta tutti i tuoi dati in formato standard</li>
-  <li><strong>Diritto all'Oblio</strong> - Richiedi l'eliminazione completa dei tuoi dati</li>
-</ul>
-
-<h3>Banner e Avvisi</h3>
-<ul>
-  <li><strong>Banner AI Disclosure</strong> - Presente su ogni pagina della chat</li>
-  <li><strong>Etichetta "Generato dall'AI"</strong> - Su ogni messaggio dell'assistente</li>
-  <li><strong>Avviso Argomenti Sensibili</strong> - Quando l'AI tratta temi delicati</li>
-  <li><strong>Nota Conformita nei Documenti</strong> - In calce a ogni documento generato</li>
-</ul>
-
-<!-- SECTION 15: ESTENSIONE -->
-<h2 id="estensione">15. Estensione VS Code</h2>
-
-<p>La piattaforma include un'estensione companion per Visual Studio Code che integra le funzionalita AI direttamente nell'editor.</p>
-
-<h3>Funzionalita</h3>
-<ul>
-  <li><strong>Chat nell'Editor</strong> - Apri una finestra di chat AI direttamente in VS Code</li>
-  <li><strong>Spiegazione Codice</strong> - Seleziona codice e chiedi all'AI di spiegarlo</li>
-  <li><strong>Fix Codice</strong> - L'AI suggerisce correzioni per errori</li>
-  <li><strong>Miglioramento Codice</strong> - Ottimizzazione e refactoring suggeriti dall'AI</li>
-  <li><strong>Sessioni Agente</strong> - Avvia agenti autonomi direttamente dall'editor</li>
-  <li><strong>Inline Edit</strong> - Modifica codice inline con suggerimenti AI</li>
-  <li><strong>30+ Comandi</strong> - Comandi accessibili dalla palette comandi di VS Code</li>
-</ul>
-
-<h3>Installazione</h3>
-<ol>
-  <li>Scarica il file <code>.vsix</code> dalla sidebar della chat (pulsante "VS Code Extension")</li>
-  <li>In VS Code, apri il menu Estensioni</li>
-  <li>Clicca "..." &gt; "Installa da VSIX..."</li>
-  <li>Seleziona il file scaricato</li>
-  <li>Configura l'URL del server nelle impostazioni dell'estensione</li>
-</ol>
-
-<!-- SECTION 16: SHORTCUTS -->
-<h2 id="shortcuts">16. Scorciatoie e Suggerimenti</h2>
-
-<div class="card">
-  <div class="card-title">Scorciatoie Utili</div>
-  <table>
-    <thead>
-      <tr><th>Azione</th><th>Come</th></tr>
-    </thead>
-    <tbody>
-      <tr><td>Invia messaggio</td><td>Premi <code>Invio</code></td></tr>
-      <tr><td>Nuova riga nel messaggio</td><td><code>Shift + Invio</code></td></tr>
-      <tr><td>Nuova conversazione</td><td>Clicca "+" nella sidebar</td></tr>
-      <tr><td>Allega file</td><td>Clicca icona graffetta o trascina file</td></tr>
-      <tr><td>Cambia modello</td><td>Menu a tendina nell'header</td></tr>
-      <tr><td>Chiudi sidebar</td><td>Clicca icona X nell'header</td></tr>
-    </tbody>
-  </table>
-</div>
-
-<div class="card">
-  <div class="card-title">Suggerimenti per Risultati Migliori</div>
-  <ul>
-    <li><strong>Sii specifico</strong> - Piu dettagli fornisci, migliore sara la risposta</li>
-    <li><strong>Usa il system prompt</strong> - Definisci il ruolo dell'AI per risposte piu mirate</li>
-    <li><strong>Allega contesto</strong> - Se hai documenti di riferimento, allegali alla chat</li>
-    <li><strong>Feedback</strong> - Usa i pulsanti pollice su/giu per migliorare il sistema nel tempo</li>
-    <li><strong>Modelli diversi</strong> - Prova modelli diversi per compiti diversi (es: GPT-4o per codice veloce, Claude per ragionamento approfondito)</li>
-    <li><strong>Memoria</strong> - L'AI impara dalle tue interazioni; piu la usi, piu personalizzate saranno le risposte</li>
-  </ul>
-</div>
-
-<div class="footer">
-  <p>Enterprise AI Chat v1.8.5 - Guida Utente</p>
-  <p>Questa piattaforma e conforme al Regolamento Europeo sull'AI (AI Act) - Articolo 50</p>
-  <p>Documento generato automaticamente - Ultimo aggiornamento: Marzo 2026</p>
-</div>
-
-</div>
 </body>
+
 </html>

@@ -102,7 +102,7 @@ export async function complianceRoutes(fastify: FastifyInstance) {
     await insertOne(fastify.db,
       `INSERT INTO audit_log (user_id, action, entity_type, details, ip_address) VALUES (?, ?, ?, ?, ?)`,
       [user.id, body.granted ? 'consent_granted' : 'consent_revoked', 'user_consent',
-       JSON.stringify({ consent_type: body.consent_type }), getRealIp(request)]
+      JSON.stringify({ consent_type: body.consent_type }), getRealIp(request)]
     );
 
     return { success: true, consent_type: body.consent_type, granted: body.granted };
@@ -713,25 +713,33 @@ export async function complianceRoutes(fastify: FastifyInstance) {
 // HELPER: Generate data export (runs in background)
 // ═══════════════════════════════════════════════════════════════════
 async function generateDataExport(fastify: FastifyInstance, userId: number, exportId: number, format: string): Promise<void> {
+  // Helper: run a query safely, return fallback on error (e.g. missing table)
+  const safeQuery = async <T>(queryFn: () => Promise<T>, fallback: T): Promise<T> => {
+    try { return await queryFn(); } catch (err) {
+      fastify.log.warn({ err }, `[AI-Act] Data export query failed (non-fatal), using fallback`);
+      return fallback;
+    }
+  };
+
   try {
     await updateOne(fastify.db, `UPDATE data_export_requests SET status = 'processing' WHERE id = ?`, [exportId]);
 
     const [user, conversations, totalMsgCount, messages, consents, totalFeedbackCount, feedback, usage] = await Promise.all([
-      findOne<any>(fastify.db, `SELECT id, email, name, role, created_at, last_login_at FROM users WHERE id = ?`, [userId]),
-      findMany<any>(fastify.db, `SELECT id, title, model, provider, created_at, updated_at FROM conversations WHERE user_id = ? ORDER BY created_at DESC`, [userId]),
-      findOne<{ cnt: number }>(fastify.db,
-        `SELECT COUNT(*) as cnt FROM messages m JOIN conversations c ON m.conversation_id = c.id WHERE c.user_id = ?`, [userId]),
-      findMany<any>(fastify.db,
-        `SELECT m.id, m.conversation_id, m.role, m.content, m.tokens_input, m.tokens_output, m.is_ai_generated, m.ai_model, m.created_at
-         FROM messages m JOIN conversations c ON m.conversation_id = c.id WHERE c.user_id = ? ORDER BY m.created_at DESC LIMIT 50000`, [userId]),
-      findMany<any>(fastify.db,
-        `SELECT id, consent_type, granted, granted_at, revoked_at, created_at FROM user_consents WHERE user_id = ?`, [userId]),
-      findOne<{ cnt: number }>(fastify.db,
-        `SELECT COUNT(*) as cnt FROM response_feedback WHERE user_id = ?`, [userId]),
-      findMany<any>(fastify.db,
-        `SELECT id, message_id, rating, category, comment, created_at FROM response_feedback WHERE user_id = ? ORDER BY created_at DESC LIMIT 50000`, [userId]),
-      findMany<any>(fastify.db,
-        `SELECT id, year_month, provider, total_tokens_input, total_tokens_output, request_count FROM monthly_usage WHERE user_id = ? ORDER BY year_month DESC`, [userId]),
+      safeQuery(() => findOne<any>(fastify.db, `SELECT id, email, name, role, created_at, last_login_at FROM users WHERE id = ?`, [userId]), null),
+      safeQuery(() => findMany<any>(fastify.db, `SELECT id, title, model, provider, created_at, updated_at FROM conversations WHERE user_id = ? ORDER BY created_at DESC`, [userId]), []),
+      safeQuery(() => findOne<{ cnt: number }>(fastify.db,
+        `SELECT COUNT(*) as cnt FROM messages m JOIN conversations c ON m.conversation_id = c.id WHERE c.user_id = ?`, [userId]), { cnt: 0 }),
+      safeQuery(() => findMany<any>(fastify.db,
+        `SELECT m.id, m.conversation_id, m.role, m.content, m.tokens_input, m.tokens_output, m.created_at
+         FROM messages m JOIN conversations c ON m.conversation_id = c.id WHERE c.user_id = ? ORDER BY m.created_at DESC LIMIT 50000`, [userId]), []),
+      safeQuery(() => findMany<any>(fastify.db,
+        `SELECT id, consent_type, granted, granted_at, revoked_at, created_at FROM user_consents WHERE user_id = ?`, [userId]), []),
+      safeQuery(() => findOne<{ cnt: number }>(fastify.db,
+        `SELECT COUNT(*) as cnt FROM response_feedback WHERE user_id = ?`, [userId]), { cnt: 0 }),
+      safeQuery(() => findMany<any>(fastify.db,
+        `SELECT id, message_id, rating, category, comment, created_at FROM response_feedback WHERE user_id = ? ORDER BY created_at DESC LIMIT 50000`, [userId]), []),
+      safeQuery(() => findMany<any>(fastify.db,
+        `SELECT id, year_month, provider, total_tokens_input, total_tokens_output, request_count FROM monthly_usage WHERE user_id = ? ORDER BY year_month DESC`, [userId]), []),
     ]);
 
     const totalMessages = totalMsgCount?.cnt || 0;
