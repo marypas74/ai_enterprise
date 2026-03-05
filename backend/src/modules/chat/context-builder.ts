@@ -9,6 +9,78 @@ import { MemoryService } from '../memory/service.js';
 import { ConversationalFormService } from '../../services/ConversationalFormService.js';
 import { NativeDocBlock, ToolContext, Conversation, DbMessage } from './types.js';
 import { detectDocumentFormat } from './streaming.js';
+import { searchCollection } from '../../services/VectorMemoryService.js';
+
+
+/**
+ * Inject RAG-only system prompt, constraining AI strictly to document context.
+ * Performs semantic search on declarative_memory filtered by user (optionally by document IDs).
+ */
+export async function injectRAGSystemPrompt(
+  fastify: FastifyInstance,
+  messages: Message[],
+  opts: {
+    userMessage: string;
+    userId: number;
+    documentIds?: number[];
+  }
+): Promise<any[]> {
+  try {
+    // Search declarative_memory for relevant chunks
+    const rawResults = await searchCollection(
+      fastify.db,
+      'declarative_memory',
+      opts.userMessage,
+      10,  // top-k
+      0.25, // lower threshold to maximise recall in doc-only mode
+      opts.userId
+    );
+
+    // Filter by document_ids if specified
+    let results = rawResults;
+    if (opts.documentIds && opts.documentIds.length > 0) {
+      results = rawResults.filter(r => {
+        const meta = r.metadata || {};
+        const docId = meta.document_id;
+        return docId !== undefined && opts.documentIds!.includes(Number(docId));
+      });
+    }
+
+    let contextBlock: string;
+    if (results.length === 0) {
+      contextBlock = '[Nessun contenuto rilevante trovato nei documenti caricati.]';
+    } else {
+      contextBlock = results
+        .map((r, i) => `[Estratto ${i + 1}]\n${r.content}`)
+        .join('\n\n---\n\n');
+    }
+
+    const ragSystemPrompt = `[MODALITÀ DOCUMENTI ATTIVA]
+Rispondi ESCLUSIVAMENTE usando il contesto estratto dai documenti dell'utente qui sotto.
+Se l'informazione richiesta non è presente nel contesto, rispondi esattamente con:
+"Non trovo questa informazione nei documenti."
+Non inventare informazioni. Non attingere a conoscenze esterne.
+
+--- CONTESTO DAI DOCUMENTI ---
+${contextBlock}
+--- FINE CONTESTO ---
+
+IMPORTANT: Rispondi SEMPRE in italiano.`;
+
+    const systemIndex = messages.findIndex(m => m.role === 'system');
+    if (systemIndex >= 0) {
+      messages[systemIndex].content = ragSystemPrompt + '\n\n' + messages[systemIndex].content;
+    } else {
+      messages.unshift({ role: 'system', content: ragSystemPrompt });
+    }
+
+    fastify.log.info(`[RAG] Injected ${results.length} chunks into system prompt for user ${opts.userId}`);
+    return results;
+  } catch (ragErr: any) {
+    fastify.log.warn(`[RAG] System prompt injection failed: ${ragErr.message}`);
+    return [];
+  }
+}
 
 /**
  * Prepare tool context for the current user's project, creating one if needed.
@@ -73,10 +145,13 @@ export async function loadOrCreateConversation(
     providerName: string;
     systemPrompt?: string;
     messageText: string;
+    chatMode?: 'free' | 'rag';
+    documentIds?: number[];
   }
-): Promise<{ conversationId: number; messages: Message[] }> {
+): Promise<{ conversationId: number; messages: Message[]; conversation?: Conversation }> {
   let conversationId = opts.conversationId;
   let messages: Message[] = [];
+  let conversationObj: Conversation | undefined;
 
   if (conversationId) {
     const conversation = await findOne<Conversation>(
@@ -88,6 +163,7 @@ export async function loadOrCreateConversation(
     if (!conversation) {
       throw Object.assign(new Error('Conversation not found'), { statusCode: 404 });
     }
+    conversationObj = conversation;
 
     const dbMessages = await findMany<DbMessage>(
       fastify.db,
@@ -104,8 +180,8 @@ export async function loadOrCreateConversation(
     const title = opts.messageText.slice(0, 100);
     conversationId = await insertOne(
       fastify.db,
-      'INSERT INTO conversations (user_id, title, model, provider, system_prompt) VALUES (?, ?, ?, ?, ?)',
-      [opts.userId, title, opts.model, opts.providerName, opts.systemPrompt || null]
+      'INSERT INTO conversations (user_id, title, model, provider, system_prompt, chat_mode, document_ids) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [opts.userId, title, opts.model, opts.providerName, opts.systemPrompt || null, opts.chatMode || 'free', opts.documentIds ? JSON.stringify(opts.documentIds) : null]
     );
 
     if (opts.systemPrompt) {
@@ -118,7 +194,7 @@ export async function loadOrCreateConversation(
     }
   }
 
-  return { conversationId: conversationId!, messages };
+  return { conversationId: conversationId!, messages, conversation: conversationObj };
 }
 
 /**
@@ -197,7 +273,7 @@ export async function processAttachments(
 
   for (const a of attachments) {
     if (isAnthropicProvider && a.content_type === 'application/pdf'
-        && a.file_path && a.file_size && a.file_size < 32 * 1024 * 1024) {
+      && a.file_path && a.file_size && a.file_size < 32 * 1024 * 1024) {
       try {
         const storageRoot = path.resolve(process.env.STORAGE_ROOT || process.cwd());
         const resolvedPath = path.resolve(a.file_path);
@@ -373,6 +449,29 @@ Hai accesso a questi strumenti:
     }
   }
 
+  // Fetch Guardrail Policy
+  const userPolicyResult = await findOne<{ guardrail_policy: string | null }>(
+    fastify.db,
+    'SELECT guardrail_policy FROM users WHERE id = ?',
+    [opts.userId]
+  );
+
+  if (userPolicyResult?.guardrail_policy) {
+    const policyPrompt = `\n\n[USER GUARDRAIL POLICY]
+You must strictly enforce the following policy defined by the user. If this policy requires data obfuscation or redaction (for instance, hiding names of people, companies, or industrial machinery), you must redact the output accordingly BEFORE showing it:
+
+${userPolicyResult.guardrail_policy}`;
+
+    const systemIndex = messages.findIndex(m => m.role === 'system');
+    if (systemIndex >= 0) {
+      messages[systemIndex].content += policyPrompt;
+    } else {
+      messages.unshift({ role: 'system', content: policyPrompt });
+    }
+
+    fastify.log.info(`[Chat] Injected User Guardrail/Roadmap Policy for user ${opts.userId}`);
+  }
+
   // Detect document generation requests
   const autoGenerateDoc = detectDocumentFormat(opts.userMessage, opts.attachmentIds);
   fastify.log.info(`[Chat] DocGen detection: format=${autoGenerateDoc}, supportsTools=${opts.supportsTools}`);
@@ -380,7 +479,7 @@ Hai accesso a questi strumenti:
   if (autoGenerateDoc) {
     const formatName = autoGenerateDoc === 'pptx' ? 'presentazione PowerPoint' :
       autoGenerateDoc === 'xlsx' ? 'foglio Excel' :
-      autoGenerateDoc === 'pdf' ? 'PDF' : 'documento Word';
+        autoGenerateDoc === 'pdf' ? 'PDF' : 'documento Word';
 
     let docGenSystemPrompt: string;
     if (opts.supportsTools) {
@@ -391,18 +490,26 @@ Se il messaggio contiene un allegato, il suo contenuto testuale è GIÀ INCLUSO 
 NON dire che non puoi leggere il file. Il testo È il contenuto del file.
 Se per qualche motivo non riesci a usare il tool, scrivi il contenuto strutturato con titoli ## o ### per separare le slide — il sistema genererà automaticamente il file.`
         : autoGenerateDoc === 'xlsx'
-        ? `Hai a disposizione il tool "generate_excel_document". DEVI usarlo per generare il foglio Excel.
+          ? `Hai a disposizione il tool "generate_excel_document". DEVI usarlo per generare il foglio Excel.
 Se il messaggio contiene un allegato, il suo contenuto testuale è GIÀ INCLUSO nel messaggio.
 Se non riesci a usare il tool, scrivi i dati in formato tabellare nella risposta.`
-        : `Se il messaggio contiene un allegato, il suo contenuto testuale è GIÀ INCLUSO nel messaggio tra i marcatori [Allegato ...] e [Fine allegato].
+          : autoGenerateDoc === 'docx'
+            ? `Hai a disposizione il tool "generate_word_document". DEVI usarlo per generare il documento Word.
+Se il messaggio contiene un allegato, il suo contenuto testuale è GIÀ INCLUSO nel messaggio tra i marcatori [Allegato ...] e [Fine allegato].
 NON dire che non puoi leggere il file. Il testo È il contenuto del file.
 
-REGOLA CRITICA PER CONVERSIONE FORMATO:
-- Se l'utente chiede di CONVERTIRE un file in un altro formato (es. "converti il PDF in DOCX", "trasforma in Word"), devi RIPRODURRE il contenuto INTERO e INTEGRALE dell'allegato nella tua risposta, senza riassumerlo, senza ometterne parti, senza aggiungere commenti.
-- Copia TUTTO il testo dell'allegato nella risposta, mantenendo la struttura originale (paragrafi, titoli, elenchi).
-- NON aggiungere introduzioni come "Ecco il contenuto..." o "Il documento contiene...". Scrivi DIRETTAMENTE il contenuto.
+REGOLA CRITICA: Usa SEMPRE il tool generate_word_document passando il contenuto come parametro "content".
+- NON scrivere il contenuto intero nella chat — usa DIRETTAMENTE il tool.
+- Per conversioni pure, passa il contenuto dell'allegato così com'è al tool.
+- Per elaborazioni (traduzione, modifica, ecc.), elabora il contenuto e poi passa il risultato al tool.
+Se per qualche motivo non riesci a usare il tool, scrivi il contenuto nella risposta come fallback.`
+            : `Se il messaggio contiene un allegato, il suo contenuto testuale è GIÀ INCLUSO nel messaggio tra i marcatori [Allegato ...] e [Fine allegato].
+NON dire che non puoi leggere il file. Il testo È il contenuto del file.
 
-Se invece l'utente chiede di elaborare, tradurre o modificare il contenuto, elabora come richiesto.
+REGOLA CRITICA PER CONVERSIONE IN PDF:
+- Se l'utente chiede di convertire, RIPRODUCE il contenuto INTERO dell'allegato, senza riassumerlo.
+- NON aggiungere introduzioni come "Ecco il contenuto..." — scrivi DIRETTAMENTE il contenuto.
+- Se chiede di elaborare, tradurre o modificare, elabora come richiesto.
 Il sistema genererà automaticamente il ${formatName} dalla tua risposta.`;
       docGenSystemPrompt = `\n\n[ISTRUZIONI GENERAZIONE DOCUMENTO]\n${toolHint}`;
     } else {

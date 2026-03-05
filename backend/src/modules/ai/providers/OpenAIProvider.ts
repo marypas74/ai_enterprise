@@ -15,13 +15,24 @@ export class OpenAIProvider implements AIProvider {
   }
 
   async complete(options: CompletionOptions): Promise<CompletionResult> {
-    const response = await this.client.chat.completions.create({
+    const createOpts: any = {
       model: options.model,
       messages: options.messages as any,
       max_tokens: options.maxTokens || 4096,
       temperature: options.temperature || 0.7,
       tools: options.tools as any
-    });
+    };
+    // tool_choice enforcement for OpenAI
+    if (options.toolChoice && createOpts.tools) {
+      if (options.toolChoice === 'required' || options.toolChoice === 'any') {
+        createOpts.tool_choice = 'required';
+      } else if (options.toolChoice === 'auto') {
+        createOpts.tool_choice = 'auto';
+      } else if (typeof options.toolChoice === 'object' && options.toolChoice.name) {
+        createOpts.tool_choice = { type: 'function', function: { name: options.toolChoice.name } };
+      }
+    }
+    const response = await this.client.chat.completions.create(createOpts);
 
     return {
       content: response.choices[0]?.message?.content || '',
@@ -34,14 +45,25 @@ export class OpenAIProvider implements AIProvider {
   }
 
   async * streamComplete(options: CompletionOptions): AsyncGenerator<StreamChunk> {
-    const stream = await this.client.chat.completions.create({
+    const createOpts: any = {
       model: options.model,
       messages: options.messages as any,
       max_tokens: options.maxTokens || 4096,
       temperature: options.temperature || 0.7,
       stream: true,
       tools: options.tools as any
-    });
+    };
+    // tool_choice enforcement for OpenAI
+    if (options.toolChoice && createOpts.tools) {
+      if (options.toolChoice === 'required' || options.toolChoice === 'any') {
+        createOpts.tool_choice = 'required';
+      } else if (options.toolChoice === 'auto') {
+        createOpts.tool_choice = 'auto';
+      } else if (typeof options.toolChoice === 'object' && options.toolChoice.name) {
+        createOpts.tool_choice = { type: 'function', function: { name: options.toolChoice.name } };
+      }
+    }
+    const stream = await this.client.chat.completions.create(createOpts) as unknown as AsyncIterable<any>;
 
     for await (const chunk of stream) {
       const content = chunk.choices[0]?.delta?.content || '';

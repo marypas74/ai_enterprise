@@ -46,6 +46,7 @@ import { schedulerRoutes } from './modules/scheduler/routes.js';
 import { batchRoutes } from './modules/batch/routes.js';
 import { permissionRoutes } from './modules/admin/permissions.js';
 import { complianceRoutes } from './modules/compliance/routes.js';
+import { documentRoutes } from './modules/documents/routes.js';
 import { BiasMonitorService } from './modules/compliance/biasMonitorService.js';
 import { eventBus } from './services/EventBusService.js';
 import { HyDEService } from './services/HyDEService.js';
@@ -292,6 +293,7 @@ const appPlugin = fp(async function (fastify) {
   await fastify.register(batchRoutes, { prefix: '/api/batch' });
   await fastify.register(permissionRoutes, { prefix: '/api/permissions' });
   await fastify.register(complianceRoutes, { prefix: '/api' });
+  await fastify.register(documentRoutes, { prefix: '/api/documents' });
 
   // Debug WebSocket clients set (defined early so addHook can reference it)
   const debugClients = new Set<any>();
@@ -544,7 +546,7 @@ async function bootstrap() {
       info: {
         title: 'Enterprise AI Chat API',
         description: 'Multi-provider AI chat platform with agent orchestration, project management, and RAG pipeline',
-        version: process.env.APP_VERSION || '1.8.10'
+        version: process.env.APP_VERSION || '2.1.4'
       },
       servers: [
         { url: `http://localhost:${process.env.PORT || 3000}`, description: 'Local' },
@@ -712,7 +714,7 @@ async function bootstrap() {
           const filePath = path.join(generatedDir, file);
           const fileStat = await stat(filePath).catch(() => null);
           if (fileStat && Date.now() - fileStat.mtimeMs > maxAge) {
-            await unlink(filePath).catch(() => {});
+            await unlink(filePath).catch(() => { });
             cleaned++;
           }
         }
@@ -757,7 +759,7 @@ async function bootstrap() {
     }
 
     // Fire bootstrap event for hook system
-    eventBus.emit('on_bootstrap', { port, host }, { userId: 0 }).catch(() => {});
+    eventBus.emit('on_bootstrap', { port, host }, { userId: 0 }).catch(() => { });
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);

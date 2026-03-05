@@ -39,7 +39,7 @@ RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
     && python3 -m pip install --no-cache-dir \
-       requests beautifulsoup4 lxml trafilatura pandas \
+       requests beautifulsoup4 lxml trafilatura pandas pdf2docx \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy package files

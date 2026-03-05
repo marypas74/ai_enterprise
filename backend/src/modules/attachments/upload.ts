@@ -9,7 +9,7 @@ import { findOne, findAll, findMany, insertOne } from '../../database/index.js';
 import path from 'path';
 import fs from 'fs/promises';
 import crypto from 'crypto';
-import { convertTextToDocx } from '../../services/DocumentProcessorService.js';
+import { convertTextToDocx, convertPdfToDocx } from '../../services/DocumentProcessorService.js';
 import { searchSimilar } from '../../services/VectorStoreService.js';
 import { eventBus } from '../../services/EventBusService.js';
 import { queueAttachmentProcessing } from './processing.js';
@@ -419,21 +419,30 @@ export async function registerUploadRoutes(fastify: FastifyInstance): Promise<vo
         return reply.status(400).send({ error: 'Attachment not yet processed or processing failed' });
       }
 
-      // Generate DOCX from processed content
       const outputDir = path.dirname(attachment.file_path);
       const baseName = path.basename(attachment.original_name, path.extname(attachment.original_name));
-      const docxPath = path.join(outputDir, `${baseName}_converted.docx`);
+      const isPdf = attachment.mime_type === 'application/pdf' ||
+        attachment.original_name?.toLowerCase().endsWith('.pdf');
 
-      await convertTextToDocx(
-        attachment.processed_content,
-        docxPath,
-        attachment.original_name
-      );
+      let docxBuffer: Buffer;
 
-      fastify.log.info(`[Attachments] Converted to DOCX: ${docxPath}`);
+      if (isPdf) {
+        // PDF→DOCX: format-preserving conversion via pdf2docx / LibreOffice
+        const pdfBuffer = await fs.readFile(attachment.file_path);
+        docxBuffer = await convertPdfToDocx(pdfBuffer, outputDir, attachment.original_name);
+        fastify.log.info(`[Attachments] PDF→DOCX format-preserving: ${attachment.original_name}`);
+      } else {
+        // Non-PDF: generate DOCX from extracted text
+        const docxPath = path.join(outputDir, `${baseName}_converted.docx`);
+        await convertTextToDocx(
+          attachment.processed_content,
+          docxPath,
+          attachment.original_name
+        );
+        docxBuffer = await fs.readFile(docxPath);
+        fastify.log.info(`[Attachments] Text→DOCX: ${attachment.original_name}`);
+      }
 
-      // Send file as download
-      const docxBuffer = await fs.readFile(docxPath);
       reply.header('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
       reply.header('Content-Disposition', `attachment; filename="${baseName}_converted.docx"`);
       return reply.send(docxBuffer);

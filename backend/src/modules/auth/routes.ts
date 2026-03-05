@@ -63,6 +63,7 @@ interface User {
   is_active: boolean;
   mfa_enabled: boolean;
   mfa_secret: string | null;
+  guardrail_policy?: string | null;
 }
 
 interface RefreshToken {
@@ -410,7 +411,7 @@ export async function authRoutes(fastify: FastifyInstance) {
 
     const user = await findOne<User>(
       fastify.db,
-      `SELECT u.id, u.email, u.name, u.role, u.created_at, u.mfa_enabled,
+      `SELECT u.id, u.email, u.name, u.role, u.created_at, u.mfa_enabled, u.guardrail_policy,
               JSON_ARRAYAGG(g.name) as groups
        FROM users u
        LEFT JOIN user_groups ug ON u.id = ug.user_id
@@ -425,6 +426,40 @@ export async function authRoutes(fastify: FastifyInstance) {
     }
 
     return user;
+  });
+
+  // Update Guardrail Policy
+  fastify.put('/me/guardrail', {
+    onRequest: [(fastify as any).authenticate],
+    schema: {
+      description: 'Update user guardrail policy rules',
+      tags: ['auth'],
+      security: [{ bearerAuth: [] }],
+      body: {
+        type: 'object',
+        required: ['guardrail_policy'],
+        properties: {
+          guardrail_policy: { type: 'string', nullable: true }
+        }
+      }
+    }
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const payload = request.user as { id: number };
+    const { guardrail_policy } = request.body as { guardrail_policy: string | null };
+
+    await updateOne(
+      fastify.db,
+      'UPDATE users SET guardrail_policy = ? WHERE id = ?',
+      [guardrail_policy, payload.id]
+    );
+
+    await insertOne(
+      fastify.db,
+      'INSERT INTO audit_log (user_id, action, ip_address, details) VALUES (?, ?, ?, ?)',
+      [payload.id, 'update_guardrail', request.ip, JSON.stringify({ updated: true })]
+    );
+
+    return { success: true, message: 'Policy updated successfully' };
   });
 
   // Logout
@@ -538,51 +573,51 @@ export async function authRoutes(fastify: FastifyInstance) {
     }
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
-    const payload = request.user as { id: number };
-    const { totp_code } = mfaCodeSchema.parse(request.body);
+      const payload = request.user as { id: number };
+      const { totp_code } = mfaCodeSchema.parse(request.body);
 
-    const user = await findOne<User>(
-      fastify.db,
-      'SELECT id, mfa_secret, mfa_enabled FROM users WHERE id = ?',
-      [payload.id]
-    );
+      const user = await findOne<User>(
+        fastify.db,
+        'SELECT id, mfa_secret, mfa_enabled FROM users WHERE id = ?',
+        [payload.id]
+      );
 
-    if (!user || !user.mfa_secret) {
-      return reply.status(400).send({ error: 'MFA setup not initiated. Call /mfa/setup first.' });
-    }
+      if (!user || !user.mfa_secret) {
+        return reply.status(400).send({ error: 'MFA setup not initiated. Call /mfa/setup first.' });
+      }
 
-    if (user.mfa_enabled) {
-      return reply.status(400).send({ error: 'MFA is already enabled' });
-    }
+      if (user.mfa_enabled) {
+        return reply.status(400).send({ error: 'MFA is already enabled' });
+      }
 
-    // Verify the TOTP code
-    const isValid = verify({
-      token: totp_code,
-      secret: user.mfa_secret
-    });
+      // Verify the TOTP code
+      const isValid = verify({
+        token: totp_code,
+        secret: user.mfa_secret
+      });
 
-    if (!isValid) {
-      return reply.status(400).send({ error: 'Invalid TOTP code. Please try again.' });
-    }
+      if (!isValid) {
+        return reply.status(400).send({ error: 'Invalid TOTP code. Please try again.' });
+      }
 
-    // Enable MFA
-    await updateOne(
-      fastify.db,
-      'UPDATE users SET mfa_enabled = 1, mfa_verified_at = NOW() WHERE id = ?',
-      [payload.id]
-    );
+      // Enable MFA
+      await updateOne(
+        fastify.db,
+        'UPDATE users SET mfa_enabled = 1, mfa_verified_at = NOW() WHERE id = ?',
+        [payload.id]
+      );
 
-    // Audit log
-    await insertOne(
-      fastify.db,
-      'INSERT INTO audit_log (user_id, action, ip_address, details) VALUES (?, ?, ?, ?)',
-      [payload.id, 'mfa_enabled', request.ip, JSON.stringify({ method: 'totp' })]
-    );
+      // Audit log
+      await insertOne(
+        fastify.db,
+        'INSERT INTO audit_log (user_id, action, ip_address, details) VALUES (?, ?, ?, ?)',
+        [payload.id, 'mfa_enabled', request.ip, JSON.stringify({ method: 'totp' })]
+      );
 
-    return {
-      success: true,
-      message: 'MFA enabled successfully. You will need the TOTP code for future logins.'
-    };
+      return {
+        success: true,
+        message: 'MFA enabled successfully. You will need the TOTP code for future logins.'
+      };
     } catch (err) {
       if (err instanceof z.ZodError) {
         return reply.status(400).send({ error: 'Validation failed', details: err.errors });
@@ -608,47 +643,47 @@ export async function authRoutes(fastify: FastifyInstance) {
     }
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
-    const payload = request.user as { id: number };
-    const { totp_code } = mfaCodeSchema.parse(request.body);
+      const payload = request.user as { id: number };
+      const { totp_code } = mfaCodeSchema.parse(request.body);
 
-    const user = await findOne<User>(
-      fastify.db,
-      'SELECT id, mfa_secret, mfa_enabled FROM users WHERE id = ?',
-      [payload.id]
-    );
+      const user = await findOne<User>(
+        fastify.db,
+        'SELECT id, mfa_secret, mfa_enabled FROM users WHERE id = ?',
+        [payload.id]
+      );
 
-    if (!user || !user.mfa_enabled || !user.mfa_secret) {
-      return reply.status(400).send({ error: 'MFA is not enabled' });
-    }
+      if (!user || !user.mfa_enabled || !user.mfa_secret) {
+        return reply.status(400).send({ error: 'MFA is not enabled' });
+      }
 
-    // Verify the TOTP code
-    const isValid = verify({
-      token: totp_code,
-      secret: user.mfa_secret
-    });
+      // Verify the TOTP code
+      const isValid = verify({
+        token: totp_code,
+        secret: user.mfa_secret
+      });
 
-    if (!isValid) {
-      return reply.status(401).send({ error: 'Invalid TOTP code' });
-    }
+      if (!isValid) {
+        return reply.status(401).send({ error: 'Invalid TOTP code' });
+      }
 
-    // Disable MFA
-    await updateOne(
-      fastify.db,
-      'UPDATE users SET mfa_enabled = 0, mfa_secret = NULL, mfa_verified_at = NULL WHERE id = ?',
-      [payload.id]
-    );
+      // Disable MFA
+      await updateOne(
+        fastify.db,
+        'UPDATE users SET mfa_enabled = 0, mfa_secret = NULL, mfa_verified_at = NULL WHERE id = ?',
+        [payload.id]
+      );
 
-    // Audit log
-    await insertOne(
-      fastify.db,
-      'INSERT INTO audit_log (user_id, action, ip_address) VALUES (?, ?, ?)',
-      [payload.id, 'mfa_disabled', request.ip]
-    );
+      // Audit log
+      await insertOne(
+        fastify.db,
+        'INSERT INTO audit_log (user_id, action, ip_address) VALUES (?, ?, ?)',
+        [payload.id, 'mfa_disabled', request.ip]
+      );
 
-    return {
-      success: true,
-      message: 'MFA has been disabled'
-    };
+      return {
+        success: true,
+        message: 'MFA has been disabled'
+      };
     } catch (err) {
       if (err instanceof z.ZodError) {
         return reply.status(400).send({ error: 'Validation failed', details: err.errors });

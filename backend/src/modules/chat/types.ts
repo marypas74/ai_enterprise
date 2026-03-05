@@ -6,7 +6,9 @@ export const completionSchema = z.object({
   model: z.string().max(100),
   message: z.string().min(1).max(100000),
   systemPrompt: z.string().max(10000).optional(),
-  attachmentIds: z.array(z.number()).optional()
+  attachmentIds: z.array(z.number()).optional(),
+  use_rag: z.boolean().optional(),
+  document_ids: z.array(z.number()).optional(),
 });
 
 export const agenticSchema = z.object({
@@ -27,6 +29,8 @@ export interface Conversation {
   provider: string;
   system_prompt: string;
   is_archived: boolean;
+  chat_mode: 'free' | 'rag';
+  document_ids: number[] | null;
   created_at: Date;
   updated_at: Date;
 }

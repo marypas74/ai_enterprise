@@ -33,7 +33,7 @@ export class AnthropicProvider implements AIProvider {
         'Authorization': `Bearer ${this.oauthToken}`,
         'anthropic-version': '2023-06-01',
         'anthropic-beta': 'oauth-2025-04-20',  // Required for OAuth tokens
-        'User-Agent': 'Claude-Code/2.1.0'  // Identify as Claude Code
+        'User-Agent': 'Claude-Code/2.1.4'  // Identify as Claude Code
       },
       body: JSON.stringify({ ...body, stream })
     });
@@ -134,8 +134,20 @@ export class AnthropicProvider implements AIProvider {
       tools: options.tools as any
     };
 
-    // v4.0: Extended thinking
-    if (options.thinking) {
+    // tool_choice enforcement
+    if (options.toolChoice && requestBody.tools) {
+      if (options.toolChoice === 'any') {
+        requestBody.tool_choice = { type: 'any' };
+      } else if (options.toolChoice === 'auto') {
+        requestBody.tool_choice = { type: 'auto' };
+      } else if (typeof options.toolChoice === 'object' && options.toolChoice.name) {
+        requestBody.tool_choice = { type: 'tool', name: options.toolChoice.name };
+      }
+    }
+
+    // v4.0: Extended thinking (not compatible with tool_choice "any" or "tool")
+    const toolChoiceBlocksThinking = requestBody.tool_choice && requestBody.tool_choice.type !== 'auto';
+    if (options.thinking && !toolChoiceBlocksThinking) {
       requestBody.thinking = options.thinking.type === 'adaptive'
         ? { type: 'adaptive' }
         : { type: 'enabled', budget_tokens: options.thinking.budgetTokens || 16000 };
@@ -224,8 +236,20 @@ export class AnthropicProvider implements AIProvider {
       tools: anthropicTools && anthropicTools.length > 0 ? anthropicTools : undefined
     };
 
-    // v4.0: Extended thinking
-    if (options.thinking) {
+    // tool_choice enforcement (not compatible with extended thinking)
+    if (options.toolChoice && requestBody.tools) {
+      if (options.toolChoice === 'any') {
+        requestBody.tool_choice = { type: 'any' };
+      } else if (options.toolChoice === 'auto') {
+        requestBody.tool_choice = { type: 'auto' };
+      } else if (typeof options.toolChoice === 'object' && options.toolChoice.name) {
+        requestBody.tool_choice = { type: 'tool', name: options.toolChoice.name };
+      }
+    }
+
+    // v4.0: Extended thinking (not compatible with tool_choice "any" or "tool")
+    const toolChoiceBlocksThinking = requestBody.tool_choice && requestBody.tool_choice.type !== 'auto';
+    if (options.thinking && !toolChoiceBlocksThinking) {
       requestBody.thinking = options.thinking.type === 'adaptive'
         ? { type: 'adaptive' }
         : { type: 'enabled', budget_tokens: options.thinking.budgetTokens || 16000 };
@@ -304,10 +328,10 @@ export class AnthropicProvider implements AIProvider {
                 currentToolUse = null;
               } else if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
                 yield { content: event.delta.text || '', done: false };
-              // v4.0: Citations delta
+                // v4.0: Citations delta
               } else if (event.type === 'content_block_delta' && event.delta?.type === 'citations_delta') {
                 yield { content: '', done: false, citations: [event.delta.citation] };
-              // v4.0: Usage in message_delta (includes cache metrics)
+                // v4.0: Usage in message_delta (includes cache metrics)
               } else if (event.type === 'message_delta' && event.usage) {
                 yield {
                   content: '', done: false,
@@ -381,10 +405,10 @@ export class AnthropicProvider implements AIProvider {
         currentToolUse = null;
       } else if (event.type === 'content_block_delta' && (event as any).delta?.type === 'text_delta') {
         yield { content: (event as any).delta.text, done: false };
-      // v4.0: Citations delta (SDK path)
+        // v4.0: Citations delta (SDK path)
       } else if (event.type === 'content_block_delta' && (event as any).delta?.type === 'citations_delta') {
         yield { content: '', done: false, citations: [(event as any).delta.citation] };
-      // v4.0: Usage in message_delta (SDK path — includes cache + thinking metrics)
+        // v4.0: Usage in message_delta (SDK path — includes cache + thinking metrics)
       } else if (event.type === 'message_delta' && (event as any).usage) {
         const u = (event as any).usage;
         yield {

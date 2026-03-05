@@ -16,6 +16,7 @@ export interface CompletionOptions {
   temperature?: number;
   stream?: boolean;
   tools?: any[]; // Allow passing tools definitions
+  toolChoice?: 'auto' | 'any' | 'required' | { type: string; name?: string }; // Force tool usage
   // --- v4.0: Advanced provider features ---
   cacheControl?: boolean;              // Enable Anthropic prompt caching
   thinking?: {                          // Extended/adaptive thinking

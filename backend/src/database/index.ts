@@ -217,6 +217,27 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
       ) ENGINE=InnoDB`
     },
     {
+      name: 'user_documents',
+      sql: `CREATE TABLE IF NOT EXISTS user_documents (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        user_id BIGINT UNSIGNED NOT NULL,
+        original_name VARCHAR(255) NOT NULL,
+        file_name VARCHAR(255) NOT NULL,
+        file_path VARCHAR(500) NOT NULL,
+        mime_type VARCHAR(100) NOT NULL,
+        file_size BIGINT UNSIGNED NOT NULL,
+        status ENUM('processing', 'ready', 'failed') DEFAULT 'processing',
+        error TEXT,
+        qdrant_source VARCHAR(512),
+        chunks_count INT UNSIGNED DEFAULT 0,
+        metadata JSON,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        INDEX idx_user_status (user_id, status)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+    },
+    {
       name: 'web_ingestions',
       sql: `CREATE TABLE IF NOT EXISTS web_ingestions (
         id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -622,6 +643,8 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
     { name: 'ai_models_add_bias_notes', sql: `ALTER TABLE ai_models ADD COLUMN bias_notes TEXT NULL` },
     { name: 'ai_models_add_safety_rating', sql: `ALTER TABLE ai_models ADD COLUMN safety_rating VARCHAR(20) NULL` },
     { name: 'ai_models_add_documentation_url', sql: `ALTER TABLE ai_models ADD COLUMN documentation_url VARCHAR(500) NULL` },
+    { name: 'conversations_add_chat_mode', sql: `ALTER TABLE conversations ADD COLUMN chat_mode ENUM('free', 'rag') DEFAULT 'free'` },
+    { name: 'conversations_add_document_ids', sql: `ALTER TABLE conversations ADD COLUMN document_ids JSON NULL` },
   ];
 
   for (const migration of alterMigrations) {

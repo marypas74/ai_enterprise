@@ -11,7 +11,7 @@ import { findMany } from '../database/index.js';
 import type mysql from 'mysql2/promise';
 
 // Read version from package.json at module load
-let APP_VERSION = '2.1.0';
+let APP_VERSION = '2.1.4';
 try {
   const __dirname = dirname(fileURLToPath(import.meta.url));
   const pkg = JSON.parse(readFileSync(resolve(__dirname, '../../package.json'), 'utf-8'));
@@ -218,7 +218,7 @@ export class MCPClientManager {
       await this.httpJsonRpc(baseUrl, {
         jsonrpc: '2.0',
         method: 'notifications/initialized',
-      }, 5000).catch(() => {}); // Notifications may not return a response
+      }, 5000).catch(() => { }); // Notifications may not return a response
 
       // Discover tools
       const toolsResponse = await this.httpJsonRpc(baseUrl, {
