@@ -86,6 +86,16 @@ export async function agentRoutes(fastify: FastifyInstance) {
   // Create session
   fastify.post('/sessions', {
     onRequest: [(fastify as any).authenticate],
+    config: {
+      rateLimit: {
+        max: 5,
+        timeWindow: '1 minute',
+        keyGenerator: (request: FastifyRequest) => {
+          const user = (request as any).user;
+          return user?.id ? `agent-session:${user.id}` : (request.headers['cf-connecting-ip'] as string) || request.ip;
+        }
+      }
+    },
     schema: {
       description: 'Create a new agent session',
       tags: ['agents'],

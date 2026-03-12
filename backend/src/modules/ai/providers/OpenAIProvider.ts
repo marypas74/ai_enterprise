@@ -63,7 +63,10 @@ export class OpenAIProvider implements AIProvider {
         createOpts.tool_choice = { type: 'function', function: { name: options.toolChoice.name } };
       }
     }
-    const stream = await this.client.chat.completions.create(createOpts) as unknown as AsyncIterable<any>;
+    // SECURITY: Forward abort signal to cancel upstream request on client disconnect
+    const stream = await this.client.chat.completions.create(createOpts, {
+      signal: options.signal,
+    }) as unknown as AsyncIterable<any>;
 
     for await (const chunk of stream) {
       const content = chunk.choices[0]?.delta?.content || '';

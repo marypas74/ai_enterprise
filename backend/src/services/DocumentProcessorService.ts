@@ -690,9 +690,9 @@ export async function terminateOCRWorker(): Promise<void> {
 // PDF Conversion (LibreOffice)
 // ============================================================
 
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import util from 'util';
-const execPromise = util.promisify(exec);
+const execFilePromise = util.promisify(execFile);
 
 /**
  * Convert an Office document (DOCX, XLSX, PPTX) to PDF using LibreOffice
@@ -710,12 +710,10 @@ export async function convertOfficeToPdf(
         const inputPath = path.join(outputDir, originalName);
         await fs.writeFile(inputPath, inputBuffer);
 
-        // Run LibreOffice in headless mode
-        // --outdir is required to specify where the PDF goes
-        const cmd = `soffice --headless --convert-to pdf --outdir "${outputDir}" "${inputPath}"`;
-
-        // Timeout after 30 seconds
-        await execPromise(cmd, { timeout: 30000 });
+        // SECURITY: Use execFile with args array to prevent shell injection via filenames
+        await execFilePromise('soffice', [
+            '--headless', '--convert-to', 'pdf', '--outdir', outputDir, inputPath
+        ], { timeout: 30000 });
 
         const baseName = path.basename(originalName, path.extname(originalName));
         const pdfPath = path.join(outputDir, `${baseName}.pdf`);
@@ -753,9 +751,9 @@ export async function convertPdfToDocx(
     await fs.writeFile(inputPath, inputBuffer);
 
     try {
-        // Primary: pdf2docx (best quality — preserves tables, images, layout)
-        const pyScript = `from pdf2docx import Converter; cv = Converter(r'${inputPath}'); cv.convert(r'${docxPath}'); cv.close()`;
-        await execPromise(`python3 -c "${pyScript}"`, { timeout: 120000 });
+        // SECURITY: Use execFile with args array to prevent shell injection via filenames
+        const pyScript = `from pdf2docx import Converter; import sys; cv = Converter(sys.argv[1]); cv.convert(sys.argv[2]); cv.close()`;
+        await execFilePromise('python3', ['-c', pyScript, inputPath, docxPath], { timeout: 120000 });
         await fs.access(docxPath);
         console.log(`[DocumentProcessor] PDF→DOCX via pdf2docx: ${originalName}`);
     } catch (pdf2docxErr: any) {
@@ -763,8 +761,10 @@ export async function convertPdfToDocx(
 
         // Fallback: LibreOffice writer_pdf_import
         try {
-            const loCmd = `soffice --headless --infilter="writer_pdf_import" --convert-to docx:"MS Word 2007 XML" --outdir "${outputDir}" "${inputPath}"`;
-            await execPromise(loCmd, { timeout: 60000 });
+            // SECURITY: Use execFile with args array to prevent shell injection
+            await execFilePromise('soffice', [
+                '--headless', '--infilter=writer_pdf_import', '--convert-to', 'docx:MS Word 2007 XML', '--outdir', outputDir, inputPath
+            ], { timeout: 60000 });
             // LibreOffice outputs with the input basename
             const loBaseName = path.basename(inputPath, '.pdf');
             const loDocxPath = path.join(outputDir, `${loBaseName}.docx`);

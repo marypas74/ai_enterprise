@@ -153,8 +153,10 @@ async function executeWithClaudeCode(
     content: `Executing with Claude Code CLI in ${workingDir}`
   });
 
+  // SECURITY: Use '--' to prevent taskSpecification from being parsed as CLI flags
   const claudeProcess = spawn('claude', [
     '--print',
+    '--',
     session.taskSpecification
   ], {
     cwd: workingDir,

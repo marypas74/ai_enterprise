@@ -502,13 +502,14 @@ async function bootstrap() {
       // Exclude health, version, and WebSocket endpoints from rate limiting
       const url = request.url;
       if (url === '/health' || url === '/version' || url.startsWith('/api/version')) return true;
-      if (url.startsWith('/api/public')) return true;  // Public metrics (polled every 3s)
+      // SECURITY: /api/public NO LONGER excluded — has its own per-route rate limits
       if (url.startsWith('/ws/')) return true;  // WebSocket connections
       return false;
     },
-    // Admin endpoints get a higher limit instead of full exemption
+    // SECURITY: Use real client IP from Cloudflare Tunnel (CF-Connecting-IP header)
+    // Behind Cloudflare Tunnel, request.ip is always ::1, breaking per-IP rate limiting
     keyGenerator: (request) => {
-      return request.ip;
+      return (request.headers['cf-connecting-ip'] as string) || request.ip;
     }
   });
 
@@ -546,7 +547,7 @@ async function bootstrap() {
       info: {
         title: 'Enterprise AI Chat API',
         description: 'Multi-provider AI chat platform with agent orchestration, project management, and RAG pipeline',
-        version: process.env.APP_VERSION || '2.1.5'
+        version: process.env.APP_VERSION || '2.1.12'
       },
       servers: [
         { url: `http://localhost:${process.env.PORT || 3000}`, description: 'Local' },

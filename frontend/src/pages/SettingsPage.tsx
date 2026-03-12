@@ -59,14 +59,18 @@ export default function SettingsPage() {
     useEffect(() => {
         const loadStatus = async () => {
             try {
-                const [meRes, consentRes] = await Promise.all([
+                const [meRes, consentRes, exportsRes] = await Promise.all([
                     api.get('/auth/me'),
                     api.get('/compliance/consent/status').catch(() => null),
+                    api.get('/compliance/data-exports').catch(() => null),
                 ]);
                 setMfaEnabled(!!meRes.data.mfa_enabled);
                 setGuardrailPolicy(meRes.data.guardrail_policy || '');
                 if (consentRes?.data?.deletion_pending) {
                     setDeletionPending(true);
+                }
+                if (exportsRes?.data?.exports) {
+                    setExportsList(exportsRes.data.exports);
                 }
             } catch (err) {
                 console.error('Failed to load user status:', err);
@@ -467,23 +471,37 @@ export default function SettingsPage() {
                                     {exportsList.length > 0 && (
                                         <div className="space-y-1">
                                             {exportsList.map((exp: any) => (
-                                                <div key={exp.id} className="flex items-center justify-between text-xs p-2 bg-white dark:bg-surface-900 rounded">
-                                                    <span className="text-surface-600 dark:text-surface-400">
-                                                        Export #{exp.id} — {exp.status === 'completed' ? 'Completato' : exp.status === 'pending' ? 'In attesa' : exp.status === 'processing' ? 'In elaborazione' : exp.status}
+                                                <div key={exp.id} className={`flex items-center justify-between text-xs p-2 rounded ${exp.status === 'failed' ? 'bg-red-50 dark:bg-red-900/20' : 'bg-white dark:bg-surface-900'}`}>
+                                                    <span className={`${exp.status === 'failed' ? 'text-red-600 dark:text-red-400' : 'text-surface-600 dark:text-surface-400'}`}>
+                                                        Export #{exp.id} — {exp.status === 'completed' ? 'Completato' : exp.status === 'pending' ? 'In attesa' : exp.status === 'processing' ? 'In elaborazione' : exp.status === 'failed' ? 'Fallito' : exp.status}
                                                     </span>
-                                                    {exp.status === 'completed' && (
+                                                    <div className="flex items-center gap-2">
+                                                        {exp.status === 'completed' && (
+                                                            <button
+                                                                onClick={async () => {
+                                                                    try {
+                                                                        const res = await api.get(`/compliance/data-export/${exp.id}`, { responseType: 'blob' });
+                                                                        await downloadBlob(new Blob([res.data]), `data-export-${exp.id}.json`);
+                                                                    } catch { setError('Errore nel download del file export.'); }
+                                                                }}
+                                                                className="text-blue-600 hover:text-blue-700 font-medium"
+                                                            >
+                                                                Scarica
+                                                            </button>
+                                                        )}
                                                         <button
                                                             onClick={async () => {
                                                                 try {
-                                                                    const res = await api.get(`/compliance/data-export/${exp.id}`, { responseType: 'blob' });
-                                                                    await downloadBlob(new Blob([res.data]), `data-export-${exp.id}.json`);
-                                                                } catch { setError('Errore nel download del file export.'); }
+                                                                    await api.delete(`/compliance/data-export/${exp.id}`);
+                                                                    setExportsList(prev => prev.filter((e: any) => e.id !== exp.id));
+                                                                } catch { setError('Errore nell\'eliminazione del record.'); }
                                                             }}
-                                                            className="text-blue-600 hover:text-blue-700 font-medium"
+                                                            className="text-surface-400 hover:text-red-500 transition-colors"
+                                                            title="Rimuovi dalla lista"
                                                         >
-                                                            Scarica
+                                                            ✕
                                                         </button>
-                                                    )}
+                                                    </div>
                                                 </div>
                                             ))}
                                         </div>

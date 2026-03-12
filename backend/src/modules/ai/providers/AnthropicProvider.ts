@@ -33,7 +33,7 @@ export class AnthropicProvider implements AIProvider {
         'Authorization': `Bearer ${this.oauthToken}`,
         'anthropic-version': '2023-06-01',
         'anthropic-beta': 'oauth-2025-04-20',  // Required for OAuth tokens
-        'User-Agent': 'Claude-Code/2.1.5'  // Identify as Claude Code
+        'User-Agent': 'Claude-Code/2.1.12'  // Identify as Claude Code
       },
       body: JSON.stringify({ ...body, stream })
     });
@@ -367,7 +367,10 @@ export class AnthropicProvider implements AIProvider {
       throw new Error('Anthropic provider not configured. Set API key or OAuth token.');
     }
 
-    const stream = this.client.messages.stream(requestBody as any);
+    // SECURITY: Forward abort signal to cancel upstream request on client disconnect
+    const stream = this.client.messages.stream(requestBody as any, {
+      signal: options.signal,
+    } as any);
 
     // Track tool_use and thinking blocks being streamed (SDK path)
     let currentToolUse: { id: string; name: string; inputJson: string } | null = null;

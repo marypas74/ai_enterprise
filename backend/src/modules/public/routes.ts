@@ -9,11 +9,22 @@ const statAsync = promisify(stat);
 
 const APK_DIR = process.env.APK_DIR || join(process.env.PROJECTS_PATH || '/data/projects', 'apk');
 
+// Helper: extract real client IP behind Cloudflare Tunnel
+function getClientIp(request: FastifyRequest): string {
+    return (request.headers['cf-connecting-ip'] as string) || request.ip;
+}
+
 export async function publicRoutes(fastify: FastifyInstance) {
-    // Public metrics endpoint — no authentication, no IP restriction
-    // Security: only exposes system metrics (CPU, memory, etc.), no sensitive data
-    // The page URL itself (/metrics) serves as the access control
-    fastify.get('/metrics', async (_request: FastifyRequest, reply: FastifyReply) => {
+    // SECURITY: Rate limit metrics endpoint — prevents abuse (expensive DB + system queries)
+    fastify.get('/metrics', {
+        config: {
+            rateLimit: {
+                max: 20,
+                timeWindow: '1 minute',
+                keyGenerator: (request: FastifyRequest) => getClientIp(request)
+            }
+        }
+    }, async (_request: FastifyRequest, reply: FastifyReply) => {
         try {
             const metrics = await MetricsService.getExhaustiveMetrics(fastify.db);
             return metrics;
@@ -23,9 +34,16 @@ export async function publicRoutes(fastify: FastifyInstance) {
         }
     });
 
-    // Public APK download — no authentication required
-    // Serves the latest APK from the APK directory
-    fastify.get('/downloads/apk', async (_request: FastifyRequest, reply: FastifyReply) => {
+    // Public APK download — no authentication required, rate limited to prevent bandwidth abuse
+    fastify.get('/downloads/apk', {
+        config: {
+            rateLimit: {
+                max: 5,
+                timeWindow: '1 minute',
+                keyGenerator: (request: FastifyRequest) => getClientIp(request)
+            }
+        }
+    }, async (_request: FastifyRequest, reply: FastifyReply) => {
         try {
             const files = await readdirAsync(APK_DIR);
             const apkFiles = files.filter(f => f.endsWith('.apk'));

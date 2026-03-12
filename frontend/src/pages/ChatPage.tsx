@@ -429,7 +429,13 @@ export default function ChatPage() {
           onOpenFilePicker={() => fileAttachments.fileInputRef.current?.click()}
           onAddFile={fileAttachments.addFile}
           onVoiceTranscription={handleVoiceTranscription}
-          onModeChange={handleNewConversation}
+          onModeChange={() => {
+            // Reset conversation when switching between free and rag mode
+            conversations.startNewConversation();
+            chatMessages.setMessages([]);
+            // Keep attachments only when switching TO free mode (may be useful)
+            // Clear document selection when leaving rag mode
+          }}
         />
       </main>
 

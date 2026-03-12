@@ -4,6 +4,7 @@ import {
   Paperclip,
   Database,
   ExternalLink,
+  Globe,
   User,
   ChevronDown,
   Download,
@@ -223,39 +224,62 @@ export default function ChatMessageList({
                 )}
               </div>
 
-              {/* Vector Memory / Sources display (GAP-RAG) */}
-              {message.role === 'assistant' && message.vectorMemories && (message.vectorMemories.declarative.length > 0 || message.vectorMemories.episodic.length > 0) && (
+              {/* Vector Memory / Web Sources display (GAP-RAG) */}
+              {message.role === 'assistant' && message.vectorMemories && (message.vectorMemories.declarative.length > 0 || message.vectorMemories.episodic.length > 0) && (() => {
+                const fullSources = [...message.vectorMemories.declarative, ...message.vectorMemories.episodic];
+                const allSources = fullSources.slice(0, 4);
+                const hasWebSources = fullSources.some(s => s.metadata?.type === 'web_search');
+                return (
                 <div className="mt-6 pt-4 border-t border-surface-200 dark:border-surface-800 animate-in fade-in slide-in-from-top-2 duration-700">
                   <div className="flex items-center gap-2 mb-4 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-[0.2em]">
-                    <Database className="w-3.5 h-3.5" />
-                    <span>Fonti ed Estratti ({(message.vectorMemories.declarative.length || 0) + (message.vectorMemories.episodic.length || 0)})</span>
+                    {hasWebSources ? <Globe className="w-3.5 h-3.5" /> : <Database className="w-3.5 h-3.5" />}
+                    <span>{hasWebSources ? 'Fonti Web' : 'Fonti ed Estratti'} ({fullSources.length})</span>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {[...message.vectorMemories.declarative, ...message.vectorMemories.episodic].slice(0, 4).map((source, sIdx) => (
+                    {allSources.map((source, sIdx) => {
+                      const isWeb = source.metadata?.type === 'web_search';
+                      return (
                       <div key={sIdx} className="group relative p-3 rounded-xl bg-surface-50/50 dark:bg-surface-800/20 border border-surface-200/60 dark:border-surface-700/40 hover:border-indigo-500/30 hover:bg-white dark:hover:bg-surface-800/40 shadow-sm transition-all duration-300">
                         <div className="flex items-start justify-between mb-2">
                           <span className="text-[9px] font-bold text-surface-400 dark:text-surface-500 uppercase">Riferimento #{sIdx + 1}</span>
-                          <div className="flex items-center gap-1.5">
-                            <div className="w-12 h-1 bg-surface-200 dark:bg-surface-700 rounded-full overflow-hidden">
-                              <div className="h-full bg-indigo-500" style={{ width: `${Math.min(source.score * 100, 100)}%` }} />
+                          {!isWeb && (
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-12 h-1 bg-surface-200 dark:bg-surface-700 rounded-full overflow-hidden">
+                                <div className="h-full bg-indigo-500" style={{ width: `${Math.min(source.score * 100, 100)}%` }} />
+                              </div>
+                              <span className="text-[9px] text-surface-500 font-medium">{(source.score * 100).toFixed(0)}%</span>
                             </div>
-                            <span className="text-[9px] text-surface-500 font-medium">{(source.score * 100).toFixed(0)}%</span>
-                          </div>
+                          )}
                         </div>
+                        {source.metadata?.title && isWeb && (
+                          <p className="text-[11px] font-semibold text-surface-700 dark:text-surface-200 mb-1 line-clamp-1">{source.metadata.title}</p>
+                        )}
                         <p className="text-[11px] text-surface-600 dark:text-surface-300 line-clamp-2 leading-relaxed italic">
                           "{source.content}"
                         </p>
                         {source.metadata?.originalName && (
                           <div className="mt-2.5 flex items-center gap-1.5 text-[10px] text-indigo-600/70 dark:text-indigo-400/70 font-semibold group-hover:text-indigo-600 transition-colors">
-                            <Paperclip className="w-3 h-3" />
-                            <span className="truncate">{source.metadata.originalName}</span>
+                            {isWeb ? (
+                              <a href={source.metadata.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 hover:underline">
+                                <Globe className="w-3 h-3" />
+                                <span className="truncate">{source.metadata.originalName}</span>
+                                <ExternalLink className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                              </a>
+                            ) : (
+                              <>
+                                <Paperclip className="w-3 h-3" />
+                                <span className="truncate">{source.metadata.originalName}</span>
+                              </>
+                            )}
                           </div>
                         )}
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
-              )}
+                );
+              })()}
 
               {message.timestamp && (
                 <div className="mt-4 text-[10px] text-surface-400 flex items-center gap-3">

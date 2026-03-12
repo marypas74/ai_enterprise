@@ -192,9 +192,8 @@ export function useChatMessages(currentConversationId: number | null): UseChatMe
   useEffect(() => {
     api.get('/compliance/consent/status')
       .then(res => {
-        const consents = res.data?.consents || [];
-        const hasAiConsent = consents.some((c: any) => c.consent_type === 'ai_disclosure' && c.granted);
-        if (!hasAiConsent) setShowConsentModal(true);
+        // Backend returns { consents: { consent_type: { granted, ... } }, all_required_granted: bool }
+        if (!res.data?.all_required_granted) setShowConsentModal(true);
       })
       .catch(() => { /* consent endpoint may not be ready */ });
   }, []);

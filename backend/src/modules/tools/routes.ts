@@ -349,11 +349,13 @@ export async function toolsRoutes(fastify: FastifyInstance) {
         }
     });
 
-    // GET: Download file — no JWT auth required (capability URL via unguessable timestamp filename)
+    // SECURITY: Download now requires authentication to prevent unauthorized file access
     fastify.get('/tools/download/:filename', {
+        onRequest: [(fastify as any).authenticate],
         schema: {
             tags: ['Tools'],
-            description: 'Download a generated document by filename (public, secured by unguessable filename)',
+            description: 'Download a generated document by filename (requires authentication)',
+            security: [{ bearerAuth: [] }],
             params: {
                 type: 'object',
                 properties: {

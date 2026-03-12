@@ -5,8 +5,36 @@
  */
 
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { createHmac } from 'crypto';
 import { getGoogleOAuthService } from '../../services/GoogleOAuthService.js';
 import { insertOne, findOne, updateOne } from '../../database/index.js';
+
+// SECURITY: Sign OAuth state to prevent forgery and account takeover
+function signOAuthState(payload: object, secret: string): string {
+  const data = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const sig = createHmac('sha256', secret).update(data).digest('base64url');
+  return `${data}.${sig}`;
+}
+
+function verifyOAuthState(token: string, secret: string): { userId: number; timestamp: number } | null {
+  const dotIdx = token.indexOf('.');
+  if (dotIdx < 0) return null;
+  const data = token.slice(0, dotIdx);
+  const sig = token.slice(dotIdx + 1);
+  const expected = createHmac('sha256', secret).update(data).digest('base64url');
+  // Constant-time comparison
+  if (sig.length !== expected.length) return null;
+  let mismatch = 0;
+  for (let i = 0; i < sig.length; i++) {
+    mismatch |= sig.charCodeAt(i) ^ expected.charCodeAt(i);
+  }
+  if (mismatch !== 0) return null;
+  try {
+    return JSON.parse(Buffer.from(data, 'base64url').toString());
+  } catch {
+    return null;
+  }
+}
 
 // Store OAuth tokens in database
 interface UserGoogleAuth {
@@ -74,11 +102,9 @@ export async function googleOAuthRoutes(fastify: FastifyInstance) {
 
     const user = request.user as { id: number };
 
-    // Create state with user ID for verification
-    const state = Buffer.from(JSON.stringify({
-      userId: user.id,
-      timestamp: Date.now()
-    })).toString('base64');
+    // SECURITY: Sign state with HMAC to prevent forgery/account takeover
+    const jwtSecret = process.env.JWT_SECRET || '';
+    const state = signOAuthState({ userId: user.id, timestamp: Date.now() }, jwtSecret);
 
     const authUrl = oauthService.generateAuthUrl(state);
 
@@ -114,8 +140,12 @@ export async function googleOAuthRoutes(fastify: FastifyInstance) {
     }
 
     try {
-      // Decode state to get user ID
-      const stateData = JSON.parse(Buffer.from(query.state, 'base64').toString());
+      // SECURITY: Verify HMAC-signed state to prevent forgery
+      const jwtSecret = process.env.JWT_SECRET || '';
+      const stateData = verifyOAuthState(query.state, jwtSecret);
+      if (!stateData) {
+        return reply.redirect('/settings?error=invalid_state');
+      }
       const userId = stateData.userId;
 
       // Verify timestamp is recent (within 10 minutes)

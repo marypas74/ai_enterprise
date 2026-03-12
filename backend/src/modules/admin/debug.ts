@@ -222,6 +222,7 @@ export async function debugRoutes(fastify: FastifyInstance) {
   // Test endpoint - echo request details
   fastify.all('/debug/echo', {
     onRequest: [requireAdmin],
+    bodyLimit: 100 * 1024, // SECURITY: 100KB max for debug echo
     schema: {
       description: 'Echo request details for testing',
       tags: ['debug'],
@@ -230,12 +231,16 @@ export async function debugRoutes(fastify: FastifyInstance) {
   }, async (request: FastifyRequest) => {
     // M-08: Redact sensitive headers to prevent credential leakage
     const { authorization, cookie, 'x-api-key': _apiKey, ...safeHeaders } = request.headers;
+    // SECURITY: Truncate reflected body to prevent large payload abuse
+    const rawBody = request.body;
+    const bodyStr = typeof rawBody === 'string' ? rawBody : JSON.stringify(rawBody);
+    const body = bodyStr && bodyStr.length > 10000 ? bodyStr.slice(0, 10000) + '...[TRUNCATED]' : rawBody;
     return {
       method: request.method,
       url: request.url,
       headers: { ...safeHeaders, authorization: authorization ? '[REDACTED]' : undefined },
       query: request.query,
-      body: request.body,
+      body,
       ip: request.ip,
       timestamp: new Date().toISOString()
     };

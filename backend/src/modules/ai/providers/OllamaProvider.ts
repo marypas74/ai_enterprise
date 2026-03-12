@@ -92,8 +92,14 @@ export class OllamaProvider implements AIProvider {
     // Helper to make the Ollama API call (may retry without tools)
     let useTools = options.tools;
     const makeRequest = async () => {
+      // SECURITY: Combine timeout + client disconnect signals
+      const signals: AbortSignal[] = [AbortSignal.timeout(this.timeout)];
+      if (options.signal) signals.push(options.signal);
+      const combinedSignal = AbortSignal.any(signals);
+
       return fetch(`${this.baseUrl}/api/chat`, {
         method: 'POST',
+        signal: combinedSignal,
         headers: {
           'Content-Type': 'application/json',
           'X-Ollama-Key': process.env.OLLAMA_AUTH_KEY || ''
@@ -112,7 +118,6 @@ export class OllamaProvider implements AIProvider {
           },
           keep_alive: this.keepAlive
         }),
-        signal: AbortSignal.timeout(this.timeout)
       });
     };
 

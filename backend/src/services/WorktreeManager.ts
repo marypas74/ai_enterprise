@@ -1,13 +1,32 @@
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { AgentEventEmitter } from './AgentEventEmitter.js';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 // Use absolute path for git to ensure it's found regardless of PATH
 const GIT_PATH = '/usr/bin/git';
+
+// SECURITY: Validate branch names to prevent argument injection
+// Only allow alphanumeric, hyphens, underscores, dots, and slashes
+const SAFE_BRANCH_RE = /^[a-zA-Z0-9._\-/]+$/;
+function validateBranchName(name: string): string {
+  if (!SAFE_BRANCH_RE.test(name)) {
+    throw new Error(`Invalid branch name: ${name}`);
+  }
+  return name;
+}
+
+// SECURITY: Validate file paths to prevent git object ref injection
+// Rejects paths with .., null bytes, leading /, or non-printable characters
+function validateFilePath(filePath: string): string {
+  if (!filePath || filePath.includes('\0') || filePath.includes('..') || filePath.startsWith('/') || /[\x00-\x1f\x7f]/.test(filePath)) {
+    throw new Error(`Invalid file path: ${filePath}`);
+  }
+  return filePath;
+}
 
 export interface Worktree {
   id: number;
@@ -32,6 +51,20 @@ export interface MergeResult {
   success: boolean;
   conflicts: string[];
   message: string;
+}
+
+// Helper: run git command with execFile (no shell, prevents injection)
+async function git(args: string[], options?: { timeout?: number; maxBuffer?: number; cwd?: string }): Promise<{ stdout: string; stderr: string }> {
+  return execFileAsync(GIT_PATH, args, {
+    timeout: options?.timeout,
+    maxBuffer: options?.maxBuffer,
+    cwd: options?.cwd,
+  });
+}
+
+// Helper: run git command in a specific repo via -C flag
+async function gitC(repoPath: string, args: string[], options?: { timeout?: number; maxBuffer?: number }): Promise<{ stdout: string; stderr: string }> {
+  return git(['-C', repoPath, ...args], options);
 }
 
 class WorktreeManagerClass {
@@ -68,6 +101,9 @@ class WorktreeManagerClass {
     sessionId: number,
     baseBranch: string = 'main'
   ): Promise<Worktree> {
+    // SECURITY: Validate baseBranch to prevent argument injection
+    validateBranchName(baseBranch);
+
     const branchName = `agent-session-${sessionId}-${Date.now()}`;
     const worktreePath = path.join(this.baseWorktreePath, branchName);
 
@@ -76,18 +112,15 @@ class WorktreeManagerClass {
       await fs.mkdir(this.baseWorktreePath, { recursive: true });
 
       // Fetch latest changes from remote
-      await execAsync(`${GIT_PATH} -C "${this.repositoryPath}" fetch origin ${baseBranch}`, {
-        timeout: 60000
-      });
+      await gitC(this.repositoryPath, ['fetch', 'origin', baseBranch], { timeout: 60000 });
 
       // Create the worktree with a new branch based on the base branch
-      await execAsync(
-        `${GIT_PATH} -C "${this.repositoryPath}" worktree add -b "${branchName}" "${worktreePath}" "origin/${baseBranch}"`,
-        { timeout: 120000 }
-      );
+      await gitC(this.repositoryPath, [
+        'worktree', 'add', '-b', branchName, worktreePath, `origin/${baseBranch}`
+      ], { timeout: 120000 });
 
       // Get the current commit SHA
-      const { stdout: sha } = await execAsync(`${GIT_PATH} -C "${worktreePath}" rev-parse HEAD`);
+      const { stdout: sha } = await gitC(worktreePath, ['rev-parse', 'HEAD']);
       const lastCommitSha = sha.trim();
 
       // Insert into database
@@ -176,27 +209,22 @@ class WorktreeManagerClass {
 
     try {
       // Stage all changes
-      await execAsync(`${GIT_PATH} -C "${worktree.worktree_path}" add -A`);
+      await gitC(worktree.worktree_path, ['add', '-A']);
 
       // Check if there are changes to commit
-      const { stdout: status } = await execAsync(
-        `${GIT_PATH} -C "${worktree.worktree_path}" status --porcelain`
-      );
+      const { stdout: status } = await gitC(worktree.worktree_path, ['status', '--porcelain']);
 
       if (!status.trim()) {
         return worktree.last_commit_sha; // No changes to commit
       }
 
-      // Commit changes
-      await execAsync(
-        `${GIT_PATH} -C "${worktree.worktree_path}" commit -m "${message.replace(/"/g, '\\"')}" --author="${authorName} <${authorEmail}>"`,
-        { timeout: 30000 }
-      );
+      // SECURITY: Use execFile with args array — message is passed safely as a single argument
+      await gitC(worktree.worktree_path, [
+        'commit', '-m', message, `--author=${authorName} <${authorEmail}>`
+      ], { timeout: 30000 });
 
       // Get new commit SHA
-      const { stdout: sha } = await execAsync(
-        `${GIT_PATH} -C "${worktree.worktree_path}" rev-parse HEAD`
-      );
+      const { stdout: sha } = await gitC(worktree.worktree_path, ['rev-parse', 'HEAD']);
       const newSha = sha.trim();
 
       // Update database
@@ -235,23 +263,16 @@ class WorktreeManagerClass {
       );
 
       // First, checkout base branch in main repository
-      await execAsync(
-        `${GIT_PATH} -C "${worktree.repository_path}" checkout ${worktree.base_branch}`,
-        { timeout: 30000 }
-      );
+      await gitC(worktree.repository_path, ['checkout', worktree.base_branch], { timeout: 30000 });
 
       // Pull latest changes
-      await execAsync(
-        `${GIT_PATH} -C "${worktree.repository_path}" pull origin ${worktree.base_branch}`,
-        { timeout: 60000 }
-      );
+      await gitC(worktree.repository_path, ['pull', 'origin', worktree.base_branch], { timeout: 60000 });
 
       // Try to merge the worktree branch
       try {
-        await execAsync(
-          `${GIT_PATH} -C "${worktree.repository_path}" merge ${worktree.branch_name} -m "Merge agent session ${worktree.session_id}"`,
-          { timeout: 60000 }
-        );
+        await gitC(worktree.repository_path, [
+          'merge', worktree.branch_name, '-m', `Merge agent session ${worktree.session_id}`
+        ], { timeout: 60000 });
 
         // Update status to merged
         await db.execute(
@@ -273,11 +294,11 @@ class WorktreeManagerClass {
         };
       } catch (mergeError: any) {
         // Check for merge conflicts
-        const { stdout: conflictStatus } = await execAsync(
-          `${GIT_PATH} -C "${worktree.repository_path}" diff --name-only --diff-filter=U`
-        );
+        const { stdout: conflictStatus } = await gitC(worktree.repository_path, [
+          'diff', '--name-only', '--diff-filter=U'
+        ]);
 
-        const conflictFiles = conflictStatus.trim().split('\n').filter(f => f);
+        const conflictFiles = conflictStatus.trim().split('\n').filter((f: string) => f);
 
         if (conflictFiles.length > 0) {
           // Update status to conflict
@@ -302,7 +323,7 @@ class WorktreeManagerClass {
 
       // Abort merge if in progress
       try {
-        await execAsync(`${GIT_PATH} -C "${worktree.repository_path}" merge --abort`);
+        await gitC(worktree.repository_path, ['merge', '--abort']);
       } catch { /* ignore */ }
 
       throw new Error(`Failed to merge: ${error.message}`);
@@ -325,23 +346,23 @@ class WorktreeManagerClass {
     }
 
     const worktree = (rows as any[])[0];
+    // SECURITY: Validate filePath to prevent git object ref injection
+    validateFilePath(filePath);
     const fullPath = path.join(worktree.repository_path, filePath);
 
     try {
       // Get the conflicted file content
       const content = await fs.readFile(fullPath, 'utf-8');
 
-      // Get "ours" version
-      const { stdout: oursContent } = await execAsync(
-        `${GIT_PATH} -C "${worktree.repository_path}" show :2:"${filePath}"`,
-        { maxBuffer: 10 * 1024 * 1024 }
-      ).catch(() => ({ stdout: '' }));
+      // Get "ours" version — SECURITY: filePath validated above and passed as arg
+      const { stdout: oursContent } = await gitC(worktree.repository_path, [
+        'show', `:2:${filePath}`
+      ], { maxBuffer: 10 * 1024 * 1024 }).catch(() => ({ stdout: '', stderr: '' }));
 
       // Get "theirs" version
-      const { stdout: theirsContent } = await execAsync(
-        `${GIT_PATH} -C "${worktree.repository_path}" show :3:"${filePath}"`,
-        { maxBuffer: 10 * 1024 * 1024 }
-      ).catch(() => ({ stdout: '' }));
+      const { stdout: theirsContent } = await gitC(worktree.repository_path, [
+        'show', `:3:${filePath}`
+      ], { maxBuffer: 10 * 1024 * 1024 }).catch(() => ({ stdout: '', stderr: '' }));
 
       return {
         path: filePath,
@@ -377,14 +398,16 @@ class WorktreeManagerClass {
     }
 
     const worktree = (rows as any[])[0];
+    // SECURITY: Validate filePath to prevent path traversal
+    validateFilePath(filePath);
     const fullPath = path.join(worktree.repository_path, filePath);
 
     try {
       // Write resolved content
       await fs.writeFile(fullPath, resolvedContent, 'utf-8');
 
-      // Stage the resolved file
-      await execAsync(`${GIT_PATH} -C "${worktree.repository_path}" add "${filePath}"`);
+      // Stage the resolved file — SECURITY: filePath validated and passed as arg
+      await gitC(worktree.repository_path, ['add', filePath]);
 
       // Record resolution in database
       await db.execute(
@@ -396,7 +419,7 @@ class WorktreeManagerClass {
 
       // Update conflict files list
       const conflictFiles: string[] = worktree.conflict_files ? JSON.parse(worktree.conflict_files) : [];
-      const remainingConflicts = conflictFiles.filter(f => f !== filePath);
+      const remainingConflicts = conflictFiles.filter((f: string) => f !== filePath);
 
       await db.execute(
         `UPDATE git_worktrees SET conflict_files = ? WHERE id = ?`,
@@ -432,19 +455,17 @@ class WorktreeManagerClass {
 
     try {
       // Remove worktree from git
-      await execAsync(
-        `${GIT_PATH} -C "${worktree.repository_path}" worktree remove "${worktree.worktree_path}" --force`,
-        { timeout: 60000 }
-      ).catch(() => {
+      await gitC(worktree.repository_path, [
+        'worktree', 'remove', worktree.worktree_path, '--force'
+      ], { timeout: 60000 }).catch(() => {
         // If worktree remove fails, try deleting directory manually
         return fs.rm(worktree.worktree_path, { recursive: true, force: true });
       });
 
       // Delete the branch
-      await execAsync(
-        `${GIT_PATH} -C "${worktree.repository_path}" branch -D "${worktree.branch_name}"`,
-        { timeout: 30000 }
-      ).catch(() => { /* ignore if branch already deleted */ });
+      await gitC(worktree.repository_path, [
+        'branch', '-D', worktree.branch_name
+      ], { timeout: 30000 }).catch(() => { /* ignore if branch already deleted */ });
 
       // Update database
       await db.execute(
@@ -478,7 +499,7 @@ class WorktreeManagerClass {
       }
 
       // Also run git worktree prune
-      await execAsync(`${GIT_PATH} -C "${this.repositoryPath}" worktree prune`).catch(() => { });
+      await gitC(this.repositoryPath, ['worktree', 'prune']).catch(() => { });
 
       return pruned;
     } catch (error: any) {

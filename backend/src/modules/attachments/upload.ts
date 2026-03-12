@@ -8,6 +8,8 @@ import { z } from 'zod';
 import { findOne, findAll, findMany, insertOne } from '../../database/index.js';
 import path from 'path';
 import fs from 'fs/promises';
+import { createWriteStream } from 'fs';
+import { pipeline } from 'stream/promises';
 import crypto from 'crypto';
 import { convertTextToDocx, convertPdfToDocx } from '../../services/DocumentProcessorService.js';
 import { searchSimilar } from '../../services/VectorStoreService.js';
@@ -71,18 +73,21 @@ export async function registerUploadRoutes(fastify: FastifyInstance): Promise<vo
         if (part.type === 'field' && part.fieldname === 'conversationId') {
           conversationId = Number(part.value);
         } else if (part.type === 'file') {
-          // Get file buffer
-          const chunks: Buffer[] = [];
-          for await (const chunk of part.file) {
-            chunks.push(chunk);
-          }
-          const buffer = Buffer.concat(chunks);
+          // SECURITY: Stream file directly to disk to prevent memory exhaustion
+          // (previously buffered entire file in memory — up to 500MB with 10 files)
+          const tempName = `_upload_${Date.now()}_${crypto.randomBytes(8).toString('hex')}${path.extname(part.filename || '')}`;
+          const tempPath = path.join(ATTACHMENTS_ROOT, tempName);
+          await fs.mkdir(ATTACHMENTS_ROOT, { recursive: true });
+          const writeStream = createWriteStream(tempPath);
+          await pipeline(part.file, writeStream);
+          const stat = await fs.stat(tempPath);
 
           uploadedFiles.push({
             fieldname: part.fieldname,
             filename: part.filename,
             mimetype: part.mimetype,
-            buffer,
+            tempPath,
+            size: stat.size,
           });
         }
       }
@@ -123,17 +128,18 @@ export async function registerUploadRoutes(fastify: FastifyInstance): Promise<vo
           continue; // Skip unsupported file types
         }
 
-        // Check file size
-        const fileSizeMB = file.buffer.length / (1024 * 1024);
+        // Check file size (now from disk stat, not buffer)
+        const fileSizeMB = file.size / (1024 * 1024);
         if (fileSizeMB > config.max_size_mb) {
           fastify.log.warn(`[Attachments] File too large: ${fileSizeMB}MB > ${config.max_size_mb}MB`);
+          await fs.unlink(file.tempPath).catch(() => {});
           continue;
         }
 
-        // Save file
+        // Move temp file to final destination
         const uniqueName = generateUniqueFilename(file.filename);
         const filePath = path.join(dir, uniqueName);
-        await fs.writeFile(filePath, file.buffer);
+        await fs.rename(file.tempPath, filePath);
 
         // Insert into database
         const insertedId = await insertOne(
@@ -141,7 +147,7 @@ export async function registerUploadRoutes(fastify: FastifyInstance): Promise<vo
           `INSERT INTO chat_attachments
            (conversation_id, user_id, file_name, original_name, file_path, file_size, mime_type, content_type, processing_status)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
-          [conversationId, userId, uniqueName, file.filename, filePath, file.buffer.length, file.mimetype, config.content_type]
+          [conversationId, userId, uniqueName, file.filename, filePath, file.size, file.mimetype, config.content_type]
         );
 
         attachments.push({
@@ -150,7 +156,7 @@ export async function registerUploadRoutes(fastify: FastifyInstance): Promise<vo
           originalName: file.filename,
           mimeType: file.mimetype,
           contentType: config.content_type,
-          size: file.buffer.length,
+          size: file.size,
           status: 'pending',
         });
 
@@ -159,7 +165,7 @@ export async function registerUploadRoutes(fastify: FastifyInstance): Promise<vo
         // Hook: on_document_upload
         eventBus.emit('on_document_upload', {
           attachmentId: insertedId, originalName: file.filename, mimeType: file.mimetype,
-          contentType: config.content_type, size: file.buffer.length, userId,
+          contentType: config.content_type, size: file.size, userId,
         }, { userId }).catch(() => {});
 
         // Queue for processing (async)

@@ -336,6 +336,22 @@ export async function complianceRoutes(fastify: FastifyInstance) {
     return { exports };
   });
 
+  // ── DELETE /compliance/data-export/:id ── (Remove an export record)
+  fastify.delete('/compliance/data-export/:id', {
+    onRequest: [(fastify as any).authenticate],
+  }, async (request, reply) => {
+    const user = request.user as UserPayload;
+    const { id } = request.params as { id: string };
+    const result = await updateOne(fastify.db,
+      `DELETE FROM data_export_requests WHERE id = ? AND user_id = ?`,
+      [id, user.id]
+    );
+    if (result === 0) {
+      return reply.status(404).send({ error: 'Export not found' });
+    }
+    return { message: 'Export record deleted' };
+  });
+
   // ── POST /compliance/delete-account ── (GAP-7: Request account deletion)
   fastify.post('/compliance/delete-account', {
     onRequest: [(fastify as any).authenticate],
@@ -456,41 +472,51 @@ export async function complianceRoutes(fastify: FastifyInstance) {
     onRequest: [(fastify as any).authenticate, adminOnly],
   }, async (request, reply) => {
 
+    // Helper: run a query safely, return fallback on error (e.g. missing table)
+    const safeQuery = async <T>(queryFn: () => Promise<T>, fallback: T): Promise<T> => {
+      try { return await queryFn(); } catch {
+        return fallback;
+      }
+    };
+
     const [
       totalUsers,
       usersWithAllConsents,
       totalDecisions,
       totalFeedback,
+      totalExports,
       pendingExports,
       pendingDeletions,
       latestBias,
     ] = await Promise.all([
-      findOne<{ cnt: number }>(fastify.db, `SELECT COUNT(*) as cnt FROM users WHERE is_active = TRUE`),
-      findOne<{ cnt: number }>(fastify.db,
+      safeQuery(() => findOne<{ cnt: number }>(fastify.db, `SELECT COUNT(*) as cnt FROM users WHERE is_active = TRUE`), { cnt: 0 }),
+      safeQuery(() => findOne<{ cnt: number }>(fastify.db,
         `SELECT COUNT(*) as cnt FROM (
            SELECT user_id FROM user_consents
            WHERE granted = TRUE AND consent_type IN ('ai_disclosure','data_processing','terms_of_service')
            GROUP BY user_id HAVING COUNT(DISTINCT consent_type) = 3
          ) AS fully_consented`
-      ),
-      findOne<{ cnt: number }>(fastify.db, `SELECT COUNT(*) as cnt FROM ai_decision_log`),
-      findOne<{ total: number; positive: number; negative: number }>(fastify.db,
+      ), { cnt: 0 }),
+      safeQuery(() => findOne<{ cnt: number }>(fastify.db, `SELECT COUNT(*) as cnt FROM ai_decision_log`), { cnt: 0 }),
+      safeQuery(() => findOne<{ total: number; positive: number; negative: number }>(fastify.db,
         `SELECT COUNT(*) as total, SUM(CASE WHEN rating=1 THEN 1 ELSE 0 END) as positive, SUM(CASE WHEN rating=-1 THEN 1 ELSE 0 END) as negative FROM response_feedback`
-      ),
-      findOne<{ cnt: number }>(fastify.db, `SELECT COUNT(*) as cnt FROM data_export_requests WHERE status IN ('pending','processing')`),
-      findOne<{ cnt: number }>(fastify.db, `SELECT COUNT(*) as cnt FROM account_deletion_requests WHERE status IN ('pending','confirmed')`),
-      findMany<any>(fastify.db,
+      ), { total: 0, positive: 0, negative: 0 }),
+      safeQuery(() => findOne<{ cnt: number }>(fastify.db, `SELECT COUNT(*) as cnt FROM data_export_requests`), { cnt: 0 }),
+      safeQuery(() => findOne<{ cnt: number }>(fastify.db, `SELECT COUNT(*) as cnt FROM data_export_requests WHERE status IN ('pending','processing')`), { cnt: 0 }),
+      safeQuery(() => findOne<{ cnt: number }>(fastify.db, `SELECT COUNT(*) as cnt FROM account_deletion_requests WHERE status IN ('pending','confirmed')`), { cnt: 0 }),
+      safeQuery(() => findMany<any>(fastify.db,
         `SELECT id, period_start, period_end, ai_model, ai_provider, total_requests,
                 refusal_count, error_count, avg_latency_ms, negative_feedback_count,
                 positive_feedback_count, flagged_content_count, created_at
          FROM bias_monitoring_log ORDER BY period_end DESC LIMIT 5`
-      ),
+      ), []),
     ]);
 
     return {
       users: { total: totalUsers?.cnt || 0, with_all_consents: usersWithAllConsents?.cnt || 0 },
       ai_decisions: { total: totalDecisions?.cnt || 0 },
       feedback: totalFeedback || { total: 0, positive: 0, negative: 0 },
+      total_exports: totalExports?.cnt || 0,
       pending_exports: pendingExports?.cnt || 0,
       pending_deletions: pendingDeletions?.cnt || 0,
       latest_bias_reports: latestBias,

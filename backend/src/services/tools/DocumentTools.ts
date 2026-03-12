@@ -3,7 +3,7 @@
  * Handles generate_word_document, generate_excel_document, generate_powerpoint_document, get_attachment_text
  */
 
-import { convertTextToDocx, convertDataToXlsx, convertSlidesToPptx } from '../DocumentProcessorService.js';
+import { convertTextToDocx, convertDataToXlsx, convertSlidesToPptx, convertOfficeToPdf } from '../DocumentProcessorService.js';
 import { getProjectFolder } from '../StorageService.js';
 import { findOne } from '../../database/index.js';
 import path from 'path';
@@ -116,6 +116,31 @@ WHEN NOT TO USE:
           }
         },
         required: ['path', 'slides']
+      }
+    },
+    {
+      name: 'convert_to_pdf',
+      description: `Convert an uploaded file (DOCX, XLSX, PPTX, etc.) to PDF and return a download link. YOU MUST use this tool whenever the user asks to convert a file to PDF or to "create a PDF" from an uploaded document.
+
+WHEN TO USE:
+- User uploads a DOCX/XLSX/PPTX and says "creami un pdf", "converti in pdf", "convert to pdf", "genera un pdf"
+- User says "trasforma in pdf", "fammi il pdf", "voglio il pdf di questo file"
+- User uploads any Office document and asks for a PDF version
+
+WHEN NOT TO USE:
+- User asks to generate a NEW PDF from scratch with custom text (use generate_word_document + convert_to_pdf)
+- User asks for document analysis or summary (respond in chat instead)
+
+IMPORTANT: This tool converts the ORIGINAL uploaded file to PDF using LibreOffice. It preserves formatting, tables, and images.`,
+      input_schema: {
+        type: 'object',
+        properties: {
+          attachment_id: {
+            type: 'number',
+            description: 'The ID of the uploaded attachment to convert to PDF'
+          }
+        },
+        required: ['attachment_id']
       }
     },
     {
@@ -273,6 +298,64 @@ export async function executeDocumentTool(
           downloadFilename: download.downloadFilename
         }
       };
+    }
+
+    case 'convert_to_pdf': {
+      const { attachment_id } = toolInput;
+      if (!attachment_id) {
+        return { success: false, error: 'Missing required parameter: attachment_id' };
+      }
+
+      const attachment = context.db ? await findOne<any>(
+        context.db,
+        'SELECT file_path, original_name, mime_type FROM chat_attachments WHERE id = ? AND user_id = ?',
+        [attachment_id, context.userId]
+      ) : null;
+
+      if (!attachment) {
+        return { success: false, error: `Attachment not found: ${attachment_id}` };
+      }
+
+      const { promises: fsp } = await import('fs');
+      const os = await import('os');
+
+      // Path traversal guard: ensure file_path is within expected storage root
+      const storageRoot = path.resolve(process.env.STORAGE_ROOT || process.cwd());
+      const resolvedPath = path.resolve(attachment.file_path);
+      if (!resolvedPath.startsWith(storageRoot + path.sep) && !resolvedPath.startsWith('/app/attachments')) {
+        return { success: false, error: 'Invalid attachment path' };
+      }
+
+      try { await fsp.access(resolvedPath); } catch {
+        return { success: false, error: 'File non trovato' };
+      }
+
+      const inputBuffer = await fsp.readFile(resolvedPath);
+      const tmpDir = await fsp.mkdtemp(path.join(os.default.tmpdir(), 'pdf-convert-'));
+
+      try {
+        const pdfPath = await convertOfficeToPdf(inputBuffer, tmpDir, attachment.original_name);
+        const baseName = path.basename(attachment.original_name, path.extname(attachment.original_name));
+        const relativePath = `converted/${baseName}.pdf`;
+
+        const download = await copyToDownloadDir(pdfPath, relativePath, '.pdf');
+
+        // Cleanup temp directory
+        await fsp.rm(tmpDir, { recursive: true, force: true });
+
+        return {
+          success: true,
+          output: {
+            message: `PDF generato con successo!\n\n[Scarica ${baseName}.pdf](${download.downloadUrl})`,
+            path: relativePath,
+            downloadUrl: download.downloadUrl,
+            downloadFilename: download.downloadFilename
+          }
+        };
+      } catch (convErr: any) {
+        await fsp.rm(tmpDir, { recursive: true, force: true });
+        return { success: false, error: `PDF conversion failed: ${convErr.message}` };
+      }
     }
 
     case 'get_attachment_text': {

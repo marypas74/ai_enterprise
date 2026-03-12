@@ -13,6 +13,8 @@ import {
     Users,
     Container,
     ImagePlus,
+    Shield,
+    Cloud,
 } from 'lucide-react';
 
 // Using direct axios for public route to bypass intercepted auth logic if necessary
@@ -131,7 +133,7 @@ export default function PublicMonitorPage() {
                         <Activity className="w-6 h-6 text-green-500" />
                         VITAL_SIGNS_OS
                     </h1>
-                    <span className="text-surface-500 text-[10px]">FE: 2.1.5_STABLE | BE: 2.1.5_STABLE | NODE: {data?.hostname}</span>
+                    <span className="text-surface-500 text-[10px]">FE: 2.1.13_STABLE | BE: 2.1.13_STABLE | NODE: {data?.hostname}</span>
                 </div>
                 <div className="text-right">
                     <div className="text-green-500 animate-pulse text-xs font-bold font-mono">● LIVE_STREAM_ACTIVE</div>
@@ -210,14 +212,32 @@ export default function PublicMonitorPage() {
                 {/* NETWORK_I/O */}
                 <GridCard title="NET_TRAFFIC_IO" icon={Network} color="cyan">
                     {data?.network?.stats && data.network.stats.length > 0 ? (
-                        <div className="space-y-2 max-h-[140px] overflow-y-auto pr-1">
-                            {data.network.stats.map((stat: any, i: number) => (
-                                <div key={i} className="border-b border-white/5 pb-1 last:border-0">
-                                    <div className="text-[10px] text-cyan-500 mb-1 font-bold">{stat.interface}</div>
-                                    <StatItem label="RX" value={formatBytes(stat.rxBytesPerSec)} subValue="/s" color="text-cyan-400" />
-                                    <StatItem label="TX" value={formatBytes(stat.txBytesPerSec)} subValue="/s" color="text-blue-400" />
-                                </div>
-                            ))}
+                        <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
+                            {data.network.stats.map((stat: any, i: number) => {
+                                const hasErrors = (stat.rxErrors || 0) > 0 || (stat.txErrors || 0) > 0;
+                                const hasDrops = (stat.rxDropped || 0) > 0 || (stat.txDropped || 0) > 0;
+                                return (
+                                    <div key={i} className="border-b border-white/5 pb-2 last:border-0">
+                                        <div className="text-[10px] text-cyan-500 mb-1 font-bold">{stat.interface}</div>
+                                        <div className="grid grid-cols-2 gap-x-3">
+                                            <StatItem label="RX_RATE" value={formatBytes(stat.rxBytesPerSec)} subValue="/s" color="text-cyan-400" />
+                                            <StatItem label="TX_RATE" value={formatBytes(stat.txBytesPerSec)} subValue="/s" color="text-blue-400" />
+                                            <StatItem label="RX_TOTAL" value={formatBytes(stat.rxBytes || 0)} color="text-surface-400" />
+                                            <StatItem label="TX_TOTAL" value={formatBytes(stat.txBytes || 0)} color="text-surface-400" />
+                                            <StatItem label="RX_PKT" value={((stat.rxPackets || 0) / 1e6).toFixed(1) + 'M'} color="text-surface-500" />
+                                            <StatItem label="TX_PKT" value={((stat.txPackets || 0) / 1e6).toFixed(1) + 'M'} color="text-surface-500" />
+                                        </div>
+                                        {(hasErrors || hasDrops) && (
+                                            <div className="mt-1 pt-1 border-t border-white/5 grid grid-cols-2 gap-x-3">
+                                                <StatItem label="RX_ERR" value={stat.rxErrors || 0} color={hasErrors ? 'text-red-400' : 'text-surface-600'} />
+                                                <StatItem label="TX_ERR" value={stat.txErrors || 0} color={hasErrors ? 'text-red-400' : 'text-surface-600'} />
+                                                <StatItem label="RX_DROP" value={formatBytes(stat.rxDropped || 0)} color={hasDrops ? 'text-amber-400' : 'text-surface-600'} />
+                                                <StatItem label="TX_DROP" value={stat.txDropped || 0} color={hasDrops ? 'text-amber-400' : 'text-surface-600'} />
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
                         </div>
                     ) : (
                         <div className="py-4 text-center text-surface-600 italic text-[10px]">Awaiting_First_Sample...</div>
@@ -366,7 +386,102 @@ export default function PublicMonitorPage() {
                 </GridCard>
             </div>
 
-            {/* Second row: Docker + K8s Containers + Active Users */}
+            {/* Second row: Connection Health + Cloudflare Tunnel */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                {/* TCP/UDP CONNECTION HEALTH */}
+                <GridCard title="CONN_HEALTH_MATRIX" icon={Shield} color="red">
+                    {data?.connectionHealth?.tcp ? (
+                        <div className="space-y-2">
+                            <div className="text-[10px] text-red-400 font-bold mb-1">TCP_STACK</div>
+                            <div className="grid grid-cols-2 gap-x-3">
+                                <StatItem label="ESTABLISHED" value={data.connectionHealth.tcp.currentEstablished || 0} color="text-green-400" />
+                                <StatItem label="RETRANSMIT_%" value={`${data.connectionHealth.tcp.retransmitRate || 0}%`} color={data.connectionHealth.tcp.retransmitRate > 1 ? 'text-red-400' : 'text-green-400'} />
+                                <StatItem label="RETRANSMITS" value={data.connectionHealth.tcp.retransmits || 0} color={data.connectionHealth.tcp.retransmits > 10000 ? 'text-amber-400' : 'text-surface-400'} />
+                                <StatItem label="TIMEOUTS" value={data.connectionHealth.tcp.timeouts || 0} color={data.connectionHealth.tcp.timeouts > 100 ? 'text-red-400' : 'text-surface-400'} />
+                                <StatItem label="ATTEMPT_FAILS" value={data.connectionHealth.tcp.attemptFails || 0} color={data.connectionHealth.tcp.attemptFails > 100 ? 'text-amber-400' : 'text-surface-400'} />
+                                <StatItem label="ESTAB_RESETS" value={data.connectionHealth.tcp.estabResets || 0} color={data.connectionHealth.tcp.estabResets > 100 ? 'text-amber-400' : 'text-surface-400'} />
+                                <StatItem label="ACTIVE_OPENS" value={data.connectionHealth.tcp.activeOpens || 0} color="text-surface-500" />
+                                <StatItem label="PASSIVE_OPENS" value={data.connectionHealth.tcp.passiveOpens || 0} color="text-surface-500" />
+                            </div>
+                            <div className="flex justify-between text-[8px] text-surface-600 mt-1">
+                                <span>IN_SEG: {((data.connectionHealth.tcp.inSegments || 0) / 1e6).toFixed(1)}M</span>
+                                <span>OUT_SEG: {((data.connectionHealth.tcp.outSegments || 0) / 1e6).toFixed(1)}M</span>
+                            </div>
+
+                            <div className="border-t border-white/10 pt-2 mt-2">
+                                <div className="text-[10px] text-yellow-400 font-bold mb-1">UDP_STACK</div>
+                                <div className="grid grid-cols-2 gap-x-3">
+                                    <StatItem label="IN_DGRAMS" value={((data.connectionHealth.udp?.inDatagrams || 0) / 1e6).toFixed(1) + 'M'} color="text-surface-400" />
+                                    <StatItem label="OUT_DGRAMS" value={((data.connectionHealth.udp?.outDatagrams || 0) / 1e6).toFixed(1) + 'M'} color="text-surface-400" />
+                                    <StatItem label="IN_ERRORS" value={data.connectionHealth.udp?.inErrors || 0} color={data.connectionHealth.udp?.inErrors > 0 ? 'text-red-400' : 'text-green-400'} />
+                                    <StatItem label="NO_PORTS" value={data.connectionHealth.udp?.noPorts || 0} color={data.connectionHealth.udp?.noPorts > 1000 ? 'text-amber-400' : 'text-surface-500'} />
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="py-4 text-center text-surface-600 italic text-[10px]">No_Connection_Data</div>
+                    )}
+                </GridCard>
+
+                {/* CLOUDFLARE TUNNEL STATUS */}
+                <GridCard title="CLOUDFLARE_TUNNEL" icon={Cloud} color="orange">
+                    {data?.cloudflared?.status === 'connected' ? (
+                        <div className="space-y-2">
+                            <div className="flex items-center gap-2 mb-2">
+                                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                                <span className="text-green-400 font-bold">TUNNEL_ACTIVE</span>
+                                <span className="text-[8px] bg-green-500/20 text-green-400 px-1 rounded ml-auto">HTTP/2</span>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-x-3">
+                                <StatItem label="HA_CONNECTIONS" value={data.cloudflared.haConnections || 0} color={data.cloudflared.haConnections >= 4 ? 'text-green-400' : 'text-amber-400'} />
+                                <StatItem label="REGISTRATIONS" value={data.cloudflared.tunnelRegistrations || 0} color="text-surface-400" />
+                                <StatItem label="TOTAL_REQ" value={data.cloudflared.totalRequests || 0} color="text-cyan-400" />
+                                <StatItem label="REQ_ERRORS" value={data.cloudflared.requestErrors || 0} color={data.cloudflared.requestErrors > 0 ? 'text-red-400' : 'text-green-400'} />
+                                <StatItem label="CONN_ERRORS" value={data.cloudflared.connectStreamErrors || 0} color={data.cloudflared.connectStreamErrors > 0 ? 'text-red-400' : 'text-green-400'} />
+                                <StatItem label="TCP_SESSIONS" value={data.cloudflared.activeTcpSessions || 0} subValue={`/ ${data.cloudflared.totalTcpSessions || 0}`} color="text-blue-400" />
+                            </div>
+
+                            {data.cloudflared.locations?.length > 0 && (
+                                <div className="border-t border-white/10 pt-2 mt-2">
+                                    <div className="text-[10px] text-orange-400 font-bold mb-1">EDGE_LOCATIONS</div>
+                                    <div className="flex flex-wrap gap-1">
+                                        {data.cloudflared.locations.map((loc: any, i: number) => (
+                                            <span key={i} className="text-[9px] bg-orange-500/20 text-orange-300 px-1.5 py-0.5 rounded">
+                                                {loc.location.toUpperCase()}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {data.cloudflared.responseCodes && Object.keys(data.cloudflared.responseCodes).length > 0 && (
+                                <div className="border-t border-white/10 pt-2 mt-2">
+                                    <div className="text-[10px] text-cyan-400 font-bold mb-1">RESPONSE_CODES</div>
+                                    <div className="grid grid-cols-3 gap-1">
+                                        {Object.entries(data.cloudflared.responseCodes)
+                                            .sort(([a], [b]) => a.localeCompare(b))
+                                            .map(([code, count]: [string, any]) => (
+                                                <div key={code} className="flex justify-between text-[9px]">
+                                                    <span className={`${code.startsWith('2') ? 'text-green-400' : code.startsWith('3') ? 'text-blue-400' : code.startsWith('4') ? 'text-amber-400' : 'text-red-400'}`}>{code}</span>
+                                                    <span className="text-surface-500">{count}</span>
+                                                </div>
+                                            ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="flex flex-col items-center justify-center gap-2 py-4">
+                            <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                            <span className="text-red-400 font-bold">TUNNEL_UNREACHABLE</span>
+                            <span className="text-[8px] text-surface-600">Metrics endpoint offline</span>
+                        </div>
+                    )}
+                </GridCard>
+            </div>
+
+            {/* Third row: Docker + K8s Containers + Active Users */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
                 {/* HOST DOCKER CONTAINERS */}
                 <GridCard title="DOCKER_HOST_CONTAINERS" icon={Container} color="orange">

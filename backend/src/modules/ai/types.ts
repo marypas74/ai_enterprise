@@ -34,6 +34,7 @@ export interface CompletionOptions {
     citations?: { enabled: boolean };
     cache_control?: { type: 'ephemeral' };
   }>;
+  signal?: AbortSignal;                  // Abort signal to cancel upstream LLM requests on client disconnect
 }
 
 export interface CompletionResult {

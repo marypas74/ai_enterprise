@@ -16,6 +16,7 @@ interface DashboardData {
   users: { total: number; with_all_consents: number };
   ai_decisions: { total: number };
   feedback: { total: number; positive: number; negative: number };
+  total_exports: number;
   pending_exports: number;
   pending_deletions: number;
   latest_bias_reports: { flagged_content_count?: number }[];
@@ -178,11 +179,10 @@ export default function ComplianceDashboardPage() {
             aria-selected={activeTab === tab}
             aria-controls={`tabpanel-${tab}`}
             onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === tab
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === tab
                 ? 'border-primary-500 text-primary-600'
                 : 'border-transparent text-surface-500 hover:text-surface-700'
-            }`}
+              }`}
           >
             {tab === 'overview' ? 'GAP Analysis' : tab === 'decisions' ? 'Log Decisioni' : tab === 'feedback' ? 'Feedback' : 'Export & Cancellazioni'}
           </button>
@@ -277,8 +277,11 @@ export default function ComplianceDashboardPage() {
               <Download className="w-6 h-6 text-blue-500" />
               <h3 className="font-bold">Richieste Export Dati</h3>
             </div>
-            <p className="text-4xl font-bold">{dashboard?.pending_exports || 0}</p>
-            <p className="text-sm text-surface-500 mt-1">In attesa di elaborazione</p>
+            <p className="text-4xl font-bold">{dashboard?.total_exports || 0}</p>
+            <p className="text-sm text-surface-500 mt-1">Totale richieste</p>
+            {(dashboard?.pending_exports || 0) > 0 && (
+              <p className="text-sm text-amber-500 mt-1">{dashboard?.pending_exports} in attesa di elaborazione</p>
+            )}
           </div>
           <div className="card p-6">
             <div className="flex items-center gap-3 mb-4">

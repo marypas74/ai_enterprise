@@ -42,6 +42,10 @@ const TOOL_GROUPS: ToolGroup[] = [
     keywords: /\b(powerpoint|pptx|presentazione|presentation|slide)\b/i,
   },
   {
+    tools: ['convert_to_pdf'],
+    keywords: /\b(pdf|converti.*pdf|convert.*pdf|genera.*pdf|crea.*pdf|trasforma.*pdf|fammi.*pdf)\b/i,
+  },
+  {
     tools: ['get_attachment_text'],
     keywords: /\b(allegat[oi]|attachment|pdf|caricato|uploaded|documento.*caricato|file.*inviato|sent.*file)\b/i,
   },

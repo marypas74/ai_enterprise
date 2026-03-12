@@ -13,7 +13,7 @@ export default function PrivacyPolicyPage() {
     <div className="min-h-screen bg-surface-50 dark:bg-surface-950 p-6">
       <div className="max-w-3xl mx-auto">
         <div className="flex items-center gap-4 mb-8">
-          <Link to="/login" className="p-2 hover:bg-surface-200 dark:hover:bg-surface-800 rounded-full transition-colors">
+          <Link to="/settings" className="p-2 hover:bg-surface-200 dark:hover:bg-surface-800 rounded-full transition-colors">
             <ChevronLeft className="w-6 h-6" />
           </Link>
           <div className="flex items-center gap-3">

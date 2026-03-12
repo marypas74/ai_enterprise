@@ -31,6 +31,8 @@ export interface ImageGenerationResult {
 
 const DIFFUSER_BASE_URL = process.env.DIFFUSER_BASE_URL || 'http://10.0.1.1:8086/diffuser';
 const DIFFUSER_AUTH_KEY = process.env.DIFFUSER_AUTH_KEY || process.env.OLLAMA_AUTH_KEY || '';
+const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://10.0.1.1:8086/ollama';
+const OLLAMA_AUTH_KEY = process.env.OLLAMA_AUTH_KEY || '';
 const GENERATED_DIR = path.join(process.env.STORAGE_ROOT || process.cwd(), 'generated');
 
 if (!DIFFUSER_AUTH_KEY) {
@@ -43,6 +45,46 @@ async function ensureGeneratedDir(): Promise<void> {
   if (!generatedDirEnsured) {
     await fsPromises.mkdir(GENERATED_DIR, { recursive: true });
     generatedDirEnsured = true;
+  }
+}
+
+/**
+ * Unload all Ollama models from GPU VRAM to free memory for image generation.
+ * Uses Ollama API: GET /api/ps to list loaded models, then POST /api/generate
+ * with keep_alive=0 to unload each one.
+ */
+async function unloadOllamaModels(): Promise<void> {
+  try {
+    const psResponse = await fetch(`${OLLAMA_BASE_URL}/api/ps`, {
+      headers: { 'X-Ollama-Key': OLLAMA_AUTH_KEY },
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (!psResponse.ok) return;
+
+    const psData = await psResponse.json() as { models?: Array<{ name: string }> };
+    const loadedModels = psData.models || [];
+    if (loadedModels.length === 0) return;
+
+    console.log(`[DiffuserProvider] Unloading ${loadedModels.length} Ollama model(s) to free GPU VRAM...`);
+
+    await Promise.all(loadedModels.map(async (m) => {
+      try {
+        await fetch(`${OLLAMA_BASE_URL}/api/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Ollama-Key': OLLAMA_AUTH_KEY },
+          body: JSON.stringify({ model: m.name, keep_alive: 0 }),
+          signal: AbortSignal.timeout(10_000),
+        });
+        console.log(`[DiffuserProvider] Unloaded model: ${m.name}`);
+      } catch (err: any) {
+        console.warn(`[DiffuserProvider] Failed to unload ${m.name}: ${err.message}`);
+      }
+    }));
+
+    // Brief pause to allow GPU memory to be freed
+    await new Promise(resolve => setTimeout(resolve, 1_000));
+  } catch (err: any) {
+    console.warn(`[DiffuserProvider] Failed to check/unload Ollama models: ${err.message}`);
   }
 }
 
@@ -59,6 +101,9 @@ export async function generateImage(options: ImageGenerationOptions): Promise<Im
   } = options;
 
   const startTime = Date.now();
+
+  // Free GPU VRAM by unloading any loaded Ollama LLM models
+  await unloadOllamaModels();
 
   const requestBody = {
     prompt,
