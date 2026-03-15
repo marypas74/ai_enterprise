@@ -61,55 +61,60 @@ export class ChatPanel {
   }
 
   private async handleMessage(message: WebviewToExtension): Promise<void> {
-    switch (message.type) {
-      case 'ready': {
-        if (this.context.authService.isAuthenticated()) {
-          const models = await this.chatService.loadModels();
-          const user = this.context.authService.getUser();
-          if (user) {
-            this.postMessage({ type: 'setAuthenticated', payload: { user, models } });
-          }
-        }
-        break;
-      }
-      case 'sendMessage': {
-        const { message: text, modelId, conversationId } = message.payload;
-        this.chatService.sendMessage(
-          text,
-          modelId,
-          (chunk) => {
-            this.postMessage({ type: 'streamChunk', payload: chunk });
-            if (chunk.done) {
-              this.postMessage({ type: 'streamEnd' });
+    try {
+      switch (message.type) {
+        case 'ready': {
+          if (this.context.authService.isAuthenticated()) {
+            const models = await this.chatService.loadModels();
+            const user = this.context.authService.getUser();
+            if (user) {
+              this.postMessage({ type: 'setAuthenticated', payload: { user, models } });
             }
-          },
-          (error) => this.postMessage({ type: 'streamError', payload: { message: error.message } }),
-          conversationId,
-        );
-        break;
+          }
+          break;
+        }
+        case 'sendMessage': {
+          const { message: text, modelId, conversationId } = message.payload;
+          this.chatService.sendMessage(
+            text,
+            modelId,
+            (chunk) => {
+              this.postMessage({ type: 'streamChunk', payload: chunk });
+              if (chunk.done) {
+                this.postMessage({ type: 'streamEnd' });
+              }
+            },
+            (error) => this.postMessage({ type: 'streamError', payload: { message: error.message } }),
+            conversationId,
+          );
+          break;
+        }
+        case 'abortRequest':
+          this.chatService.abortCurrentRequest();
+          break;
+        case 'newChat':
+          break;
+        case 'loadConversations': {
+          const conversations = await this.chatService.loadConversations();
+          this.postMessage({ type: 'setConversations', payload: { conversations } });
+          break;
+        }
+        case 'deleteConversation':
+          await this.chatService.deleteConversation(message.payload.id);
+          break;
+        case 'login': {
+          const { email, password, totp } = message.payload;
+          await this.context.authService.login(email, password, totp);
+          break;
+        }
+        case 'logout':
+          this.context.authService.logout();
+          break;
       }
-      case 'abortRequest':
-        this.chatService.abortCurrentRequest();
-        break;
-      case 'newChat':
-        // handled in webview
-        break;
-      case 'loadConversations': {
-        const conversations = await this.chatService.loadConversations();
-        this.postMessage({ type: 'setConversations', payload: { conversations } });
-        break;
-      }
-      case 'deleteConversation':
-        await this.chatService.deleteConversation(message.payload.id);
-        break;
-      case 'login': {
-        const { email, password, totp } = message.payload;
-        await this.context.authService.login(email, password, totp);
-        break;
-      }
-      case 'logout':
-        this.context.authService.logout();
-        break;
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.context.outputChannel.appendLine(`[ChatPanel] Error handling ${message.type}: ${msg}`);
+      this.postMessage({ type: 'streamError', payload: { message: msg } });
     }
   }
 
@@ -143,8 +148,6 @@ export class ChatPanel {
 
 function getNonce(): string {
   const array = new Uint8Array(16);
-  for (let i = 0; i < array.length; i++) {
-    array[i] = Math.floor(Math.random() * 256);
-  }
+  crypto.getRandomValues(array);
   return Array.from(array, (b) => b.toString(16).padStart(2, '0')).join('');
 }

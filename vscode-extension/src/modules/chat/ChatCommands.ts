@@ -25,8 +25,9 @@ export function registerChatCommands(
       const selection = editor.document.getText(editor.selection);
       if (!selection) { return; }
       const fileName = editor.document.fileName;
-      getPanel().show();
-      getPanel().postMessage({
+      const panel = getPanel();
+      panel.show();
+      panel.postMessage({
         type: 'addContext',
         payload: { text: selection, fileName },
       } as never);
@@ -34,8 +35,9 @@ export function registerChatCommands(
 
     vscode.commands.registerCommand('enterprise-ai.addFileToContext', (uri: vscode.Uri) => {
       if (!uri) { return; }
-      getPanel().show();
-      getPanel().postMessage({
+      const panel = getPanel();
+      panel.show();
+      panel.postMessage({
         type: 'addFileContext',
         payload: { filePath: uri.fsPath },
       } as never);
@@ -46,8 +48,9 @@ export function registerChatCommands(
       if (!editor) { return; }
       const selection = editor.document.getText(editor.selection);
       const fileName = editor.document.fileName;
-      getPanel().show();
-      getPanel().postMessage({
+      const panel = getPanel();
+      panel.show();
+      panel.postMessage({
         type: 'addContext',
         payload: { text: selection || editor.document.getText(), fileName },
       } as never);
