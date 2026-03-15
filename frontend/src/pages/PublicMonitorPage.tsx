@@ -7,12 +7,10 @@ import {
     HardDrive,
     Network,
     Thermometer,
-    Box,
     Server,
     Gauge,
     Users,
     Container,
-    ImagePlus,
     Shield,
     Cloud,
 } from 'lucide-react';
@@ -133,7 +131,7 @@ export default function PublicMonitorPage() {
                         <Activity className="w-6 h-6 text-green-500" />
                         VITAL_SIGNS_OS
                     </h1>
-                    <span className="text-surface-500 text-[10px]">FE: 2.1.13_STABLE | BE: 2.1.13_STABLE | NODE: {data?.hostname}</span>
+                    <span className="text-surface-500 text-[10px]">FE: 2.1.18_STABLE | BE: 2.1.18_STABLE | NODE: {data?.hostname}</span>
                 </div>
                 <div className="text-right">
                     <div className="text-green-500 animate-pulse text-xs font-bold font-mono">● LIVE_STREAM_ACTIVE</div>
@@ -294,64 +292,76 @@ export default function PublicMonitorPage() {
                     </div>
                 </GridCard>
 
-                {/* OLLAMA_COMPUTE */}
-                <GridCard title="AI_INFERENCE_ORCHESTRATOR" icon={Box} color="purple">
-                    {data?.ollama?.version && (
-                        <div className="text-[8px] text-surface-500 mb-1">Ollama v{data.ollama.version}</div>
-                    )}
-                    {/* Active (loaded in VRAM) models */}
-                    <div className="flex items-center justify-between mb-1">
-                        <span className="text-purple-400">ACTIVE_IN_VRAM</span>
-                        <span className="bg-purple-500/20 text-purple-400 px-1 rounded">{data?.ollama?.activeModels?.length || 0}</span>
+                {/* PRIMARY_INFERENCE_ENGINE */}
+                <GridCard title="PRIMARY_INFERENCE_ENGINE" icon={Zap} color="cyan">
+                    <div className="flex items-center gap-2 mb-2">
+                        <div className={`w-2 h-2 rounded-full ${data?.vllm?.healthy ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+                        <span className={`font-bold ${data?.vllm?.healthy ? 'text-green-400' : 'text-red-400'}`}>
+                            {data?.vllm?.healthy ? 'ONLINE' : 'OFFLINE'}
+                        </span>
+                        <span className="ml-auto text-[8px] bg-cyan-500/20 text-cyan-400 px-1.5 rounded uppercase">
+                            vLLM
+                        </span>
+                    </div>
+                    <StatItem label="PROVIDER" value="vLLM (OpenAI-compat)" color="text-cyan-400" />
+                    {/* Served models */}
+                    <div className="flex items-center justify-between mt-2 mb-1">
+                        <span className="text-cyan-400">SERVED_MODELS</span>
+                        <span className="bg-cyan-500/20 text-cyan-400 px-1 rounded">{data?.vllm?.models?.length || 0}</span>
                     </div>
                     <div className="space-y-1 mb-2">
-                        {data?.ollama?.activeModels?.map((m: any, i: number) => (
-                            <div key={i} className="bg-purple-500/10 p-1.5 rounded border border-purple-500/20">
-                                <div className="text-[10px] text-purple-300 truncate font-bold">{m.name}</div>
-                                <div className="flex justify-between text-[8px] text-surface-500">
-                                    <span>{m.details?.parameter_size}</span>
-                                    <span className="text-green-500">VRAM: {formatBytes(m.size_vram || 0)}</span>
-                                </div>
+                        {data?.vllm?.models?.map((model: string, i: number) => (
+                            <div key={i} className="bg-cyan-500/10 p-1.5 rounded border border-cyan-500/20">
+                                <div className="text-[10px] text-cyan-300 font-bold">{model}</div>
                             </div>
                         ))}
-                        {(!data?.ollama?.activeModels || data.ollama.activeModels.length === 0) && (
-                            <div className="text-center py-1 text-surface-600 italic text-[9px]">No_Compute_Load</div>
-                        )}
-                    </div>
-                    {/* All installed models */}
-                    <div className="flex items-center justify-between mb-1">
-                        <span className="text-cyan-400">INSTALLED_MODELS</span>
-                        <span className="bg-cyan-500/20 text-cyan-400 px-1 rounded">{data?.ollama?.installedModels?.length || 0}</span>
-                    </div>
-                    <div className="space-y-1 max-h-[100px] overflow-y-auto">
-                        {data?.ollama?.installedModels?.map((m: any, i: number) => (
-                            <div key={i} className="bg-white/5 p-1.5 rounded">
-                                <div className="text-[10px] text-cyan-300 truncate">{m.name}</div>
-                                <div className="flex justify-between text-[8px] text-surface-500">
-                                    <span>{m.details?.parameter_size || m.details?.family}</span>
-                                    <span>{m.details?.quantization_level}</span>
-                                    <span className="text-blue-400">{formatBytes(m.size || 0)}</span>
-                                </div>
-                            </div>
-                        ))}
-                        {(!data?.ollama?.installedModels || data.ollama.installedModels.length === 0) && (
-                            <div className="text-center py-1 text-surface-600 italic text-[9px]">No_Models_Installed</div>
+                        {(!data?.vllm?.models || data.vllm.models.length === 0) && (
+                            <div className="text-center py-1 text-surface-600 italic text-[9px]">No_Models_Served</div>
                         )}
                     </div>
                 </GridCard>
 
-                {/* IMAGE_GENERATION_ENGINE */}
-                <GridCard title="IMG_GEN_ENGINE" icon={ImagePlus} color="pink">
-                    <div className="flex items-center gap-2 mb-2">
-                        <div className={`w-2 h-2 rounded-full ${data?.diffuser?.status === 'ok' ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
-                        <span className={`font-bold ${data?.diffuser?.status === 'ok' ? 'text-green-400' : 'text-red-400'}`}>
-                            {data?.diffuser?.status === 'ok' ? 'ONLINE' : 'OFFLINE'}
+                {/* AI_INFERENCE_ORCHESTRATOR — vLLM model status */}
+                <GridCard title="AI_INFERENCE_ORCHESTRATOR" icon={Server} color="purple">
+                    <div className="flex items-center justify-between mb-1">
+                        <span className="text-purple-400">ACTIVE_IN_VRAM</span>
+                        <span className="bg-purple-500/20 text-purple-400 px-1.5 rounded font-bold">{data?.vllm?.models?.length || 0}</span>
+                    </div>
+                    {data?.vllm?.models && data.vllm.models.length > 0 ? (
+                        <div className="space-y-1 mb-3">
+                            {data.vllm.models.map((model: string, i: number) => (
+                                <div key={i} className="bg-purple-500/10 p-1.5 rounded border border-purple-500/20 flex items-center gap-2">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse flex-shrink-0" />
+                                    <span className="text-[10px] text-purple-300 font-bold">{model}</span>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="py-2 text-center text-surface-600 italic text-[9px]">No_Compute_Load</div>
+                    )}
+                    <div className="flex items-center justify-between mb-1">
+                        <span className="text-purple-400">INSTALLED_MODELS</span>
+                        <span className="bg-purple-500/20 text-purple-400 px-1.5 rounded font-bold">
+                            {(() => {
+                                const aliases = ['qwen-fast','qwen-thinking','gemma-fast','phi-fast','deepseek-think','qwq-think','coder','gpt-oss','llama4'];
+                                return data?.vllm?.healthy ? aliases.length : 0;
+                            })()}
                         </span>
                     </div>
-                    <StatItem label="SERVICE" value="OllamaDiffuser" color="text-pink-400" />
-                    <StatItem label="MODEL" value="stable-diffusion-1.5" color="text-cyan-400" />
-                    <StatItem label="PROTOCOL" value="REST/HTTP" color="text-surface-400" />
-                    <StatItem label="ENDPOINT" value="/api/generate" color="text-surface-400" />
+                    {data?.vllm?.healthy ? (
+                        <div className="grid grid-cols-3 gap-1">
+                            {['qwen-fast','qwen-thinking','gemma-fast','phi-fast','deepseek-think','qwq-think','coder','gpt-oss','llama4'].map((alias, i) => (
+                                <div key={i} className="bg-purple-500/5 px-1 py-0.5 rounded border border-purple-500/10 text-center">
+                                    <span className="text-[8px] text-purple-300">{alias}</span>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="py-2 text-center text-surface-600 italic text-[9px]">No_Models_Installed</div>
+                    )}
+                    <div className="mt-2 pt-1 border-t border-white/5 text-[8px] text-surface-500">
+                        ENGINE: vLLM | MODE: {data?.vllm?.inferenceMode || 'vllm'} | GPU: RTX_5090
+                    </div>
                 </GridCard>
 
                 {/* K8S_CLUSTER_STATE */}

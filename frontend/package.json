@@ -1,6 +1,6 @@
 {
   "name": "enterprise-ai-chat-frontend",
-  "version": "2.1.13",
+  "version": "2.1.18",
   "type": "module",
   "scripts": {
     "dev": "vite",
