@@ -1,26 +1,19 @@
 {
-  "name": "enterprise-ai-chat-webview",
-  "version": "1.0.0",
+  "name": "enterprise-ai-webview",
+  "version": "3.0.0",
   "private": true,
-  "scripts": {
-    "build": "npm run build:sidebar && npm run build:panel",
-    "build:sidebar": "esbuild src/index.tsx --bundle --outfile=../out/webview.js --format=iife --target=es2020 --loader:.tsx=tsx --loader:.ts=ts --loader:.css=css --minify",
-    "build:panel": "esbuild src/claude-code/index.tsx --bundle --outfile=../out/claudeCodeWebview.js --format=iife --target=es2020 --loader:.tsx=tsx --loader:.ts=ts --loader:.css=css --minify && cp src/claude-code/claudeCode.css ../out/claudeCode.css",
-    "watch": "esbuild src/index.tsx --bundle --outfile=../out/webview.js --format=iife --target=es2020 --loader:.tsx=tsx --loader:.ts=ts --loader:.css=css --watch",
-    "watch:panel": "esbuild src/claude-code/index.tsx --bundle --outfile=../out/claudeCodeWebview.js --format=iife --target=es2020 --loader:.tsx=tsx --loader:.ts=ts --loader:.css=css --watch"
-  },
   "dependencies": {
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-markdown": "^9.0.1",
-    "react-syntax-highlighter": "^16.1.0",
-    "remark-gfm": "^4.0.0"
+    "remark-gfm": "^4.0.0",
+    "react-syntax-highlighter": "^16.1.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
-    "@types/react-syntax-highlighter": "^15.5.11",
-    "esbuild": "^0.27.2",
-    "typescript": "^5.3.0"
+    "@types/react-syntax-highlighter": "^15.5.0",
+    "esbuild": "^0.20.0",
+    "typescript": "^5.4.0"
   }
 }
