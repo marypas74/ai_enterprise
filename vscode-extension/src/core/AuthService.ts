@@ -74,7 +74,7 @@ export class AuthService {
   }
 
   getUser(): UserInfo | null {
-    return this.currentUser;
+    return this.currentUser ? { ...this.currentUser } : null;
   }
 
   isAuthenticated(): boolean {
@@ -84,7 +84,11 @@ export class AuthService {
   private handleLogout(): void {
     this.currentUser = null;
     this.apiClient.clearToken();
-    this.context.globalState.update(TOKEN_KEY, undefined);
-    this.context.globalState.update(USER_KEY, undefined);
+    this.context.globalState.update(TOKEN_KEY, undefined).then(undefined, (err) => {
+      this.outputChannel.appendLine(`[Auth] Failed to clear token: ${err}`);
+    });
+    this.context.globalState.update(USER_KEY, undefined).then(undefined, (err) => {
+      this.outputChannel.appendLine(`[Auth] Failed to clear user: ${err}`);
+    });
   }
 }
