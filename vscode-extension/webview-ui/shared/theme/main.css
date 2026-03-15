@@ -1,0 +1,63 @@
+:root {
+  --bg-primary: var(--vscode-editor-background);
+  --bg-secondary: var(--vscode-sideBar-background);
+  --text-primary: var(--vscode-editor-foreground);
+  --text-secondary: var(--vscode-descriptionForeground);
+  --border: var(--vscode-panel-border);
+  --accent: var(--vscode-button-background);
+  --accent-hover: var(--vscode-button-hoverBackground);
+  --accent-text: var(--vscode-button-foreground);
+  --error: var(--vscode-errorForeground);
+  --input-bg: var(--vscode-input-background);
+  --input-border: var(--vscode-input-border);
+  --input-text: var(--vscode-input-foreground);
+  --scrollbar: var(--vscode-scrollbarSlider-background);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+  line-height: 1.5;
+  overflow: hidden;
+  height: 100vh;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+button {
+  background: var(--accent);
+  color: var(--accent-text);
+  border: none;
+  padding: 6px 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: inherit;
+}
+button:hover { background: var(--accent-hover); }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+input, textarea {
+  background: var(--input-bg);
+  color: var(--input-text);
+  border: 1px solid var(--input-border);
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.error-banner {
+  background: var(--vscode-inputValidation-errorBackground);
+  color: var(--error);
+  padding: 8px 12px;
+  border-radius: 4px;
+  margin: 8px;
+}
