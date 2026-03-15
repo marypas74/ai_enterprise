@@ -67,6 +67,7 @@ export default function ChatInputArea({
 }: ChatInputAreaProps) {
   const { chatMode, selectedDocumentIds } = useDocumentStore();
   const isRagMode = chatMode === 'rag';
+  const isBrainstormMode = chatMode === 'brainstorm';
   const hasNoDocs = selectedDocumentIds.length === 0;
 
   const handleCameraCapture = useCallback(async () => {
@@ -145,19 +146,9 @@ export default function ChatInputArea({
           accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.json,.xml,.yaml,.yml,.js,.ts,.jsx,.tsx,.py,.java,.c,.cpp,.h,.html,.css,.jpg,.jpeg,.png,.gif,.webp,.svg,.mp3,.wav,.ogg,.zip,.tar,.gz"
         />
 
-        {/* RAG Mode Toggle + Input row */}
-        <div className="flex items-center justify-between mb-4">
+        {/* RAG Mode Toggle */}
+        <div className="flex items-center mb-4">
           <RagModeToggle onModeChange={onModeChange} />
-
-          {isRagMode && hasNoDocs && (
-            <button
-              onClick={onOpenFilePicker}
-              className="px-3 py-1.5 rounded-full bg-indigo-600/10 text-indigo-600 text-xs font-semibold border border-indigo-600/20 hover:bg-indigo-600/20 transition-all flex items-center gap-1.5 animate-pulse"
-            >
-              <Paperclip className="w-3.5 h-3.5" />
-              Carica documenti ora
-            </button>
-          )}
         </div>
 
         {/* Input row: attach + textarea + send */}
@@ -197,11 +188,12 @@ export default function ChatInputArea({
               value={input}
               onChange={(e) => onInputChange(e.target.value)}
               onKeyDown={onKeyDown}
-              placeholder={isRagMode ? (hasNoDocs ? 'Carica documenti per iniziare...' : 'Fai una domanda sui tuoi documenti...') : (attachments.length > 0 ? 'Aggiungi un messaggio...' : 'Messaggio...')}
+              placeholder={isRagMode ? (hasNoDocs ? 'Carica documenti per iniziare...' : 'Fai una domanda sui tuoi documenti...') : isBrainstormMode ? 'Descrivi un problema o un\'idea da esplorare...' : (attachments.length > 0 ? 'Aggiungi un messaggio...' : 'Messaggio...')}
               rows={1}
               className={clsx(
                 "input resize-none min-h-[48px] max-h-[200px] py-3 pr-12 transition-all",
-                isRagMode && "border-indigo-600/30 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600/20"
+                isRagMode && "border-indigo-600/30 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600/20",
+                isBrainstormMode && "border-amber-500/30 focus:border-amber-500 focus:ring-1 focus:ring-amber-500/20"
               )}
               style={{ height: 'auto', minHeight: '48px' }}
               onInput={(e) => {

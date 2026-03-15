@@ -9,12 +9,14 @@ import {
   ChevronDown,
   Download,
   FileText,
+  FileCheck,
   Loader2,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import clsx from 'clsx';
+import { useNavigate } from 'react-router-dom';
 import { BotIcon, BotIconType } from '../BotIcon';
 import AIGeneratedLabel from '../AIGeneratedLabel';
 import FeedbackButtons from '../FeedbackButtons';
@@ -23,6 +25,7 @@ import { downloadFile } from '../../utils/fileDownload';
 import { isNativePlatform } from '../../utils/platform';
 import type { Message } from '../../hooks/useChatMessages';
 import { useDocumentStore } from '../../hooks/useDocumentStore';
+import { useAuthStore } from '../../hooks/useAuthStore';
 
 // Stable markdown components defined OUTSIDE the render function
 // to prevent React from re-creating DOM elements on each re-render
@@ -60,7 +63,7 @@ const MarkdownImg = ({ src, alt, ...props }: any) => {
           <a
             href={src}
             download
-            onClick={async (e: React.MouseEvent) => { e.preventDefault(); await downloadFile(src!, safeFilename); }}
+            onClick={async (e: React.MouseEvent) => { e.preventDefault(); const token = useAuthStore.getState().accessToken; await downloadFile(src!, safeFilename, token || undefined); }}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary-600 hover:bg-primary-700 text-white no-underline transition-colors text-xs font-medium cursor-pointer"
           >
             <Download className="w-3.5 h-3.5" />
@@ -76,7 +79,8 @@ const MarkdownLink = ({ href, children, ...props }: any) => {
   if (href && href.includes('/api/tools/download/')) {
     const handleDownload = async (e: React.MouseEvent) => {
       e.preventDefault();
-      await downloadFile(href, String(children));
+      const token = useAuthStore.getState().accessToken;
+      await downloadFile(href, String(children), token || undefined);
     };
     return (
       <a href={href} onClick={handleDownload}
@@ -123,19 +127,84 @@ export default function ChatMessageList({
   onToggleThinking,
   onGenerateDocument,
 }: ChatMessageListProps) {
-  const { chatMode } = useDocumentStore();
+  const { chatMode, documents, selectedDocumentIds, selectAllDocuments } = useDocumentStore();
   const isRagMode = chatMode === 'rag';
+  const navigate = useNavigate();
 
   if (messages.length === 0) {
     if (isRagMode) {
+      const hasDocuments = documents.length > 0;
+
+      if (!hasDocuments) {
+        // Variant A: No documents uploaded
+        return (
+          <div className="h-full flex flex-col items-center justify-center text-center px-4 animate-in fade-in duration-700">
+            <div className="w-20 h-20 rounded-3xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center mb-8 border border-indigo-600/20">
+              <FileText className="w-10 h-10 text-indigo-500 dark:text-indigo-400" />
+            </div>
+            <h2 className="text-3xl font-bold mb-3 tracking-tight">Carica i tuoi documenti</h2>
+            <p className="text-surface-500 max-w-md text-lg leading-relaxed mb-8">
+              Carica documenti per analizzarli con l'AI
+            </p>
+            <button
+              onClick={() => navigate('/documents')}
+              aria-label="Vai ai Documenti"
+              className="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white font-semibold text-base transition-colors"
+            >
+              Vai ai Documenti
+            </button>
+          </div>
+        );
+      }
+
+      // Variant B: Documents exist but none selected
+      if (selectedDocumentIds.length === 0) {
+        const readyCount = documents.filter(d => d.status === 'ready').length;
+
+        // Sub-case: all documents still processing/failed
+        if (readyCount === 0) {
+          return (
+            <div className="h-full flex flex-col items-center justify-center text-center px-4 animate-in fade-in duration-700">
+              <div className="w-20 h-20 rounded-3xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center mb-8 border border-indigo-600/20">
+                <Loader2 className="w-10 h-10 text-indigo-500 dark:text-indigo-400 animate-spin" />
+              </div>
+              <h2 className="text-3xl font-bold mb-3 tracking-tight">Elaborazione in corso</h2>
+              <p className="text-surface-500 max-w-md text-lg leading-relaxed">
+                I documenti sono ancora in fase di elaborazione. Saranno disponibili a breve.
+              </p>
+            </div>
+          );
+        }
+
+        return (
+          <div className="h-full flex flex-col items-center justify-center text-center px-4 animate-in fade-in duration-700">
+            <div className="w-20 h-20 rounded-3xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center mb-8 border border-indigo-600/20">
+              <FileCheck className="w-10 h-10 text-indigo-500 dark:text-indigo-400" />
+            </div>
+            <h2 className="text-3xl font-bold mb-3 tracking-tight">Seleziona i documenti da analizzare</h2>
+            <p className="text-surface-500 max-w-md text-lg leading-relaxed mb-8">
+              Hai {readyCount} document{readyCount === 1 ? 'o' : 'i'} disponibil{readyCount === 1 ? 'e' : 'i'}. Selezionali per iniziare l'analisi.
+            </p>
+            <button
+              onClick={selectAllDocuments}
+              aria-label="Seleziona Tutti"
+              className="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white font-semibold text-base transition-colors"
+            >
+              Seleziona Tutti
+            </button>
+          </div>
+        );
+      }
+
+      // Documents selected — show invitation to start asking
       return (
         <div className="h-full flex flex-col items-center justify-center text-center px-4 animate-in fade-in duration-700">
           <div className="w-20 h-20 rounded-3xl bg-indigo-600/10 flex items-center justify-center mb-8 border border-indigo-600/20 text-indigo-600">
-            <Brain className="w-10 h-10" />
+            <FileText className="w-10 h-10" />
           </div>
-          <h2 className="text-3xl font-bold mb-3 tracking-tight">Modalità Analisi Documenti</h2>
+          <h2 className="text-3xl font-bold mb-3 tracking-tight">Analisi Documenti</h2>
           <p className="text-surface-500 max-w-md text-lg leading-relaxed">
-            Seleziona i documenti caricati o caricali ora per iniziare un'analisi professionale basata sui tuoi dati.
+            {selectedDocumentIds.length} document{selectedDocumentIds.length === 1 ? 'o' : 'i'} selezionat{selectedDocumentIds.length === 1 ? 'o' : 'i'}. Scrivi una domanda per iniziare l'analisi.
           </p>
         </div>
       );
@@ -259,7 +328,7 @@ export default function ChatMessageList({
                         </p>
                         {source.metadata?.originalName && (
                           <div className="mt-2.5 flex items-center gap-1.5 text-[10px] text-indigo-600/70 dark:text-indigo-400/70 font-semibold group-hover:text-indigo-600 transition-colors">
-                            {isWeb ? (
+                            {isWeb && typeof source.metadata.url === 'string' && /^https?:\/\//i.test(source.metadata.url) ? (
                               <a href={source.metadata.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 hover:underline">
                                 <Globe className="w-3 h-3" />
                                 <span className="truncate">{source.metadata.originalName}</span>
