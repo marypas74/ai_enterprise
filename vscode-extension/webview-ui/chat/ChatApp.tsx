@@ -18,6 +18,13 @@ interface Conversation {
   title: string;
 }
 
+interface DocumentInfo {
+  id: number;
+  name: string;
+  type: string;
+  size: number;
+}
+
 interface IncomingMessage {
   type: string;
   [key: string]: unknown;
@@ -30,6 +37,7 @@ export const ChatApp: React.FC = () => {
   const streaming = useStreaming();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [documents, setDocuments] = useState<DocumentInfo[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -83,6 +91,9 @@ export const ChatApp: React.FC = () => {
       case 'prefillMessage':
         // Handled by ChatInput via a separate mechanism if needed
         break;
+      case 'setDocuments':
+        setDocuments((msg as unknown as { payload: { documents: DocumentInfo[] } }).payload.documents);
+        break;
       case 'error':
         setError(msg.message as string);
         break;
@@ -91,9 +102,14 @@ export const ChatApp: React.FC = () => {
     }
   });
 
-  const handleSend = useCallback((message: string) => {
+  const handleSend = useCallback((message: string, documentIds: number[]) => {
     setMessages((prev) => [...prev, { role: 'user', content: message }]);
-    postMessage({ type: 'sendMessage', message, model: selectedModel });
+    postMessage({
+      type: 'sendMessage',
+      message,
+      model: selectedModel,
+      ...(documentIds.length > 0 ? { documentIds } : {}),
+    });
   }, [postMessage, selectedModel]);
 
   const handleAbort = useCallback(() => {
@@ -163,6 +179,7 @@ export const ChatApp: React.FC = () => {
           onAbort={handleAbort}
           isStreaming={streaming.isStreaming}
           disabled={!isAuthenticated}
+          documents={documents}
         />
       </div>
     </div>
