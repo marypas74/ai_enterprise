@@ -14,6 +14,8 @@ const sharedConfig = {
 
 const entries = [
   { in: 'chat/index.tsx', out: '../out/chatWebview' },
+  { in: 'agents/index.tsx', out: '../out/agentsWebview' },
+  { in: 'orchestrator/index.tsx', out: '../out/orchestratorWebview' },
 ];
 
 async function build() {
