@@ -115,4 +115,23 @@ describe('OrchestratorService', () => {
     await service.terminateSession('session-42');
     expect(apiClient.post).toHaveBeenCalledWith('/api/agents/sessions/session-42/cancel');
   });
+
+  it('should handle polling error gracefully without throwing', async () => {
+    (apiClient.get as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Network failure'));
+    service.startPolling();
+    // Flush the immediate call — should not throw
+    await vi.advanceTimersByTimeAsync(0);
+    // Polling continues despite error
+    (apiClient.get as ReturnType<typeof vi.fn>).mockResolvedValue({ activeSlots: 1, totalSlots: 4, slots: [] });
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(apiClient.get).toHaveBeenCalledTimes(2);
+  });
+
+  it('should not emit orchestrator:update when getStatus fails', async () => {
+    const listener = vi.fn();
+    eventBus.on('orchestrator:update', listener);
+    (apiClient.get as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Timeout'));
+    await expect(service.getStatus()).rejects.toThrow('Timeout');
+    expect(listener).not.toHaveBeenCalled();
+  });
 });
