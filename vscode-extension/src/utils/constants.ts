@@ -26,6 +26,7 @@ export const API_PATHS = {
   ORCHESTRATOR_STATUS: '/api/orchestrator/status',
   ORCHESTRATOR_EVENTS: '/api/orchestrator/events',
   ORCHESTRATOR_WORKTREES: '/api/orchestrator/worktrees',
+  ORCHESTRATOR_SLOT_RELEASE: '/api/orchestrator/slots/release',
   TOOLS_GENERATE_DOCX: '/api/tools/generate-docx',
   TOOLS_GENERATE_EXCEL: '/api/tools/generate-excel',
   TOOLS_GENERATE_PPTX: '/api/tools/generate-pptx',

@@ -5,7 +5,7 @@ export interface EventMap {
   'config:changed': { key: string; value: unknown };
   'models:loaded': { models: AIModel[] };
   'agent:started': { sessionId: string };
-  'agent:completed': { sessionId: string; status: 'success' | 'failed' };
+  'agent:completed': { sessionId: string; status: string };
   'worktree:ready': { sessionId: string; branch: string };
   'orchestrator:update': { activeSlots: number; totalSlots: number };
 }
@@ -102,3 +102,77 @@ export interface ModuleContext {
   eventBus: import('./EventBus').EventBus;
   outputChannel: import('vscode').OutputChannel;
 }
+
+// ---- Agent Types ----
+export interface AgentTemplate {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+}
+
+export interface AgentSession {
+  id: string;
+  templateId: string;
+  templateName: string;
+  prompt: string;
+  status: 'running' | 'paused' | 'completed' | 'failed' | 'cancelled';
+  createdAt: string;
+  updatedAt: string;
+  error?: string;
+  slotId?: number;
+}
+
+export interface AgentLogEntry {
+  timestamp: string;
+  level: 'info' | 'warn' | 'error' | 'debug';
+  message: string;
+  sessionId: string;
+}
+
+// ---- Orchestrator Types ----
+export interface OrchestratorStatus {
+  activeSlots: number;
+  totalSlots: number;
+  slots: OrchestratorSlot[];
+}
+
+export interface OrchestratorSlot {
+  id: number;
+  busy: boolean;
+  sessionId?: string;
+  agentName?: string;
+  startedAt?: string;
+  progress?: number;
+}
+
+// ---- Agent Extension <-> Webview Messages ----
+export type AgentExtensionToWebview =
+  | { type: 'setSessions'; payload: { sessions: AgentSession[] } }
+  | { type: 'sessionUpdated'; payload: { session: AgentSession } }
+  | { type: 'logEntry'; payload: AgentLogEntry }
+  | { type: 'logHistory'; payload: { entries: AgentLogEntry[] } }
+  | { type: 'sseStatus'; payload: { connected: boolean; message?: string } }
+  | { type: 'setAuthenticated'; payload: { user: UserInfo } }
+  | { type: 'setUnauthenticated' };
+
+export type AgentWebviewToExtension =
+  | { type: 'ready' }
+  | { type: 'loadSessions' }
+  | { type: 'selectSession'; payload: { sessionId: string } }
+  | { type: 'pauseSession'; payload: { sessionId: string } }
+  | { type: 'resumeSession'; payload: { sessionId: string } }
+  | { type: 'cancelSession'; payload: { sessionId: string } };
+
+// ---- Orchestrator Extension <-> Webview Messages ----
+export type OrchestratorExtensionToWebview =
+  | { type: 'setStatus'; payload: OrchestratorStatus }
+  | { type: 'slotUpdated'; payload: { slot: OrchestratorSlot } }
+  | { type: 'sseStatus'; payload: { connected: boolean; message?: string } }
+  | { type: 'setAuthenticated'; payload: { user: UserInfo } }
+  | { type: 'setUnauthenticated' };
+
+export type OrchestratorWebviewToExtension =
+  | { type: 'ready' }
+  | { type: 'releaseSlot'; payload: { slotId: number } }
+  | { type: 'terminateSession'; payload: { sessionId: string } };
