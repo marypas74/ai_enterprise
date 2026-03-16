@@ -23,6 +23,7 @@ import { OUTPUT_CHANNEL_NAME } from './utils/constants';
 import type { ModuleContext } from './core/types';
 
 export function activate(context: vscode.ExtensionContext): void {
+  const startTime = Date.now();
   const outputChannel = vscode.window.createOutputChannel(OUTPUT_CHANNEL_NAME);
   outputChannel.appendLine('[Extension] Activating Enterprise AI...');
 
@@ -149,7 +150,11 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   });
 
-  outputChannel.appendLine('[Extension] Activated (Phase 3: Documents + Worktree)');
+  const elapsedMs = Date.now() - startTime;
+  outputChannel.appendLine(`[Extension] Activated in ${elapsedMs}ms`);
+  if (elapsedMs > 500) {
+    outputChannel.appendLine(`[Extension] WARNING: Activation took ${elapsedMs}ms (threshold: 500ms)`);
+  }
 }
 
 export function deactivate(): void {
