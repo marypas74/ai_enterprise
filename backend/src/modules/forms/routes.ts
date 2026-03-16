@@ -2,6 +2,7 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { findOne, findAll, insertOne, updateOne } from '../../database/index.js';
 import { ConversationalFormService } from '../../services/ConversationalFormService.js';
+import { requireAdmin } from '../../middleware/index.js';
 
 // Validation schemas
 const idParamSchema = z.object({ id: z.string().regex(/^\d+$/, 'ID must be numeric') });
@@ -53,10 +54,6 @@ export async function formRoutes(fastify: FastifyInstance) {
 
   fastify.addHook('onRequest', (fastify as any).authenticate);
 
-  const adminOnly = async (request: FastifyRequest, reply: FastifyReply) => {
-    const user = request.user as { role: string };
-    if (user.role !== 'admin') return reply.status(403).send({ error: 'Admin access required' });
-  };
 
   // --- Form Definitions (Admin) ---
 
@@ -72,7 +69,7 @@ export async function formRoutes(fastify: FastifyInstance) {
     return { form: parseFormJson(form) };
   });
 
-  fastify.post('/definitions', { onRequest: [adminOnly] }, async (request: FastifyRequest, reply: FastifyReply) => {
+  fastify.post('/definitions', { onRequest: [requireAdmin] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const body = createFormSchema.parse(request.body);
     const id = await insertOne(fastify.db,
       `INSERT INTO conversational_forms (name, display_name, description, json_schema, start_examples, stop_examples, ask_confirm, on_complete_action, on_complete_config, plugin_id, is_enabled)
@@ -92,7 +89,7 @@ export async function formRoutes(fastify: FastifyInstance) {
     return reply.status(201).send({ id, message: 'Form created' });
   });
 
-  fastify.patch('/definitions/:id', { onRequest: [adminOnly] }, async (request: FastifyRequest, reply: FastifyReply) => {
+  fastify.patch('/definitions/:id', { onRequest: [requireAdmin] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = idParamSchema.parse(request.params);
     const body = updateFormSchema.parse(request.body);
 
@@ -116,7 +113,7 @@ export async function formRoutes(fastify: FastifyInstance) {
     return { success: true };
   });
 
-  fastify.delete('/definitions/:id', { onRequest: [adminOnly] }, async (request: FastifyRequest) => {
+  fastify.delete('/definitions/:id', { onRequest: [requireAdmin] }, async (request: FastifyRequest) => {
     const { id } = idParamSchema.parse(request.params);
     await fastify.db.execute('DELETE FROM conversational_forms WHERE id = ?', [id]);
     return { success: true };
@@ -207,7 +204,7 @@ export async function formRoutes(fastify: FastifyInstance) {
   });
 
   // List all sessions (admin)
-  fastify.get('/sessions', { onRequest: [adminOnly] }, async (request: FastifyRequest) => {
+  fastify.get('/sessions', { onRequest: [requireAdmin] }, async (request: FastifyRequest) => {
     const q = request.query as { state?: string; limit?: string };
     let sql = `SELECT fs.*, cf.display_name as form_name, u.name as user_name
                FROM form_sessions fs

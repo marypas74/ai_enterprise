@@ -10,6 +10,7 @@ import {
 } from '../../services/VectorMemoryService.js';
 import { HyDEService } from '../../services/HyDEService.js';
 import { ClassificationService } from '../../services/ClassificationService.js';
+import { requireAdmin } from '../../middleware/index.js';
 
 // Validation schemas
 const storeDeclarativeSchema = z.object({
@@ -44,12 +45,6 @@ const classifySchema = z.object({
 export async function vectorMemoryRoutes(fastify: FastifyInstance) {
   fastify.addHook('onRequest', (fastify as any).authenticate);
 
-  const adminOnly = async (request: FastifyRequest, reply: FastifyReply) => {
-    const user = request.user as { role: string };
-    if (user.role !== 'admin') {
-      return reply.status(403).send({ error: 'Admin access required' });
-    }
-  };
 
   // Semantic recall across all collections
   fastify.get('/recall', async (request: FastifyRequest, reply: FastifyReply) => {
@@ -85,7 +80,7 @@ export async function vectorMemoryRoutes(fastify: FastifyInstance) {
 
   // List collections with stats
   fastify.get('/collections', {
-    onRequest: [adminOnly],
+    onRequest: [requireAdmin],
   }, async () => {
     const collections = await getAllCollectionsInfo();
     return { collections };
@@ -93,7 +88,7 @@ export async function vectorMemoryRoutes(fastify: FastifyInstance) {
 
   // Wipe a collection
   fastify.delete('/collections/:name', {
-    onRequest: [adminOnly],
+    onRequest: [requireAdmin],
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { name } = request.params as { name: string };
     const validNames: MemoryCollection[] = ['episodic_memory', 'declarative_memory', 'procedural_memory'];
@@ -207,7 +202,7 @@ export async function vectorMemoryRoutes(fastify: FastifyInstance) {
 
   // Get HyDE config
   fastify.get('/hyde', {
-    onRequest: [adminOnly],
+    onRequest: [requireAdmin],
   }, async () => {
     const hyde = new HyDEService(fastify, fastify.db);
     await hyde.loadConfig();
@@ -216,7 +211,7 @@ export async function vectorMemoryRoutes(fastify: FastifyInstance) {
 
   // Update HyDE config
   fastify.patch('/hyde', {
-    onRequest: [adminOnly],
+    onRequest: [requireAdmin],
   }, async (request: FastifyRequest) => {
     const body = hydeConfigSchema.parse(request.body);
     const hyde = new HyDEService(fastify, fastify.db);
@@ -260,7 +255,7 @@ export async function vectorMemoryRoutes(fastify: FastifyInstance) {
 
   // Get recall quality statistics
   fastify.get('/recall-stats', {
-    onRequest: [adminOnly],
+    onRequest: [requireAdmin],
   }, async (request: FastifyRequest) => {
     const q = request.query as { days?: string };
     const days = parseInt(q.days || '7', 10);
@@ -333,7 +328,7 @@ export async function vectorMemoryRoutes(fastify: FastifyInstance) {
 
   // Get MCP server status (admin)
   fastify.get('/mcp-status', {
-    onRequest: [adminOnly],
+    onRequest: [requireAdmin],
   }, async () => {
     try {
       const { MCPClientManager } = await import('../../services/MCPClientManager.js');

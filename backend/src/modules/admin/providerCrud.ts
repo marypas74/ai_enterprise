@@ -2,8 +2,8 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { findOne, findAll, insertOne, updateOne } from '../../database/index.js';
 import { encrypt, decrypt } from '../../utils/crypto.js';
-import { getOllamaModelSyncService } from '../../services/OllamaModelSyncService.js';
 import { clearEmbeddingCache } from '../../services/EmbeddingService.js';
+import { requireAdmin } from '../../middleware/index.js';
 
 // Types
 interface Provider {
@@ -72,13 +72,6 @@ const createModelSchema = z.object({
 const updateModelSchema = createModelSchema.partial();
 
 export async function providerCrudRoutes(fastify: FastifyInstance) {
-  // Middleware: Admin only
-  const adminOnly = async (request: FastifyRequest, reply: FastifyReply) => {
-    const user = request.user as { role: string };
-    if (user.role !== 'admin') {
-      return reply.status(403).send({ error: 'Admin access required' });
-    }
-  };
 
   // ==========================================
   // PROVIDERS
@@ -86,7 +79,7 @@ export async function providerCrudRoutes(fastify: FastifyInstance) {
 
   // Get all providers
   fastify.get('/providers', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Get all AI providers',
       tags: ['admin'],
@@ -108,7 +101,7 @@ export async function providerCrudRoutes(fastify: FastifyInstance) {
 
   // Get single provider with settings
   fastify.get('/providers/:id', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Get provider details with settings',
       tags: ['admin'],
@@ -152,7 +145,7 @@ export async function providerCrudRoutes(fastify: FastifyInstance) {
 
   // Update provider
   fastify.patch('/providers/:id', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Update provider',
       tags: ['admin'],
@@ -198,7 +191,7 @@ export async function providerCrudRoutes(fastify: FastifyInstance) {
 
   // Update provider settings
   fastify.put('/providers/:id/settings', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Update provider settings',
       tags: ['admin'],
@@ -262,7 +255,7 @@ export async function providerCrudRoutes(fastify: FastifyInstance) {
 
   // Test provider connection
   fastify.post('/providers/:id/test', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Test provider connection',
       tags: ['admin'],
@@ -378,7 +371,7 @@ export async function providerCrudRoutes(fastify: FastifyInstance) {
 
   // Get all models (optionally filtered by provider)
   fastify.get('/models', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Get all AI models',
       tags: ['admin'],
@@ -435,7 +428,7 @@ export async function providerCrudRoutes(fastify: FastifyInstance) {
 
   // Create model
   fastify.post('/models', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Create new AI model',
       tags: ['admin'],
@@ -464,7 +457,7 @@ export async function providerCrudRoutes(fastify: FastifyInstance) {
 
   // Update model
   fastify.patch('/models/:id', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Update AI model',
       tags: ['admin'],
@@ -495,51 +488,12 @@ export async function providerCrudRoutes(fastify: FastifyInstance) {
       clearEmbeddingCache();
     }
 
-    // If is_enabled changed, sync with Ollama if it's an Ollama model
-    if (body.is_enabled !== undefined) {
-      const model = await findOne<Model & { provider_name: string }>(
-        fastify.db,
-        `SELECT m.*, p.name as provider_name
-         FROM ai_models m
-         JOIN ai_providers p ON m.provider_id = p.id
-         WHERE m.id = ?`,
-        [id]
-      );
-
-      if (model && model.provider_name === 'ollama') {
-        // Get Ollama base URL from settings
-        const settings = await findAll<ProviderSetting>(
-          fastify.db,
-          'SELECT * FROM ai_provider_settings WHERE provider_id = ?',
-          [model.provider_id]
-        );
-        const config: Record<string, string> = {};
-        for (const s of settings) {
-          config[s.setting_key] = s.is_secret ? decrypt(s.setting_value) : s.setting_value;
-        }
-        const baseUrl = config.base_url || 'http://localhost:11434';
-
-        // Sync the model (pull or remove based on is_enabled)
-        const ollamaService = getOllamaModelSyncService(baseUrl);
-        const syncResult = await ollamaService.syncModel(model.model_id, body.is_enabled);
-
-        fastify.log.info(`[OllamaSync] Model ${model.model_id}: ${syncResult.action} - ${syncResult.message}`);
-
-        if (!syncResult.success && syncResult.action !== 'none') {
-          // Log warning but don't fail the request - DB state is already updated
-          fastify.log.warn(`[OllamaSync] Failed to sync model ${model.model_id}: ${syncResult.message}`);
-        }
-
-        return { success: true, ollamaSync: syncResult };
-      }
-    }
-
     return { success: true };
   });
 
   // Delete model
   fastify.delete('/models/:id', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Delete AI model',
       tags: ['admin'],

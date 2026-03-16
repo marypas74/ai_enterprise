@@ -1,6 +1,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { findOne, findAll, insertOne, updateOne } from '../../database/index.js';
+import { requireAdmin } from '../../middleware/index.js';
 
 // Types
 interface Skill {
@@ -63,13 +64,6 @@ const createTemplateSchema = z.object({
 });
 
 export async function skillRoutes(fastify: FastifyInstance) {
-  // Middleware: Admin only
-  const adminOnly = async (request: FastifyRequest, reply: FastifyReply) => {
-    const user = request.user as { role: string };
-    if (user.role !== 'admin') {
-      return reply.status(403).send({ error: 'Admin access required' });
-    }
-  };
 
   // ==========================================
   // SKILLS MANAGEMENT (Admin)
@@ -140,7 +134,7 @@ export async function skillRoutes(fastify: FastifyInstance) {
 
   // Create skill (Admin only)
   fastify.post('/skills', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Create new skill',
       tags: ['skills'],
@@ -180,7 +174,7 @@ export async function skillRoutes(fastify: FastifyInstance) {
 
   // Update skill (Admin only)
   fastify.patch('/skills/:id', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Update skill',
       tags: ['skills'],
@@ -219,7 +213,7 @@ export async function skillRoutes(fastify: FastifyInstance) {
 
   // Delete skill (Admin only)
   fastify.delete('/skills/:id', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Delete skill',
       tags: ['skills'],
@@ -319,7 +313,7 @@ export async function skillRoutes(fastify: FastifyInstance) {
 
   // Get specific user's skills (Admin only)
   fastify.get('/users/:userId/skills', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Get user skills (admin)',
       tags: ['skills'],
@@ -348,7 +342,7 @@ export async function skillRoutes(fastify: FastifyInstance) {
 
   // Set user skills (Admin only)
   fastify.put('/users/:userId/skills', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Set user skills (admin)',
       tags: ['skills'],
@@ -441,7 +435,7 @@ export async function skillRoutes(fastify: FastifyInstance) {
 
   // Create template (Admin only)
   fastify.post('/skill-templates', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Create skill template',
       tags: ['skills'],
@@ -461,7 +455,7 @@ export async function skillRoutes(fastify: FastifyInstance) {
 
   // Delete template (Admin only)
   fastify.delete('/skill-templates/:id', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Delete skill template',
       tags: ['skills'],

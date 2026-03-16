@@ -21,14 +21,8 @@ export interface ToolDefinition {
 }
 
 // Context passed to tool execution
-export interface ToolContext {
-  userName: string;
-  projectName: string;
-  projectId: number;
-  userId: number;
-  db?: any;
-  log?: { debug: (...args: any[]) => void; info: (...args: any[]) => void; warn: (...args: any[]) => void; error: (...args: any[]) => void };
-}
+import type { ToolContext } from '../types/index.js';
+export type { ToolContext };
 
 // Tool execution result
 export interface ToolResult {

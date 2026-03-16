@@ -1,6 +1,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { eventBus } from '../../services/EventBusService.js';
+import { requireAdmin } from '../../middleware/index.js';
 
 // Validation schemas
 const toggleHandlerSchema = z.object({
@@ -12,16 +13,10 @@ const toggleTracingSchema = z.object({
 });
 
 export async function hookRoutes(fastify: FastifyInstance) {
-  const adminOnly = async (request: FastifyRequest, reply: FastifyReply) => {
-    const user = request.user as { role: string };
-    if (user.role !== 'admin') {
-      return reply.status(403).send({ error: 'Admin access required' });
-    }
-  };
 
   // List all hooks and their handlers
   fastify.get('/hooks', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
   }, async () => {
     return {
       available_hooks: eventBus.getAvailableHooks(),
@@ -31,7 +26,7 @@ export async function hookRoutes(fastify: FastifyInstance) {
 
   // Toggle a handler enabled/disabled
   fastify.patch('/hooks/handlers/:handlerId/toggle', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { handlerId } = request.params as { handlerId: string };
     const { enabled } = toggleHandlerSchema.parse(request.body);
@@ -48,7 +43,7 @@ export async function hookRoutes(fastify: FastifyInstance) {
 
   // Get trace status
   fastify.get('/hooks/trace', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
   }, async () => {
     return {
       enabled: eventBus.isTracingEnabled(),
@@ -58,7 +53,7 @@ export async function hookRoutes(fastify: FastifyInstance) {
 
   // Toggle tracing on/off
   fastify.post('/hooks/trace/toggle', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
   }, async (request: FastifyRequest) => {
     const { enabled } = toggleTracingSchema.parse(request.body);
     eventBus.setTracing(enabled);
@@ -67,7 +62,7 @@ export async function hookRoutes(fastify: FastifyInstance) {
 
   // Get trace log
   fastify.get('/hooks/trace/log', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
   }, async (request: FastifyRequest) => {
     const { limit } = request.query as { limit?: string };
     const entries = eventBus.getTraceLog(limit ? parseInt(limit) : 100);
@@ -76,7 +71,7 @@ export async function hookRoutes(fastify: FastifyInstance) {
 
   // Clear trace log
   fastify.delete('/hooks/trace/log', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
   }, async () => {
     eventBus.clearTraceLog();
     return { message: 'Trace log cleared' };

@@ -1,6 +1,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { findOne, findAll, insertOne, updateOne } from '../../database/index.js';
+import { requireAdmin } from '../../middleware/index.js';
 
 // Types
 interface SystemSetting {
@@ -54,13 +55,6 @@ const groupModelPermissionSchema = z.object({
 });
 
 export async function settingsRoutes(fastify: FastifyInstance) {
-  // Middleware: Admin only
-  const adminOnly = async (request: FastifyRequest, reply: FastifyReply) => {
-    const user = request.user as { role: string };
-    if (user.role !== 'admin') {
-      return reply.status(403).send({ error: 'Admin access required' });
-    }
-  };
 
   // ==========================================
   // SYSTEM SETTINGS
@@ -115,7 +109,7 @@ export async function settingsRoutes(fastify: FastifyInstance) {
 
   // Update setting
   fastify.put('/settings/:key', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Update system setting',
       tags: ['admin'],
@@ -157,7 +151,7 @@ export async function settingsRoutes(fastify: FastifyInstance) {
 
   // Get all groups
   fastify.get('/groups', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Get all groups',
       tags: ['admin'],
@@ -178,7 +172,7 @@ export async function settingsRoutes(fastify: FastifyInstance) {
 
   // Get single group with model permissions
   fastify.get('/groups/:id', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Get group details with model permissions',
       tags: ['admin'],
@@ -228,7 +222,7 @@ export async function settingsRoutes(fastify: FastifyInstance) {
 
   // Create group
   fastify.post('/groups', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Create new group',
       tags: ['admin'],
@@ -248,7 +242,7 @@ export async function settingsRoutes(fastify: FastifyInstance) {
 
   // Update group
   fastify.patch('/groups/:id', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Update group',
       tags: ['admin'],
@@ -282,7 +276,7 @@ export async function settingsRoutes(fastify: FastifyInstance) {
 
   // Delete group
   fastify.delete('/groups/:id', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Delete group',
       tags: ['admin'],
@@ -307,7 +301,7 @@ export async function settingsRoutes(fastify: FastifyInstance) {
 
   // Set model permission for group
   fastify.put('/groups/:groupId/models/:modelId', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Set model permission for group',
       tags: ['admin'],
@@ -330,7 +324,7 @@ export async function settingsRoutes(fastify: FastifyInstance) {
 
   // Remove model permission
   fastify.delete('/groups/:groupId/models/:modelId', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Remove model permission from group',
       tags: ['admin'],
@@ -349,7 +343,7 @@ export async function settingsRoutes(fastify: FastifyInstance) {
 
   // Bulk update model permissions for group
   fastify.put('/groups/:groupId/models', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Bulk update model permissions for group',
       tags: ['admin'],
@@ -381,7 +375,7 @@ export async function settingsRoutes(fastify: FastifyInstance) {
 
   // Add user to group
   fastify.post('/groups/:groupId/users/:userId', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Add user to group',
       tags: ['admin'],
@@ -408,7 +402,7 @@ export async function settingsRoutes(fastify: FastifyInstance) {
 
   // Remove user from group
   fastify.delete('/groups/:groupId/users/:userId', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Remove user from group',
       tags: ['admin'],

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { findOne, findAll, insertOne } from '../../database/index.js';
 import { decrypt } from '../../utils/crypto.js';
 import { inferModelCapabilities } from '../../utils/model-capabilities.js';
+import { requireAdmin } from '../../middleware/index.js';
 
 // Validation schemas
 const ollamaDeploySchema = z.object({
@@ -38,13 +39,6 @@ interface ProviderSetting {
 }
 
 export async function providerSyncRoutes(fastify: FastifyInstance) {
-  // Middleware: Admin only
-  const adminOnly = async (request: FastifyRequest, reply: FastifyReply) => {
-    const user = request.user as { role: string };
-    if (user.role !== 'admin') {
-      return reply.status(403).send({ error: 'Admin access required' });
-    }
-  };
 
   // ==========================================
   // SYNC ENDPOINTS
@@ -55,7 +49,7 @@ export async function providerSyncRoutes(fastify: FastifyInstance) {
 
   // Sync OpenAI models
   fastify.post('/providers/openai/sync', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Sync OpenAI models',
       tags: ['admin'],
@@ -126,7 +120,7 @@ export async function providerSyncRoutes(fastify: FastifyInstance) {
 
   // Sync Ollama models (fetch from Ollama server)
   fastify.post('/providers/ollama/sync', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Sync models from Ollama server',
       tags: ['admin'],
@@ -233,7 +227,7 @@ export async function providerSyncRoutes(fastify: FastifyInstance) {
 
   // Deploy Ollama Docker container
   fastify.post('/providers/ollama/docker/deploy', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Deploy Ollama Docker container',
       tags: ['admin'],
@@ -351,7 +345,7 @@ export async function providerSyncRoutes(fastify: FastifyInstance) {
 
   // Get Ollama Docker status
   fastify.get('/providers/ollama/docker/status', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Get Ollama Docker container status',
       tags: ['admin'],
@@ -395,7 +389,7 @@ export async function providerSyncRoutes(fastify: FastifyInstance) {
 
   // Pull a model to Ollama container
   fastify.post('/providers/ollama/docker/pull-model', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Pull a model to Ollama container',
       tags: ['admin'],
@@ -436,7 +430,7 @@ export async function providerSyncRoutes(fastify: FastifyInstance) {
 
   // Stop Ollama Docker container
   fastify.delete('/providers/ollama/docker/stop', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Stop Ollama Docker container',
       tags: ['admin'],
@@ -461,7 +455,7 @@ export async function providerSyncRoutes(fastify: FastifyInstance) {
 
   // Get available Ollama models from registry
   fastify.get('/providers/ollama/models/available', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Get list of popular Ollama models',
       tags: ['admin'],

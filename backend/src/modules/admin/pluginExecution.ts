@@ -1,6 +1,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { findAll, insertOne, updateOne } from '../../database/index.js';
+import { requireAdmin } from '../../middleware/index.js';
 
 // Types
 interface Tool {
@@ -34,13 +35,6 @@ const createToolSchema = z.object({
 const updateToolSchema = createToolSchema.partial();
 
 export async function pluginExecutionRoutes(fastify: FastifyInstance) {
-  // Middleware: Admin only
-  const adminOnly = async (request: FastifyRequest, reply: FastifyReply) => {
-    const user = request.user as { role: string };
-    if (user.role !== 'admin') {
-      return reply.status(403).send({ error: 'Admin access required' });
-    }
-  };
 
   // ==========================================
   // TOOLS MANAGEMENT
@@ -93,7 +87,7 @@ export async function pluginExecutionRoutes(fastify: FastifyInstance) {
 
   // Create tool (Admin only)
   fastify.post('/tools', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Create new tool',
       tags: ['tools'],
@@ -125,7 +119,7 @@ export async function pluginExecutionRoutes(fastify: FastifyInstance) {
 
   // Update tool (Admin only)
   fastify.patch('/tools/:id', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Update tool',
       tags: ['tools'],
@@ -164,7 +158,7 @@ export async function pluginExecutionRoutes(fastify: FastifyInstance) {
 
   // Delete tool (Admin only)
   fastify.delete('/tools/:id', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Delete tool',
       tags: ['tools'],

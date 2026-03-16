@@ -30,12 +30,8 @@ export interface SandboxResult {
   webRequestsCount: number;
 }
 
-export interface ToolContext {
-  userName: string;
-  projectName: string;
-  projectId: number;
-  userId: number;
-}
+import type { ToolContext } from '../types/index.js';
+export type { ToolContext };
 
 interface BridgeStats {
   toolCalls: number;

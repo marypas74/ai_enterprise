@@ -1,10 +1,23 @@
-import { FastifyInstance } from 'fastify';
+import { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
+
+/** Per-user rate limit config for document generation endpoints (CPU-intensive) */
+const docGenRateLimit = {
+    rateLimit: {
+        max: 10,
+        timeWindow: '1 minute',
+        keyGenerator: (request: FastifyRequest) => {
+            const user = (request as any).user;
+            return user?.id ? `doc-gen:${user.id}` : (request.headers['cf-connecting-ip'] as string) || request.ip;
+        }
+    }
+};
 import { generateDocxBuffer, generateExcelBuffer, generatePptxBuffer, convertOfficeToPdf } from '../../services/DocumentProcessorService.js';
 import { findOne, findMany } from '../../database/index.js';
 import fs from 'fs/promises';
 import { existsSync, mkdirSync } from 'fs';
 import path from 'path';
+import { randomUUID } from 'crypto';
 
 const AI_DISCLOSURE_FOOTER = '\n\n---\n[Avviso AI Act] Documento generato tramite intelligenza artificiale — Enterprise AI Chat. Le informazioni contenute potrebbero non essere accurate. Verificare con fonti autorevoli.';
 
@@ -24,6 +37,7 @@ export async function toolsRoutes(fastify: FastifyInstance) {
     // POST: Generate and save file
     fastify.post('/tools/generate-docx', {
         onRequest: [(fastify as any).authenticate],
+        config: docGenRateLimit,
         schema: {
             tags: ['Tools'],
             description: 'Generate a DOCX file from text content',
@@ -44,7 +58,7 @@ export async function toolsRoutes(fastify: FastifyInstance) {
             const textWithDisclosure = text + AI_DISCLOSURE_FOOTER;
             const buffer = await generateDocxBuffer(textWithDisclosure, title);
 
-            const filename = `${title.replace(/[^a-z0-9]/gi, '_')}_${Date.now()}.docx`;
+            const filename = `${title.replace(/[^a-z0-9]/gi, '_')}_${Date.now()}_${randomUUID().slice(0, 8)}.docx`;
             const filePath = path.join(GENERATED_DIR, filename);
 
             await fs.writeFile(filePath, buffer);
@@ -63,6 +77,7 @@ export async function toolsRoutes(fastify: FastifyInstance) {
     // POST: Generate Excel
     fastify.post('/tools/generate-excel', {
         onRequest: [(fastify as any).authenticate],
+        config: docGenRateLimit,
         schema: {
             tags: ['Tools'],
             description: 'Generate an Excel file from JSON data',
@@ -93,7 +108,7 @@ export async function toolsRoutes(fastify: FastifyInstance) {
             ];
             const buffer = await generateExcelBuffer(dataWithDisclosure, title);
 
-            const filename = `${title.replace(/[^a-z0-9]/gi, '_')}_${Date.now()}.xlsx`;
+            const filename = `${title.replace(/[^a-z0-9]/gi, '_')}_${Date.now()}_${randomUUID().slice(0, 8)}.xlsx`;
             const filePath = path.join(GENERATED_DIR, filename);
 
             await fs.writeFile(filePath, buffer);
@@ -110,6 +125,7 @@ export async function toolsRoutes(fastify: FastifyInstance) {
     // POST: Generate PowerPoint
     fastify.post('/tools/generate-pptx', {
         onRequest: [(fastify as any).authenticate],
+        config: docGenRateLimit,
         schema: {
             tags: ['Tools'],
             description: 'Generate a PowerPoint file from JSON slides',
@@ -152,7 +168,7 @@ export async function toolsRoutes(fastify: FastifyInstance) {
             ];
             const buffer = await generatePptxBuffer(slidesWithDisclosure, title);
 
-            const filename = `presentation_${Date.now()}.pptx`;
+            const filename = `presentation_${Date.now()}_${randomUUID().slice(0, 8)}.pptx`;
             const filePath = path.join(GENERATED_DIR, filename);
             await fs.writeFile(filePath, buffer);
 
@@ -160,7 +176,7 @@ export async function toolsRoutes(fastify: FastifyInstance) {
             return { success: true, url: downloadUrl, filename };
         } catch (error: any) {
             fastify.log.error(`[Tools] Error generating PPTX: ${error.message}`);
-            return reply.status(500).send({ error: error.message });
+            return reply.status(500).send({ error: 'Failed to generate presentation' });
         }
     });
 
@@ -173,6 +189,7 @@ export async function toolsRoutes(fastify: FastifyInstance) {
     // Let's implement a route that takes an attachment ID to convert.
     fastify.post('/tools/convert-to-pdf', {
         onRequest: [(fastify as any).authenticate],
+        config: docGenRateLimit,
         schema: {
             tags: ['Tools'],
             description: 'Convert an existing attachment (DOCX, XLSX, PPTX) to PDF',
@@ -216,16 +233,13 @@ export async function toolsRoutes(fastify: FastifyInstance) {
             const generatedPath = path.join(GENERATED_DIR, filename);
             await fs.copyFile(pdfPath, generatedPath);
 
-            // Construct public URL
-            // const publicUrl = `http://chat.yourdomain.com/api/tools/download/${filename}`; // Use configured domain
-            // Use relative URL for internal cluster use or configured external URL
             const downloadUrl = `/api/tools/download/${filename}`;
 
             return { success: true, url: downloadUrl, filename };
 
         } catch (error: any) {
             fastify.log.error(`[Tools] Error converting to PDF: ${error.message}`);
-            return reply.status(500).send({ error: error.message });
+            return reply.status(500).send({ error: 'Failed to convert document to PDF' });
         }
     });
 
@@ -233,6 +247,7 @@ export async function toolsRoutes(fastify: FastifyInstance) {
     // Works independently of AI tool calling — any model's response can be exported
     fastify.post('/tools/generate-from-chat', {
         onRequest: [(fastify as any).authenticate],
+        config: docGenRateLimit,
         schema: {
             tags: ['Tools'],
             description: 'Generate a document from the last assistant message in a conversation',
@@ -300,11 +315,11 @@ export async function toolsRoutes(fastify: FastifyInstance) {
                 case 'pdf': {
                     // Generate DOCX first, then convert to PDF via LibreOffice
                     const docxBuffer = await generateDocxBuffer(cleanContent, body.title);
-                    const tmpDocx = path.join(GENERATED_DIR, `_tmp_${Date.now()}.docx`);
+                    const tmpDocx = path.join(GENERATED_DIR, `_tmp_${Date.now()}_${randomUUID().slice(0, 8)}.docx`);
                     await fs.writeFile(tmpDocx, docxBuffer);
-                    const pdfPath = await convertOfficeToPdf(docxBuffer, GENERATED_DIR, `_tmp_${Date.now()}.docx`);
+                    const pdfPath = await convertOfficeToPdf(docxBuffer, GENERATED_DIR, `_tmp_${Date.now()}_${randomUUID().slice(0, 8)}.docx`);
                     buffer = await fs.readFile(pdfPath);
-                    filename = `${body.title.replace(/[^a-z0-9]/gi, '_')}_${Date.now()}.pdf`;
+                    filename = `${body.title.replace(/[^a-z0-9]/gi, '_')}_${Date.now()}_${randomUUID().slice(0, 8)}.pdf`;
                     // Clean up temp files
                     await fs.unlink(tmpDocx).catch(() => {});
                     await fs.unlink(pdfPath).catch(() => {});
@@ -373,7 +388,7 @@ export async function toolsRoutes(fastify: FastifyInstance) {
         }
 
         let filePath = resolved;
-        const ext = path.extname(filename).toLowerCase();
+        const requestedExt = path.extname(filename).toLowerCase();
 
         try {
             await fs.access(filePath);
@@ -388,7 +403,7 @@ export async function toolsRoutes(fastify: FastifyInstance) {
                     // Find file with same extension and similar timestamp (within ±5ms)
                     const ts = parseInt(timestamp);
                     const match = files.find(f => {
-                        if (path.extname(f).toLowerCase() !== ext) return false;
+                        if (path.extname(f).toLowerCase() !== requestedExt) return false;
                         const ftsMatch = f.match(/(\d{13})/);
                         if (!ftsMatch) return false;
                         return Math.abs(parseInt(ftsMatch[1]) - ts) <= 5;
@@ -410,6 +425,8 @@ export async function toolsRoutes(fastify: FastifyInstance) {
         try {
             const buffer = await fs.readFile(filePath);
             const actualFilename = path.basename(filePath);
+            // SECURITY: Use actual file's extension (not user-supplied) for Content-Type
+            const ext = path.extname(actualFilename).toLowerCase();
 
             let contentType = 'application/octet-stream';
             if (ext === '.docx') contentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
@@ -418,7 +435,10 @@ export async function toolsRoutes(fastify: FastifyInstance) {
             else if (ext === '.pdf') contentType = 'application/pdf';
 
             reply.header('Content-Type', contentType);
-            reply.header('Content-Disposition', `attachment; filename="${actualFilename}"`);
+            // RFC 5987: encode filename for Content-Disposition to prevent header injection
+            const safeAscii = actualFilename.replace(/[^\x20-\x7E]/g, '_').replace(/["\\]/g, '_');
+            const utf8Encoded = encodeURIComponent(actualFilename).replace(/'/g, '%27');
+            reply.header('Content-Disposition', `attachment; filename="${safeAscii}"; filename*=UTF-8''${utf8Encoded}`);
             return reply.send(buffer);
         } catch {
             return reply.status(404).send({ error: 'File not found' });

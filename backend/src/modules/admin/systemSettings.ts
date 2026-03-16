@@ -2,12 +2,9 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { findOne, findMany, insertOne, updateOne } from '../../database/index.js';
 import { MetricsService } from '../../services/MetricsService.js';
+import { requireAdmin } from '../../middleware/index.js';
 
 // Validation schemas
-const ollamaPullSchema = z.object({
-  model: z.string().min(1),
-});
-
 const createPromptTemplateSchema = z.object({
   name: z.string().min(1),
   display_name: z.string().min(1),
@@ -26,13 +23,6 @@ const previewPromptTemplateSchema = z.object({
   context: z.record(z.string()).optional(),
 });
 
-// Middleware: Admin only
-async function adminOnly(request: FastifyRequest, reply: FastifyReply) {
-  const user = request.user as { role: string };
-  if (user.role !== 'admin') {
-    return reply.status(403).send({ error: 'Admin access required' });
-  }
-}
 
 // Types
 interface UsageStats {
@@ -59,7 +49,7 @@ export async function systemSettingsRoutes(fastify: FastifyInstance) {
   // All routes require authentication + admin role
   fastify.addHook('onRequest', async (request, reply) => {
     await (fastify as any).authenticate(request, reply);
-    await adminOnly(request, reply);
+    await requireAdmin(request, reply);
   });
 
   // ==================== USAGE & STATS ====================
@@ -344,76 +334,11 @@ export async function systemSettingsRoutes(fastify: FastifyInstance) {
     return MetricsService.getExhaustiveMetrics(fastify.db);
   });
 
-  // ==================== OLLAMA MANAGEMENT ====================
-
-  // Pull a model
-  fastify.post('/ollama/pull', {
-    schema: {
-      description: 'Pull an Ollama model (admin)',
-      tags: ['admin'],
-      security: [{ bearerAuth: [] }]
-    }
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
-    let parsedBody: z.infer<typeof ollamaPullSchema>;
-    try {
-      parsedBody = ollamaPullSchema.parse(request.body);
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        return reply.status(400).send({ error: 'Validation failed', details: err.errors });
-      }
-      throw err;
-    }
-    const { model } = parsedBody;
-
-    try {
-      const baseUrl = process.env.OLLAMA_BASE_URL || 'http://10.0.1.1:8086/ollama';
-      // Start pull in background (Ollama handles this)
-      fetch(`${baseUrl}/api/pull`, {
-        method: 'POST',
-        headers: { 'X-Ollama-Key': process.env.OLLAMA_AUTH_KEY || '' },
-        body: JSON.stringify({ name: model, stream: false })
-      }).catch(err => console.error(`[Ollama] Pull background error: ${err.message}`));
-
-      return { message: `Started pulling model: ${model}. This may take some time.` };
-    } catch (error: any) {
-      return reply.status(500).send({ error: error.message });
-    }
-  });
-
-  // Delete a model
-  fastify.delete('/ollama/models/:model', {
-    schema: {
-      description: 'Delete an Ollama model (admin)',
-      tags: ['admin'],
-      security: [{ bearerAuth: [] }]
-    }
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
-    const { model } = request.params as { model: string };
-
-    try {
-      const baseUrl = process.env.OLLAMA_BASE_URL || 'http://10.0.1.1:8086/ollama';
-      const response = await fetch(`${baseUrl}/api/delete`, {
-        method: 'DELETE',
-        headers: { 'X-Ollama-Key': process.env.OLLAMA_AUTH_KEY || '' },
-        body: JSON.stringify({ name: model })
-      });
-
-      if (!response.ok) {
-        const err = await response.text();
-        throw new Error(err || 'Failed to delete model');
-      }
-
-      return { message: `Model ${model} deleted successfully` };
-    } catch (error: any) {
-      return reply.status(500).send({ error: error.message });
-    }
-  });
-
   // ========== Prompt Templates ==========
 
   // GET /admin/prompt-templates — List all templates
   fastify.get('/prompt-templates', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: { description: 'List all prompt templates', tags: ['admin'], security: [{ bearerAuth: [] }] }
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { PromptTemplateService } = await import('../../services/PromptTemplateService.js');
@@ -424,7 +349,7 @@ export async function systemSettingsRoutes(fastify: FastifyInstance) {
 
   // GET /admin/prompt-templates/:id — Get single template
   fastify.get('/prompt-templates/:id', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: { description: 'Get a single prompt template', tags: ['admin'], security: [{ bearerAuth: [] }] }
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string };
@@ -436,7 +361,7 @@ export async function systemSettingsRoutes(fastify: FastifyInstance) {
 
   // POST /admin/prompt-templates — Create template
   fastify.post('/prompt-templates', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: { description: 'Create a new prompt template', tags: ['admin'], security: [{ bearerAuth: [] }] }
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     let body: z.infer<typeof createPromptTemplateSchema>;
@@ -465,7 +390,7 @@ export async function systemSettingsRoutes(fastify: FastifyInstance) {
 
   // PATCH /admin/prompt-templates/:id — Update template
   fastify.patch('/prompt-templates/:id', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: { description: 'Update a prompt template', tags: ['admin'], security: [{ bearerAuth: [] }] }
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string };
@@ -487,7 +412,7 @@ export async function systemSettingsRoutes(fastify: FastifyInstance) {
 
   // DELETE /admin/prompt-templates/:id — Delete non-default template
   fastify.delete('/prompt-templates/:id', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: { description: 'Delete a prompt template (non-default only)', tags: ['admin'], security: [{ bearerAuth: [] }] }
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string };
@@ -500,7 +425,7 @@ export async function systemSettingsRoutes(fastify: FastifyInstance) {
 
   // POST /admin/prompt-templates/preview — Preview rendered template
   fastify.post('/prompt-templates/preview', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: { description: 'Preview a rendered prompt template', tags: ['admin'], security: [{ bearerAuth: [] }] }
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     let body: z.infer<typeof previewPromptTemplateSchema>;

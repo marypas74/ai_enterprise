@@ -302,32 +302,3 @@ export async function searchSimilar(
         return [];
     }
 }
-
-/**
- * Delete all vectors for a specific attachment
- */
-export async function deleteAttachmentVectors(attachmentId: number): Promise<boolean> {
-    if (!await isAvailable()) return false;
-
-    try {
-        const response = await fetch(
-            `${QDRANT_URL}/collections/${COLLECTION_NAME}/points/delete`,
-            {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    filter: {
-                        must: [{
-                            key: 'attachment_id',
-                            match: { value: attachmentId },
-                        }],
-                    },
-                }),
-            }
-        );
-
-        return response.ok;
-    } catch {
-        return false;
-    }
-}

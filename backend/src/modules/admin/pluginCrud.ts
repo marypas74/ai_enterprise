@@ -1,6 +1,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { findOne, findAll, insertOne, updateOne } from '../../database/index.js';
+import { requireAdmin } from '../../middleware/index.js';
 
 // Types
 interface Plugin {
@@ -75,13 +76,6 @@ const createMCPServerSchema = z.object({
 const updateMCPServerSchema = createMCPServerSchema.partial();
 
 export async function pluginCrudRoutes(fastify: FastifyInstance) {
-  // Middleware: Admin only
-  const adminOnly = async (request: FastifyRequest, reply: FastifyReply) => {
-    const user = request.user as { role: string };
-    if (user.role !== 'admin') {
-      return reply.status(403).send({ error: 'Admin access required' });
-    }
-  };
 
   // ==========================================
   // PLUGINS MANAGEMENT
@@ -183,7 +177,7 @@ export async function pluginCrudRoutes(fastify: FastifyInstance) {
 
   // Create plugin (Admin only)
   fastify.post('/plugins', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Create new plugin',
       tags: ['plugins'],
@@ -215,7 +209,7 @@ export async function pluginCrudRoutes(fastify: FastifyInstance) {
 
   // Update plugin (Admin only)
   fastify.patch('/plugins/:id', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Update plugin',
       tags: ['plugins'],
@@ -265,7 +259,7 @@ export async function pluginCrudRoutes(fastify: FastifyInstance) {
 
   // Save plugin settings (Admin only)
   fastify.put('/plugins/:id/settings', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Save plugin settings',
       tags: ['plugins'],
@@ -304,7 +298,7 @@ export async function pluginCrudRoutes(fastify: FastifyInstance) {
 
   // Delete plugin (Admin only)
   fastify.delete('/plugins/:id', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Delete plugin',
       tags: ['plugins'],
@@ -433,7 +427,7 @@ export async function pluginCrudRoutes(fastify: FastifyInstance) {
 
   // Get single MCP server
   fastify.get('/mcp-servers/:id', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Get MCP server details',
       tags: ['mcp'],
@@ -468,7 +462,7 @@ export async function pluginCrudRoutes(fastify: FastifyInstance) {
 
   // Create MCP server (Admin only)
   fastify.post('/mcp-servers', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Create MCP server',
       tags: ['mcp'],
@@ -498,7 +492,7 @@ export async function pluginCrudRoutes(fastify: FastifyInstance) {
 
   // Update MCP server (Admin only)
   fastify.patch('/mcp-servers/:id', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Update MCP server',
       tags: ['mcp'],
@@ -537,7 +531,7 @@ export async function pluginCrudRoutes(fastify: FastifyInstance) {
 
   // Delete MCP server (Admin only)
   fastify.delete('/mcp-servers/:id', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Delete MCP server',
       tags: ['mcp'],
@@ -553,7 +547,7 @@ export async function pluginCrudRoutes(fastify: FastifyInstance) {
 
   // Test MCP server connection (Admin only)
   fastify.post('/mcp-servers/:id/test', {
-    onRequest: [(fastify as any).authenticate, adminOnly],
+    onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Test MCP server connection',
       tags: ['mcp'],

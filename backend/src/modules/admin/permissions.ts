@@ -5,6 +5,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { PermissionService, type Resource, type Permission } from '../../services/PermissionService.js';
+import { requireAdmin } from '../../middleware/index.js';
 
 // Validation schema for permission body
 const permissionBodySchema = z.record(z.boolean());
@@ -12,18 +13,12 @@ const permissionBodySchema = z.record(z.boolean());
 export async function permissionRoutes(fastify: FastifyInstance) {
   fastify.addHook('onRequest', (fastify as any).authenticate);
 
-  const adminOnly = async (request: FastifyRequest, reply: FastifyReply) => {
-    const user = request.user as { role: string };
-    if (user.role !== 'admin') {
-      return reply.status(403).send({ error: 'Admin access required' });
-    }
-  };
 
   const permService = new PermissionService(fastify.db);
 
   // Get permission schema (resources + permission types)
   fastify.get('/schema', {
-    onRequest: [adminOnly],
+    onRequest: [requireAdmin],
   }, async () => {
     return {
       schema: permService.getSchema(),
@@ -33,7 +28,7 @@ export async function permissionRoutes(fastify: FastifyInstance) {
 
   // Get permissions for a specific user
   fastify.get('/users/:userId', {
-    onRequest: [adminOnly],
+    onRequest: [requireAdmin],
   }, async (request: FastifyRequest) => {
     const { userId } = request.params as { userId: string };
     const permissions = await permService.getUserPermissions(parseInt(userId), 'user');
@@ -49,7 +44,7 @@ export async function permissionRoutes(fastify: FastifyInstance) {
 
   // Set permissions for a user on a resource
   fastify.put('/users/:userId/:resource', {
-    onRequest: [adminOnly],
+    onRequest: [requireAdmin],
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { userId, resource } = request.params as { userId: string; resource: string };
     const body = permissionBodySchema.parse(request.body) as Partial<Record<Permission, boolean>>;
@@ -66,7 +61,7 @@ export async function permissionRoutes(fastify: FastifyInstance) {
 
   // Reset permissions for a user on a resource
   fastify.delete('/users/:userId/:resource', {
-    onRequest: [adminOnly],
+    onRequest: [requireAdmin],
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { userId, resource } = request.params as { userId: string; resource: string };
 
@@ -81,7 +76,7 @@ export async function permissionRoutes(fastify: FastifyInstance) {
 
   // Reset all permissions for a user
   fastify.delete('/users/:userId', {
-    onRequest: [adminOnly],
+    onRequest: [requireAdmin],
   }, async (request: FastifyRequest) => {
     const { userId } = request.params as { userId: string };
     await permService.resetAllPermissions(parseInt(userId));
