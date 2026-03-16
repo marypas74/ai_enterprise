@@ -121,4 +121,26 @@ describe('WorktreeService', () => {
     const result = await worktreeService.listWorktrees();
     expect(result).toEqual([]);
   });
+
+  it('should return null when getWorktree encounters a network error', async () => {
+    (apiClient.get as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Network error'));
+
+    const result = await worktreeService.getWorktree('session-1');
+    expect(result).toBeNull();
+  });
+
+  it('should return fallback merge result on network error during merge', async () => {
+    (apiClient.post as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Connection refused'));
+
+    const result = await worktreeService.mergeWorktree('session-1');
+    expect(result.success).toBe(false);
+    expect(result.error).toBe('Connection refused');
+    expect(result.mergedBranch).toBe('');
+  });
+
+  it('should throw error when discardWorktree fails', async () => {
+    (apiClient.post as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Not found'));
+
+    await expect(worktreeService.discardWorktree('session-1')).rejects.toThrow('Not found');
+  });
 });
