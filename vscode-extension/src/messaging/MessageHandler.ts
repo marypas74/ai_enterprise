@@ -28,7 +28,8 @@ export interface MessageHandlerDeps {
  */
 export async function handleSendMessage(
     message: string,
-    deps: MessageHandlerDeps
+    deps: MessageHandlerDeps,
+    chatMode?: string
 ): Promise<void> {
     const panel = ClaudeCodePanel.currentPanel;
     if (!panel) { return; }
@@ -43,7 +44,7 @@ export async function handleSendMessage(
     if (useDirectClaude && claudeApiKey) {
         await sendDirectClaudeMessage(message, claudeApiKey, claudeModel, panel, deps.outputChannel);
     } else if (deps.accessToken) {
-        await sendBackendMessage(message, panel, deps);
+        await sendBackendMessage(message, panel, deps, chatMode);
     } else {
         panel.addMessage('system', 'Please login first or configure Claude API key in settings.');
     }
@@ -233,7 +234,8 @@ export async function sendDirectClaudeMessage(
 export async function sendBackendMessage(
     message: string,
     panel: ClaudeCodePanel,
-    deps: MessageHandlerDeps
+    deps: MessageHandlerDeps,
+    chatMode?: string
 ): Promise<void> {
     if (!deps.accessToken) {
         deps.outputChannel.appendLine('ERROR: No access token available');
@@ -267,6 +269,7 @@ export async function sendBackendMessage(
             message: message,
             model: deps.selectedModel || 'gpt-4o',
             systemPrompt: customInstructions || undefined,
+            chat_mode: (chatMode && ['free', 'rag', 'brainstorm'].includes(chatMode)) ? chatMode : undefined,
         });
 
         const options = {

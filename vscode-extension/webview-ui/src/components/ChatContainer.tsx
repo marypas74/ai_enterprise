@@ -29,6 +29,7 @@ const ChatContainer: React.FC<ChatContainerProps> = ({ initialMessages = [] }) =
   const [selectedModel, setSelectedModel] = useState<string>('');
   const [authState, setAuthState] = useState<AuthState>({ isAuthenticated: false });
   const [botIconType, setBotIconType] = useState<BotIconType>('default');
+  const [chatMode, setChatMode] = useState<'free' | 'brainstorm'>('free');
 
   // Auto-scroll hook
   const { containerRef, isAtBottom, scrollToBottom, handleScroll } = useAutoScroll({
@@ -61,11 +62,12 @@ const ChatContainer: React.FC<ChatContainerProps> = ({ initialMessages = [] }) =
     vscode.postMessage({
       type: 'send',
       message: content,
+      chatMode: chatMode !== 'free' ? chatMode : undefined,
     });
 
     // Save state
     vscode.setState({ messages: [...messages, userMessage] });
-  }, [messages]);
+  }, [messages, chatMode]);
 
   // Handle messages from extension
   useEffect(() => {
@@ -211,6 +213,7 @@ const ChatContainer: React.FC<ChatContainerProps> = ({ initialMessages = [] }) =
   // New chat
   const handleNewChat = useCallback(() => {
     setMessages([]);
+    setChatMode('free');
     vscode.postMessage({ type: 'clear' });
     vscode.setState({ messages: [] });
   }, []);
@@ -265,6 +268,18 @@ const ChatContainer: React.FC<ChatContainerProps> = ({ initialMessages = [] }) =
               ))}
             </select>
           )}
+          <button
+            onClick={() => setChatMode(chatMode === 'brainstorm' ? 'free' : 'brainstorm')}
+            className={`header-btn ${chatMode === 'brainstorm' ? 'active-mode' : ''}`}
+            title={chatMode === 'brainstorm' ? 'Disattiva Brainstorming' : 'Attiva Brainstorming'}
+            style={chatMode === 'brainstorm' ? {
+              backgroundColor: 'rgba(245, 158, 11, 0.2)',
+              color: 'var(--vscode-charts-yellow, #f59e0b)',
+              borderRadius: '4px',
+            } : undefined}
+          >
+            <BrainstormIcon />
+          </button>
           <button onClick={handleNewChat} className="header-btn" title="New chat">
             <NewChatIcon />
           </button>
@@ -288,6 +303,37 @@ const ChatContainer: React.FC<ChatContainerProps> = ({ initialMessages = [] }) =
         <span style={{ fontSize: '13px' }}>&#8505;</span>
         <span>Stai interagendo con un sistema di intelligenza artificiale. Le risposte sono generate da AI e potrebbero non essere accurate.</span>
       </div>
+
+      {/* Brainstorm mode indicator */}
+      {chatMode === 'brainstorm' && (
+        <div style={{
+          padding: '6px 12px',
+          backgroundColor: 'rgba(245, 158, 11, 0.12)',
+          borderBottom: '1px solid rgba(245, 158, 11, 0.3)',
+          fontSize: '11px',
+          color: 'var(--vscode-charts-yellow, #f59e0b)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          fontWeight: 500,
+        }}>
+          <span style={{ fontSize: '13px' }}>&#128161;</span>
+          <span>Modalità Brainstorming attiva — SCAMPER, 6 Cappelli, What If, Reverse Brainstorming</span>
+          <button
+            onClick={() => setChatMode('free')}
+            style={{
+              marginLeft: 'auto',
+              background: 'none',
+              border: 'none',
+              color: 'inherit',
+              cursor: 'pointer',
+              fontSize: '13px',
+              padding: '0 4px',
+            }}
+            title="Disattiva brainstorming"
+          >&#10005;</button>
+        </div>
+      )}
 
       {/* Messages area */}
       <div
@@ -352,7 +398,9 @@ const ChatContainer: React.FC<ChatContainerProps> = ({ initialMessages = [] }) =
         placeholder={
           isLoading
             ? 'Waiting for response...'
-            : 'Type a message... (Enter to send)'
+            : chatMode === 'brainstorm'
+              ? 'Descrivi un\'idea da esplorare... (Enter to send)'
+              : 'Type a message... (Enter to send)'
         }
       />
     </div>
@@ -360,6 +408,14 @@ const ChatContainer: React.FC<ChatContainerProps> = ({ initialMessages = [] }) =
 };
 
 // Icon components
+const BrainstormIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M9 18h6" />
+    <path d="M10 22h4" />
+    <path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z" />
+  </svg>
+);
+
 const NewChatIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <line x1="12" y1="5" x2="12" y2="19" />

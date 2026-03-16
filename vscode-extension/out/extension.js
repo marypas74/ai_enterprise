@@ -1,3 +1,16065 @@
-/*! For license information please see extension.js.LICENSE.txt */
-(()=>{var e={1873(e,t,a){e.exports={parallel:a(8798),serial:a(2081),serialOrdered:a(28)}},4555(e){function t(e){"function"==typeof this.jobs[e]&&this.jobs[e]()}e.exports=function(e){Object.keys(e.jobs).forEach(t.bind(e)),e.jobs={}}},2313(e,t,a){var n=a(405);e.exports=function(e){var t=!1;return n(function(){t=!0}),function(a,s){t?e(a,s):n(function(){e(a,s)})}}},405(e){e.exports=function(e){var t="function"==typeof setImmediate?setImmediate:"object"==typeof process&&"function"==typeof process.nextTick?process.nextTick:null;t?t(e):setTimeout(e,0)}},8051(e,t,a){var n=a(2313),s=a(4555);e.exports=function(e,t,a,i){var o=a.keyedList?a.keyedList[a.index]:a.index;a.jobs[o]=function(e,t,a,s){return 2==e.length?e(a,n(s)):e(a,t,n(s))}(t,o,e[o],function(e,t){o in a.jobs&&(delete a.jobs[o],e?s(a):a.results[o]=t,i(e,a.results))})}},9500(e){e.exports=function(e,t){var a=!Array.isArray(e),n={index:0,keyedList:a||t?Object.keys(e):null,jobs:{},results:a?{}:[],size:a?Object.keys(e).length:e.length};return t&&n.keyedList.sort(a?t:function(a,n){return t(e[a],e[n])}),n}},6276(e,t,a){var n=a(4555),s=a(2313);e.exports=function(e){Object.keys(this.jobs).length&&(this.index=this.size,n(this),s(e)(null,this.results))}},8798(e,t,a){var n=a(8051),s=a(9500),i=a(6276);e.exports=function(e,t,a){for(var o=s(e);o.index<(o.keyedList||e).length;)n(e,t,o,function(e,t){e?a(e,t):0!==Object.keys(o.jobs).length||a(null,o.results)}),o.index++;return i.bind(o,a)}},2081(e,t,a){var n=a(28);e.exports=function(e,t,a){return n(e,t,null,a)}},28(e,t,a){var n=a(8051),s=a(9500),i=a(6276);function o(e,t){return e<t?-1:e>t?1:0}e.exports=function(e,t,a,o){var r=s(e,a);return n(e,t,r,function a(s,i){s?o(s,i):(r.index++,r.index<(r.keyedList||e).length?n(e,t,r,a):o(null,r.results))}),i.bind(r,o)},e.exports.ascending=o,e.exports.descending=function(e,t){return-1*o(e,t)}},3144(e,t,a){"use strict";var n=a(6743),s=a(1002),i=a(76),o=a(7119);e.exports=o||n.call(i,s)},1002(e){"use strict";e.exports=Function.prototype.apply},76(e){"use strict";e.exports=Function.prototype.call},3126(e,t,a){"use strict";var n=a(6743),s=a(9675),i=a(76),o=a(3144);e.exports=function(e){if(e.length<1||"function"!=typeof e[0])throw new s("a function is required");return o(n,i,e)}},7119(e){"use strict";e.exports="undefined"!=typeof Reflect&&Reflect&&Reflect.apply},801(e,t,a){var n=a(9023),s=a(2203).Stream,i=a(8069);function o(){this.writable=!1,this.readable=!0,this.dataSize=0,this.maxDataSize=2097152,this.pauseStreams=!0,this._released=!1,this._streams=[],this._currentStream=null,this._insideLoop=!1,this._pendingNext=!1}e.exports=o,n.inherits(o,s),o.create=function(e){var t=new this;for(var a in e=e||{})t[a]=e[a];return t},o.isStreamLike=function(e){return"function"!=typeof e&&"string"!=typeof e&&"boolean"!=typeof e&&"number"!=typeof e&&!Buffer.isBuffer(e)},o.prototype.append=function(e){if(o.isStreamLike(e)){if(!(e instanceof i)){var t=i.create(e,{maxDataSize:1/0,pauseStream:this.pauseStreams});e.on("data",this._checkDataSize.bind(this)),e=t}this._handleErrors(e),this.pauseStreams&&e.pause()}return this._streams.push(e),this},o.prototype.pipe=function(e,t){return s.prototype.pipe.call(this,e,t),this.resume(),e},o.prototype._getNext=function(){if(this._currentStream=null,this._insideLoop)this._pendingNext=!0;else{this._insideLoop=!0;try{do{this._pendingNext=!1,this._realGetNext()}while(this._pendingNext)}finally{this._insideLoop=!1}}},o.prototype._realGetNext=function(){var e=this._streams.shift();void 0!==e?"function"==typeof e?e(function(e){o.isStreamLike(e)&&(e.on("data",this._checkDataSize.bind(this)),this._handleErrors(e)),this._pipeNext(e)}.bind(this)):this._pipeNext(e):this.end()},o.prototype._pipeNext=function(e){if(this._currentStream=e,o.isStreamLike(e))return e.on("end",this._getNext.bind(this)),void e.pipe(this,{end:!1});var t=e;this.write(t),this._getNext()},o.prototype._handleErrors=function(e){var t=this;e.on("error",function(e){t._emitError(e)})},o.prototype.write=function(e){this.emit("data",e)},o.prototype.pause=function(){this.pauseStreams&&(this.pauseStreams&&this._currentStream&&"function"==typeof this._currentStream.pause&&this._currentStream.pause(),this.emit("pause"))},o.prototype.resume=function(){this._released||(this._released=!0,this.writable=!0,this._getNext()),this.pauseStreams&&this._currentStream&&"function"==typeof this._currentStream.resume&&this._currentStream.resume(),this.emit("resume")},o.prototype.end=function(){this._reset(),this.emit("end")},o.prototype.destroy=function(){this._reset(),this.emit("close")},o.prototype._reset=function(){this.writable=!1,this._streams=[],this._currentStream=null},o.prototype._checkDataSize=function(){if(this._updateDataSize(),!(this.dataSize<=this.maxDataSize)){var e="DelayedStream#maxDataSize of "+this.maxDataSize+" bytes exceeded.";this._emitError(new Error(e))}},o.prototype._updateDataSize=function(){this.dataSize=0;var e=this;this._streams.forEach(function(t){t.dataSize&&(e.dataSize+=t.dataSize)}),this._currentStream&&this._currentStream.dataSize&&(this.dataSize+=this._currentStream.dataSize)},o.prototype._emitError=function(e){this._reset(),this.emit("error",e)}},7833(e,t,a){t.formatArgs=function(t){if(t[0]=(this.useColors?"%c":"")+this.namespace+(this.useColors?" %c":" ")+t[0]+(this.useColors?"%c ":" ")+"+"+e.exports.humanize(this.diff),!this.useColors)return;const a="color: "+this.color;t.splice(1,0,a,"color: inherit");let n=0,s=0;t[0].replace(/%[a-zA-Z%]/g,e=>{"%%"!==e&&(n++,"%c"===e&&(s=n))}),t.splice(s,0,a)},t.save=function(e){try{e?t.storage.setItem("debug",e):t.storage.removeItem("debug")}catch(e){}},t.load=function(){let e;try{e=t.storage.getItem("debug")||t.storage.getItem("DEBUG")}catch(e){}return!e&&"undefined"!=typeof process&&"env"in process&&(e=process.env.DEBUG),e},t.useColors=function(){if("undefined"!=typeof window&&window.process&&("renderer"===window.process.type||window.process.__nwjs))return!0;if("undefined"!=typeof navigator&&navigator.userAgent&&navigator.userAgent.toLowerCase().match(/(edge|trident)\/(\d+)/))return!1;let e;return"undefined"!=typeof document&&document.documentElement&&document.documentElement.style&&document.documentElement.style.WebkitAppearance||"undefined"!=typeof window&&window.console&&(window.console.firebug||window.console.exception&&window.console.table)||"undefined"!=typeof navigator&&navigator.userAgent&&(e=navigator.userAgent.toLowerCase().match(/firefox\/(\d+)/))&&parseInt(e[1],10)>=31||"undefined"!=typeof navigator&&navigator.userAgent&&navigator.userAgent.toLowerCase().match(/applewebkit\/(\d+)/)},t.storage=function(){try{return localStorage}catch(e){}}(),t.destroy=(()=>{let e=!1;return()=>{e||(e=!0,console.warn("Instance method `debug.destroy()` is deprecated and no longer does anything. It will be removed in the next major version of `debug`."))}})(),t.colors=["#0000CC","#0000FF","#0033CC","#0033FF","#0066CC","#0066FF","#0099CC","#0099FF","#00CC00","#00CC33","#00CC66","#00CC99","#00CCCC","#00CCFF","#3300CC","#3300FF","#3333CC","#3333FF","#3366CC","#3366FF","#3399CC","#3399FF","#33CC00","#33CC33","#33CC66","#33CC99","#33CCCC","#33CCFF","#6600CC","#6600FF","#6633CC","#6633FF","#66CC00","#66CC33","#9900CC","#9900FF","#9933CC","#9933FF","#99CC00","#99CC33","#CC0000","#CC0033","#CC0066","#CC0099","#CC00CC","#CC00FF","#CC3300","#CC3333","#CC3366","#CC3399","#CC33CC","#CC33FF","#CC6600","#CC6633","#CC9900","#CC9933","#CCCC00","#CCCC33","#FF0000","#FF0033","#FF0066","#FF0099","#FF00CC","#FF00FF","#FF3300","#FF3333","#FF3366","#FF3399","#FF33CC","#FF33FF","#FF6600","#FF6633","#FF9900","#FF9933","#FFCC00","#FFCC33"],t.log=console.debug||console.log||(()=>{}),e.exports=a(736)(t);const{formatters:n}=e.exports;n.j=function(e){try{return JSON.stringify(e)}catch(e){return"[UnexpectedJSONParseError]: "+e.message}}},736(e,t,a){e.exports=function(e){function t(e){let a,s,i,o=null;function r(...e){if(!r.enabled)return;const n=r,s=Number(new Date),i=s-(a||s);n.diff=i,n.prev=a,n.curr=s,a=s,e[0]=t.coerce(e[0]),"string"!=typeof e[0]&&e.unshift("%O");let o=0;e[0]=e[0].replace(/%([a-zA-Z%])/g,(a,s)=>{if("%%"===a)return"%";o++;const i=t.formatters[s];if("function"==typeof i){const t=e[o];a=i.call(n,t),e.splice(o,1),o--}return a}),t.formatArgs.call(n,e),(n.log||t.log).apply(n,e)}return r.namespace=e,r.useColors=t.useColors(),r.color=t.selectColor(e),r.extend=n,r.destroy=t.destroy,Object.defineProperty(r,"enabled",{enumerable:!0,configurable:!1,get:()=>null!==o?o:(s!==t.namespaces&&(s=t.namespaces,i=t.enabled(e)),i),set:e=>{o=e}}),"function"==typeof t.init&&t.init(r),r}function n(e,a){const n=t(this.namespace+(void 0===a?":":a)+e);return n.log=this.log,n}function s(e,t){let a=0,n=0,s=-1,i=0;for(;a<e.length;)if(n<t.length&&(t[n]===e[a]||"*"===t[n]))"*"===t[n]?(s=n,i=a,n++):(a++,n++);else{if(-1===s)return!1;n=s+1,i++,a=i}for(;n<t.length&&"*"===t[n];)n++;return n===t.length}return t.debug=t,t.default=t,t.coerce=function(e){return e instanceof Error?e.stack||e.message:e},t.disable=function(){const e=[...t.names,...t.skips.map(e=>"-"+e)].join(",");return t.enable(""),e},t.enable=function(e){t.save(e),t.namespaces=e,t.names=[],t.skips=[];const a=("string"==typeof e?e:"").trim().replace(/\s+/g,",").split(",").filter(Boolean);for(const e of a)"-"===e[0]?t.skips.push(e.slice(1)):t.names.push(e)},t.enabled=function(e){for(const a of t.skips)if(s(e,a))return!1;for(const a of t.names)if(s(e,a))return!0;return!1},t.humanize=a(6585),t.destroy=function(){console.warn("Instance method `debug.destroy()` is deprecated and no longer does anything. It will be removed in the next major version of `debug`.")},Object.keys(e).forEach(a=>{t[a]=e[a]}),t.names=[],t.skips=[],t.formatters={},t.selectColor=function(e){let a=0;for(let t=0;t<e.length;t++)a=(a<<5)-a+e.charCodeAt(t),a|=0;return t.colors[Math.abs(a)%t.colors.length]},t.enable(t.load()),t}},5753(e,t,a){"undefined"==typeof process||"renderer"===process.type||!0===process.browser||process.__nwjs?e.exports=a(7833):e.exports=a(6033)},6033(e,t,a){const n=a(2018),s=a(9023);t.init=function(e){e.inspectOpts={};const a=Object.keys(t.inspectOpts);for(let n=0;n<a.length;n++)e.inspectOpts[a[n]]=t.inspectOpts[a[n]]},t.log=function(...e){return process.stderr.write(s.formatWithOptions(t.inspectOpts,...e)+"\n")},t.formatArgs=function(a){const{namespace:n,useColors:s}=this;if(s){const t=this.color,s="[3"+(t<8?t:"8;5;"+t),i=`  ${s};1m${n} [0m`;a[0]=i+a[0].split("\n").join("\n"+i),a.push(s+"m+"+e.exports.humanize(this.diff)+"[0m")}else a[0]=(t.inspectOpts.hideDate?"":(new Date).toISOString()+" ")+n+" "+a[0]},t.save=function(e){e?process.env.DEBUG=e:delete process.env.DEBUG},t.load=function(){return process.env.DEBUG},t.useColors=function(){return"colors"in t.inspectOpts?Boolean(t.inspectOpts.colors):n.isatty(process.stderr.fd)},t.destroy=s.deprecate(()=>{},"Instance method `debug.destroy()` is deprecated and no longer does anything. It will be removed in the next major version of `debug`."),t.colors=[6,2,3,4,5,1];try{const e=a(7687);e&&(e.stderr||e).level>=2&&(t.colors=[20,21,26,27,32,33,38,39,40,41,42,43,44,45,56,57,62,63,68,69,74,75,76,77,78,79,80,81,92,93,98,99,112,113,128,129,134,135,148,149,160,161,162,163,164,165,166,167,168,169,170,171,172,173,178,179,184,185,196,197,198,199,200,201,202,203,204,205,206,207,208,209,214,215,220,221])}catch(e){}t.inspectOpts=Object.keys(process.env).filter(e=>/^debug_/i.test(e)).reduce((e,t)=>{const a=t.substring(6).toLowerCase().replace(/_([a-z])/g,(e,t)=>t.toUpperCase());let n=process.env[t];return n=!!/^(yes|on|true|enabled)$/i.test(n)||!/^(no|off|false|disabled)$/i.test(n)&&("null"===n?null:Number(n)),e[a]=n,e},{}),e.exports=a(736)(t);const{formatters:i}=e.exports;i.o=function(e){return this.inspectOpts.colors=this.useColors,s.inspect(e,this.inspectOpts).split("\n").map(e=>e.trim()).join(" ")},i.O=function(e){return this.inspectOpts.colors=this.useColors,s.inspect(e,this.inspectOpts)}},8069(e,t,a){var n=a(2203).Stream,s=a(9023);function i(){this.source=null,this.dataSize=0,this.maxDataSize=1048576,this.pauseStream=!0,this._maxDataSizeExceeded=!1,this._released=!1,this._bufferedEvents=[]}e.exports=i,s.inherits(i,n),i.create=function(e,t){var a=new this;for(var n in t=t||{})a[n]=t[n];a.source=e;var s=e.emit;return e.emit=function(){return a._handleEmit(arguments),s.apply(e,arguments)},e.on("error",function(){}),a.pauseStream&&e.pause(),a},Object.defineProperty(i.prototype,"readable",{configurable:!0,enumerable:!0,get:function(){return this.source.readable}}),i.prototype.setEncoding=function(){return this.source.setEncoding.apply(this.source,arguments)},i.prototype.resume=function(){this._released||this.release(),this.source.resume()},i.prototype.pause=function(){this.source.pause()},i.prototype.release=function(){this._released=!0,this._bufferedEvents.forEach(function(e){this.emit.apply(this,e)}.bind(this)),this._bufferedEvents=[]},i.prototype.pipe=function(){var e=n.prototype.pipe.apply(this,arguments);return this.resume(),e},i.prototype._handleEmit=function(e){this._released?this.emit.apply(this,e):("data"===e[0]&&(this.dataSize+=e[1].length,this._checkIfMaxDataSizeExceeded()),this._bufferedEvents.push(e))},i.prototype._checkIfMaxDataSizeExceeded=function(){if(!(this._maxDataSizeExceeded||this.dataSize<=this.maxDataSize)){this._maxDataSizeExceeded=!0;var e="DelayedStream#maxDataSize of "+this.maxDataSize+" bytes exceeded.";this.emit("error",new Error(e))}}},7176(e,t,a){"use strict";var n,s=a(3126),i=a(5795);try{n=[].__proto__===Array.prototype}catch(e){if(!e||"object"!=typeof e||!("code"in e)||"ERR_PROTO_ACCESS"!==e.code)throw e}var o=!!n&&i&&i(Object.prototype,"__proto__"),r=Object,c=r.getPrototypeOf;e.exports=o&&"function"==typeof o.get?s([o.get]):"function"==typeof c&&function(e){return c(null==e?e:r(e))}},655(e){"use strict";var t=Object.defineProperty||!1;if(t)try{t({},"a",{value:1})}catch(e){t=!1}e.exports=t},1237(e){"use strict";e.exports=EvalError},9383(e){"use strict";e.exports=Error},9290(e){"use strict";e.exports=RangeError},9538(e){"use strict";e.exports=ReferenceError},8068(e){"use strict";e.exports=SyntaxError},9675(e){"use strict";e.exports=TypeError},5345(e){"use strict";e.exports=URIError},9612(e){"use strict";e.exports=Object},9605(e,t,a){"use strict";var n=a(453)("%Object.defineProperty%",!0),s=a(9092)(),i=a(9957),o=a(9675),r=s?Symbol.toStringTag:null;e.exports=function(e,t){var a=arguments.length>2&&!!arguments[2]&&arguments[2].force,s=arguments.length>2&&!!arguments[2]&&arguments[2].nonConfigurable;if(void 0!==a&&"boolean"!=typeof a||void 0!==s&&"boolean"!=typeof s)throw new o("if provided, the `overrideIfSet` and `nonConfigurable` options must be booleans");!r||!a&&i(e,r)||(n?n(e,r,{configurable:!s,enumerable:!1,value:t,writable:!1}):e[r]=t)}},7507(e,t,a){var n;e.exports=function(){if(!n){try{n=a(5753)("follow-redirects")}catch(e){}"function"!=typeof n&&(n=function(){})}n.apply(null,arguments)}},3164(e,t,a){var n,s,i,o=a(7016),r=o.URL,c=a(8611),p=a(5692),l=a(2203).Writable,u=a(2613),d=a(7507);n="undefined"!=typeof process,s="undefined"!=typeof window&&"undefined"!=typeof document,i=T(Error.captureStackTrace),n||!s&&i||console.warn("The follow-redirects package should be excluded from browser builds.");var m=!1;try{u(new r(""))}catch(e){m="ERR_INVALID_URL"===e.code}var h=["auth","host","hostname","href","path","pathname","port","protocol","query","search","hash"],f=["abort","aborted","connect","error","socket","timeout"],v=Object.create(null);f.forEach(function(e){v[e]=function(t,a,n){this._redirectable.emit(e,t,a,n)}});var g=O("ERR_INVALID_URL","Invalid URL",TypeError),x=O("ERR_FR_REDIRECTION_FAILURE","Redirected request failed"),b=O("ERR_FR_TOO_MANY_REDIRECTS","Maximum number of redirects exceeded",x),y=O("ERR_FR_MAX_BODY_LENGTH_EXCEEDED","Request body larger than maxBodyLength limit"),w=O("ERR_STREAM_WRITE_AFTER_END","write after end"),_=l.prototype.destroy||S;function k(e,t){l.call(this),this._sanitizeOptions(e),this._options=e,this._ended=!1,this._ending=!1,this._redirectCount=0,this._redirects=[],this._requestBodyLength=0,this._requestBodyBuffers=[],t&&this.on("response",t);var a=this;this._onNativeResponse=function(e){try{a._processResponse(e)}catch(e){a.emit("error",e instanceof x?e:new x({cause:e}))}},this._performRequest()}function P(e){var t={maxRedirects:21,maxBodyLength:10485760},a={};return Object.keys(e).forEach(function(n){var s=n+":",i=a[s]=e[n],o=t[n]=Object.create(i);Object.defineProperties(o,{request:{value:function(e,n,i){return r&&e instanceof r?e=R(e):F(e)?e=R(E(e)):(i=n,n=A(e),e={protocol:s}),T(n)&&(i=n,n=null),(n=Object.assign({maxRedirects:t.maxRedirects,maxBodyLength:t.maxBodyLength},e,n)).nativeProtocols=a,F(n.host)||F(n.hostname)||(n.hostname="::1"),u.equal(n.protocol,s,"protocol mismatch"),d("options",n),new k(n,i)},configurable:!0,enumerable:!0,writable:!0},get:{value:function(e,t,a){var n=o.request(e,t,a);return n.end(),n},configurable:!0,enumerable:!0,writable:!0}})}),t}function S(){}function E(e){var t;if(m)t=new r(e);else if(!F((t=A(o.parse(e))).protocol))throw new g({input:e});return t}function A(e){if(/^\[/.test(e.hostname)&&!/^\[[:0-9a-f]+\]$/i.test(e.hostname))throw new g({input:e.href||e});if(/^\[/.test(e.host)&&!/^\[[:0-9a-f]+\](:\d+)?$/i.test(e.host))throw new g({input:e.href||e});return e}function R(e,t){var a=t||{};for(var n of h)a[n]=e[n];return a.hostname.startsWith("[")&&(a.hostname=a.hostname.slice(1,-1)),""!==a.port&&(a.port=Number(a.port)),a.path=a.search?a.pathname+a.search:a.pathname,a}function j(e,t){var a;for(var n in t)e.test(n)&&(a=t[n],delete t[n]);return null==a?void 0:String(a).trim()}function O(e,t,a){function n(a){T(Error.captureStackTrace)&&Error.captureStackTrace(this,this.constructor),Object.assign(this,a||{}),this.code=e,this.message=this.cause?t+": "+this.cause.message:t}return n.prototype=new(a||Error),Object.defineProperties(n.prototype,{constructor:{value:n,enumerable:!1},name:{value:"Error ["+e+"]",enumerable:!1}}),n}function C(e,t){for(var a of f)e.removeListener(a,v[a]);e.on("error",S),e.destroy(t)}function F(e){return"string"==typeof e||e instanceof String}function T(e){return"function"==typeof e}k.prototype=Object.create(l.prototype),k.prototype.abort=function(){C(this._currentRequest),this._currentRequest.abort(),this.emit("abort")},k.prototype.destroy=function(e){return C(this._currentRequest,e),_.call(this,e),this},k.prototype.write=function(e,t,a){if(this._ending)throw new w;if(!(F(e)||"object"==typeof(n=e)&&"length"in n))throw new TypeError("data should be a string, Buffer or Uint8Array");var n;T(t)&&(a=t,t=null),0!==e.length?this._requestBodyLength+e.length<=this._options.maxBodyLength?(this._requestBodyLength+=e.length,this._requestBodyBuffers.push({data:e,encoding:t}),this._currentRequest.write(e,t,a)):(this.emit("error",new y),this.abort()):a&&a()},k.prototype.end=function(e,t,a){if(T(e)?(a=e,e=t=null):T(t)&&(a=t,t=null),e){var n=this,s=this._currentRequest;this.write(e,t,function(){n._ended=!0,s.end(null,null,a)}),this._ending=!0}else this._ended=this._ending=!0,this._currentRequest.end(null,null,a)},k.prototype.setHeader=function(e,t){this._options.headers[e]=t,this._currentRequest.setHeader(e,t)},k.prototype.removeHeader=function(e){delete this._options.headers[e],this._currentRequest.removeHeader(e)},k.prototype.setTimeout=function(e,t){var a=this;function n(t){t.setTimeout(e),t.removeListener("timeout",t.destroy),t.addListener("timeout",t.destroy)}function s(t){a._timeout&&clearTimeout(a._timeout),a._timeout=setTimeout(function(){a.emit("timeout"),i()},e),n(t)}function i(){a._timeout&&(clearTimeout(a._timeout),a._timeout=null),a.removeListener("abort",i),a.removeListener("error",i),a.removeListener("response",i),a.removeListener("close",i),t&&a.removeListener("timeout",t),a.socket||a._currentRequest.removeListener("socket",s)}return t&&this.on("timeout",t),this.socket?s(this.socket):this._currentRequest.once("socket",s),this.on("socket",n),this.on("abort",i),this.on("error",i),this.on("response",i),this.on("close",i),this},["flushHeaders","getHeader","setNoDelay","setSocketKeepAlive"].forEach(function(e){k.prototype[e]=function(t,a){return this._currentRequest[e](t,a)}}),["aborted","connection","socket"].forEach(function(e){Object.defineProperty(k.prototype,e,{get:function(){return this._currentRequest[e]}})}),k.prototype._sanitizeOptions=function(e){if(e.headers||(e.headers={}),e.host&&(e.hostname||(e.hostname=e.host),delete e.host),!e.pathname&&e.path){var t=e.path.indexOf("?");t<0?e.pathname=e.path:(e.pathname=e.path.substring(0,t),e.search=e.path.substring(t))}},k.prototype._performRequest=function(){var e=this._options.protocol,t=this._options.nativeProtocols[e];if(!t)throw new TypeError("Unsupported protocol "+e);if(this._options.agents){var a=e.slice(0,-1);this._options.agent=this._options.agents[a]}var n=this._currentRequest=t.request(this._options,this._onNativeResponse);for(var s of(n._redirectable=this,f))n.on(s,v[s]);if(this._currentUrl=/^\//.test(this._options.path)?o.format(this._options):this._options.path,this._isRedirect){var i=0,r=this,c=this._requestBodyBuffers;!function e(t){if(n===r._currentRequest)if(t)r.emit("error",t);else if(i<c.length){var a=c[i++];n.finished||n.write(a.data,a.encoding,e)}else r._ended&&n.end()}()}},k.prototype._processResponse=function(e){var t=e.statusCode;this._options.trackRedirects&&this._redirects.push({url:this._currentUrl,headers:e.headers,statusCode:t});var a,n=e.headers.location;if(!n||!1===this._options.followRedirects||t<300||t>=400)return e.responseUrl=this._currentUrl,e.redirects=this._redirects,this.emit("response",e),void(this._requestBodyBuffers=[]);if(C(this._currentRequest),e.destroy(),++this._redirectCount>this._options.maxRedirects)throw new b;var s=this._options.beforeRedirect;s&&(a=Object.assign({Host:e.req.getHeader("host")},this._options.headers));var i=this._options.method;((301===t||302===t)&&"POST"===this._options.method||303===t&&!/^(?:GET|HEAD)$/.test(this._options.method))&&(this._options.method="GET",this._requestBodyBuffers=[],j(/^content-/i,this._options.headers));var c,p,l=j(/^host$/i,this._options.headers),h=E(this._currentUrl),f=l||h.host,v=/^\w+:/.test(n)?this._currentUrl:o.format(Object.assign(h,{host:f})),g=(c=n,p=v,m?new r(c,p):E(o.resolve(p,c)));if(d("redirecting to",g.href),this._isRedirect=!0,R(g,this._options),(g.protocol!==h.protocol&&"https:"!==g.protocol||g.host!==f&&!function(e,t){u(F(e)&&F(t));var a=e.length-t.length-1;return a>0&&"."===e[a]&&e.endsWith(t)}(g.host,f))&&j(/^(?:(?:proxy-)?authorization|cookie)$/i,this._options.headers),T(s)){var x={headers:e.headers,statusCode:t},y={url:v,method:i,headers:a};s(this._options,x,y),this._sanitizeOptions(this._options)}this._performRequest()},e.exports=P({http:c,https:p}),e.exports.wrap=P},737(e,t,a){"use strict";var n=a(801),s=a(9023),i=a(6928),o=a(8611),r=a(5692),c=a(7016).parse,p=a(9896),l=a(2203).Stream,u=a(6982),d=a(6049),m=a(1873),h=a(9605),f=a(9957),v=a(1362);function g(e){if(!(this instanceof g))return new g(e);for(var t in this._overheadLength=0,this._valueLength=0,this._valuesToMeasure=[],n.call(this),e=e||{})this[t]=e[t]}s.inherits(g,n),g.LINE_BREAK="\r\n",g.DEFAULT_CONTENT_TYPE="application/octet-stream",g.prototype.append=function(e,t,a){"string"==typeof(a=a||{})&&(a={filename:a});var s=n.prototype.append.bind(this);if("number"!=typeof t&&null!=t||(t=String(t)),Array.isArray(t))this._error(new Error("Arrays are not supported."));else{var i=this._multiPartHeader(e,t,a),o=this._multiPartFooter();s(i),s(t),s(o),this._trackLength(i,t,a)}},g.prototype._trackLength=function(e,t,a){var n=0;null!=a.knownLength?n+=Number(a.knownLength):Buffer.isBuffer(t)?n=t.length:"string"==typeof t&&(n=Buffer.byteLength(t)),this._valueLength+=n,this._overheadLength+=Buffer.byteLength(e)+g.LINE_BREAK.length,t&&(t.path||t.readable&&f(t,"httpVersion")||t instanceof l)&&(a.knownLength||this._valuesToMeasure.push(t))},g.prototype._lengthRetriever=function(e,t){f(e,"fd")?null!=e.end&&e.end!=1/0&&null!=e.start?t(null,e.end+1-(e.start?e.start:0)):p.stat(e.path,function(a,n){if(a)t(a);else{var s=n.size-(e.start?e.start:0);t(null,s)}}):f(e,"httpVersion")?t(null,Number(e.headers["content-length"])):f(e,"httpModule")?(e.on("response",function(a){e.pause(),t(null,Number(a.headers["content-length"]))}),e.resume()):t("Unknown stream")},g.prototype._multiPartHeader=function(e,t,a){if("string"==typeof a.header)return a.header;var n,s=this._getContentDisposition(t,a),i=this._getContentType(t,a),o="",r={"Content-Disposition":["form-data",'name="'+e+'"'].concat(s||[]),"Content-Type":[].concat(i||[])};for(var c in"object"==typeof a.header&&v(r,a.header),r)if(f(r,c)){if(null==(n=r[c]))continue;Array.isArray(n)||(n=[n]),n.length&&(o+=c+": "+n.join("; ")+g.LINE_BREAK)}return"--"+this.getBoundary()+g.LINE_BREAK+o+g.LINE_BREAK},g.prototype._getContentDisposition=function(e,t){var a;if("string"==typeof t.filepath?a=i.normalize(t.filepath).replace(/\\/g,"/"):t.filename||e&&(e.name||e.path)?a=i.basename(t.filename||e&&(e.name||e.path)):e&&e.readable&&f(e,"httpVersion")&&(a=i.basename(e.client._httpMessage.path||"")),a)return'filename="'+a+'"'},g.prototype._getContentType=function(e,t){var a=t.contentType;return!a&&e&&e.name&&(a=d.lookup(e.name)),!a&&e&&e.path&&(a=d.lookup(e.path)),!a&&e&&e.readable&&f(e,"httpVersion")&&(a=e.headers["content-type"]),a||!t.filepath&&!t.filename||(a=d.lookup(t.filepath||t.filename)),!a&&e&&"object"==typeof e&&(a=g.DEFAULT_CONTENT_TYPE),a},g.prototype._multiPartFooter=function(){return function(e){var t=g.LINE_BREAK;0===this._streams.length&&(t+=this._lastBoundary()),e(t)}.bind(this)},g.prototype._lastBoundary=function(){return"--"+this.getBoundary()+"--"+g.LINE_BREAK},g.prototype.getHeaders=function(e){var t,a={"content-type":"multipart/form-data; boundary="+this.getBoundary()};for(t in e)f(e,t)&&(a[t.toLowerCase()]=e[t]);return a},g.prototype.setBoundary=function(e){if("string"!=typeof e)throw new TypeError("FormData boundary must be a string");this._boundary=e},g.prototype.getBoundary=function(){return this._boundary||this._generateBoundary(),this._boundary},g.prototype.getBuffer=function(){for(var e=new Buffer.alloc(0),t=this.getBoundary(),a=0,n=this._streams.length;a<n;a++)"function"!=typeof this._streams[a]&&(e=Buffer.isBuffer(this._streams[a])?Buffer.concat([e,this._streams[a]]):Buffer.concat([e,Buffer.from(this._streams[a])]),"string"==typeof this._streams[a]&&this._streams[a].substring(2,t.length+2)===t||(e=Buffer.concat([e,Buffer.from(g.LINE_BREAK)])));return Buffer.concat([e,Buffer.from(this._lastBoundary())])},g.prototype._generateBoundary=function(){this._boundary="--------------------------"+u.randomBytes(12).toString("hex")},g.prototype.getLengthSync=function(){var e=this._overheadLength+this._valueLength;return this._streams.length&&(e+=this._lastBoundary().length),this.hasKnownLength()||this._error(new Error("Cannot calculate proper length in synchronous way.")),e},g.prototype.hasKnownLength=function(){var e=!0;return this._valuesToMeasure.length&&(e=!1),e},g.prototype.getLength=function(e){var t=this._overheadLength+this._valueLength;this._streams.length&&(t+=this._lastBoundary().length),this._valuesToMeasure.length?m.parallel(this._valuesToMeasure,this._lengthRetriever,function(a,n){a?e(a):(n.forEach(function(e){t+=e}),e(null,t))}):process.nextTick(e.bind(this,null,t))},g.prototype.submit=function(e,t){var a,n,s={method:"post"};return"string"==typeof e?(e=c(e),n=v({port:e.port,path:e.pathname,host:e.hostname,protocol:e.protocol},s)):(n=v(e,s)).port||(n.port="https:"===n.protocol?443:80),n.headers=this.getHeaders(e.headers),a="https:"===n.protocol?r.request(n):o.request(n),this.getLength(function(e,n){if(e&&"Unknown stream"!==e)this._error(e);else if(n&&a.setHeader("Content-Length",n),this.pipe(a),t){var s,i=function(e,n){return a.removeListener("error",i),a.removeListener("response",s),t.call(this,e,n)};s=i.bind(this,null),a.on("error",i),a.on("response",s)}}.bind(this)),a},g.prototype._error=function(e){this.error||(this.error=e,this.pause(),this.emit("error",e))},g.prototype.toString=function(){return"[object FormData]"},h(g.prototype,"FormData"),e.exports=g},1362(e){"use strict";e.exports=function(e,t){return Object.keys(t).forEach(function(a){e[a]=e[a]||t[a]}),e}},9353(e){"use strict";var t=Object.prototype.toString,a=Math.max,n=function(e,t){for(var a=[],n=0;n<e.length;n+=1)a[n]=e[n];for(var s=0;s<t.length;s+=1)a[s+e.length]=t[s];return a};e.exports=function(e){var s=this;if("function"!=typeof s||"[object Function]"!==t.apply(s))throw new TypeError("Function.prototype.bind called on incompatible "+s);for(var i,o=function(e){for(var t=[],a=1,n=0;a<e.length;a+=1,n+=1)t[n]=e[a];return t}(arguments),r=a(0,s.length-o.length),c=[],p=0;p<r;p++)c[p]="$"+p;if(i=Function("binder","return function ("+function(e){for(var t="",a=0;a<e.length;a+=1)t+=e[a],a+1<e.length&&(t+=",");return t}(c)+"){ return binder.apply(this,arguments); }")(function(){if(this instanceof i){var t=s.apply(this,n(o,arguments));return Object(t)===t?t:this}return s.apply(e,n(o,arguments))}),s.prototype){var l=function(){};l.prototype=s.prototype,i.prototype=new l,l.prototype=null}return i}},6743(e,t,a){"use strict";var n=a(9353);e.exports=Function.prototype.bind||n},453(e,t,a){"use strict";var n,s=a(9612),i=a(9383),o=a(1237),r=a(9290),c=a(9538),p=a(8068),l=a(9675),u=a(5345),d=a(1514),m=a(8968),h=a(6188),f=a(8002),v=a(5880),g=a(414),x=a(3093),b=Function,y=function(e){try{return b('"use strict"; return ('+e+").constructor;")()}catch(e){}},w=a(5795),_=a(655),k=function(){throw new l},P=w?function(){try{return k}catch(e){try{return w(arguments,"callee").get}catch(e){return k}}}():k,S=a(4039)(),E=a(3628),A=a(1064),R=a(8648),j=a(1002),O=a(76),C={},F="undefined"!=typeof Uint8Array&&E?E(Uint8Array):n,T={__proto__:null,"%AggregateError%":"undefined"==typeof AggregateError?n:AggregateError,"%Array%":Array,"%ArrayBuffer%":"undefined"==typeof ArrayBuffer?n:ArrayBuffer,"%ArrayIteratorPrototype%":S&&E?E([][Symbol.iterator]()):n,"%AsyncFromSyncIteratorPrototype%":n,"%AsyncFunction%":C,"%AsyncGenerator%":C,"%AsyncGeneratorFunction%":C,"%AsyncIteratorPrototype%":C,"%Atomics%":"undefined"==typeof Atomics?n:Atomics,"%BigInt%":"undefined"==typeof BigInt?n:BigInt,"%BigInt64Array%":"undefined"==typeof BigInt64Array?n:BigInt64Array,"%BigUint64Array%":"undefined"==typeof BigUint64Array?n:BigUint64Array,"%Boolean%":Boolean,"%DataView%":"undefined"==typeof DataView?n:DataView,"%Date%":Date,"%decodeURI%":decodeURI,"%decodeURIComponent%":decodeURIComponent,"%encodeURI%":encodeURI,"%encodeURIComponent%":encodeURIComponent,"%Error%":i,"%eval%":eval,"%EvalError%":o,"%Float16Array%":"undefined"==typeof Float16Array?n:Float16Array,"%Float32Array%":"undefined"==typeof Float32Array?n:Float32Array,"%Float64Array%":"undefined"==typeof Float64Array?n:Float64Array,"%FinalizationRegistry%":"undefined"==typeof FinalizationRegistry?n:FinalizationRegistry,"%Function%":b,"%GeneratorFunction%":C,"%Int8Array%":"undefined"==typeof Int8Array?n:Int8Array,"%Int16Array%":"undefined"==typeof Int16Array?n:Int16Array,"%Int32Array%":"undefined"==typeof Int32Array?n:Int32Array,"%isFinite%":isFinite,"%isNaN%":isNaN,"%IteratorPrototype%":S&&E?E(E([][Symbol.iterator]())):n,"%JSON%":"object"==typeof JSON?JSON:n,"%Map%":"undefined"==typeof Map?n:Map,"%MapIteratorPrototype%":"undefined"!=typeof Map&&S&&E?E((new Map)[Symbol.iterator]()):n,"%Math%":Math,"%Number%":Number,"%Object%":s,"%Object.getOwnPropertyDescriptor%":w,"%parseFloat%":parseFloat,"%parseInt%":parseInt,"%Promise%":"undefined"==typeof Promise?n:Promise,"%Proxy%":"undefined"==typeof Proxy?n:Proxy,"%RangeError%":r,"%ReferenceError%":c,"%Reflect%":"undefined"==typeof Reflect?n:Reflect,"%RegExp%":RegExp,"%Set%":"undefined"==typeof Set?n:Set,"%SetIteratorPrototype%":"undefined"!=typeof Set&&S&&E?E((new Set)[Symbol.iterator]()):n,"%SharedArrayBuffer%":"undefined"==typeof SharedArrayBuffer?n:SharedArrayBuffer,"%String%":String,"%StringIteratorPrototype%":S&&E?E(""[Symbol.iterator]()):n,"%Symbol%":S?Symbol:n,"%SyntaxError%":p,"%ThrowTypeError%":P,"%TypedArray%":F,"%TypeError%":l,"%Uint8Array%":"undefined"==typeof Uint8Array?n:Uint8Array,"%Uint8ClampedArray%":"undefined"==typeof Uint8ClampedArray?n:Uint8ClampedArray,"%Uint16Array%":"undefined"==typeof Uint16Array?n:Uint16Array,"%Uint32Array%":"undefined"==typeof Uint32Array?n:Uint32Array,"%URIError%":u,"%WeakMap%":"undefined"==typeof WeakMap?n:WeakMap,"%WeakRef%":"undefined"==typeof WeakRef?n:WeakRef,"%WeakSet%":"undefined"==typeof WeakSet?n:WeakSet,"%Function.prototype.call%":O,"%Function.prototype.apply%":j,"%Object.defineProperty%":_,"%Object.getPrototypeOf%":A,"%Math.abs%":d,"%Math.floor%":m,"%Math.max%":h,"%Math.min%":f,"%Math.pow%":v,"%Math.round%":g,"%Math.sign%":x,"%Reflect.getPrototypeOf%":R};if(E)try{null.error}catch(e){var L=E(E(e));T["%Error.prototype%"]=L}var M=function e(t){var a;if("%AsyncFunction%"===t)a=y("async function () {}");else if("%GeneratorFunction%"===t)a=y("function* () {}");else if("%AsyncGeneratorFunction%"===t)a=y("async function* () {}");else if("%AsyncGenerator%"===t){var n=e("%AsyncGeneratorFunction%");n&&(a=n.prototype)}else if("%AsyncIteratorPrototype%"===t){var s=e("%AsyncGenerator%");s&&E&&(a=E(s.prototype))}return T[t]=a,a},I={__proto__:null,"%ArrayBufferPrototype%":["ArrayBuffer","prototype"],"%ArrayPrototype%":["Array","prototype"],"%ArrayProto_entries%":["Array","prototype","entries"],"%ArrayProto_forEach%":["Array","prototype","forEach"],"%ArrayProto_keys%":["Array","prototype","keys"],"%ArrayProto_values%":["Array","prototype","values"],"%AsyncFunctionPrototype%":["AsyncFunction","prototype"],"%AsyncGenerator%":["AsyncGeneratorFunction","prototype"],"%AsyncGeneratorPrototype%":["AsyncGeneratorFunction","prototype","prototype"],"%BooleanPrototype%":["Boolean","prototype"],"%DataViewPrototype%":["DataView","prototype"],"%DatePrototype%":["Date","prototype"],"%ErrorPrototype%":["Error","prototype"],"%EvalErrorPrototype%":["EvalError","prototype"],"%Float32ArrayPrototype%":["Float32Array","prototype"],"%Float64ArrayPrototype%":["Float64Array","prototype"],"%FunctionPrototype%":["Function","prototype"],"%Generator%":["GeneratorFunction","prototype"],"%GeneratorPrototype%":["GeneratorFunction","prototype","prototype"],"%Int8ArrayPrototype%":["Int8Array","prototype"],"%Int16ArrayPrototype%":["Int16Array","prototype"],"%Int32ArrayPrototype%":["Int32Array","prototype"],"%JSONParse%":["JSON","parse"],"%JSONStringify%":["JSON","stringify"],"%MapPrototype%":["Map","prototype"],"%NumberPrototype%":["Number","prototype"],"%ObjectPrototype%":["Object","prototype"],"%ObjProto_toString%":["Object","prototype","toString"],"%ObjProto_valueOf%":["Object","prototype","valueOf"],"%PromisePrototype%":["Promise","prototype"],"%PromiseProto_then%":["Promise","prototype","then"],"%Promise_all%":["Promise","all"],"%Promise_reject%":["Promise","reject"],"%Promise_resolve%":["Promise","resolve"],"%RangeErrorPrototype%":["RangeError","prototype"],"%ReferenceErrorPrototype%":["ReferenceError","prototype"],"%RegExpPrototype%":["RegExp","prototype"],"%SetPrototype%":["Set","prototype"],"%SharedArrayBufferPrototype%":["SharedArrayBuffer","prototype"],"%StringPrototype%":["String","prototype"],"%SymbolPrototype%":["Symbol","prototype"],"%SyntaxErrorPrototype%":["SyntaxError","prototype"],"%TypedArrayPrototype%":["TypedArray","prototype"],"%TypeErrorPrototype%":["TypeError","prototype"],"%Uint8ArrayPrototype%":["Uint8Array","prototype"],"%Uint8ClampedArrayPrototype%":["Uint8ClampedArray","prototype"],"%Uint16ArrayPrototype%":["Uint16Array","prototype"],"%Uint32ArrayPrototype%":["Uint32Array","prototype"],"%URIErrorPrototype%":["URIError","prototype"],"%WeakMapPrototype%":["WeakMap","prototype"],"%WeakSetPrototype%":["WeakSet","prototype"]},U=a(6743),N=a(9957),$=U.call(O,Array.prototype.concat),B=U.call(j,Array.prototype.splice),q=U.call(O,String.prototype.replace),D=U.call(O,String.prototype.slice),z=U.call(O,RegExp.prototype.exec),G=/[^%.[\]]+|\[(?:(-?\d+(?:\.\d+)?)|(["'])((?:(?!\2)[^\\]|\\.)*?)\2)\]|(?=(?:\.|\[\])(?:\.|\[\]|%$))/g,H=/\\(\\)?/g,W=function(e,t){var a,n=e;if(N(I,n)&&(n="%"+(a=I[n])[0]+"%"),N(T,n)){var s=T[n];if(s===C&&(s=M(n)),void 0===s&&!t)throw new l("intrinsic "+e+" exists, but is not available. Please file an issue!");return{alias:a,name:n,value:s}}throw new p("intrinsic "+e+" does not exist!")};e.exports=function(e,t){if("string"!=typeof e||0===e.length)throw new l("intrinsic name must be a non-empty string");if(arguments.length>1&&"boolean"!=typeof t)throw new l('"allowMissing" argument must be a boolean');if(null===z(/^%?[^%]*%?$/,e))throw new p("`%` may not be present anywhere but at the beginning and end of the intrinsic name");var a=function(e){var t=D(e,0,1),a=D(e,-1);if("%"===t&&"%"!==a)throw new p("invalid intrinsic syntax, expected closing `%`");if("%"===a&&"%"!==t)throw new p("invalid intrinsic syntax, expected opening `%`");var n=[];return q(e,G,function(e,t,a,s){n[n.length]=a?q(s,H,"$1"):t||e}),n}(e),n=a.length>0?a[0]:"",s=W("%"+n+"%",t),i=s.name,o=s.value,r=!1,c=s.alias;c&&(n=c[0],B(a,$([0,1],c)));for(var u=1,d=!0;u<a.length;u+=1){var m=a[u],h=D(m,0,1),f=D(m,-1);if(('"'===h||"'"===h||"`"===h||'"'===f||"'"===f||"`"===f)&&h!==f)throw new p("property names with quotes must have matching quotes");if("constructor"!==m&&d||(r=!0),N(T,i="%"+(n+="."+m)+"%"))o=T[i];else if(null!=o){if(!(m in o)){if(!t)throw new l("base intrinsic for "+e+" exists, but the property is not available.");return}if(w&&u+1>=a.length){var v=w(o,m);o=(d=!!v)&&"get"in v&&!("originalValue"in v.get)?v.get:o[m]}else d=N(o,m),o=o[m];d&&!r&&(T[i]=o)}}return o}},1064(e,t,a){"use strict";var n=a(9612);e.exports=n.getPrototypeOf||null},8648(e){"use strict";e.exports="undefined"!=typeof Reflect&&Reflect.getPrototypeOf||null},3628(e,t,a){"use strict";var n=a(8648),s=a(1064),i=a(7176);e.exports=n?function(e){return n(e)}:s?function(e){if(!e||"object"!=typeof e&&"function"!=typeof e)throw new TypeError("getProto: not an object");return s(e)}:i?function(e){return i(e)}:null},6549(e){"use strict";e.exports=Object.getOwnPropertyDescriptor},5795(e,t,a){"use strict";var n=a(6549);if(n)try{n([],"length")}catch(e){n=null}e.exports=n},5884(e){"use strict";e.exports=(e,t)=>{t=t||process.argv;const a=e.startsWith("-")?"":1===e.length?"-":"--",n=t.indexOf(a+e),s=t.indexOf("--");return-1!==n&&(-1===s||n<s)}},4039(e,t,a){"use strict";var n="undefined"!=typeof Symbol&&Symbol,s=a(1333);e.exports=function(){return"function"==typeof n&&"function"==typeof Symbol&&"symbol"==typeof n("foo")&&"symbol"==typeof Symbol("bar")&&s()}},1333(e){"use strict";e.exports=function(){if("function"!=typeof Symbol||"function"!=typeof Object.getOwnPropertySymbols)return!1;if("symbol"==typeof Symbol.iterator)return!0;var e={},t=Symbol("test"),a=Object(t);if("string"==typeof t)return!1;if("[object Symbol]"!==Object.prototype.toString.call(t))return!1;if("[object Symbol]"!==Object.prototype.toString.call(a))return!1;for(var n in e[t]=42,e)return!1;if("function"==typeof Object.keys&&0!==Object.keys(e).length)return!1;if("function"==typeof Object.getOwnPropertyNames&&0!==Object.getOwnPropertyNames(e).length)return!1;var s=Object.getOwnPropertySymbols(e);if(1!==s.length||s[0]!==t)return!1;if(!Object.prototype.propertyIsEnumerable.call(e,t))return!1;if("function"==typeof Object.getOwnPropertyDescriptor){var i=Object.getOwnPropertyDescriptor(e,t);if(42!==i.value||!0!==i.enumerable)return!1}return!0}},9092(e,t,a){"use strict";var n=a(1333);e.exports=function(){return n()&&!!Symbol.toStringTag}},9957(e,t,a){"use strict";var n=Function.prototype.call,s=Object.prototype.hasOwnProperty,i=a(6743);e.exports=i.call(n,s)},1514(e){"use strict";e.exports=Math.abs},8968(e){"use strict";e.exports=Math.floor},4459(e){"use strict";e.exports=Number.isNaN||function(e){return e!=e}},6188(e){"use strict";e.exports=Math.max},8002(e){"use strict";e.exports=Math.min},5880(e){"use strict";e.exports=Math.pow},414(e){"use strict";e.exports=Math.round},3093(e,t,a){"use strict";var n=a(4459);e.exports=function(e){return n(e)||0===e?e:e<0?-1:1}},7598(e,t,a){e.exports=a(1813)},6049(e,t,a){"use strict";var n,s,i,o=a(7598),r=a(6928).extname,c=/^\s*([^;\s]*)(?:;|\s|$)/,p=/^text\//i;function l(e){if(!e||"string"!=typeof e)return!1;var t=c.exec(e),a=t&&o[t[1].toLowerCase()];return a&&a.charset?a.charset:!(!t||!p.test(t[1]))&&"UTF-8"}t.charset=l,t.charsets={lookup:l},t.contentType=function(e){if(!e||"string"!=typeof e)return!1;var a=-1===e.indexOf("/")?t.lookup(e):e;if(!a)return!1;if(-1===a.indexOf("charset")){var n=t.charset(a);n&&(a+="; charset="+n.toLowerCase())}return a},t.extension=function(e){if(!e||"string"!=typeof e)return!1;var a=c.exec(e),n=a&&t.extensions[a[1].toLowerCase()];return!(!n||!n.length)&&n[0]},t.extensions=Object.create(null),t.lookup=function(e){if(!e||"string"!=typeof e)return!1;var a=r("x."+e).toLowerCase().substr(1);return a&&t.types[a]||!1},t.types=Object.create(null),n=t.extensions,s=t.types,i=["nginx","apache",void 0,"iana"],Object.keys(o).forEach(function(e){var t=o[e],a=t.extensions;if(a&&a.length){n[e]=a;for(var r=0;r<a.length;r++){var c=a[r];if(s[c]){var p=i.indexOf(o[s[c]].source),l=i.indexOf(t.source);if("application/octet-stream"!==s[c]&&(p>l||p===l&&"application/"===s[c].substr(0,12)))continue}s[c]=e}}})},6585(e){var t=1e3,a=60*t,n=60*a,s=24*n,i=7*s;function o(e,t,a,n){var s=t>=1.5*a;return Math.round(e/a)+" "+n+(s?"s":"")}e.exports=function(e,r){r=r||{};var c,p,l=typeof e;if("string"===l&&e.length>0)return function(e){if(!((e=String(e)).length>100)){var o=/^(-?(?:\d+)?\.?\d+) *(milliseconds?|msecs?|ms|seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d|weeks?|w|years?|yrs?|y)?$/i.exec(e);if(o){var r=parseFloat(o[1]);switch((o[2]||"ms").toLowerCase()){case"years":case"year":case"yrs":case"yr":case"y":return 315576e5*r;case"weeks":case"week":case"w":return r*i;case"days":case"day":case"d":return r*s;case"hours":case"hour":case"hrs":case"hr":case"h":return r*n;case"minutes":case"minute":case"mins":case"min":case"m":return r*a;case"seconds":case"second":case"secs":case"sec":case"s":return r*t;case"milliseconds":case"millisecond":case"msecs":case"msec":case"ms":return r;default:return}}}}(e);if("number"===l&&isFinite(e))return r.long?(c=e,(p=Math.abs(c))>=s?o(c,p,s,"day"):p>=n?o(c,p,n,"hour"):p>=a?o(c,p,a,"minute"):p>=t?o(c,p,t,"second"):c+" ms"):function(e){var i=Math.abs(e);return i>=s?Math.round(e/s)+"d":i>=n?Math.round(e/n)+"h":i>=a?Math.round(e/a)+"m":i>=t?Math.round(e/t)+"s":e+"ms"}(e);throw new Error("val is not a non-empty string or a valid number. val="+JSON.stringify(e))}},6504(e,t,a){"use strict";var n=a(7016).parse,s={ftp:21,gopher:70,http:80,https:443,ws:80,wss:443},i=String.prototype.endsWith||function(e){return e.length<=this.length&&-1!==this.indexOf(e,this.length-e.length)};function o(e){return process.env[e.toLowerCase()]||process.env[e.toUpperCase()]||""}t.getProxyForUrl=function(e){var t="string"==typeof e?n(e):e||{},a=t.protocol,r=t.host,c=t.port;if("string"!=typeof r||!r||"string"!=typeof a)return"";if(a=a.split(":",1)[0],!function(e,t){var a=(o("npm_config_no_proxy")||o("no_proxy")).toLowerCase();return!a||"*"!==a&&a.split(/[,\s]/).every(function(a){if(!a)return!0;var n=a.match(/^(.+):(\d+)$/),s=n?n[1]:a,o=n?parseInt(n[2]):0;return!(!o||o===t)||(/^[.*]/.test(s)?("*"===s.charAt(0)&&(s=s.slice(1)),!i.call(e,s)):e!==s)})}(r=r.replace(/:\d*$/,""),c=parseInt(c)||s[a]||0))return"";var p=o("npm_config_"+a+"_proxy")||o(a+"_proxy")||o("npm_config_proxy")||o("all_proxy");return p&&-1===p.indexOf("://")&&(p=a+"://"+p),p}},7687(e,t,a){"use strict";const n=a(857),s=a(5884),i=process.env;let o;function r(e){const t=function(e){if(!1===o)return 0;if(s("color=16m")||s("color=full")||s("color=truecolor"))return 3;if(s("color=256"))return 2;if(e&&!e.isTTY&&!0!==o)return 0;const t=o?1:0;if("win32"===process.platform){const e=n.release().split(".");return Number(process.versions.node.split(".")[0])>=8&&Number(e[0])>=10&&Number(e[2])>=10586?Number(e[2])>=14931?3:2:1}if("CI"in i)return["TRAVIS","CIRCLECI","APPVEYOR","GITLAB_CI"].some(e=>e in i)||"codeship"===i.CI_NAME?1:t;if("TEAMCITY_VERSION"in i)return/^(9\.(0*[1-9]\d*)\.|\d{2,}\.)/.test(i.TEAMCITY_VERSION)?1:0;if("truecolor"===i.COLORTERM)return 3;if("TERM_PROGRAM"in i){const e=parseInt((i.TERM_PROGRAM_VERSION||"").split(".")[0],10);switch(i.TERM_PROGRAM){case"iTerm.app":return e>=3?3:2;case"Apple_Terminal":return 2}}return/-256(color)?$/i.test(i.TERM)?2:/^screen|^xterm|^vt100|^vt220|^rxvt|color|ansi|cygwin|linux/i.test(i.TERM)||"COLORTERM"in i?1:(i.TERM,t)}(e);return function(e){return 0!==e&&{level:e,hasBasic:!0,has256:e>=2,has16m:e>=3}}(t)}s("no-color")||s("no-colors")||s("color=false")?o=!1:(s("color")||s("colors")||s("color=true")||s("color=always"))&&(o=!0),"FORCE_COLOR"in i&&(o=0===i.FORCE_COLOR.length||0!==parseInt(i.FORCE_COLOR,10)),e.exports={supportsColor:r,stdout:r(process.stdout),stderr:r(process.stderr)}},5595(e,t,a){"use strict";var n,s=this&&this.__createBinding||(Object.create?function(e,t,a,n){void 0===n&&(n=a);var s=Object.getOwnPropertyDescriptor(t,a);s&&!("get"in s?!t.__esModule:s.writable||s.configurable)||(s={enumerable:!0,get:function(){return t[a]}}),Object.defineProperty(e,n,s)}:function(e,t,a,n){void 0===n&&(n=a),e[n]=t[a]}),i=this&&this.__setModuleDefault||(Object.create?function(e,t){Object.defineProperty(e,"default",{enumerable:!0,value:t})}:function(e,t){e.default=t}),o=this&&this.__importStar||(n=function(e){return n=Object.getOwnPropertyNames||function(e){var t=[];for(var a in e)Object.prototype.hasOwnProperty.call(e,a)&&(t[t.length]=a);return t},n(e)},function(e){if(e&&e.__esModule)return e;var t={};if(null!=e)for(var a=n(e),o=0;o<a.length;o++)"default"!==a[o]&&s(t,e,a[o]);return i(t,e),t}),r=this&&this.__importDefault||function(e){return e&&e.__esModule?e:{default:e}};Object.defineProperty(t,"__esModule",{value:!0}),t.AgentApiService=t.AgentDashboardProvider=t.TerminalSlotsProvider=t.AgentSessionsProvider=void 0,t.registerAgentCommands=function(e,t,a,n,s){e.subscriptions.push(c.commands.registerCommand("enterprise-ai-chat.refreshAgents",async()=>{await Promise.all([t.refresh(),a.refresh(),n.refresh()]),c.window.showInformationMessage("Agent data refreshed")})),e.subscriptions.push(c.commands.registerCommand("enterprise-ai-chat.createAgentSession",async()=>{const e=await c.window.showInputBox({prompt:"Session name",placeHolder:"e.g., Implement user authentication"});if(!e)return;const i=await c.window.showInputBox({prompt:"Task specification",placeHolder:"Describe what the agent should do..."});if(i)try{const o=(await s.getModels()).map(e=>({label:e.name,description:e.provider,id:e.id})),r=await c.window.showQuickPick(o,{placeHolder:"Select AI model"});if(!r)return;const p=await s.createSession({name:e,taskSpecification:i,modelId:r.id});c.window.showInformationMessage(`Session "${p.name}" created`),"Yes"===await c.window.showQuickPick(["Yes","No"],{placeHolder:"Start session immediately?"})&&(await s.startSession(p.id),c.window.showInformationMessage(`Session "${p.name}" started`)),t.refresh(),a.refresh(),n.refresh()}catch(e){c.window.showErrorMessage(`Failed to create session: ${e.message}`)}})),e.subscriptions.push(c.commands.registerCommand("enterprise-ai-chat.showSessionDetail",async e=>{const a=c.window.createWebviewPanel("agentSessionDetail",`Session: ${e.name}`,c.ViewColumn.One,{enableScripts:!0});let n=[];try{n=await s.getSessionLogs(e.id)}catch(e){console.error("Failed to get session logs:",e)}a.webview.html=function(e,t){const a=t.map(e=>`<div class="log-entry">\n            <span class="log-time">${new Date(e.timestamp).toLocaleTimeString()}</span>\n            <span class="log-type" style="color: ${{info:"#2196f3",warning:"#ff9800",error:"#f44336",stdout:"#4caf50",stderr:"#f44336"}[e.logType]||"#808080"}">[${e.logType}]</span>\n            <span class="log-content">${e.content}</span>\n        </div>`).join("");return`<!DOCTYPE html>\n<html lang="en">\n<head>\n    <meta charset="UTF-8">\n    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n    <style>\n        body {\n            font-family: var(--vscode-font-family);\n            color: var(--vscode-foreground);\n            background-color: var(--vscode-editor-background);\n            padding: 16px;\n            margin: 0;\n        }\n        .header {\n            display: flex;\n            align-items: center;\n            justify-content: space-between;\n            margin-bottom: 16px;\n        }\n        .title {\n            font-size: 18px;\n            font-weight: bold;\n        }\n        .status {\n            padding: 4px 8px;\n            border-radius: 4px;\n            font-size: 12px;\n            color: white;\n            background-color: ${{pending:"#808080",initializing:"#2196f3",running:"#4caf50",paused:"#ff9800",completed:"#4caf50",failed:"#f44336",cancelled:"#9e9e9e"}[e.status]};\n        }\n        .info-grid {\n            display: grid;\n            grid-template-columns: repeat(2, 1fr);\n            gap: 12px;\n            margin-bottom: 16px;\n        }\n        .info-card {\n            background: var(--vscode-sideBar-background);\n            border: 1px solid var(--vscode-panel-border);\n            border-radius: 4px;\n            padding: 12px;\n        }\n        .info-label {\n            font-size: 11px;\n            color: var(--vscode-descriptionForeground);\n        }\n        .info-value {\n            font-size: 14px;\n            margin-top: 4px;\n        }\n        .actions {\n            display: flex;\n            gap: 8px;\n            margin-bottom: 16px;\n        }\n        .btn {\n            padding: 6px 12px;\n            border: none;\n            border-radius: 4px;\n            cursor: pointer;\n            font-size: 12px;\n        }\n        .btn-primary {\n            background: var(--vscode-button-background);\n            color: var(--vscode-button-foreground);\n        }\n        .btn-secondary {\n            background: var(--vscode-button-secondaryBackground);\n            color: var(--vscode-button-secondaryForeground);\n        }\n        .btn-danger {\n            background: #f44336;\n            color: white;\n        }\n        .logs-container {\n            background: #1e1e1e;\n            border-radius: 4px;\n            padding: 12px;\n            max-height: 400px;\n            overflow-y: auto;\n            font-family: monospace;\n            font-size: 12px;\n        }\n        .log-entry {\n            margin-bottom: 4px;\n            line-height: 1.4;\n        }\n        .log-time {\n            color: #808080;\n            margin-right: 8px;\n        }\n        .log-type {\n            font-weight: bold;\n            margin-right: 8px;\n        }\n        .log-content {\n            color: #d4d4d4;\n        }\n        .task-spec {\n            background: var(--vscode-textBlockQuote-background);\n            border-left: 3px solid var(--vscode-textBlockQuote-border);\n            padding: 12px;\n            margin-bottom: 16px;\n            white-space: pre-wrap;\n        }\n    </style>\n</head>\n<body>\n    <div class="header">\n        <span class="title">${e.name}</span>\n        <span class="status">${e.status}</span>\n    </div>\n\n    <div class="info-grid">\n        <div class="info-card">\n            <div class="info-label">Terminal Slot</div>\n            <div class="info-value">${e.terminalSlot}</div>\n        </div>\n        <div class="info-card">\n            <div class="info-label">Iterations</div>\n            <div class="info-value">${e.iterationCount} / ${e.maxIterations}</div>\n        </div>\n    </div>\n\n    <div class="task-spec">${e.taskSpecification}</div>\n\n    <div class="actions">\n        ${"pending"===e.status?'<button class="btn btn-primary" onclick="action(\'start\')">Start</button>':""}\n        ${"running"===e.status?'<button class="btn btn-secondary" onclick="action(\'pause\')">Pause</button>':""}\n        ${"paused"===e.status?'<button class="btn btn-primary" onclick="action(\'resume\')">Resume</button>':""}\n        ${["running","paused","initializing"].includes(e.status)?'<button class="btn btn-danger" onclick="action(\'cancel\')">Cancel</button>':""}\n    </div>\n\n    <h3>Logs</h3>\n    <div class="logs-container">\n        ${a||'<div style="color: #808080">No logs yet</div>'}\n    </div>\n\n    <script>\n        const vscode = acquireVsCodeApi();\n        function action(cmd) {\n            vscode.postMessage({ command: cmd });\n        }\n    <\/script>\n</body>\n</html>`}(e,n),a.webview.onDidReceiveMessage(async a=>{switch(a.command){case"start":await s.startSession(e.id),t.refresh();break;case"pause":await s.pauseSession(e.id),t.refresh();break;case"resume":await s.resumeSession(e.id),t.refresh();break;case"cancel":await s.cancelSession(e.id),t.refresh()}})})),e.subscriptions.push(c.commands.registerCommand("enterprise-ai-chat.startSession",async e=>{await s.startSession(e.session.id),t.refresh(),a.refresh()}),c.commands.registerCommand("enterprise-ai-chat.pauseSession",async e=>{await s.pauseSession(e.session.id),t.refresh()}),c.commands.registerCommand("enterprise-ai-chat.resumeSession",async e=>{await s.resumeSession(e.session.id),t.refresh()}),c.commands.registerCommand("enterprise-ai-chat.cancelSession",async e=>{await s.cancelSession(e.session.id),t.refresh(),a.refresh()}))};const c=o(a(1398)),p=r(a(9329)),l=new(o(a(5692)).Agent)({rejectUnauthorized:!1});t.AgentSessionsProvider=class{serverUrl;accessToken;_onDidChangeTreeData=new c.EventEmitter;onDidChangeTreeData=this._onDidChangeTreeData.event;sessions=[];api;constructor(e,t){this.serverUrl=e,this.accessToken=t,this.api=p.default.create({baseURL:e,headers:t?{Authorization:`Bearer ${t}`}:{},httpsAgent:l})}updateCredentials(e,t){this.serverUrl=e,this.accessToken=t,this.api=p.default.create({baseURL:e,headers:t?{Authorization:`Bearer ${t}`}:{},httpsAgent:l}),this.refresh()}async refresh(){try{const e=await this.api.get("/api/agents/sessions",{params:{limit:50}});this.sessions=e.data.sessions||[]}catch(e){console.error("Failed to fetch agent sessions:",e),this.sessions=[]}this._onDidChangeTreeData.fire()}getTreeItem(e){return e}getChildren(e){return e?Promise.resolve([]):Promise.resolve(this.sessions.map(e=>new u(e)))}getSession(e){return this.sessions.find(t=>t.id===e)}};class u extends c.TreeItem{session;constructor(e){switch(super(e.name,c.TreeItemCollapsibleState.None),this.session=e,this.tooltip=`${e.taskSpecification.slice(0,100)}...`,this.description=`Slot ${e.terminalSlot} - ${e.iterationCount}/${e.maxIterations}`,e.status){case"running":this.iconPath=new c.ThemeIcon("play",new c.ThemeColor("charts.green"));break;case"paused":this.iconPath=new c.ThemeIcon("debug-pause",new c.ThemeColor("charts.yellow"));break;case"completed":this.iconPath=new c.ThemeIcon("check",new c.ThemeColor("charts.green"));break;case"failed":case"cancelled":this.iconPath=new c.ThemeIcon("error",new c.ThemeColor("charts.red"));break;case"initializing":this.iconPath=new c.ThemeIcon("loading~spin");break;default:this.iconPath=new c.ThemeIcon("circle-outline")}this.contextValue=`agentSession-${e.status}`,this.command={command:"enterprise-ai-chat.showSessionDetail",title:"Show Session Details",arguments:[e]}}}t.TerminalSlotsProvider=class{serverUrl;accessToken;_onDidChangeTreeData=new c.EventEmitter;onDidChangeTreeData=this._onDidChangeTreeData.event;slots=[];api;constructor(e,t){this.serverUrl=e,this.accessToken=t,this.api=p.default.create({baseURL:e,headers:t?{Authorization:`Bearer ${t}`}:{},httpsAgent:l})}updateCredentials(e,t){this.serverUrl=e,this.accessToken=t,this.api=p.default.create({baseURL:e,headers:t?{Authorization:`Bearer ${t}`}:{},httpsAgent:l}),this.refresh()}async refresh(){try{const e=await this.api.get("/api/orchestrator/terminals");this.slots=e.data.slots||[]}catch(e){console.error("Failed to fetch terminal slots:",e),this.slots=Array.from({length:12},(e,t)=>({slot:t,status:"available",sessionId:null,sessionName:null}))}this._onDidChangeTreeData.fire()}getTreeItem(e){return e}getChildren(e){if(e)return Promise.resolve([]);const t=Array.from({length:12},(e,t)=>this.slots.find(e=>e.slot===t)||{slot:t,status:"available",sessionId:null,sessionName:null});return Promise.resolve(t.map(e=>new d(e)))}};class d extends c.TreeItem{slot;constructor(e){switch(super(`Slot ${e.slot}`,c.TreeItemCollapsibleState.None),this.slot=e,this.description=e.sessionName||e.status,e.status){case"occupied":this.iconPath=new c.ThemeIcon("vm-running",new c.ThemeColor("charts.green"));break;case"reserved":this.iconPath=new c.ThemeIcon("vm",new c.ThemeColor("charts.yellow"));break;default:this.iconPath=new c.ThemeIcon("vm-outline")}this.contextValue=`terminalSlot-${e.status}`}}t.AgentDashboardProvider=class{_extensionUri;serverUrl;accessToken;_view;api;constructor(e,t,a){this._extensionUri=e,this.serverUrl=t,this.accessToken=a,this.api=p.default.create({baseURL:t,headers:a?{Authorization:`Bearer ${a}`}:{},httpsAgent:l})}updateCredentials(e,t){this.serverUrl=e,this.accessToken=t,this.api=p.default.create({baseURL:e,headers:t?{Authorization:`Bearer ${t}`}:{},httpsAgent:l}),this.refresh()}resolveWebviewView(e,t,a){this._view=e,e.webview.options={enableScripts:!0,localResourceRoots:[this._extensionUri]},this.refresh()}async refresh(){if(!this._view)return;let e=null;try{e=(await this.api.get("/api/orchestrator/status")).data}catch(e){console.error("Failed to fetch orchestrator metrics:",e)}this._view.webview.html=this._getHtmlForWebview(this._view.webview,e)}_getHtmlForWebview(e,t){const a=t?.terminals.occupied||0,n=t?.terminals.total||12;return`<!DOCTYPE html>\n<html lang="en">\n<head>\n    <meta charset="UTF-8">\n    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n    <style>\n        body {\n            font-family: var(--vscode-font-family);\n            font-size: var(--vscode-font-size);\n            color: var(--vscode-foreground);\n            background-color: var(--vscode-sideBar-background);\n            padding: 10px;\n            margin: 0;\n        }\n        .metric-card {\n            background: var(--vscode-editor-background);\n            border: 1px solid var(--vscode-panel-border);\n            border-radius: 4px;\n            padding: 12px;\n            margin-bottom: 8px;\n        }\n        .metric-label {\n            font-size: 11px;\n            color: var(--vscode-descriptionForeground);\n            margin-bottom: 4px;\n        }\n        .metric-value {\n            font-size: 24px;\n            font-weight: bold;\n        }\n        .metric-subtitle {\n            font-size: 10px;\n            color: var(--vscode-descriptionForeground);\n        }\n        .status-indicator {\n            display: inline-block;\n            width: 8px;\n            height: 8px;\n            border-radius: 50%;\n            margin-right: 6px;\n        }\n        .status-online { background-color: #4caf50; }\n        .status-warning { background-color: #ff9800; }\n        .status-offline { background-color: #f44336; }\n        .slots-bar {\n            height: 6px;\n            background: var(--vscode-progressBar-background);\n            border-radius: 3px;\n            margin-top: 8px;\n            overflow: hidden;\n        }\n        .slots-bar-fill {\n            height: 100%;\n            background: var(--vscode-progressBar-background);\n            transition: width 0.3s;\n        }\n        .button {\n            width: 100%;\n            padding: 8px;\n            background: var(--vscode-button-background);\n            color: var(--vscode-button-foreground);\n            border: none;\n            border-radius: 4px;\n            cursor: pointer;\n            margin-top: 12px;\n        }\n        .button:hover {\n            background: var(--vscode-button-hoverBackground);\n        }\n    </style>\n</head>\n<body>\n    <div class="metric-card">\n        <div class="metric-label">\n            <span class="status-indicator ${t?"status-online":"status-offline"}"></span>\n            Orchestrator Status\n        </div>\n        <div class="metric-value">${t?"Online":"Offline"}</div>\n    </div>\n\n    <div class="metric-card">\n        <div class="metric-label">Terminal Slots</div>\n        <div class="metric-value">${a} / ${n}</div>\n        <div class="metric-subtitle">${n-a} available</div>\n        <div class="slots-bar">\n            <div class="slots-bar-fill" style="width: ${a/n*100}%; background: ${a>=10?"#f44336":a>=8?"#ff9800":"#4caf50"}"></div>\n        </div>\n    </div>\n\n    <div class="metric-card">\n        <div class="metric-label">Active Sessions</div>\n        <div class="metric-value">${t?.sessions.running||0}</div>\n        <div class="metric-subtitle">Success rate: ${t?.sessions.successRate||0}%</div>\n    </div>\n\n    <button class="button" onclick="createSession()">\n        + New Agent Session\n    </button>\n\n    <script>\n        const vscode = acquireVsCodeApi();\n\n        function createSession() {\n            vscode.postMessage({ command: 'createSession' });\n        }\n\n        window.addEventListener('message', event => {\n            const message = event.data;\n            if (message.command === 'refresh') {\n                location.reload();\n            }\n        });\n    <\/script>\n</body>\n</html>`}},t.AgentApiService=class{serverUrl;accessToken;api;constructor(e,t){this.serverUrl=e,this.accessToken=t,this.api=p.default.create({baseURL:e,headers:t?{Authorization:`Bearer ${t}`}:{},httpsAgent:l})}updateCredentials(e,t){this.serverUrl=e,this.accessToken=t,this.api=p.default.create({baseURL:e,headers:t?{Authorization:`Bearer ${t}`}:{},httpsAgent:l})}async createSession(e){return(await this.api.post("/api/agents/sessions",e)).data}async startSession(e){await this.api.post(`/api/agents/sessions/${e}/start`)}async pauseSession(e){await this.api.post(`/api/agents/sessions/${e}/pause`)}async resumeSession(e){await this.api.post(`/api/agents/sessions/${e}/resume`)}async cancelSession(e){await this.api.post(`/api/agents/sessions/${e}/cancel`)}async getSessionLogs(e){return(await this.api.get(`/api/agents/sessions/${e}/logs`)).data.logs||[]}async getTemplates(){return(await this.api.get("/api/agents/templates")).data||[]}async getModels(){return(await this.api.get("/api/chat/models")).data||[]}}},275(e,t,a){"use strict";var n,s=this&&this.__createBinding||(Object.create?function(e,t,a,n){void 0===n&&(n=a);var s=Object.getOwnPropertyDescriptor(t,a);s&&!("get"in s?!t.__esModule:s.writable||s.configurable)||(s={enumerable:!0,get:function(){return t[a]}}),Object.defineProperty(e,n,s)}:function(e,t,a,n){void 0===n&&(n=a),e[n]=t[a]}),i=this&&this.__setModuleDefault||(Object.create?function(e,t){Object.defineProperty(e,"default",{enumerable:!0,value:t})}:function(e,t){e.default=t}),o=this&&this.__importStar||(n=function(e){return n=Object.getOwnPropertyNames||function(e){var t=[];for(var a in e)Object.prototype.hasOwnProperty.call(e,a)&&(t[t.length]=a);return t},n(e)},function(e){if(e&&e.__esModule)return e;var t={};if(null!=e)for(var a=n(e),o=0;o<a.length;o++)"default"!==a[o]&&s(t,e,a[o]);return i(t,e),t});Object.defineProperty(t,"__esModule",{value:!0}),t.ClaudeCodePanel=void 0;const r=o(a(1398));class c{static currentPanel;static viewType="claudeCode.panel";_panel;_extensionUri;_disposables=[];_isAuthenticated=!1;_user;_models=[];_selectedModel;static createOrShow(e){const t=r.window.activeTextEditor?r.window.activeTextEditor.viewColumn:void 0;if(c.currentPanel)return c.currentPanel._panel.reveal(t),c.currentPanel;const a=r.window.createWebviewPanel(c.viewType,"Enterprise AI",t||r.ViewColumn.One,{enableScripts:!0,retainContextWhenHidden:!0,localResourceRoots:[r.Uri.joinPath(e,"out"),r.Uri.joinPath(e,"webview-ui","dist")]});return c.currentPanel=new c(a,e),c.currentPanel}static revive(e,t){c.currentPanel=new c(e,t)}constructor(e,t){this._panel=e,this._extensionUri=t,this._update(),this._panel.onDidDispose(()=>this.dispose(),null,this._disposables),this._panel.onDidChangeViewState(()=>{this._panel.visible&&this._update()},null,this._disposables),this._panel.webview.onDidReceiveMessage(async e=>{await this._handleMessage(e)},null,this._disposables)}postMessage(e){this._panel.webview.postMessage(e)}setAuthenticated(e,t,a){this._isAuthenticated=e,this._user=t,a&&(this._models=a),this.postMessage({type:"setAuthenticated",payload:{authenticated:e,user:t,models:a}})}updateModels(e,t){this._models=e,t&&(this._selectedModel=t),this.postMessage({type:"updateModels",payload:{models:e,selected:t}})}streamStart(){this.postMessage({type:"streamStart"})}streamChunk(e){this.postMessage({type:"streamChunk",payload:{content:e}})}streamEnd(){this.postMessage({type:"streamEnd"})}streamError(e){this.postMessage({type:"streamError",payload:{error:e}})}addMessage(e,t){this.postMessage({type:"addMessage",payload:{role:e,content:t,timestamp:(new Date).toISOString()}})}async _handleMessage(e){switch(e.type){case"send":r.commands.executeCommand("enterprise-ai-chat.sendMessage",e.message);break;case"login":r.commands.executeCommand("enterprise-ai-chat.login");break;case"logout":r.commands.executeCommand("enterprise-ai-chat.logout");break;case"selectModel":r.commands.executeCommand("enterprise-ai-chat.selectModel",e.modelId);break;case"runCommand":const t=r.window.createTerminal("Enterprise AI");t.show(),t.sendText(e.command);break;case"applyCode":const a=r.window.activeTextEditor;a&&a.edit(t=>{a.selection.isEmpty?t.insert(a.selection.active,e.code):t.replace(a.selection,e.code)});break;case"openExternal":r.env.openExternal(r.Uri.parse(e.url));break;case"copy":r.env.clipboard.writeText(e.text),r.window.showInformationMessage("Copied to clipboard");break;case"newChat":this.postMessage({type:"clearMessages"});break;case"loadProjects":r.commands.executeCommand("enterprise-ai-chat.loadProjects");break;case"selectProject":r.commands.executeCommand("enterprise-ai-chat.selectKanbanProject",e.projectId);break;case"moveCard":r.commands.executeCommand("enterprise-ai-chat.moveKanbanCard",e.cardId,e.columnId,e.projectId);break;case"addCardComment":r.commands.executeCommand("enterprise-ai-chat.addKanbanComment",e.projectId,e.cardId,e.content);break;case"getVersionInfo":r.commands.executeCommand("enterprise-ai-chat.getVersionInfo");break;case"loadHistory":r.commands.executeCommand("enterprise-ai-chat.loadHistory");break;case"loadConversation":r.commands.executeCommand("enterprise-ai-chat.loadConversation",e.conversationId);break;case"deleteConversation":r.commands.executeCommand("enterprise-ai-chat.deleteConversation",e.conversationId);break;case"sendAgentic":console.log("[ClaudeCodePanel] sendAgentic received:",e.message?.substring(0,50),"projectId:",e.projectId),e.message&&void 0!==e.projectId?r.commands.executeCommand("enterprise-ai-chat.sendAgenticMessage",e.message,e.projectId):console.error("[ClaudeCodePanel] sendAgentic missing data:",{hasMessage:!!e.message,projectId:e.projectId});break;case"abortRequest":console.log("[ClaudeCodePanel] abortRequest received"),r.commands.executeCommand("enterprise-ai-chat.abortRequest")}}_update(){const e=this._panel.webview;this._panel.title="Enterprise AI",this._panel.iconPath=r.Uri.joinPath(this._extensionUri,"resources","icon.png"),this._panel.webview.html=this._getHtmlForWebview(e)}_getHtmlForWebview(e){const t=function(){let e="";const t="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";for(let a=0;a<32;a++)e+=t.charAt(Math.floor(62*Math.random()));return e}(),a=e.asWebviewUri(r.Uri.joinPath(this._extensionUri,"out","claudeCodeWebview.js")),n=e.asWebviewUri(r.Uri.joinPath(this._extensionUri,"out","claudeCode.css"));return`<!DOCTYPE html>\n<html lang="en">\n<head>\n    <meta charset="UTF-8">\n    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n    <meta http-equiv="Content-Security-Policy" content="\n        default-src 'none';\n        style-src ${e.cspSource} 'unsafe-inline';\n        script-src 'nonce-${t}';\n        font-src ${e.cspSource} https://fonts.gstatic.com;\n        img-src ${e.cspSource} https: data:;\n    ">\n    <link rel="preconnect" href="https://fonts.googleapis.com">\n    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n    <link href="${n}" rel="stylesheet">\n    <title>Enterprise AI</title>\n    <style>\n        /* Critical CSS - loaded immediately */\n        :root {\n            --claude-bg: #151515;\n            --claude-orange: #D97757;\n        }\n        html, body, #root {\n            margin: 0;\n            padding: 0;\n            width: 100%;\n            height: 100%;\n            overflow: hidden;\n            background: var(--claude-bg);\n        }\n        body {\n            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;\n        }\n        /* Loading screen */\n        .claude-loading {\n            display: flex;\n            flex-direction: column;\n            align-items: center;\n            justify-content: center;\n            height: 100vh;\n            background: var(--claude-bg);\n            color: #666;\n            gap: 20px;\n        }\n        .claude-loading-logo {\n            width: 48px;\n            height: 48px;\n            animation: pulse 2s infinite;\n        }\n        @keyframes pulse {\n            0%, 100% { opacity: 1; }\n            50% { opacity: 0.5; }\n        }\n    </style>\n</head>\n<body>\n    <div id="root">\n        <div class="claude-loading">\n            <svg class="claude-loading-logo" viewBox="0 0 64 48">\n                <path d="M52 28c5.5 0 10-4.5 10-10s-4.5-10-10-10c-1 0-2 .1-3 .4C47 4 42.5 0 37 0c-6.5 0-12 5-12.5 11.5C20 12 16 16.5 16 22c0 6 5 11 11 11h25z" fill="#2196F3"/>\n                <path d="M48 32c4 0 7.5-3 8-7H10c.5 4 4 7 8 7h30z" fill="#1976D2"/>\n                <circle cx="32" cy="24" r="10" fill="#7C4DFF"/>\n                <circle cx="32" cy="24" r="2" fill="white"/>\n                <circle cx="26" cy="20" r="1.5" fill="white"/>\n                <circle cx="38" cy="20" r="1.5" fill="white"/>\n                <circle cx="26" cy="28" r="1.5" fill="white"/>\n                <circle cx="38" cy="28" r="1.5" fill="white"/>\n                <line x1="32" y1="24" x2="26" y2="20" stroke="white" stroke-width="1.5"/>\n                <line x1="32" y1="24" x2="38" y2="20" stroke="white" stroke-width="1.5"/>\n                <line x1="32" y1="24" x2="26" y2="28" stroke="white" stroke-width="1.5"/>\n                <line x1="32" y1="24" x2="38" y2="28" stroke="white" stroke-width="1.5"/>\n            </svg>\n            <span>Loading Enterprise AI...</span>\n        </div>\n    </div>\n    <script nonce="${t}" src="${a}"><\/script>\n</body>\n</html>`}dispose(){for(c.currentPanel=void 0,this._panel.dispose();this._disposables.length;){const e=this._disposables.pop();e&&e.dispose()}}}t.ClaudeCodePanel=c},4265(e,t,a){"use strict";var n,s=this&&this.__createBinding||(Object.create?function(e,t,a,n){void 0===n&&(n=a);var s=Object.getOwnPropertyDescriptor(t,a);s&&!("get"in s?!t.__esModule:s.writable||s.configurable)||(s={enumerable:!0,get:function(){return t[a]}}),Object.defineProperty(e,n,s)}:function(e,t,a,n){void 0===n&&(n=a),e[n]=t[a]}),i=this&&this.__setModuleDefault||(Object.create?function(e,t){Object.defineProperty(e,"default",{enumerable:!0,value:t})}:function(e,t){e.default=t}),o=this&&this.__importStar||(n=function(e){return n=Object.getOwnPropertyNames||function(e){var t=[];for(var a in e)Object.prototype.hasOwnProperty.call(e,a)&&(t[t.length]=a);return t},n(e)},function(e){if(e&&e.__esModule)return e;var t={};if(null!=e)for(var a=n(e),o=0;o<a.length;o++)"default"!==a[o]&&s(t,e,a[o]);return i(t,e),t}),r=this&&this.__importDefault||function(e){return e&&e.__esModule?e:{default:e}};Object.defineProperty(t,"__esModule",{value:!0}),t.activate=function(e){b=c.window.createOutputChannel("Enterprise AI Chat"),b.appendLine("=".repeat(50)),b.appendLine("Extension activating at "+(new Date).toISOString()),b.appendLine("=".repeat(50));const t=c.extensions.getExtension("GitHub.copilot"),n=c.extensions.getExtension("GitHub.copilot-chat");(t||n)&&(b.appendLine("GitHub Copilot detected - running in coexistence mode"),b.appendLine("  - Copilot: "+(t?"Active":"Not installed")),b.appendLine("  - Copilot Chat: "+(n?"Active":"Not installed")));try{!function(){const e=c.workspace.getConfiguration("enterprise-ai-chat"),t=e.get("serverUrl")||"https://192.168.1.123",a=e.get("allowSelfSignedCerts",!0);a&&(process.env.NODE_TLS_REJECT_UNAUTHORIZED="0");const n=new l.Agent({rejectUnauthorized:!a});v=p.default.create({baseURL:t,headers:{"Content-Type":"application/json"},httpsAgent:n,timeout:3e5}),g&&(v.defaults.headers.common.Authorization=`Bearer ${g}`)}(),b.appendLine("API initialized successfully")}catch(e){b.appendLine("ERROR: API init failed: "+e.message),c.window.showErrorMessage("Enterprise AI Chat: API init error - "+e.message)}let s=!1;const i=()=>{b.appendLine("Session expired or invalid (401), clearing credentials"),e.globalState.update("accessToken",void 0),e.globalState.update("currentUser",void 0),g=void 0,x=void 0,delete v.defaults.headers.common.Authorization;const t=u.ClaudeCodePanel.currentPanel;t&&t.setAuthenticated(!1)};v.interceptors.response.use(e=>e,e=>(401===e.response?.status&&i(),Promise.reject(e)));const o=e.globalState.get("accessToken"),r=e.globalState.get("currentUser");o&&r&&(s=!0,b.appendLine("Validating saved session..."),v.get("/api/auth/me",{headers:{Authorization:`Bearer ${o}`}}).then(e=>{if(e.data&&e.data.user){g=o,x=e.data.user,v.defaults.headers.common.Authorization=`Bearer ${g}`,b.appendLine(`Session validated and restored for: ${x?.email}`);const t=u.ClaudeCodePanel.currentPanel;t&&t.setAuthenticated(!0,x,A)}else b.appendLine("Session validation failed: no user in response"),i()}).catch(e=>{b.appendLine(`Saved session invalid (${e.message}), clearing credentials`),i()}).finally(()=>{s=!1})),y=e.globalState.get("claudeOAuthToken"),w=e.globalState.get("claudeRefreshToken"),b.appendLine("Claude Pro token restored: "+(y?"Yes":"No"));const m=c.workspace.getConfiguration("enterprise-ai-chat").get("serverUrl")||"https://192.168.1.123",h=new d.AgentSessionsProvider(m,o||null),N=new d.TerminalSlotsProvider(m,o||null),$=new d.AgentDashboardProvider(e.extensionUri,m,o||null),B=new d.AgentApiService(m,o||null);k=h,P=N,S=$,E=B,e.subscriptions.push(c.window.registerTreeDataProvider("enterprise-ai-chat.agentSessions",h),c.window.registerTreeDataProvider("enterprise-ai-chat.terminalSlots",N),c.window.registerWebviewViewProvider("enterprise-ai-chat.agentDashboard",$)),(0,d.registerAgentCommands)(e,h,N,$,B);const q=setInterval(()=>{h.refresh(),N.refresh(),$.refresh()},3e4);e.subscriptions.push({dispose:()=>clearInterval(q)}),h.refresh(),N.refresh(),b.appendLine("Auto-Claude Agent Panel initialized"),b.appendLine("Setting up Claude Code panel commands...");const D=()=>{const t=u.ClaudeCodePanel.createOrShow(e.extensionUri);return g&&x?v.get("/api/auth/me",{headers:{Authorization:`Bearer ${g}`}}).then(()=>{t.setAuthenticated(!0,x,A),_&&t.updateModels(A,_)}).catch(()=>{b.appendLine("Token expired, showing login screen"),g=void 0,x=void 0,e.globalState.update("accessToken",void 0),e.globalState.update("currentUser",void 0),t.setAuthenticated(!1)}):t.setAuthenticated(!1),t};e.subscriptions.push(c.commands.registerCommand("enterprise-ai-chat.openAIPanel",D),c.commands.registerCommand("enterprise-ai-chat.openChat",()=>{b.appendLine("openChat command called - opening Enterprise AI panel"),D()}),c.commands.registerCommand("enterprise-ai-chat.newChat",()=>{const e=u.ClaudeCodePanel.currentPanel;e&&e.postMessage({type:"clearMessages"})}),c.commands.registerCommand("enterprise-ai-chat.login",async()=>{await async function(e){const t=c.workspace.getConfiguration("enterprise-ai-chat").get("serverUrl")||"https://192.168.1.123";b.appendLine("=== LOGIN ATTEMPT ==="),b.appendLine(`Server URL: ${t}`);const a=await c.window.showInputBox({prompt:"Email",placeHolder:"admin@enterprise.local",value:"admin@enterprise.local"});if(!a)return;const n=await c.window.showInputBox({prompt:"Password",password:!0});if(n)try{b.appendLine(`Attempting login for: ${a}`);let t=await v.post("/api/auth/login",{email:a,password:n});if(b.appendLine(`Login response status: ${t.status}`),b.appendLine(`Response data keys: ${Object.keys(t.data).join(", ")}`),t.data.mfa_required){b.appendLine("MFA required, prompting for TOTP code");const e=await c.window.showInputBox({prompt:"Enter TOTP code from your authenticator app",placeHolder:"000000",validateInput:e=>/^\d{6}$/.test(e)?null:"Enter a 6-digit code"});if(!e)return;t=await v.post("/api/auth/login",{email:a,password:n,totp_code:e}),b.appendLine(`MFA login response status: ${t.status}`)}if(t.data.mfa_setup_required)return g=t.data.accessToken,v.defaults.headers.common.Authorization=`Bearer ${g}`,void c.window.showWarningMessage("MFA setup is mandatory. Please complete MFA setup in the web interface first.");if(g=t.data.accessToken,x=t.data.user,!g)return b.appendLine("ERROR: No accessToken in response!"),b.appendLine(`Full response: ${JSON.stringify(t.data)}`),void c.window.showErrorMessage("Login failed: No access token received");b.appendLine(`Access token received: ${g.substring(0,30)}...`),b.appendLine(`User: ${x?.name} (${x?.email})`),v.defaults.headers.common.Authorization=`Bearer ${g}`,await e.globalState.update("accessToken",g),await e.globalState.update("currentUser",x),await M(e);const s=u.ClaudeCodePanel.currentPanel;s&&(s.setAuthenticated(!0,x,A),_&&s.updateModels(A,_));const i=c.workspace.getConfiguration("enterprise-ai-chat").get("serverUrl")||"https://192.168.1.123";k&&(k.updateCredentials(i,g||null),b.appendLine("[Auth] AgentSessionsProvider credentials updated")),P&&(P.updateCredentials(i,g||null),b.appendLine("[Auth] TerminalSlotsProvider credentials updated")),S&&(S.updateCredentials(i,g||null),b.appendLine("[Auth] AgentDashboardProvider credentials updated")),E&&(E.updateCredentials(i,g||null),b.appendLine("[Auth] AgentApiService credentials updated")),c.window.showInformationMessage(`Connected as ${x?.name}`),b.appendLine("=== LOGIN SUCCESS ===")}catch(e){b.appendLine(`Login error: ${e.message}`),e.response&&(b.appendLine(`Response status: ${e.response.status}`),b.appendLine(`Response data: ${JSON.stringify(e.response.data)}`)),c.window.showErrorMessage(`Login failed: ${e.response?.data?.error||e.message}`)}}(e);const t=u.ClaudeCodePanel.currentPanel;t&&g&&x&&t.setAuthenticated(!0,x,A)}),c.commands.registerCommand("enterprise-ai-chat.logout",async()=>{await async function(e){g=void 0,x=void 0,A=[],_=void 0,v.defaults.headers.common.Authorization="",await e.globalState.update("accessToken",void 0),await e.globalState.update("currentUser",void 0),c.window.showInformationMessage("Logged out")}(e);const t=u.ClaudeCodePanel.currentPanel;t&&t.setAuthenticated(!1)}),c.commands.registerCommand("enterprise-ai-chat.explainCode",()=>I("explain",D)),c.commands.registerCommand("enterprise-ai-chat.fixCode",()=>I("fix",D)),c.commands.registerCommand("enterprise-ai-chat.improveCode",()=>I("improve",D)),c.commands.registerCommand("enterprise-ai-chat.generateTests",()=>I("tests",D)),c.commands.registerCommand("enterprise-ai-chat.addToChat",()=>function(e){const t=c.window.activeTextEditor;if(!t)return void c.window.showWarningMessage("No active editor");const a=t.selection,n=t.document.getText(a);if(!n)return void c.window.showWarningMessage("Select code first");const s=t.document.languageId;e().addMessage("user",`\`\`\`${s}\n${n}\n\`\`\``)}(D)),c.commands.registerCommand("enterprise-ai-chat.addFileToContext",()=>function(e){const t=c.window.activeTextEditor;if(!t)return void c.window.showWarningMessage("No active editor");const a=t.document.getText(),n=t.document.fileName.split("/").pop()||"file",s=t.document.languageId;e().addMessage("user",`File: ${n}\n\n\`\`\`${s}\n${a}\n\`\`\``),c.window.showInformationMessage(`Added ${n} to context`)}(D)),c.commands.registerCommand("enterprise-ai-chat.inlineEdit",async()=>{const e=c.window.activeTextEditor;if(!e)return void c.window.showWarningMessage("No active editor");const t=e.selection,a=e.document.getText(t);if(!a||""===a.trim())return void c.window.showWarningMessage("Please select code to edit");const n=await c.window.showInputBox({prompt:"Describe the change you want to make",placeHolder:"e.g., Add error handling, Convert to async/await, Add comments...",ignoreFocusOut:!0});if(n)try{await c.window.withProgress({location:c.ProgressLocation.Notification,title:"Generating code edit...",cancellable:!1},async()=>{const s=await f();let i="You are a code editor assistant. When given code and an instruction, output ONLY the modified code without any explanation, markdown formatting, or code blocks. Output the raw code only.";s&&(i+=`\n\nProject-specific coding guidelines:\n${s}`);const o=await v.post("/api/chat/completions",{model:_||"gpt-4o",messages:[{role:"system",content:i},{role:"user",content:`Modify this ${e.document.languageId} code according to the instruction.\n\nCode:\n${a}\n\nInstruction: ${n}\n\nOutput only the modified code, nothing else:`}],temperature:.3,max_tokens:4096}),r=o.data.choices?.[0]?.message?.content?.trim()||"";r?"Apply"===await c.window.showInformationMessage("Apply the AI-generated edit?",{modal:!0,detail:`Original:\n${a.substring(0,100)}...\n\nNew:\n${r.substring(0,100)}...`},"Apply","Cancel")&&(await e.edit(e=>{e.replace(t,r)}),c.window.showInformationMessage("Code updated successfully")):c.window.showErrorMessage("Failed to generate code edit")})}catch(e){b.appendLine(`Inline edit error: ${e.message}`),c.window.showErrorMessage(`Failed to generate edit: ${e.message}`)}}),c.commands.registerCommand("enterprise-ai-chat.chatWithContext",async()=>{const e=c.window.activeTextEditor,t=[{label:"@selection",description:"Include selected code",picked:!!e?.selection&&!e.selection.isEmpty},{label:"@file",description:"Include current file",picked:!!e},{label:"@workspace",description:"Include workspace info",picked:!1}],a=await c.window.showQuickPick(t,{canPickMany:!0,placeHolder:"Select context to include in chat",title:"Chat Context"});if(!a||0===a.length)return;const n=await c.window.showInputBox({prompt:"Enter your message",placeHolder:"What would you like to ask?",ignoreFocusOut:!0});if(!n)return;let s="";for(const t of a){if("@selection"===t.label&&e){const t=e.document.getText(e.selection);s+=`\n\n[Selected Code from ${e.document.fileName}]\n\`\`\`${e.document.languageId}\n${t}\n\`\`\``}if("@file"===t.label&&e){const t=e.document.getText();s+=`\n\n[File: ${e.document.fileName}]\n\`\`\`${e.document.languageId}\n${t}\n\`\`\``}if("@workspace"===t.label){const e=c.workspace.workspaceFolders;e&&(s+=`\n\n[Workspace: ${e[0].name}]`)}}D().addMessage("user",`${n}\n${s}`)}),c.commands.registerCommand("enterprise-ai-chat.configure",()=>{c.commands.executeCommand("workbench.action.openSettings","enterprise-ai-chat")}),c.commands.registerCommand("enterprise-ai-chat.loginClaudePro",()=>async function(){c.window.showInformationMessage("Claude Pro OAuth is not fully supported for programmatic access. Please use API key authentication instead.","Open Settings").then(e=>{"Open Settings"===e&&c.commands.executeCommand("workbench.action.openSettings","enterprise-ai-chat.claudeApiKey")})}()),c.commands.registerCommand("enterprise-ai-chat.useTemplate",()=>{c.window.showInformationMessage("Prompt templates available in Enterprise AI panel"),D()}),c.commands.registerCommand("enterprise-ai-chat.openPlayground",()=>{c.window.showInformationMessage("Model Playground available in Enterprise AI panel"),D()}),c.commands.registerCommand("enterprise-ai-chat.ragSearch",async()=>{const e=await c.window.showInputBox({prompt:"Search codebase with RAG",placeHolder:"Enter your query..."});e&&D().addMessage("user",`RAG Search: ${e}`)}),c.commands.registerCommand("enterprise-ai-chat.sendMessage",async e=>{await async function(e){const t=u.ClaudeCodePanel.currentPanel;if(!t)return;b.appendLine(`Sending message: ${e.substring(0,50)}...`);const n=c.workspace.getConfiguration("enterprise-ai-chat"),s=n.get("useDirectClaude",!1),i=n.get("claudeApiKey",""),o=n.get("claudeModel","claude-sonnet-4-20250514");s&&i?await async function(e,t,n,s){s.streamStart();try{const i=new(a(4524))({apiKey:t}),o=await i.messages.stream({model:n,max_tokens:4096,messages:[{role:"user",content:e}]});for await(const e of o)"content_block_delta"===e.type&&e.delta?.text&&s.streamChunk(e.delta.text);s.streamEnd()}catch(e){b.appendLine(`Claude API error: ${e.message}`),s.streamEnd(),s.addMessage("system",`Error: ${e.message}`)}}(e,i,o,t):g?await async function(e,t){if(!g)return b.appendLine("ERROR: No access token available"),t.addMessage("system","Not authenticated. Please login first."),void c.commands.executeCommand("enterprise-ai-chat.login");b.appendLine(`Access token present: ${g.substring(0,20)}...`),t.streamStart();const n=`${(c.workspace.getConfiguration("enterprise-ai-chat").get("serverUrl")||"https://192.168.1.123").replace(/\/+$/,"")}/api/chat/completions`;b.appendLine(`SSE Request to: ${n}`),b.appendLine(`Model: ${_}`),b.appendLine(`Token: Bearer ${g.substring(0,30)}...`);try{const s=await f();s&&b.appendLine(`Using custom instructions (${s.length} chars)`);const i=a(5692),o=new URL(n),r=JSON.stringify({message:e,model:_||"gpt-4o",systemPrompt:s||void 0}),p={hostname:o.hostname,port:o.port||443,path:o.pathname,method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${g}`,Accept:"text/event-stream","Content-Length":Buffer.byteLength(r)},rejectUnauthorized:!1},l=i.request(p,e=>{if(b.appendLine(`Response status: ${e.statusCode}`),200!==e.statusCode){let a="";return e.on("data",e=>{a+=e.toString()}),void e.on("end",()=>{t.streamEnd();let n=`Server error: ${e.statusCode}`;try{const e=JSON.parse(a);n=e.error||e.message||n}catch{a.includes("<html")||a.includes("<!DOCTYPE")?b.appendLine(`HTML error response received: ${a.substring(0,200)}...`):a&&a.length<200&&(n=a)}404===e.statusCode?n="Endpoint not found. Check that backend is running and Ingress is configured.":502===e.statusCode?n="Backend service unavailable. Check that pods are running.":504===e.statusCode?n="Request timed out. The AI service may be overloaded or unreachable.":401===e.statusCode?(n="Session expired. Please login again.",g=void 0,b.appendLine("Token invalid/expired - clearing auth state"),c.commands.executeCommand("enterprise-ai-chat.login")):503===e.statusCode&&(n="Service temporarily unavailable. Please try again later."),t.addMessage("system",n)})}const a=e.headers["x-conversation-id"];let n="";e.on("data",e=>{n+=e.toString();const s=n.split("\n");n=s.pop()||"";for(const e of s)if(e.startsWith("data: ")){const n=e.slice(6).trim();if(n)try{const e=JSON.parse(n);e.content&&(b.appendLine(`[Stream] Chunk received: ${e.content.length} chars`),t.streamChunk(e.content)),e.error&&(b.appendLine(`[Stream] Error from backend: ${e.error}`),t.addMessage("system",e.error)),e.done&&b.appendLine(`[Stream] Complete. ConvID: ${e.conversationId||a}`)}catch(e){b.appendLine(`[Stream] SSE parse error: ${n}`)}}}),e.on("end",()=>{t.streamEnd(),b.appendLine("[Stream] SSE stream ended successfully")}),e.on("error",e=>{b.appendLine(`[Stream] Response error: ${e.message}`),t.streamError(`Stream interrupted: ${e.message}`)})});l.on("error",e=>{b.appendLine(`[Stream] Request error: ${e.message}`);let a=e.message;e.message.includes("ECONNREFUSED")?a="Connection refused. Is the backend server running?":e.message.includes("ETIMEDOUT")?a="Connection timed out. Check network connectivity.":e.message.includes("ENOTFOUND")&&(a="Server not found. Check the server URL in settings."),t.streamError(a)}),l.write(r),l.end()}catch(e){b.appendLine(`[Stream] Backend API error: ${e.message}`),t.streamError(`Error: ${e.message}`)}}(e,t):t.addMessage("system","Please login first or configure Claude API key in settings.")}(e)}),c.commands.registerCommand("enterprise-ai-chat.sendAgenticMessage",async(e,t)=>{b.appendLine(`[Agentic Command] Received: message=${e?.substring(0,50)}..., projectId=${t}`);const n=D();await async function(e,t,n){if(!g)return e.addMessage("system","Please login first to execute tasks."),void c.commands.executeCommand("enterprise-ai-chat.login");const s=c.workspace.getConfiguration("enterprise-ai-chat"),i=s.get("serverUrl")||"https://192.168.1.123",o=s.get("claudeModel")||"claude-sonnet-4-20250514";b.appendLine(`[Agentic Panel] Starting: message=${t.substring(0,50)}..., projectId=${n}, model=${o}`),e.streamStart();try{const s=a(5692),r=new URL(`${i}/api/chat/agentic`),c=JSON.stringify({message:t,projectId:n,model:o,systemPrompt:"You are an AI coding assistant with DIRECT FILE SYSTEM ACCESS.\n\n## CRITICAL INSTRUCTIONS:\n1. When generating code, you MUST use the 'write_file' tool to save files. DO NOT just print code.\n2. Files are saved to a network repository at: \\\\192.168.1.123\\projects\\repositories\n3. Use 'list_files' to check existing project structure before writing.\n4. Use 'read_file' to read existing files when needed.\n\n## WORKFLOW:\n1. Analyze the user's request\n2. Plan the file structure (e.g., src/main.py, tests/test_main.py)\n3. Use write_file tool to CREATE each file with full content\n4. Explain what you created and how to use it\n\nREMEMBER: Always USE THE TOOLS. Never just print code without saving it.",enableTools:!0}),p={hostname:r.hostname,port:r.port||443,path:r.pathname,method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${g}`,Accept:"text/event-stream","Content-Length":Buffer.byteLength(c)},rejectUnauthorized:!1},l=s.request(p,t=>{if(b.appendLine(`[Agentic Panel] Response status: ${t.statusCode}`),200!==t.statusCode){let a="";return t.on("data",e=>{a+=e.toString()}),void t.on("end",()=>{e.streamEnd();let n=`Server error: ${t.statusCode}`;try{const e=JSON.parse(a);n=e.error||e.message||n}catch{}e.streamError(n)})}let a="",n=0;t.on("data",t=>{a+=t.toString();const s=a.split("\n");a=s.pop()||"";for(const t of s)if(t.startsWith("data: ")){const a=t.slice(6).trim();if(!a)continue;try{const t=JSON.parse(a);n++,b.appendLine(`[Agentic Panel] Chunk #${n}: keys=${Object.keys(t).join(",")}`),t.content&&e.streamChunk(t.content),t.error&&e.streamError(t.error),t.done&&e.streamEnd()}catch(e){}}}),t.on("end",()=>{b.appendLine(`[Agentic Panel] Stream ended, ${n} chunks received`),e.streamEnd()}),t.on("error",t=>{b.appendLine(`[Agentic Panel] Response error: ${t.message}`),e.streamError(t.message)})});l.on("error",t=>{b.appendLine(`[Agentic Panel] Request error: ${t.message}`),e.streamError(t.message)}),l.write(c),l.end()}catch(t){b.appendLine(`[Agentic Panel] Error: ${t.message}`),e.streamError(t.message)}}(n,e,t)}),c.commands.registerCommand("enterprise-ai-chat.abortRequest",()=>{b.appendLine("[Abort] Request aborted by user")}),c.commands.registerCommand("enterprise-ai-chat.selectModel",t=>{_=t,e.globalState.update("selectedModel",t),b.appendLine(`Model selected: ${t}`)}),c.commands.registerCommand("enterprise-ai-chat.getVersionInfo",async()=>{let e=null;try{e=(await v.get("/api/version")).data,b.appendLine(`Backend version: ${JSON.stringify(e)}`)}catch(e){b.appendLine(`Could not fetch backend version: ${e.message}`)}D().postMessage({type:"versionInfo",payload:{extension:"1.6.1",backend:e}})}),c.commands.registerCommand("enterprise-ai-chat.loadHistory",async()=>{const e=D();try{if(b.appendLine("[History] Loading chat history..."),!g)return b.appendLine("[History] No access token - user not authenticated"),void e.postMessage({type:"setHistory",payload:{conversations:[],error:"Please login first"}});const t={headers:{Authorization:`Bearer ${g}`}},a=(await v.get("/api/chat/conversations",{...t,params:{archived:!1,limit:50,offset:0}})).data||[];b.appendLine(`[History] Loaded ${a.length} conversations`),e.postMessage({type:"setHistory",payload:{conversations:a}})}catch(t){b.appendLine(`[History] Error loading history: ${t.message}`),e.postMessage({type:"setHistory",payload:{conversations:[],error:t.message}})}}),c.commands.registerCommand("enterprise-ai-chat.loadConversation",async e=>{try{if(b.appendLine(`[History] Loading conversation ${e}...`),!g)return void b.appendLine("[History] No access token");const t={headers:{Authorization:`Bearer ${g}`}},a=await v.get(`/api/chat/conversations/${e}/messages`,t),{conversation:n,messages:s}=a.data;b.appendLine(`[History] Loaded conversation with ${s.length} messages`),D().postMessage({type:"loadedConversation",payload:{conversationId:n.id,title:n.title,model:n.model,messages:s.map(e=>({id:`msg-${e.id}`,role:e.role,content:e.content,timestamp:e.created_at}))}})}catch(e){b.appendLine(`[History] Error loading conversation: ${e.message}`)}}),c.commands.registerCommand("enterprise-ai-chat.deleteConversation",async e=>{try{if(b.appendLine(`[History] Deleting conversation ${e}...`),!g)return;const t={headers:{Authorization:`Bearer ${g}`}};await v.delete(`/api/chat/conversations/${e}`,t),b.appendLine(`[History] Conversation ${e} deleted`),c.commands.executeCommand("enterprise-ai-chat.loadHistory")}catch(e){b.appendLine(`[History] Error deleting conversation: ${e.message}`)}}),c.commands.registerCommand("enterprise-ai-chat.loadProjects",async()=>{const e=Date.now();if(T&&e-L>3e4&&(b.appendLine("[Kanban] CIRCUIT BREAKER AUTO-RESET after 30s cooldown"),T=!1,C=0,F=e),T){const t=3e4-(e-L);return void b.appendLine(`[Kanban] CIRCUIT BREAKER ACTIVE - resets in ${Math.ceil(t/1e3)}s`)}if(e-F>1e4&&(C=0,F=e),C++,C>10)return T=!0,L=e,void b.appendLine(`[Kanban] CIRCUIT BREAKER TRIGGERED: ${C} calls in 10s - auto-resets in 30s`);if(R)b.appendLine("[Kanban] Skipping - already loading projects");else if(j&&e-O<5e3)b.appendLine(`[Kanban] Skipping - projects loaded ${e-O}ms ago (cooldown: 5000ms)`);else{R=!0,O=e;try{if(b.appendLine("Loading Kanban projects..."),b.appendLine(`Auth token present: ${!!g}`),!g)return b.appendLine("WARNING: No access token - user not authenticated"),void c.window.showWarningMessage("Please login first to access Kanban");const e={headers:{Authorization:`Bearer ${g}`}};try{const t=await v.get("/api/projects/kanban-access",e);if(b.appendLine(`Kanban access: ${JSON.stringify(t.data)}`),!t.data.hasKanbanAccess){const e=t.data.groups?.map(e=>e.name).join(", ")||"None";return b.appendLine(`Kanban access denied. User groups: ${e}`),void D().postMessage({type:"kanbanAccessDenied",payload:{message:"Your user group does not have Kanban access",groups:t.data.groups}})}}catch(e){b.appendLine(`Kanban access check failed: ${e.message}`)}const t=(await v.get("/api/projects",e)).data||[];b.appendLine(`Loaded ${t.length} projects`),j=!0,D().postMessage({type:"setProjects",payload:{projects:t}})}catch(e){if(b.appendLine(`Error loading projects: ${e.message}`),429===e.response?.status)return b.appendLine("[Kanban] Rate limited (429) - stopping further requests"),j=!0,void c.window.showWarningMessage("Rate limit exceeded. Please wait before retrying.");403===e.response?.status&&"Kanban access denied"===e.response?.data?.error?(D().postMessage({type:"kanbanAccessDenied",payload:{message:e.response.data.message||"Kanban access denied"}}),c.window.showWarningMessage("Your user group does not have Kanban access")):c.window.showErrorMessage("Failed to load Kanban projects")}finally{R=!1}}}),c.commands.registerCommand("enterprise-ai-chat.selectKanbanProject",async e=>{try{if(!g)return b.appendLine("Cannot load Kanban - not authenticated"),void c.window.showWarningMessage("Please login first to access Kanban");b.appendLine(`Loading Kanban board for project ${e}...`);const t={headers:{Authorization:`Bearer ${g}`}},a=(await v.get(`/api/projects/${e}`,t)).data;if(!a.boards||0===a.boards.length)return b.appendLine("Project has no boards"),void c.window.showWarningMessage("This project has no Kanban boards");const n=a.boards[0].id;b.appendLine(`Loading board ${n}...`);const s=((await v.get(`/api/projects/${e}/boards/${n}`,t)).data.columns||[]).map(e=>{return{id:e.id,name:e.name,color:e.color||(t=e.name,{Backlog:"#6B7280","To Do":"#6B7280","In Progress":"#F59E0B",Review:"#8B5CF6",Done:"#10B981",Completato:"#10B981"}[t]||"#6B7280"),cards:(e.cards||[]).map(t=>({id:t.id,title:t.title,description:t.description,priority:t.priority||"medium",column_id:e.id,assignee_name:t.assignee_name,due_date:t.due_date,tags:t.labels||[],status:e.name}))};var t});b.appendLine(`Loaded ${s.length} columns with cards`),D().postMessage({type:"setKanbanColumns",payload:{columns:s,boardId:n,projectId:e}})}catch(e){b.appendLine(`Error loading Kanban board: ${e.message}`),e.response&&b.appendLine(`Response: ${JSON.stringify(e.response.data)}`),c.window.showErrorMessage("Failed to load Kanban board")}}),c.commands.registerCommand("enterprise-ai-chat.moveKanbanCard",async(e,t,a)=>{try{if(!g)return void b.appendLine("Cannot move card - not authenticated");b.appendLine(`Moving card ${e} to column ${t}...`);const n={headers:{Authorization:`Bearer ${g}`}};await v.post(`/api/projects/${a}/cards/${e}/move`,{column_id:t},n),b.appendLine(`Card ${e} moved to column ${t}`),D().postMessage({type:"kanbanCardUpdated",payload:{cardId:e,columnId:t,success:!0}})}catch(e){b.appendLine(`Error moving card: ${e.message}`),c.window.showErrorMessage("Failed to move card")}}),c.commands.registerCommand("enterprise-ai-chat.completeTaskWithFeedback",async(e,t)=>{try{b.appendLine(`Completing task ${e} with feedback...`),await v.patch(`/api/tasks/${e}`,{status:"Done",feedback:t,completed_at:(new Date).toISOString()}),b.appendLine(`Task ${e} completed`),D().postMessage({type:"kanbanTaskCompleted",payload:{taskId:e,success:!0}}),c.window.showInformationMessage("Task completed with feedback")}catch(e){b.appendLine(`Error completing task: ${e.message}`),c.window.showErrorMessage("Failed to complete task")}}),c.commands.registerCommand("enterprise-ai-chat.addKanbanComment",async(e,t,a)=>{try{b.appendLine(`Adding note to task ${t}...`),await v.patch(`/api/tasks/${t}`,{ai_context:a}),b.appendLine(`Comment added successfully to task ${t}`),D().postMessage({type:"kanbanNoteAdded",payload:{taskId:t,success:!0}}),c.window.showInformationMessage("Development note added successfully")}catch(e){b.appendLine(`Error adding comment: ${e.message}`),c.window.showErrorMessage("Failed to add development note")}}));const z=new U;e.subscriptions.push(c.window.registerUriHandler(z)),b.appendLine("OAuth URI handler registered");const G=c.window.createStatusBarItem(c.StatusBarAlignment.Right,100);G.command="enterprise-ai-chat.openChat",G.tooltip="Apri Enterprise AI Chat (Ctrl+Shift+L)",G.backgroundColor=new c.ThemeColor("statusBarItem.prominentBackground"),e.subscriptions.push(G),g&&x?(G.text=`$(cloud) ${x.name}: Chat`,G.show()):(G.text="$(cloud) Enterprise AI: Login",G.show()),b.appendLine("Extension activated successfully"),g?(_=e.globalState.get("selectedModel"),M(e)):c.window.showInformationMessage("Enterprise AI Chat: Effettua il login per iniziare","Login").then(e=>{"Login"===e&&c.commands.executeCommand("enterprise-ai-chat.login")})},t.deactivate=function(){b?.appendLine("Extension deactivating")};const c=o(a(1398)),p=r(a(9329)),l=(o(a(6928)),o(a(5692))),u=a(275),d=a(5595);new l.Agent({rejectUnauthorized:!1});let m=null,h=!1;async function f(){return h||(m=await async function(){const e=c.workspace.workspaceFolders;if(!e)return null;const t=[".github/copilot-instructions.md",".enterprise-ai/instructions.md","STYLE.md",".cursorrules",".ai-instructions.md"];for(const a of e)for(const e of t){const t=c.Uri.joinPath(a.uri,e);try{const a=await c.workspace.fs.readFile(t),n=(new TextDecoder).decode(a);return b.appendLine(`Loaded custom instructions from: ${e}`),n}catch{continue}}return null}(),h=!0),m}c.workspace.onDidSaveTextDocument(e=>{const t=e.fileName;(t.includes("instructions")||t.includes("STYLE.md")||t.includes(".cursorrules"))&&(h=!1,b.appendLine("Custom instructions file changed, will reload on next request"))});let v,g,x,b,y,w,_,k,P,S,E,A=[],R=!1,j=!1,O=0,C=0,F=0,T=!1,L=0;async function M(e){try{b.appendLine("Fetching available models from backend...");const t=(await v.get("/api/chat/models")).data||[];A=t.map(e=>({id:e.id||e.model_id||"unknown",name:e.name||e.display_name||e.id||"Unknown Model",provider:e.provider||e.provider_type||"unknown"}));const a=e.globalState.get("selectedModel");a&&A.some(e=>e.id===a)?_=a:A.length>0&&(_=A[0].id,await e.globalState.update("selectedModel",_));const n=u.ClaudeCodePanel.currentPanel;n&&n.updateModels(A,_)}catch(e){b.appendLine(`Failed to fetch models: ${e.message}`),A=[]}}async function I(e,t){const a=c.window.activeTextEditor;if(!a)return void c.window.showWarningMessage("No active editor");const n=a.selection,s=a.document.getText(n);if(!s)return void c.window.showWarningMessage("Select code first");const i=a.document.languageId,o={explain:`Explain this ${i} code:\n\n\`\`\`${i}\n${s}\n\`\`\``,fix:`Fix any bugs in this ${i} code:\n\n\`\`\`${i}\n${s}\n\`\`\``,improve:`Improve this ${i} code:\n\n\`\`\`${i}\n${s}\n\`\`\``,tests:`Generate tests for this ${i} code:\n\n\`\`\`${i}\n${s}\n\`\`\``};t().addMessage("user",o[e]||o.explain),c.commands.executeCommand("enterprise-ai-chat.sendMessage",o[e]||o.explain)}class U{async handleUri(e){if(b.appendLine("OAuth callback received: "+e.toString()),"/oauth-callback"!==e.path)return;const t=new URLSearchParams(e.query),a=t.get("code"),n=t.get("state"),s=t.get("error");s?c.window.showErrorMessage(`OAuth error: ${s}`):a&&n?c.window.showErrorMessage("OAuth context lost. Please try again."):c.window.showErrorMessage("OAuth callback missing code or state")}}},1398(e){"use strict";e.exports=require("vscode")},2613(e){"use strict";e.exports=require("assert")},6982(e){"use strict";e.exports=require("crypto")},4434(e){"use strict";e.exports=require("events")},9896(e){"use strict";e.exports=require("fs")},8611(e){"use strict";e.exports=require("http")},5675(e){"use strict";e.exports=require("http2")},5692(e){"use strict";e.exports=require("https")},857(e){"use strict";e.exports=require("os")},6928(e){"use strict";e.exports=require("path")},2203(e){"use strict";e.exports=require("stream")},2018(e){"use strict";e.exports=require("tty")},7016(e){"use strict";e.exports=require("url")},9023(e){"use strict";e.exports=require("util")},3106(e){"use strict";e.exports=require("zlib")},954(e,t){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.partialParse=void 0;const a=e=>{if(0===e.length)return e;let t=e[e.length-1];switch(t.type){case"separator":return e=e.slice(0,e.length-1),a(e);case"number":let n=t.value[t.value.length-1];if("."===n||"-"===n)return e=e.slice(0,e.length-1),a(e);case"string":let s=e[e.length-2];if("delimiter"===s?.type)return e=e.slice(0,e.length-1),a(e);if("brace"===s?.type&&"{"===s.value)return e=e.slice(0,e.length-1),a(e);break;case"delimiter":return e=e.slice(0,e.length-1),a(e)}return e};t.partialParse=e=>JSON.parse((e=>{let t="";return e.map(e=>{"string"===e.type?t+='"'+e.value+'"':t+=e.value}),t})((e=>{let t=[];return e.map(e=>{"brace"===e.type&&("{"===e.value?t.push("}"):t.splice(t.lastIndexOf("}"),1)),"paren"===e.type&&("["===e.value?t.push("]"):t.splice(t.lastIndexOf("]"),1))}),t.length>0&&t.reverse().map(t=>{"}"===t?e.push({type:"brace",value:"}"}):"]"===t&&e.push({type:"paren",value:"]"})}),e})(a((e=>{let t=0,a=[];for(;t<e.length;){let n=e[t];if("\\"===n){t++;continue}if("{"===n){a.push({type:"brace",value:"{"}),t++;continue}if("}"===n){a.push({type:"brace",value:"}"}),t++;continue}if("["===n){a.push({type:"paren",value:"["}),t++;continue}if("]"===n){a.push({type:"paren",value:"]"}),t++;continue}if(":"===n){a.push({type:"separator",value:":"}),t++;continue}if(","===n){a.push({type:"delimiter",value:","}),t++;continue}if('"'===n){let s="",i=!1;for(n=e[++t];'"'!==n;){if(t===e.length){i=!0;break}if("\\"===n){if(t++,t===e.length){i=!0;break}s+=n+e[t],n=e[++t]}else s+=n,n=e[++t]}n=e[++t],i||a.push({type:"string",value:s});continue}if(n&&/\s/.test(n)){t++;continue}let s=/[0-9]/;if(n&&s.test(n)||"-"===n||"."===n){let i="";for("-"===n&&(i+=n,n=e[++t]);n&&s.test(n)||"."===n;)i+=n,n=e[++t];a.push({type:"number",value:i});continue}let i=/[a-z]/i;if(n&&i.test(n)){let s="";for(;n&&i.test(n)&&t!==e.length;)s+=n,n=e[++t];if("true"!=s&&"false"!=s&&"null"!==s){t++;continue}a.push({type:"name",value:s});continue}t++}return a})(e)))))},9925(e,t,a){"use strict";var n,s,i,o;Object.defineProperty(t,"__esModule",{value:!0}),t.Anthropic=t.BaseAnthropic=t.AI_PROMPT=t.HUMAN_PROMPT=void 0;const r=a(7984),c=a(3539),p=a(694),l=a(21),u=a(8709),d=a(9953),m=r.__importStar(a(6462)),h=r.__importStar(a(1378)),f=a(9232),v=r.__importStar(a(8092)),g=r.__importStar(a(4384)),x=r.__importStar(a(3672)),b=r.__importStar(a(410)),y=a(3962),w=a(9861),_=a(3570),k=a(1671),P=a(1375),S=a(9953),E=a(2758),A=a(277),R=a(44),j=a(694);t.HUMAN_PROMPT="\\n\\nHuman:",t.AI_PROMPT="\\n\\nAssistant:";class O{constructor({baseURL:e=(0,A.readEnv)("ANTHROPIC_BASE_URL"),apiKey:t=(0,A.readEnv)("ANTHROPIC_API_KEY")??null,authToken:a=(0,A.readEnv)("ANTHROPIC_AUTH_TOKEN")??null,...o}={}){n.add(this),i.set(this,void 0);const c={apiKey:t,authToken:a,...o,baseURL:e||"https://api.anthropic.com"};if(!c.dangerouslyAllowBrowser&&(0,S.isRunningInBrowser)())throw new v.AnthropicError("It looks like you're running in a browser-like environment.\n\nThis is disabled by default, as it risks exposing your secret API credentials to attackers.\nIf you understand the risks and have appropriate mitigations in place,\nyou can set the `dangerouslyAllowBrowser` option to `true`, e.g.,\n\nnew Anthropic({ apiKey, dangerouslyAllowBrowser: true });\n");this.baseURL=c.baseURL,this.timeout=c.timeout??s.DEFAULT_TIMEOUT,this.logger=c.logger??console;const p="warn";this.logLevel=p,this.logLevel=(0,R.parseLogLevel)(c.logLevel,"ClientOptions.logLevel",this)??(0,R.parseLogLevel)((0,A.readEnv)("ANTHROPIC_LOG"),"process.env['ANTHROPIC_LOG']",this)??p,this.fetchOptions=c.fetchOptions,this.maxRetries=c.maxRetries??2,this.fetch=c.fetch??m.getDefaultFetch(),r.__classPrivateFieldSet(this,i,h.FallbackEncoder,"f"),this._options=c,this.apiKey="string"==typeof t?t:null,this.authToken=a}withOptions(e){return new this.constructor({...this._options,baseURL:this.baseURL,maxRetries:this.maxRetries,timeout:this.timeout,logger:this.logger,logLevel:this.logLevel,fetch:this.fetch,fetchOptions:this.fetchOptions,apiKey:this.apiKey,authToken:this.authToken,...e})}defaultQuery(){return this._options.defaultQuery}validateHeaders({values:e,nulls:t}){if(!e.get("x-api-key")&&!e.get("authorization")&&!(this.apiKey&&e.get("x-api-key")||t.has("x-api-key")||this.authToken&&e.get("authorization")||t.has("authorization")))throw new Error('Could not resolve authentication method. Expected either apiKey or authToken to be set. Or for one of the "X-Api-Key" or "Authorization" headers to be explicitly omitted')}async authHeaders(e){return(0,E.buildHeaders)([await this.apiKeyAuth(e),await this.bearerAuth(e)])}async apiKeyAuth(e){if(null!=this.apiKey)return(0,E.buildHeaders)([{"X-Api-Key":this.apiKey}])}async bearerAuth(e){if(null!=this.authToken)return(0,E.buildHeaders)([{Authorization:`Bearer ${this.authToken}`}])}stringifyQuery(e){return Object.entries(e).filter(([e,t])=>void 0!==t).map(([e,t])=>{if("string"==typeof t||"number"==typeof t||"boolean"==typeof t)return`${encodeURIComponent(e)}=${encodeURIComponent(t)}`;if(null===t)return`${encodeURIComponent(e)}=`;throw new v.AnthropicError(`Cannot stringify type ${typeof t}; Expected string, number, boolean, or null. If you need to pass nested query parameters, you can manually encode them, e.g. { query: { 'foo[key1]': value1, 'foo[key2]': value2 } }, and please open a GitHub issue requesting better support for your use case.`)}).join("&")}getUserAgent(){return`${this.constructor.name}/JS ${f.VERSION}`}defaultIdempotencyKey(){return`stainless-node-retry-${(0,c.uuid4)()}`}makeStatusError(e,t,a,n){return v.APIError.generate(e,t,a,n)}buildURL(e,t,a){const s=!r.__classPrivateFieldGet(this,n,"m",o).call(this)&&a||this.baseURL,i=(0,p.isAbsoluteURL)(e)?new URL(e):new URL(s+(s.endsWith("/")&&e.startsWith("/")?e.slice(1):e)),c=this.defaultQuery();return(0,j.isEmptyObj)(c)||(t={...c,...t}),"object"==typeof t&&t&&!Array.isArray(t)&&(i.search=this.stringifyQuery(t)),i.toString()}_calculateNonstreamingTimeout(e){if(3600*e/128e3>600)throw new v.AnthropicError("Streaming is required for operations that may take longer than 10 minutes. See https://github.com/anthropics/anthropic-sdk-typescript#streaming-responses for more details");return 6e5}async prepareOptions(e){}async prepareRequest(e,{url:t,options:a}){}get(e,t){return this.methodRequest("get",e,t)}post(e,t){return this.methodRequest("post",e,t)}patch(e,t){return this.methodRequest("patch",e,t)}put(e,t){return this.methodRequest("put",e,t)}delete(e,t){return this.methodRequest("delete",e,t)}methodRequest(e,t,a){return this.request(Promise.resolve(a).then(a=>({method:e,path:t,...a})))}request(e,t=null){return new y.APIPromise(this,this.makeRequest(e,t,void 0))}async makeRequest(e,t,a){const n=await e,s=n.maxRetries??this.maxRetries;null==t&&(t=s),await this.prepareOptions(n);const{req:i,url:o,timeout:r}=await this.buildRequest(n,{retryCount:s-t});await this.prepareRequest(i,{url:o,options:n});const c="log_"+(Math.random()*(1<<24)|0).toString(16).padStart(6,"0"),l=void 0===a?"":`, retryOf: ${a}`,d=Date.now();if((0,R.loggerFor)(this).debug(`[${c}] sending request`,(0,R.formatRequestDetails)({retryOfRequestLogID:a,method:n.method,url:o,options:n,headers:i.headers})),n.signal?.aborted)throw new v.APIUserAbortError;const h=new AbortController,f=await this.fetchWithTimeout(o,i,r,h).catch(u.castToError),g=Date.now();if(f instanceof globalThis.Error){const e=`retrying, ${t} attempts remaining`;if(n.signal?.aborted)throw new v.APIUserAbortError;const s=(0,u.isAbortError)(f)||/timed? ?out/i.test(String(f)+("cause"in f?String(f.cause):""));if(t)return(0,R.loggerFor)(this).info(`[${c}] connection ${s?"timed out":"failed"} - ${e}`),(0,R.loggerFor)(this).debug(`[${c}] connection ${s?"timed out":"failed"} (${e})`,(0,R.formatRequestDetails)({retryOfRequestLogID:a,url:o,durationMs:g-d,message:f.message})),this.retryRequest(n,t,a??c);if((0,R.loggerFor)(this).info(`[${c}] connection ${s?"timed out":"failed"} - error; no more retries left`),(0,R.loggerFor)(this).debug(`[${c}] connection ${s?"timed out":"failed"} (error; no more retries left)`,(0,R.formatRequestDetails)({retryOfRequestLogID:a,url:o,durationMs:g-d,message:f.message})),s)throw new v.APIConnectionTimeoutError;throw new v.APIConnectionError({cause:f})}const x=`[${c}${l}${[...f.headers.entries()].filter(([e])=>"request-id"===e).map(([e,t])=>", "+e+": "+JSON.stringify(t)).join("")}] ${i.method} ${o} ${f.ok?"succeeded":"failed"} with status ${f.status} in ${g-d}ms`;if(!f.ok){const e=await this.shouldRetry(f);if(t&&e){const e=`retrying, ${t} attempts remaining`;return await m.CancelReadableStream(f.body),(0,R.loggerFor)(this).info(`${x} - ${e}`),(0,R.loggerFor)(this).debug(`[${c}] response error (${e})`,(0,R.formatRequestDetails)({retryOfRequestLogID:a,url:f.url,status:f.status,headers:f.headers,durationMs:g-d})),this.retryRequest(n,t,a??c,f.headers)}const s=e?"error; no more retries left":"error; not retryable";(0,R.loggerFor)(this).info(`${x} - ${s}`);const i=await f.text().catch(e=>(0,u.castToError)(e).message),o=(0,p.safeJSON)(i),r=o?void 0:i;throw(0,R.loggerFor)(this).debug(`[${c}] response error (${s})`,(0,R.formatRequestDetails)({retryOfRequestLogID:a,url:f.url,status:f.status,headers:f.headers,message:r,durationMs:Date.now()-d})),this.makeStatusError(f.status,o,r,f.headers)}return(0,R.loggerFor)(this).info(x),(0,R.loggerFor)(this).debug(`[${c}] response start`,(0,R.formatRequestDetails)({retryOfRequestLogID:a,url:f.url,status:f.status,headers:f.headers,durationMs:g-d})),{response:f,options:n,controller:h,requestLogID:c,retryOfRequestLogID:a,startTime:d}}getAPIList(e,t,a){return this.requestAPIList(t,{method:"get",path:e,...a})}requestAPIList(e,t){const a=this.makeRequest(t,null,void 0);return new g.PagePromise(this,a,e)}async fetchWithTimeout(e,t,a,n){const{signal:s,method:i,...o}=t||{};s&&s.addEventListener("abort",()=>n.abort());const r=setTimeout(()=>n.abort(),a),c=globalThis.ReadableStream&&o.body instanceof globalThis.ReadableStream||"object"==typeof o.body&&null!==o.body&&Symbol.asyncIterator in o.body,p={signal:n.signal,...c?{duplex:"half"}:{},method:"GET",...o};i&&(p.method=i.toUpperCase());try{return await this.fetch.call(void 0,e,p)}finally{clearTimeout(r)}}async shouldRetry(e){const t=e.headers.get("x-should-retry");return"true"===t||"false"!==t&&(408===e.status||409===e.status||429===e.status||e.status>=500)}async retryRequest(e,t,a,n){let s;const i=n?.get("retry-after-ms");if(i){const e=parseFloat(i);Number.isNaN(e)||(s=e)}const o=n?.get("retry-after");if(o&&!s){const e=parseFloat(o);s=Number.isNaN(e)?Date.parse(o)-Date.now():1e3*e}if(!(s&&0<=s&&s<6e4)){const a=e.maxRetries??this.maxRetries;s=this.calculateDefaultRetryTimeoutMillis(t,a)}return await(0,l.sleep)(s),this.makeRequest(e,t-1,a)}calculateDefaultRetryTimeoutMillis(e,t){const a=t-e;return Math.min(.5*Math.pow(2,a),8)*(1-.25*Math.random())*1e3}calculateNonstreamingTimeout(e,t){const a=6e5;if(36e5*e/128e3>a||null!=t&&e>t)throw new v.AnthropicError("Streaming is required for operations that may take longer than 10 minutes. See https://github.com/anthropics/anthropic-sdk-typescript#long-requests for more details");return a}async buildRequest(e,{retryCount:t=0}={}){const a={...e},{method:n,path:s,query:i,defaultBaseURL:o}=a,r=this.buildURL(s,i,o);"timeout"in a&&(0,p.validatePositiveInteger)("timeout",a.timeout),a.timeout=a.timeout??this.timeout;const{bodyHeaders:c,body:l}=this.buildBody({options:a});return{req:{method:n,headers:await this.buildHeaders({options:e,method:n,bodyHeaders:c,retryCount:t}),...a.signal&&{signal:a.signal},...globalThis.ReadableStream&&l instanceof globalThis.ReadableStream&&{duplex:"half"},...l&&{body:l},...this.fetchOptions??{},...a.fetchOptions??{}},url:r,timeout:a.timeout}}async buildHeaders({options:e,method:t,bodyHeaders:a,retryCount:n}){let s={};this.idempotencyHeader&&"get"!==t&&(e.idempotencyKey||(e.idempotencyKey=this.defaultIdempotencyKey()),s[this.idempotencyHeader]=e.idempotencyKey);const i=(0,E.buildHeaders)([s,{Accept:"application/json","User-Agent":this.getUserAgent(),"X-Stainless-Retry-Count":String(n),...e.timeout?{"X-Stainless-Timeout":String(Math.trunc(e.timeout/1e3))}:{},...(0,d.getPlatformHeaders)(),...this._options.dangerouslyAllowBrowser?{"anthropic-dangerous-direct-browser-access":"true"}:void 0,"anthropic-version":"2023-06-01"},await this.authHeaders(e),this._options.defaultHeaders,a,e.headers]);return this.validateHeaders(i),i.values}buildBody({options:{body:e,headers:t}}){if(!e)return{bodyHeaders:void 0,body:void 0};const a=(0,E.buildHeaders)([t]);return ArrayBuffer.isView(e)||e instanceof ArrayBuffer||e instanceof DataView||"string"==typeof e&&a.values.has("content-type")||globalThis.Blob&&e instanceof globalThis.Blob||e instanceof FormData||e instanceof URLSearchParams||globalThis.ReadableStream&&e instanceof globalThis.ReadableStream?{bodyHeaders:void 0,body:e}:"object"==typeof e&&(Symbol.asyncIterator in e||Symbol.iterator in e&&"next"in e&&"function"==typeof e.next)?{bodyHeaders:void 0,body:m.ReadableStreamFrom(e)}:r.__classPrivateFieldGet(this,i,"f").call(this,{body:e,headers:a})}}t.BaseAnthropic=O,s=O,i=new WeakMap,n=new WeakSet,o=function(){return"https://api.anthropic.com"!==this.baseURL},O.Anthropic=s,O.HUMAN_PROMPT=t.HUMAN_PROMPT,O.AI_PROMPT=t.AI_PROMPT,O.DEFAULT_TIMEOUT=6e5,O.AnthropicError=v.AnthropicError,O.APIError=v.APIError,O.APIConnectionError=v.APIConnectionError,O.APIConnectionTimeoutError=v.APIConnectionTimeoutError,O.APIUserAbortError=v.APIUserAbortError,O.NotFoundError=v.NotFoundError,O.ConflictError=v.ConflictError,O.RateLimitError=v.RateLimitError,O.BadRequestError=v.BadRequestError,O.AuthenticationError=v.AuthenticationError,O.InternalServerError=v.InternalServerError,O.PermissionDeniedError=v.PermissionDeniedError,O.UnprocessableEntityError=v.UnprocessableEntityError,O.toFile=x.toFile;class C extends O{constructor(){super(...arguments),this.completions=new b.Completions(this),this.messages=new b.Messages(this),this.models=new b.Models(this),this.beta=new b.Beta(this)}}t.Anthropic=C,C.Completions=w.Completions,C.Messages=P.Messages,C.Models=_.Models,C.Beta=k.Beta},3962(e,t,a){"use strict";var n;Object.defineProperty(t,"__esModule",{value:!0}),t.APIPromise=void 0;const s=a(7984),i=a(6199);class o extends Promise{constructor(e,t,a=i.defaultParseResponse){super(e=>{e(null)}),this.responsePromise=t,this.parseResponse=a,n.set(this,void 0),s.__classPrivateFieldSet(this,n,e,"f")}_thenUnwrap(e){return new o(s.__classPrivateFieldGet(this,n,"f"),this.responsePromise,async(t,a)=>(0,i.addRequestID)(e(await this.parseResponse(t,a),a),a.response))}asResponse(){return this.responsePromise.then(e=>e.response)}async withResponse(){const[e,t]=await Promise.all([this.parse(),this.asResponse()]);return{data:e,response:t,request_id:t.headers.get("request-id")}}parse(){return this.parsedPromise||(this.parsedPromise=this.responsePromise.then(e=>this.parseResponse(s.__classPrivateFieldGet(this,n,"f"),e))),this.parsedPromise}then(e,t){return this.parse().then(e,t)}catch(e){return this.parse().catch(e)}finally(e){return this.parse().finally(e)}}t.APIPromise=o,n=new WeakMap},8092(e,t,a){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.InternalServerError=t.RateLimitError=t.UnprocessableEntityError=t.ConflictError=t.NotFoundError=t.PermissionDeniedError=t.AuthenticationError=t.BadRequestError=t.APIConnectionTimeoutError=t.APIConnectionError=t.APIUserAbortError=t.APIError=t.AnthropicError=void 0;const n=a(8709);class s extends Error{}t.AnthropicError=s;class i extends s{constructor(e,t,a,n){super(`${i.makeMessage(e,t,a)}`),this.status=e,this.headers=n,this.requestID=n?.get("request-id"),this.error=t}static makeMessage(e,t,a){const n=t?.message?"string"==typeof t.message?t.message:JSON.stringify(t.message):t?JSON.stringify(t):a;return e&&n?`${e} ${n}`:e?`${e} status code (no body)`:n||"(no status code or body)"}static generate(e,t,a,s){if(!e||!s)return new o({message:a,cause:(0,n.castToError)(t)});const f=t;return 400===e?new r(e,f,a,s):401===e?new c(e,f,a,s):403===e?new p(e,f,a,s):404===e?new l(e,f,a,s):409===e?new u(e,f,a,s):422===e?new d(e,f,a,s):429===e?new m(e,f,a,s):e>=500?new h(e,f,a,s):new i(e,f,a,s)}}t.APIError=i,t.APIUserAbortError=class extends i{constructor({message:e}={}){super(void 0,void 0,e||"Request was aborted.",void 0)}};class o extends i{constructor({message:e,cause:t}){super(void 0,void 0,e||"Connection error.",void 0),t&&(this.cause=t)}}t.APIConnectionError=o,t.APIConnectionTimeoutError=class extends o{constructor({message:e}={}){super({message:e??"Request timed out."})}};class r extends i{}t.BadRequestError=r;class c extends i{}t.AuthenticationError=c;class p extends i{}t.PermissionDeniedError=p;class l extends i{}t.NotFoundError=l;class u extends i{}t.ConflictError=u;class d extends i{}t.UnprocessableEntityError=d;class m extends i{}t.RateLimitError=m;class h extends i{}t.InternalServerError=h},4384(e,t,a){"use strict";var n;Object.defineProperty(t,"__esModule",{value:!0}),t.PageCursor=t.TokenPage=t.Page=t.PagePromise=t.AbstractPage=void 0;const s=a(7984),i=a(8092),o=a(6199),r=a(3962),c=a(694);class p{constructor(e,t,a,i){n.set(this,void 0),s.__classPrivateFieldSet(this,n,e,"f"),this.options=i,this.response=t,this.body=a}hasNextPage(){return!!this.getPaginatedItems().length&&null!=this.nextPageRequestOptions()}async getNextPage(){const e=this.nextPageRequestOptions();if(!e)throw new i.AnthropicError("No next page expected; please check `.hasNextPage()` before calling `.getNextPage()`.");return await s.__classPrivateFieldGet(this,n,"f").requestAPIList(this.constructor,e)}async*iterPages(){let e=this;for(yield e;e.hasNextPage();)e=await e.getNextPage(),yield e}async*[(n=new WeakMap,Symbol.asyncIterator)](){for await(const e of this.iterPages())for(const t of e.getPaginatedItems())yield t}}t.AbstractPage=p;class l extends r.APIPromise{constructor(e,t,a){super(e,t,async(e,t)=>new a(e,t.response,await(0,o.defaultParseResponse)(e,t),t.options))}async*[Symbol.asyncIterator](){const e=await(this);for await(const t of e)yield t}}t.PagePromise=l,t.Page=class extends p{constructor(e,t,a,n){super(e,t,a,n),this.data=a.data||[],this.has_more=a.has_more||!1,this.first_id=a.first_id||null,this.last_id=a.last_id||null}getPaginatedItems(){return this.data??[]}hasNextPage(){return!1!==this.has_more&&super.hasNextPage()}nextPageRequestOptions(){if(this.options.query?.before_id){const e=this.first_id;return e?{...this.options,query:{...(0,c.maybeObj)(this.options.query),before_id:e}}:null}const e=this.last_id;return e?{...this.options,query:{...(0,c.maybeObj)(this.options.query),after_id:e}}:null}},t.TokenPage=class extends p{constructor(e,t,a,n){super(e,t,a,n),this.data=a.data||[],this.has_more=a.has_more||!1,this.next_page=a.next_page||null}getPaginatedItems(){return this.data??[]}hasNextPage(){return!1!==this.has_more&&super.hasNextPage()}nextPageRequestOptions(){const e=this.next_page;return e?{...this.options,query:{...(0,c.maybeObj)(this.options.query),page_token:e}}:null}},t.PageCursor=class extends p{constructor(e,t,a,n){super(e,t,a,n),this.data=a.data||[],this.has_more=a.has_more||!1,this.next_page=a.next_page||null}getPaginatedItems(){return this.data??[]}hasNextPage(){return!1!==this.has_more&&super.hasNextPage()}nextPageRequestOptions(){const e=this.next_page;return e?{...this.options,query:{...(0,c.maybeObj)(this.options.query),page:e}}:null}}},4472(e,t){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.APIResource=void 0,t.APIResource=class{constructor(e){this._client=e}}},4986(e,t,a){"use strict";var n;Object.defineProperty(t,"__esModule",{value:!0}),t.Stream=void 0,t._iterSSEMessages=f;const s=a(7984),i=a(8092),o=a(6462),r=a(1308),c=a(6462),p=a(8709),l=a(694),u=a(6117),d=a(44),m=a(8092);class h{constructor(e,t,a){this.iterator=e,n.set(this,void 0),this.controller=t,s.__classPrivateFieldSet(this,n,a,"f")}static fromSSEResponse(e,t,a){let n=!1;const s=a?(0,d.loggerFor)(a):console;return new h(async function*(){if(n)throw new i.AnthropicError("Cannot iterate over a consumed stream, use `.tee()` to split the stream.");n=!0;let a=!1;try{for await(const a of f(e,t)){if("completion"===a.event)try{yield JSON.parse(a.data)}catch(e){throw s.error("Could not parse message into JSON:",a.data),s.error("From chunk:",a.raw),e}if("message_start"===a.event||"message_delta"===a.event||"message_stop"===a.event||"content_block_start"===a.event||"content_block_delta"===a.event||"content_block_stop"===a.event)try{yield JSON.parse(a.data)}catch(e){throw s.error("Could not parse message into JSON:",a.data),s.error("From chunk:",a.raw),e}if("ping"!==a.event&&"error"===a.event)throw new m.APIError(void 0,(0,l.safeJSON)(a.data)??a.data,void 0,e.headers)}a=!0}catch(e){if((0,p.isAbortError)(e))return;throw e}finally{a||t.abort()}},t,a)}static fromReadableStream(e,t,a){let n=!1;return new h(async function*(){if(n)throw new i.AnthropicError("Cannot iterate over a consumed stream, use `.tee()` to split the stream.");n=!0;let a=!1;try{for await(const t of async function*(){const t=new r.LineDecoder,a=(0,c.ReadableStreamToAsyncIterable)(e);for await(const e of a)for(const a of t.decode(e))yield a;for(const e of t.flush())yield e}())a||t&&(yield JSON.parse(t));a=!0}catch(e){if((0,p.isAbortError)(e))return;throw e}finally{a||t.abort()}},t,a)}[(n=new WeakMap,Symbol.asyncIterator)](){return this.iterator()}tee(){const e=[],t=[],a=this.iterator(),i=n=>({next:()=>{if(0===n.length){const n=a.next();e.push(n),t.push(n)}return n.shift()}});return[new h(()=>i(e),this.controller,s.__classPrivateFieldGet(this,n,"f")),new h(()=>i(t),this.controller,s.__classPrivateFieldGet(this,n,"f"))]}toReadableStream(){const e=this;let t;return(0,o.makeReadableStream)({async start(){t=e[Symbol.asyncIterator]()},async pull(e){try{const{value:a,done:n}=await t.next();if(n)return e.close();const s=(0,u.encodeUTF8)(JSON.stringify(a)+"\n");e.enqueue(s)}catch(t){e.error(t)}},async cancel(){await(t.return?.())}})}}async function*f(e,t){if(!e.body){if(t.abort(),void 0!==globalThis.navigator&&"ReactNative"===globalThis.navigator.product)throw new i.AnthropicError("The default react-native fetch implementation does not support streaming. Please use expo/fetch: https://docs.expo.dev/versions/latest/sdk/expo/#expofetch-api");throw new i.AnthropicError("Attempted to iterate over a response with no body")}const a=new v,n=new r.LineDecoder,s=(0,c.ReadableStreamToAsyncIterable)(e.body);for await(const e of async function*(e){let t=new Uint8Array;for await(const a of e){if(null==a)continue;const e=a instanceof ArrayBuffer?new Uint8Array(a):"string"==typeof a?(0,u.encodeUTF8)(a):a;let n,s=new Uint8Array(t.length+e.length);for(s.set(t),s.set(e,t.length),t=s;-1!==(n=(0,r.findDoubleNewlineIndex)(t));)yield t.slice(0,n),t=t.slice(n)}t.length>0&&(yield t)}(s))for(const t of n.decode(e)){const e=a.decode(t);e&&(yield e)}for(const e of n.flush()){const t=a.decode(e);t&&(yield t)}}t.Stream=h;class v{constructor(){this.event=null,this.data=[],this.chunks=[]}decode(e){if(e.endsWith("\r")&&(e=e.substring(0,e.length-1)),!e){if(!this.event&&!this.data.length)return null;const e={event:this.event,data:this.data.join("\n"),raw:this.chunks};return this.event=null,this.data=[],this.chunks=[],e}if(this.chunks.push(e),e.startsWith(":"))return null;let[t,a,n]=function(e){const t=e.indexOf(":");return-1!==t?[e.substring(0,t),":",e.substring(t+1)]:[e,"",""]}(e);return n.startsWith(" ")&&(n=n.substring(1)),"event"===t?this.event=n:"data"===t&&this.data.push(n),null}}},3672(e,t,a){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.toFile=void 0;var n=a(4570);Object.defineProperty(t,"toFile",{enumerable:!0,get:function(){return n.toFile}})},2854(e,t,a){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),a(7984).__exportStar(a(8092),t)},4524(e,t,a){"use strict";t=e.exports=function(...e){return new t.default(...e)},Object.defineProperty(t,"__esModule",{value:!0}),t.UnprocessableEntityError=t.PermissionDeniedError=t.InternalServerError=t.AuthenticationError=t.BadRequestError=t.RateLimitError=t.ConflictError=t.NotFoundError=t.APIUserAbortError=t.APIConnectionTimeoutError=t.APIConnectionError=t.APIError=t.AnthropicError=t.PagePromise=t.AI_PROMPT=t.HUMAN_PROMPT=t.Anthropic=t.BaseAnthropic=t.APIPromise=t.toFile=t.default=void 0;var n=a(9925);Object.defineProperty(t,"default",{enumerable:!0,get:function(){return n.Anthropic}});var s=a(3672);Object.defineProperty(t,"toFile",{enumerable:!0,get:function(){return s.toFile}});var i=a(3962);Object.defineProperty(t,"APIPromise",{enumerable:!0,get:function(){return i.APIPromise}});var o=a(9925);Object.defineProperty(t,"BaseAnthropic",{enumerable:!0,get:function(){return o.BaseAnthropic}}),Object.defineProperty(t,"Anthropic",{enumerable:!0,get:function(){return o.Anthropic}}),Object.defineProperty(t,"HUMAN_PROMPT",{enumerable:!0,get:function(){return o.HUMAN_PROMPT}}),Object.defineProperty(t,"AI_PROMPT",{enumerable:!0,get:function(){return o.AI_PROMPT}});var r=a(4384);Object.defineProperty(t,"PagePromise",{enumerable:!0,get:function(){return r.PagePromise}});var c=a(8092);Object.defineProperty(t,"AnthropicError",{enumerable:!0,get:function(){return c.AnthropicError}}),Object.defineProperty(t,"APIError",{enumerable:!0,get:function(){return c.APIError}}),Object.defineProperty(t,"APIConnectionError",{enumerable:!0,get:function(){return c.APIConnectionError}}),Object.defineProperty(t,"APIConnectionTimeoutError",{enumerable:!0,get:function(){return c.APIConnectionTimeoutError}}),Object.defineProperty(t,"APIUserAbortError",{enumerable:!0,get:function(){return c.APIUserAbortError}}),Object.defineProperty(t,"NotFoundError",{enumerable:!0,get:function(){return c.NotFoundError}}),Object.defineProperty(t,"ConflictError",{enumerable:!0,get:function(){return c.ConflictError}}),Object.defineProperty(t,"RateLimitError",{enumerable:!0,get:function(){return c.RateLimitError}}),Object.defineProperty(t,"BadRequestError",{enumerable:!0,get:function(){return c.BadRequestError}}),Object.defineProperty(t,"AuthenticationError",{enumerable:!0,get:function(){return c.AuthenticationError}}),Object.defineProperty(t,"InternalServerError",{enumerable:!0,get:function(){return c.InternalServerError}}),Object.defineProperty(t,"PermissionDeniedError",{enumerable:!0,get:function(){return c.PermissionDeniedError}}),Object.defineProperty(t,"UnprocessableEntityError",{enumerable:!0,get:function(){return c.UnprocessableEntityError}})},8585(e,t){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.MODEL_NONSTREAMING_TOKENS=void 0,t.MODEL_NONSTREAMING_TOKENS={"claude-opus-4-20250514":8192,"claude-opus-4-0":8192,"claude-4-opus-20250514":8192,"anthropic.claude-opus-4-20250514-v1:0":8192,"claude-opus-4@20250514":8192,"claude-opus-4-1-20250805":8192,"anthropic.claude-opus-4-1-20250805-v1:0":8192,"claude-opus-4-1@20250805":8192}},1198(e,t,a){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.JSONLDecoder=void 0;const n=a(8092),s=a(6462),i=a(1308);class o{constructor(e,t){this.iterator=e,this.controller=t}async*decoder(){const e=new i.LineDecoder;for await(const t of this.iterator)for(const a of e.decode(t))yield JSON.parse(a);for(const t of e.flush())yield JSON.parse(t)}[Symbol.asyncIterator](){return this.decoder()}static fromResponse(e,t){if(!e.body){if(t.abort(),void 0!==globalThis.navigator&&"ReactNative"===globalThis.navigator.product)throw new n.AnthropicError("The default react-native fetch implementation does not support streaming. Please use expo/fetch: https://docs.expo.dev/versions/latest/sdk/expo/#expofetch-api");throw new n.AnthropicError("Attempted to iterate over a response with no body")}return new o((0,s.ReadableStreamToAsyncIterable)(e.body),t)}}t.JSONLDecoder=o},1308(e,t,a){"use strict";var n,s;Object.defineProperty(t,"__esModule",{value:!0}),t.LineDecoder=void 0,t.findDoubleNewlineIndex=function(e){for(let t=0;t<e.length-1;t++){if(10===e[t]&&10===e[t+1])return t+2;if(13===e[t]&&13===e[t+1])return t+2;if(13===e[t]&&10===e[t+1]&&t+3<e.length&&13===e[t+2]&&10===e[t+3])return t+4}return-1};const i=a(7984),o=a(6117);class r{constructor(){n.set(this,void 0),s.set(this,void 0),i.__classPrivateFieldSet(this,n,new Uint8Array,"f"),i.__classPrivateFieldSet(this,s,null,"f")}decode(e){if(null==e)return[];const t=e instanceof ArrayBuffer?new Uint8Array(e):"string"==typeof e?(0,o.encodeUTF8)(e):e;i.__classPrivateFieldSet(this,n,(0,o.concatBytes)([i.__classPrivateFieldGet(this,n,"f"),t]),"f");const a=[];let r;for(;null!=(r=c(i.__classPrivateFieldGet(this,n,"f"),i.__classPrivateFieldGet(this,s,"f")));){if(r.carriage&&null==i.__classPrivateFieldGet(this,s,"f")){i.__classPrivateFieldSet(this,s,r.index,"f");continue}if(null!=i.__classPrivateFieldGet(this,s,"f")&&(r.index!==i.__classPrivateFieldGet(this,s,"f")+1||r.carriage)){a.push((0,o.decodeUTF8)(i.__classPrivateFieldGet(this,n,"f").subarray(0,i.__classPrivateFieldGet(this,s,"f")-1))),i.__classPrivateFieldSet(this,n,i.__classPrivateFieldGet(this,n,"f").subarray(i.__classPrivateFieldGet(this,s,"f")),"f"),i.__classPrivateFieldSet(this,s,null,"f");continue}const e=null!==i.__classPrivateFieldGet(this,s,"f")?r.preceding-1:r.preceding,t=(0,o.decodeUTF8)(i.__classPrivateFieldGet(this,n,"f").subarray(0,e));a.push(t),i.__classPrivateFieldSet(this,n,i.__classPrivateFieldGet(this,n,"f").subarray(r.index),"f"),i.__classPrivateFieldSet(this,s,null,"f")}return a}flush(){return i.__classPrivateFieldGet(this,n,"f").length?this.decode("\n"):[]}}function c(e,t){for(let a=t??0;a<e.length;a++){if(10===e[a])return{preceding:a,index:a+1,carriage:!1};if(13===e[a])return{preceding:a,index:a+1,carriage:!0}}return null}t.LineDecoder=r,n=new WeakMap,s=new WeakMap,r.NEWLINE_CHARS=new Set(["\n","\r"]),r.NEWLINE_REGEXP=/\r\n|[\n\r]/g},9953(e,t,a){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.getPlatformHeaders=t.isRunningInBrowser=void 0;const n=a(9232);t.isRunningInBrowser=()=>"undefined"!=typeof window&&void 0!==window.document&&"undefined"!=typeof navigator;const s=e=>"x32"===e?"x32":"x86_64"===e||"x64"===e?"x64":"arm"===e?"arm":"aarch64"===e||"arm64"===e?"arm64":e?`other:${e}`:"unknown",i=e=>(e=e.toLowerCase()).includes("ios")?"iOS":"android"===e?"Android":"darwin"===e?"MacOS":"win32"===e?"Windows":"freebsd"===e?"FreeBSD":"openbsd"===e?"OpenBSD":"linux"===e?"Linux":e?`Other:${e}`:"Unknown";let o;t.getPlatformHeaders=()=>o??(o=(()=>{const e="undefined"!=typeof Deno&&null!=Deno.build?"deno":"undefined"!=typeof EdgeRuntime?"edge":"[object process]"===Object.prototype.toString.call(void 0!==globalThis.process?globalThis.process:0)?"node":"unknown";if("deno"===e)return{"X-Stainless-Lang":"js","X-Stainless-Package-Version":n.VERSION,"X-Stainless-OS":i(Deno.build.os),"X-Stainless-Arch":s(Deno.build.arch),"X-Stainless-Runtime":"deno","X-Stainless-Runtime-Version":"string"==typeof Deno.version?Deno.version:Deno.version?.deno??"unknown"};if("undefined"!=typeof EdgeRuntime)return{"X-Stainless-Lang":"js","X-Stainless-Package-Version":n.VERSION,"X-Stainless-OS":"Unknown","X-Stainless-Arch":`other:${EdgeRuntime}`,"X-Stainless-Runtime":"edge","X-Stainless-Runtime-Version":globalThis.process.version};if("node"===e)return{"X-Stainless-Lang":"js","X-Stainless-Package-Version":n.VERSION,"X-Stainless-OS":i(globalThis.process.platform??"unknown"),"X-Stainless-Arch":s(globalThis.process.arch??"unknown"),"X-Stainless-Runtime":"node","X-Stainless-Runtime-Version":globalThis.process.version??"unknown"};const t=function(){if("undefined"==typeof navigator||!navigator)return null;const e=[{key:"edge",pattern:/Edge(?:\W+(\d+)\.(\d+)(?:\.(\d+))?)?/},{key:"ie",pattern:/MSIE(?:\W+(\d+)\.(\d+)(?:\.(\d+))?)?/},{key:"ie",pattern:/Trident(?:.*rv\:(\d+)\.(\d+)(?:\.(\d+))?)?/},{key:"chrome",pattern:/Chrome(?:\W+(\d+)\.(\d+)(?:\.(\d+))?)?/},{key:"firefox",pattern:/Firefox(?:\W+(\d+)\.(\d+)(?:\.(\d+))?)?/},{key:"safari",pattern:/(?:Version\W+(\d+)\.(\d+)(?:\.(\d+))?)?(?:\W+Mobile\S*)?\W+Safari/}];for(const{key:t,pattern:a}of e){const e=a.exec(navigator.userAgent);if(e)return{browser:t,version:`${e[1]||0}.${e[2]||0}.${e[3]||0}`}}return null}();return t?{"X-Stainless-Lang":"js","X-Stainless-Package-Version":n.VERSION,"X-Stainless-OS":"Unknown","X-Stainless-Arch":"unknown","X-Stainless-Runtime":`browser:${t.browser}`,"X-Stainless-Runtime-Version":t.version}:{"X-Stainless-Lang":"js","X-Stainless-Package-Version":n.VERSION,"X-Stainless-OS":"Unknown","X-Stainless-Arch":"unknown","X-Stainless-Runtime":"unknown","X-Stainless-Runtime-Version":"unknown"}})())},8709(e,t){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.castToError=void 0,t.isAbortError=function(e){return"object"==typeof e&&null!==e&&("name"in e&&"AbortError"===e.name||"message"in e&&String(e.message).includes("FetchRequestCanceledException"))},t.castToError=e=>{if(e instanceof Error)return e;if("object"==typeof e&&null!==e){try{if("[object Error]"===Object.prototype.toString.call(e)){const t=new Error(e.message,e.cause?{cause:e.cause}:{});return e.stack&&(t.stack=e.stack),e.cause&&!t.cause&&(t.cause=e.cause),e.name&&(t.name=e.name),t}}catch{}try{return new Error(JSON.stringify(e))}catch{}}return new Error(e)}},2758(e,t,a){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.isEmptyHeaders=t.buildHeaders=void 0;const n=a(694),s=Symbol.for("brand.privateNullableHeaders");function*i(e){if(!e)return;if(s in e){const{values:t,nulls:a}=e;yield*t.entries();for(const e of a)yield[e,null];return}let t,a=!1;e instanceof Headers?t=e.entries():(0,n.isReadonlyArray)(e)?t=e:(a=!0,t=Object.entries(e??{}));for(let e of t){const t=e[0];if("string"!=typeof t)throw new TypeError("expected header name to be a string");const s=(0,n.isReadonlyArray)(e[1])?e[1]:[e[1]];let i=!1;for(const e of s)void 0!==e&&(a&&!i&&(i=!0,yield[t,null]),yield[t,e])}}t.buildHeaders=e=>{const t=new Headers,a=new Set;for(const n of e){const e=new Set;for(const[s,o]of i(n)){const n=s.toLowerCase();e.has(n)||(t.delete(s),e.add(n)),null===o?(t.delete(s),a.add(n)):(t.append(s,o),a.delete(n))}}return{[s]:!0,values:t,nulls:a}},t.isEmptyHeaders=e=>{for(const t of i(e))return!1;return!0}},6199(e,t,a){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.defaultParseResponse=async function(e,t){const{response:a,requestLogID:o,retryOfRequestLogID:r,startTime:c}=t,p=await(async()=>{if(t.options.stream)return(0,s.loggerFor)(e).debug("response",a.status,a.url,a.headers,a.body),t.options.__streamClass?t.options.__streamClass.fromSSEResponse(a,t.controller):n.Stream.fromSSEResponse(a,t.controller);if(204===a.status)return null;if(t.options.__binaryResponse)return a;const o=a.headers.get("content-type"),r=o?.split(";")[0]?.trim();return r?.includes("application/json")||r?.endsWith("+json")?i(await a.json(),a):await a.text()})();return(0,s.loggerFor)(e).debug(`[${o}] response parsed`,(0,s.formatRequestDetails)({retryOfRequestLogID:r,url:a.url,status:a.status,body:p,durationMs:Date.now()-c})),p},t.addRequestID=i;const n=a(4986),s=a(44);function i(e,t){return!e||"object"!=typeof e||Array.isArray(e)?e:Object.defineProperty(e,"_request_id",{value:t.headers.get("request-id"),enumerable:!1})}},1378(e,t){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.FallbackEncoder=void 0,t.FallbackEncoder=({headers:e,body:t})=>({bodyHeaders:{"content-type":"application/json"},body:JSON.stringify(t)})},6462(e,t){"use strict";function a(...e){const t=globalThis.ReadableStream;if(void 0===t)throw new Error("`ReadableStream` is not defined as a global; You will need to polyfill it, `globalThis.ReadableStream = ReadableStream`");return new t(...e)}Object.defineProperty(t,"__esModule",{value:!0}),t.getDefaultFetch=function(){if("undefined"!=typeof fetch)return fetch;throw new Error("`fetch` is not defined as a global; Either pass `fetch` to the client, `new Anthropic({ fetch })` or polyfill the global, `globalThis.fetch = fetch`")},t.makeReadableStream=a,t.ReadableStreamFrom=function(e){let t=Symbol.asyncIterator in e?e[Symbol.asyncIterator]():e[Symbol.iterator]();return a({start(){},async pull(e){const{done:a,value:n}=await t.next();a?e.close():e.enqueue(n)},async cancel(){await(t.return?.())}})},t.ReadableStreamToAsyncIterable=function(e){if(e[Symbol.asyncIterator])return e;const t=e.getReader();return{async next(){try{const e=await t.read();return e?.done&&t.releaseLock(),e}catch(e){throw t.releaseLock(),e}},async return(){const e=t.cancel();return t.releaseLock(),await e,{done:!0,value:void 0}},[Symbol.asyncIterator](){return this}}},t.CancelReadableStream=async function(e){if(null===e||"object"!=typeof e)return;if(e[Symbol.asyncIterator])return void await(e[Symbol.asyncIterator]().return?.());const t=e.getReader(),a=t.cancel();t.releaseLock(),await a}},4570(e,t,a){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.toFile=async function(e,t,a){if((0,s.checkFileSupport)(),e=await e,t||(t=(0,n.getName)(e)),(e=>null!=e&&"object"==typeof e&&"string"==typeof e.name&&"number"==typeof e.lastModified&&i(e))(e))return e instanceof File&&null==t&&null==a?e:(0,n.makeFile)([await e.arrayBuffer()],t??e.name,{type:e.type,lastModified:e.lastModified,...a});if((e=>null!=e&&"object"==typeof e&&"string"==typeof e.url&&"function"==typeof e.blob)(e)){const s=await e.blob();return t||(t=new URL(e.url).pathname.split(/[\\/]/).pop()),(0,n.makeFile)(await o(s),t,a)}const r=await o(e);if(!a?.type){const e=r.find(e=>"object"==typeof e&&"type"in e&&e.type);"string"==typeof e&&(a={...a,type:e})}return(0,n.makeFile)(r,t,a)};const n=a(7090),s=a(7090),i=e=>null!=e&&"object"==typeof e&&"number"==typeof e.size&&"string"==typeof e.type&&"function"==typeof e.text&&"function"==typeof e.slice&&"function"==typeof e.arrayBuffer;async function o(e){let t=[];if("string"==typeof e||ArrayBuffer.isView(e)||e instanceof ArrayBuffer)t.push(e);else if(i(e))t.push(e instanceof Blob?e:await e.arrayBuffer());else{if(!(0,n.isAsyncIterable)(e)){const t=e?.constructor?.name;throw new Error(`Unexpected data type: ${typeof e}${t?`; constructor: ${t}`:""}${function(e){if("object"!=typeof e||null===e)return"";return`; props: [${Object.getOwnPropertyNames(e).map(e=>`"${e}"`).join(", ")}]`}(e)}`)}for await(const a of e)t.push(...await o(a))}return t}},7984(e,t){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.__setModuleDefault=t.__createBinding=void 0,t.__classPrivateFieldSet=function(e,t,a,n,s){if("m"===n)throw new TypeError("Private method is not writable");if("a"===n&&!s)throw new TypeError("Private accessor was defined without a setter");if("function"==typeof t?e!==t||!s:!t.has(e))throw new TypeError("Cannot write private member to an object whose class did not declare it");return"a"===n?s.call(e,a):s?s.value=a:t.set(e,a),a},t.__classPrivateFieldGet=function(e,t,a,n){if("a"===a&&!n)throw new TypeError("Private accessor was defined without a getter");if("function"==typeof t?e!==t||!n:!t.has(e))throw new TypeError("Cannot read private member from an object whose class did not declare it");return"m"===a?n:"a"===a?n.call(e):n?n.value:t.get(e)},t.__exportStar=function(e,t){for(var n in e)"default"===n||Object.prototype.hasOwnProperty.call(t,n)||a(t,e,n)},t.__importStar=function(e){if(e&&e.__esModule)return e;var t={};if(null!=e)for(var i=s(e),o=0;o<i.length;o++)"default"!==i[o]&&a(t,e,i[o]);return n(t,e),t};var a=Object.create?function(e,t,a,n){void 0===n&&(n=a);var s=Object.getOwnPropertyDescriptor(t,a);s&&!("get"in s?!t.__esModule:s.writable||s.configurable)||(s={enumerable:!0,get:function(){return t[a]}}),Object.defineProperty(e,n,s)}:function(e,t,a,n){void 0===n&&(n=a),e[n]=t[a]};t.__createBinding=a;var n=Object.create?function(e,t){Object.defineProperty(e,"default",{enumerable:!0,value:t})}:function(e,t){e.default=t};t.__setModuleDefault=n;var s=function(e){return(s=Object.getOwnPropertyNames||function(e){var t=[];for(var a in e)Object.prototype.hasOwnProperty.call(e,a)&&(t[t.length]=a);return t})(e)}},7090(e,t,a){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.createForm=t.multipartFormRequestOptions=t.maybeMultipartFormRequestOptions=t.isAsyncIterable=t.checkFileSupport=void 0,t.makeFile=s,t.getName=i;const n=a(6462);function s(e,a,n){return(0,t.checkFileSupport)(),new File(e,a??"unknown_file",n)}function i(e){return("object"==typeof e&&null!==e&&("name"in e&&e.name&&String(e.name)||"url"in e&&e.url&&String(e.url)||"filename"in e&&e.filename&&String(e.filename)||"path"in e&&e.path&&String(e.path))||"").split(/[\\/]/).pop()||void 0}t.checkFileSupport=()=>{if("undefined"==typeof File){const{process:e}=globalThis,t="string"==typeof e?.versions?.node&&parseInt(e.versions.node.split("."))<20;throw new Error("`File` is not defined as a global, which is required for file uploads."+(t?" Update to Node 20 LTS or newer, or set `globalThis.File` to `import('node:buffer').File`.":""))}},t.isAsyncIterable=e=>null!=e&&"object"==typeof e&&"function"==typeof e[Symbol.asyncIterator],t.maybeMultipartFormRequestOptions=async(e,a)=>c(e.body)?{...e,body:await(0,t.createForm)(e.body,a)}:e,t.multipartFormRequestOptions=async(e,a)=>({...e,body:await(0,t.createForm)(e.body,a)});const o=new WeakMap;t.createForm=async(e,t)=>{if(!await function(e){const t="function"==typeof e?e:e.fetch,a=o.get(t);if(a)return a;const n=(async()=>{try{const e="Response"in t?t.Response:(await t("data:,")).constructor,a=new FormData;return a.toString()!==await new e(a).text()}catch{return!0}})();return o.set(t,n),n}(t))throw new TypeError("The provided fetch function does not support file uploads with the current global FormData class.");const a=new FormData;return await Promise.all(Object.entries(e||{}).map(([e,t])=>p(a,e,t))),a};const r=e=>e instanceof Blob&&"name"in e,c=e=>{if((e=>"object"==typeof e&&null!==e&&(e instanceof Response||(0,t.isAsyncIterable)(e)||r(e)))(e))return!0;if(Array.isArray(e))return e.some(c);if(e&&"object"==typeof e)for(const t in e)if(c(e[t]))return!0;return!1},p=async(e,a,o)=>{if(void 0!==o){if(null==o)throw new TypeError(`Received null for "${a}"; to pass null in FormData, you must use the string 'null'`);if("string"==typeof o||"number"==typeof o||"boolean"==typeof o)e.append(a,String(o));else if(o instanceof Response){let t={};const n=o.headers.get("Content-Type");n&&(t={type:n}),e.append(a,s([await o.blob()],i(o),t))}else if((0,t.isAsyncIterable)(o))e.append(a,s([await new Response((0,n.ReadableStreamFrom)(o)).blob()],i(o)));else if(r(o))e.append(a,s([o],i(o),{type:o.type}));else if(Array.isArray(o))await Promise.all(o.map(t=>p(e,a+"[]",t)));else{if("object"!=typeof o)throw new TypeError(`Invalid value given to form, expected a string, number, boolean, object, Array, File or Blob but got ${o} instead`);await Promise.all(Object.entries(o).map(([t,n])=>p(e,`${a}[${t}]`,n)))}}}},6117(e,t){"use strict";let a,n;Object.defineProperty(t,"__esModule",{value:!0}),t.concatBytes=function(e){let t=0;for(const a of e)t+=a.length;const a=new Uint8Array(t);let n=0;for(const t of e)a.set(t,n),n+=t.length;return a},t.encodeUTF8=function(e){let t;return(a??(t=new globalThis.TextEncoder,a=t.encode.bind(t)))(e)},t.decodeUTF8=function(e){let t;return(n??(t=new globalThis.TextDecoder,n=t.decode.bind(t)))(e)}},277(e,t){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.readEnv=void 0,t.readEnv=e=>void 0!==globalThis.process?globalThis.process.env?.[e]?.trim()??void 0:void 0!==globalThis.Deno?globalThis.Deno.env?.get?.(e)?.trim():void 0},44(e,t,a){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.formatRequestDetails=t.parseLogLevel=void 0,t.loggerFor=p;const n=a(694),s={off:0,error:200,warn:300,info:400,debug:500};function i(){}function o(e,t,a){return!t||s[e]>s[a]?i:t[e].bind(t)}t.parseLogLevel=(e,t,a)=>{if(e)return(0,n.hasOwn)(s,e)?e:void p(a).warn(`${t} was set to ${JSON.stringify(e)}, expected one of ${JSON.stringify(Object.keys(s))}`)};const r={error:i,warn:i,info:i,debug:i};let c=new WeakMap;function p(e){const t=e.logger,a=e.logLevel??"off";if(!t)return r;const n=c.get(t);if(n&&n[0]===a)return n[1];const s={error:o("error",t,a),warn:o("warn",t,a),info:o("info",t,a),debug:o("debug",t,a)};return c.set(t,[a,s]),s}t.formatRequestDetails=e=>(e.options&&(e.options={...e.options},delete e.options.headers),e.headers&&(e.headers=Object.fromEntries((e.headers instanceof Headers?[...e.headers]:Object.entries(e.headers)).map(([e,t])=>[e,"x-api-key"===e.toLowerCase()||"authorization"===e.toLowerCase()||"cookie"===e.toLowerCase()||"set-cookie"===e.toLowerCase()?"***":t]))),"retryOfRequestLogID"in e&&(e.retryOfRequestLogID&&(e.retryOf=e.retryOfRequestLogID),delete e.retryOfRequestLogID),e)},4735(e,t,a){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.path=t.createPathTagFunction=void 0,t.encodeURIPath=s;const n=a(8092);function s(e){return e.replace(/[^A-Za-z0-9\-._~!$&'()*+,;=:@]+/g,encodeURIComponent)}const i=Object.freeze(Object.create(null));t.createPathTagFunction=(e=s)=>function(t,...a){if(1===t.length)return t[0];let s=!1;const o=[],r=t.reduce((t,n,r)=>{/[?#]/.test(n)&&(s=!0);const c=a[r];let p=(s?encodeURIComponent:e)(""+c);return r!==a.length&&(null==c||"object"==typeof c&&c.toString===Object.getPrototypeOf(Object.getPrototypeOf(c.hasOwnProperty??i)??i)?.toString)&&(p=c+"",o.push({start:t.length+n.length,length:p.length,error:`Value of type ${Object.prototype.toString.call(c).slice(8,-1)} is not a valid path parameter`})),t+n+(r===a.length?"":p)},""),c=r.split(/[?#]/,1)[0],p=/(?<=^|\/)(?:\.|%2e){1,2}(?=\/|$)/gi;let l;for(;null!==(l=p.exec(c));)o.push({start:l.index,length:l[0].length,error:`Value "${l[0]}" can't be safely passed as a path parameter`});if(o.sort((e,t)=>e.start-t.start),o.length>0){let e=0;const t=o.reduce((t,a)=>{const n=" ".repeat(a.start-e),s="^".repeat(a.length);return e=a.start+a.length,t+n+s},"");throw new n.AnthropicError(`Path parameters result in path with invalid segments:\n${o.map(e=>e.error).join("\n")}\n${r}\n${t}`)}return r},t.path=(0,t.createPathTagFunction)(s)},21(e,t){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.sleep=void 0,t.sleep=e=>new Promise(t=>setTimeout(t,e))},3539(e,t){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.uuid4=void 0,t.uuid4=function(){const{crypto:e}=globalThis;if(e?.randomUUID)return t.uuid4=e.randomUUID.bind(e),e.randomUUID();const a=new Uint8Array(1),n=e?()=>e.getRandomValues(a)[0]:()=>255*Math.random()&255;return"10000000-1000-4000-8000-100000000000".replace(/[018]/g,e=>(+e^n()&15>>+e/4).toString(16))}},694(e,t,a){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.pop=t.safeJSON=t.maybeCoerceBoolean=t.maybeCoerceFloat=t.maybeCoerceInteger=t.coerceBoolean=t.coerceFloat=t.coerceInteger=t.validatePositiveInteger=t.ensurePresent=t.isReadonlyArray=t.isArray=t.isAbsoluteURL=void 0,t.maybeObj=function(e){return"object"!=typeof e?{}:e??{}},t.isEmptyObj=function(e){if(!e)return!0;for(const t in e)return!1;return!0},t.hasOwn=function(e,t){return Object.prototype.hasOwnProperty.call(e,t)},t.isObj=function(e){return null!=e&&"object"==typeof e&&!Array.isArray(e)};const n=a(8092),s=/^[a-z][a-z0-9+.-]*:/i;t.isAbsoluteURL=e=>s.test(e),t.isArray=e=>(t.isArray=Array.isArray,(0,t.isArray)(e)),t.isReadonlyArray=t.isArray,t.ensurePresent=e=>{if(null==e)throw new n.AnthropicError(`Expected a value to be given but received ${e} instead.`);return e},t.validatePositiveInteger=(e,t)=>{if("number"!=typeof t||!Number.isInteger(t))throw new n.AnthropicError(`${e} must be an integer`);if(t<0)throw new n.AnthropicError(`${e} must be a positive integer`);return t},t.coerceInteger=e=>{if("number"==typeof e)return Math.round(e);if("string"==typeof e)return parseInt(e,10);throw new n.AnthropicError(`Could not coerce ${e} (type: ${typeof e}) into a number`)},t.coerceFloat=e=>{if("number"==typeof e)return e;if("string"==typeof e)return parseFloat(e);throw new n.AnthropicError(`Could not coerce ${e} (type: ${typeof e}) into a number`)},t.coerceBoolean=e=>"boolean"==typeof e?e:"string"==typeof e?"true"===e:Boolean(e),t.maybeCoerceInteger=e=>{if(null!=e)return(0,t.coerceInteger)(e)},t.maybeCoerceFloat=e=>{if(null!=e)return(0,t.coerceFloat)(e)},t.maybeCoerceBoolean=e=>{if(null!=e)return(0,t.coerceBoolean)(e)},t.safeJSON=e=>{try{return JSON.parse(e)}catch(e){return}},t.pop=(e,t)=>{const a=e[t];return delete e[t],a}},5369(e,t,a){"use strict";var n,s,i,o,r,c,p,l,u,d,m,h,f,v,g,x,b,y,w,_,k,P,S,E;Object.defineProperty(t,"__esModule",{value:!0}),t.BetaMessageStream=void 0;const A=a(7984),R=a(954),j=a(2854),O=a(8709),C=a(2492),F=a(8754),T="__json_buf";function L(e){return"tool_use"===e.type||"server_tool_use"===e.type||"mcp_tool_use"===e.type}class M{constructor(e,t){n.add(this),this.messages=[],this.receivedMessages=[],s.set(this,void 0),i.set(this,null),this.controller=new AbortController,o.set(this,void 0),r.set(this,()=>{}),c.set(this,()=>{}),p.set(this,void 0),l.set(this,()=>{}),u.set(this,()=>{}),d.set(this,{}),m.set(this,!1),h.set(this,!1),f.set(this,!1),v.set(this,!1),g.set(this,void 0),x.set(this,void 0),b.set(this,void 0),_.set(this,e=>{if(A.__classPrivateFieldSet(this,h,!0,"f"),(0,O.isAbortError)(e)&&(e=new j.APIUserAbortError),e instanceof j.APIUserAbortError)return A.__classPrivateFieldSet(this,f,!0,"f"),this._emit("abort",e);if(e instanceof j.AnthropicError)return this._emit("error",e);if(e instanceof Error){const t=new j.AnthropicError(e.message);return t.cause=e,this._emit("error",t)}return this._emit("error",new j.AnthropicError(String(e)))}),A.__classPrivateFieldSet(this,o,new Promise((e,t)=>{A.__classPrivateFieldSet(this,r,e,"f"),A.__classPrivateFieldSet(this,c,t,"f")}),"f"),A.__classPrivateFieldSet(this,p,new Promise((e,t)=>{A.__classPrivateFieldSet(this,l,e,"f"),A.__classPrivateFieldSet(this,u,t,"f")}),"f"),A.__classPrivateFieldGet(this,o,"f").catch(()=>{}),A.__classPrivateFieldGet(this,p,"f").catch(()=>{}),A.__classPrivateFieldSet(this,i,e,"f"),A.__classPrivateFieldSet(this,b,t?.logger??console,"f")}get response(){return A.__classPrivateFieldGet(this,g,"f")}get request_id(){return A.__classPrivateFieldGet(this,x,"f")}async withResponse(){A.__classPrivateFieldSet(this,v,!0,"f");const e=await A.__classPrivateFieldGet(this,o,"f");if(!e)throw new Error("Could not resolve a `Response` object");return{data:this,response:e,request_id:e.headers.get("request-id")}}static fromReadableStream(e){const t=new M(null);return t._run(()=>t._fromReadableStream(e)),t}static createMessage(e,t,a,{logger:n}={}){const s=new M(t,{logger:n});for(const e of t.messages)s._addMessageParam(e);return A.__classPrivateFieldSet(s,i,{...t,stream:!0},"f"),s._run(()=>s._createMessage(e,{...t,stream:!0},{...a,headers:{...a?.headers,"X-Stainless-Helper-Method":"stream"}})),s}_run(e){e().then(()=>{this._emitFinal(),this._emit("end")},A.__classPrivateFieldGet(this,_,"f"))}_addMessageParam(e){this.messages.push(e)}_addMessage(e,t=!0){this.receivedMessages.push(e),t&&this._emit("message",e)}async _createMessage(e,t,a){const s=a?.signal;let i;s&&(s.aborted&&this.controller.abort(),i=this.controller.abort.bind(this.controller),s.addEventListener("abort",i));try{A.__classPrivateFieldGet(this,n,"m",k).call(this);const{response:s,data:i}=await e.create({...t,stream:!0},{...a,signal:this.controller.signal}).withResponse();this._connected(s);for await(const e of i)A.__classPrivateFieldGet(this,n,"m",P).call(this,e);if(i.controller.signal?.aborted)throw new j.APIUserAbortError;A.__classPrivateFieldGet(this,n,"m",S).call(this)}finally{s&&i&&s.removeEventListener("abort",i)}}_connected(e){this.ended||(A.__classPrivateFieldSet(this,g,e,"f"),A.__classPrivateFieldSet(this,x,e?.headers.get("request-id"),"f"),A.__classPrivateFieldGet(this,r,"f").call(this,e),this._emit("connect"))}get ended(){return A.__classPrivateFieldGet(this,m,"f")}get errored(){return A.__classPrivateFieldGet(this,h,"f")}get aborted(){return A.__classPrivateFieldGet(this,f,"f")}abort(){this.controller.abort()}on(e,t){return(A.__classPrivateFieldGet(this,d,"f")[e]||(A.__classPrivateFieldGet(this,d,"f")[e]=[])).push({listener:t}),this}off(e,t){const a=A.__classPrivateFieldGet(this,d,"f")[e];if(!a)return this;const n=a.findIndex(e=>e.listener===t);return n>=0&&a.splice(n,1),this}once(e,t){return(A.__classPrivateFieldGet(this,d,"f")[e]||(A.__classPrivateFieldGet(this,d,"f")[e]=[])).push({listener:t,once:!0}),this}emitted(e){return new Promise((t,a)=>{A.__classPrivateFieldSet(this,v,!0,"f"),"error"!==e&&this.once("error",a),this.once(e,t)})}async done(){A.__classPrivateFieldSet(this,v,!0,"f"),await A.__classPrivateFieldGet(this,p,"f")}get currentMessage(){return A.__classPrivateFieldGet(this,s,"f")}async finalMessage(){return await this.done(),A.__classPrivateFieldGet(this,n,"m",y).call(this)}async finalText(){return await this.done(),A.__classPrivateFieldGet(this,n,"m",w).call(this)}_emit(e,...t){if(A.__classPrivateFieldGet(this,m,"f"))return;"end"===e&&(A.__classPrivateFieldSet(this,m,!0,"f"),A.__classPrivateFieldGet(this,l,"f").call(this));const a=A.__classPrivateFieldGet(this,d,"f")[e];if(a&&(A.__classPrivateFieldGet(this,d,"f")[e]=a.filter(e=>!e.once),a.forEach(({listener:e})=>e(...t))),"abort"===e){const e=t[0];return A.__classPrivateFieldGet(this,v,"f")||a?.length||Promise.reject(e),A.__classPrivateFieldGet(this,c,"f").call(this,e),A.__classPrivateFieldGet(this,u,"f").call(this,e),void this._emit("end")}if("error"===e){const e=t[0];A.__classPrivateFieldGet(this,v,"f")||a?.length||Promise.reject(e),A.__classPrivateFieldGet(this,c,"f").call(this,e),A.__classPrivateFieldGet(this,u,"f").call(this,e),this._emit("end")}}_emitFinal(){this.receivedMessages.at(-1)&&this._emit("finalMessage",A.__classPrivateFieldGet(this,n,"m",y).call(this))}async _fromReadableStream(e,t){const a=t?.signal;let s;a&&(a.aborted&&this.controller.abort(),s=this.controller.abort.bind(this.controller),a.addEventListener("abort",s));try{A.__classPrivateFieldGet(this,n,"m",k).call(this),this._connected(null);const t=C.Stream.fromReadableStream(e,this.controller);for await(const e of t)A.__classPrivateFieldGet(this,n,"m",P).call(this,e);if(t.controller.signal?.aborted)throw new j.APIUserAbortError;A.__classPrivateFieldGet(this,n,"m",S).call(this)}finally{a&&s&&a.removeEventListener("abort",s)}}[(s=new WeakMap,i=new WeakMap,o=new WeakMap,r=new WeakMap,c=new WeakMap,p=new WeakMap,l=new WeakMap,u=new WeakMap,d=new WeakMap,m=new WeakMap,h=new WeakMap,f=new WeakMap,v=new WeakMap,g=new WeakMap,x=new WeakMap,b=new WeakMap,_=new WeakMap,n=new WeakSet,y=function(){if(0===this.receivedMessages.length)throw new j.AnthropicError("stream ended without producing a Message with role=assistant");return this.receivedMessages.at(-1)},w=function(){if(0===this.receivedMessages.length)throw new j.AnthropicError("stream ended without producing a Message with role=assistant");const e=this.receivedMessages.at(-1).content.filter(e=>"text"===e.type).map(e=>e.text);if(0===e.length)throw new j.AnthropicError("stream ended without producing a content block with type=text");return e.join(" ")},k=function(){this.ended||A.__classPrivateFieldSet(this,s,void 0,"f")},P=function(e){if(this.ended)return;const t=A.__classPrivateFieldGet(this,n,"m",E).call(this,e);switch(this._emit("streamEvent",e,t),e.type){case"content_block_delta":{const a=t.content.at(-1);switch(e.delta.type){case"text_delta":"text"===a.type&&this._emit("text",e.delta.text,a.text||"");break;case"citations_delta":"text"===a.type&&this._emit("citation",e.delta.citation,a.citations??[]);break;case"input_json_delta":L(a)&&a.input&&this._emit("inputJson",e.delta.partial_json,a.input);break;case"thinking_delta":"thinking"===a.type&&this._emit("thinking",e.delta.thinking,a.thinking);break;case"signature_delta":"thinking"===a.type&&this._emit("signature",a.signature);break;default:e.delta}break}case"message_stop":this._addMessageParam(t),this._addMessage((0,F.maybeParseBetaMessage)(t,A.__classPrivateFieldGet(this,i,"f"),{logger:A.__classPrivateFieldGet(this,b,"f")}),!0);break;case"content_block_stop":this._emit("contentBlock",t.content.at(-1));break;case"message_start":A.__classPrivateFieldSet(this,s,t,"f")}},S=function(){if(this.ended)throw new j.AnthropicError("stream has ended, this shouldn't happen");const e=A.__classPrivateFieldGet(this,s,"f");if(!e)throw new j.AnthropicError("request ended without sending any chunks");return A.__classPrivateFieldSet(this,s,void 0,"f"),(0,F.maybeParseBetaMessage)(e,A.__classPrivateFieldGet(this,i,"f"),{logger:A.__classPrivateFieldGet(this,b,"f")})},E=function(e){let t=A.__classPrivateFieldGet(this,s,"f");if("message_start"===e.type){if(t)throw new j.AnthropicError(`Unexpected event order, got ${e.type} before receiving "message_stop"`);return e.message}if(!t)throw new j.AnthropicError(`Unexpected event order, got ${e.type} before "message_start"`);switch(e.type){case"message_stop":case"content_block_stop":return t;case"message_delta":return t.container=e.delta.container,t.stop_reason=e.delta.stop_reason,t.stop_sequence=e.delta.stop_sequence,t.usage.output_tokens=e.usage.output_tokens,t.context_management=e.context_management,null!=e.usage.input_tokens&&(t.usage.input_tokens=e.usage.input_tokens),null!=e.usage.cache_creation_input_tokens&&(t.usage.cache_creation_input_tokens=e.usage.cache_creation_input_tokens),null!=e.usage.cache_read_input_tokens&&(t.usage.cache_read_input_tokens=e.usage.cache_read_input_tokens),null!=e.usage.server_tool_use&&(t.usage.server_tool_use=e.usage.server_tool_use),t;case"content_block_start":return t.content.push(e.content_block),t;case"content_block_delta":{const a=t.content.at(e.index);switch(e.delta.type){case"text_delta":"text"===a?.type&&(t.content[e.index]={...a,text:(a.text||"")+e.delta.text});break;case"citations_delta":"text"===a?.type&&(t.content[e.index]={...a,citations:[...a.citations??[],e.delta.citation]});break;case"input_json_delta":if(a&&L(a)){let n=a[T]||"";n+=e.delta.partial_json;const s={...a};if(Object.defineProperty(s,T,{value:n,enumerable:!1,writable:!0}),n)try{s.input=(0,R.partialParse)(n)}catch(e){const t=new j.AnthropicError(`Unable to parse tool parameter JSON from model. Please retry your request or adjust your prompt. Error: ${e}. JSON: ${n}`);A.__classPrivateFieldGet(this,_,"f").call(this,t)}t.content[e.index]=s}break;case"thinking_delta":"thinking"===a?.type&&(t.content[e.index]={...a,thinking:a.thinking+e.delta.thinking});break;case"signature_delta":"thinking"===a?.type&&(t.content[e.index]={...a,signature:e.delta.signature});break;default:e.delta}return t}}},Symbol.asyncIterator)](){const e=[],t=[];let a=!1;return this.on("streamEvent",a=>{const n=t.shift();n?n.resolve(a):e.push(a)}),this.on("end",()=>{a=!0;for(const e of t)e.resolve(void 0);t.length=0}),this.on("abort",e=>{a=!0;for(const a of t)a.reject(e);t.length=0}),this.on("error",e=>{a=!0;for(const a of t)a.reject(e);t.length=0}),{next:async()=>e.length?{value:e.shift(),done:!1}:a?{value:void 0,done:!0}:new Promise((e,a)=>t.push({resolve:e,reject:a})).then(e=>e?{value:e,done:!1}:{value:void 0,done:!0}),return:async()=>(this.abort(),{value:void 0,done:!0})}}toReadableStream(){return new C.Stream(this[Symbol.asyncIterator].bind(this),this.controller).toReadableStream()}}t.BetaMessageStream=M},75(e,t,a){"use strict";var n,s,i,o,r,c,p,l,u,d,m,h,f,v,g,x,b,y,w,_,k,P;Object.defineProperty(t,"__esModule",{value:!0}),t.MessageStream=void 0;const S=a(7984),E=a(8709),A=a(2854),R=a(2492),j=a(954),O="__json_buf";function C(e){return"tool_use"===e.type||"server_tool_use"===e.type}class F{constructor(){n.add(this),this.messages=[],this.receivedMessages=[],s.set(this,void 0),this.controller=new AbortController,i.set(this,void 0),o.set(this,()=>{}),r.set(this,()=>{}),c.set(this,void 0),p.set(this,()=>{}),l.set(this,()=>{}),u.set(this,{}),d.set(this,!1),m.set(this,!1),h.set(this,!1),f.set(this,!1),v.set(this,void 0),g.set(this,void 0),y.set(this,e=>{if(S.__classPrivateFieldSet(this,m,!0,"f"),(0,E.isAbortError)(e)&&(e=new A.APIUserAbortError),e instanceof A.APIUserAbortError)return S.__classPrivateFieldSet(this,h,!0,"f"),this._emit("abort",e);if(e instanceof A.AnthropicError)return this._emit("error",e);if(e instanceof Error){const t=new A.AnthropicError(e.message);return t.cause=e,this._emit("error",t)}return this._emit("error",new A.AnthropicError(String(e)))}),S.__classPrivateFieldSet(this,i,new Promise((e,t)=>{S.__classPrivateFieldSet(this,o,e,"f"),S.__classPrivateFieldSet(this,r,t,"f")}),"f"),S.__classPrivateFieldSet(this,c,new Promise((e,t)=>{S.__classPrivateFieldSet(this,p,e,"f"),S.__classPrivateFieldSet(this,l,t,"f")}),"f"),S.__classPrivateFieldGet(this,i,"f").catch(()=>{}),S.__classPrivateFieldGet(this,c,"f").catch(()=>{})}get response(){return S.__classPrivateFieldGet(this,v,"f")}get request_id(){return S.__classPrivateFieldGet(this,g,"f")}async withResponse(){S.__classPrivateFieldSet(this,f,!0,"f");const e=await S.__classPrivateFieldGet(this,i,"f");if(!e)throw new Error("Could not resolve a `Response` object");return{data:this,response:e,request_id:e.headers.get("request-id")}}static fromReadableStream(e){const t=new F;return t._run(()=>t._fromReadableStream(e)),t}static createMessage(e,t,a){const n=new F;for(const e of t.messages)n._addMessageParam(e);return n._run(()=>n._createMessage(e,{...t,stream:!0},{...a,headers:{...a?.headers,"X-Stainless-Helper-Method":"stream"}})),n}_run(e){e().then(()=>{this._emitFinal(),this._emit("end")},S.__classPrivateFieldGet(this,y,"f"))}_addMessageParam(e){this.messages.push(e)}_addMessage(e,t=!0){this.receivedMessages.push(e),t&&this._emit("message",e)}async _createMessage(e,t,a){const s=a?.signal;let i;s&&(s.aborted&&this.controller.abort(),i=this.controller.abort.bind(this.controller),s.addEventListener("abort",i));try{S.__classPrivateFieldGet(this,n,"m",w).call(this);const{response:s,data:i}=await e.create({...t,stream:!0},{...a,signal:this.controller.signal}).withResponse();this._connected(s);for await(const e of i)S.__classPrivateFieldGet(this,n,"m",_).call(this,e);if(i.controller.signal?.aborted)throw new A.APIUserAbortError;S.__classPrivateFieldGet(this,n,"m",k).call(this)}finally{s&&i&&s.removeEventListener("abort",i)}}_connected(e){this.ended||(S.__classPrivateFieldSet(this,v,e,"f"),S.__classPrivateFieldSet(this,g,e?.headers.get("request-id"),"f"),S.__classPrivateFieldGet(this,o,"f").call(this,e),this._emit("connect"))}get ended(){return S.__classPrivateFieldGet(this,d,"f")}get errored(){return S.__classPrivateFieldGet(this,m,"f")}get aborted(){return S.__classPrivateFieldGet(this,h,"f")}abort(){this.controller.abort()}on(e,t){return(S.__classPrivateFieldGet(this,u,"f")[e]||(S.__classPrivateFieldGet(this,u,"f")[e]=[])).push({listener:t}),this}off(e,t){const a=S.__classPrivateFieldGet(this,u,"f")[e];if(!a)return this;const n=a.findIndex(e=>e.listener===t);return n>=0&&a.splice(n,1),this}once(e,t){return(S.__classPrivateFieldGet(this,u,"f")[e]||(S.__classPrivateFieldGet(this,u,"f")[e]=[])).push({listener:t,once:!0}),this}emitted(e){return new Promise((t,a)=>{S.__classPrivateFieldSet(this,f,!0,"f"),"error"!==e&&this.once("error",a),this.once(e,t)})}async done(){S.__classPrivateFieldSet(this,f,!0,"f"),await S.__classPrivateFieldGet(this,c,"f")}get currentMessage(){return S.__classPrivateFieldGet(this,s,"f")}async finalMessage(){return await this.done(),S.__classPrivateFieldGet(this,n,"m",x).call(this)}async finalText(){return await this.done(),S.__classPrivateFieldGet(this,n,"m",b).call(this)}_emit(e,...t){if(S.__classPrivateFieldGet(this,d,"f"))return;"end"===e&&(S.__classPrivateFieldSet(this,d,!0,"f"),S.__classPrivateFieldGet(this,p,"f").call(this));const a=S.__classPrivateFieldGet(this,u,"f")[e];if(a&&(S.__classPrivateFieldGet(this,u,"f")[e]=a.filter(e=>!e.once),a.forEach(({listener:e})=>e(...t))),"abort"===e){const e=t[0];return S.__classPrivateFieldGet(this,f,"f")||a?.length||Promise.reject(e),S.__classPrivateFieldGet(this,r,"f").call(this,e),S.__classPrivateFieldGet(this,l,"f").call(this,e),void this._emit("end")}if("error"===e){const e=t[0];S.__classPrivateFieldGet(this,f,"f")||a?.length||Promise.reject(e),S.__classPrivateFieldGet(this,r,"f").call(this,e),S.__classPrivateFieldGet(this,l,"f").call(this,e),this._emit("end")}}_emitFinal(){this.receivedMessages.at(-1)&&this._emit("finalMessage",S.__classPrivateFieldGet(this,n,"m",x).call(this))}async _fromReadableStream(e,t){const a=t?.signal;let s;a&&(a.aborted&&this.controller.abort(),s=this.controller.abort.bind(this.controller),a.addEventListener("abort",s));try{S.__classPrivateFieldGet(this,n,"m",w).call(this),this._connected(null);const t=R.Stream.fromReadableStream(e,this.controller);for await(const e of t)S.__classPrivateFieldGet(this,n,"m",_).call(this,e);if(t.controller.signal?.aborted)throw new A.APIUserAbortError;S.__classPrivateFieldGet(this,n,"m",k).call(this)}finally{a&&s&&a.removeEventListener("abort",s)}}[(s=new WeakMap,i=new WeakMap,o=new WeakMap,r=new WeakMap,c=new WeakMap,p=new WeakMap,l=new WeakMap,u=new WeakMap,d=new WeakMap,m=new WeakMap,h=new WeakMap,f=new WeakMap,v=new WeakMap,g=new WeakMap,y=new WeakMap,n=new WeakSet,x=function(){if(0===this.receivedMessages.length)throw new A.AnthropicError("stream ended without producing a Message with role=assistant");return this.receivedMessages.at(-1)},b=function(){if(0===this.receivedMessages.length)throw new A.AnthropicError("stream ended without producing a Message with role=assistant");const e=this.receivedMessages.at(-1).content.filter(e=>"text"===e.type).map(e=>e.text);if(0===e.length)throw new A.AnthropicError("stream ended without producing a content block with type=text");return e.join(" ")},w=function(){this.ended||S.__classPrivateFieldSet(this,s,void 0,"f")},_=function(e){if(this.ended)return;const t=S.__classPrivateFieldGet(this,n,"m",P).call(this,e);switch(this._emit("streamEvent",e,t),e.type){case"content_block_delta":{const a=t.content.at(-1);switch(e.delta.type){case"text_delta":"text"===a.type&&this._emit("text",e.delta.text,a.text||"");break;case"citations_delta":"text"===a.type&&this._emit("citation",e.delta.citation,a.citations??[]);break;case"input_json_delta":C(a)&&a.input&&this._emit("inputJson",e.delta.partial_json,a.input);break;case"thinking_delta":"thinking"===a.type&&this._emit("thinking",e.delta.thinking,a.thinking);break;case"signature_delta":"thinking"===a.type&&this._emit("signature",a.signature);break;default:e.delta}break}case"message_stop":this._addMessageParam(t),this._addMessage(t,!0);break;case"content_block_stop":this._emit("contentBlock",t.content.at(-1));break;case"message_start":S.__classPrivateFieldSet(this,s,t,"f")}},k=function(){if(this.ended)throw new A.AnthropicError("stream has ended, this shouldn't happen");const e=S.__classPrivateFieldGet(this,s,"f");if(!e)throw new A.AnthropicError("request ended without sending any chunks");return S.__classPrivateFieldSet(this,s,void 0,"f"),e},P=function(e){let t=S.__classPrivateFieldGet(this,s,"f");if("message_start"===e.type){if(t)throw new A.AnthropicError(`Unexpected event order, got ${e.type} before receiving "message_stop"`);return e.message}if(!t)throw new A.AnthropicError(`Unexpected event order, got ${e.type} before "message_start"`);switch(e.type){case"message_stop":case"content_block_stop":return t;case"message_delta":return t.stop_reason=e.delta.stop_reason,t.stop_sequence=e.delta.stop_sequence,t.usage.output_tokens=e.usage.output_tokens,null!=e.usage.input_tokens&&(t.usage.input_tokens=e.usage.input_tokens),null!=e.usage.cache_creation_input_tokens&&(t.usage.cache_creation_input_tokens=e.usage.cache_creation_input_tokens),null!=e.usage.cache_read_input_tokens&&(t.usage.cache_read_input_tokens=e.usage.cache_read_input_tokens),null!=e.usage.server_tool_use&&(t.usage.server_tool_use=e.usage.server_tool_use),t;case"content_block_start":return t.content.push({...e.content_block}),t;case"content_block_delta":{const a=t.content.at(e.index);switch(e.delta.type){case"text_delta":"text"===a?.type&&(t.content[e.index]={...a,text:(a.text||"")+e.delta.text});break;case"citations_delta":"text"===a?.type&&(t.content[e.index]={...a,citations:[...a.citations??[],e.delta.citation]});break;case"input_json_delta":if(a&&C(a)){let n=a[O]||"";n+=e.delta.partial_json;const s={...a};Object.defineProperty(s,O,{value:n,enumerable:!1,writable:!0}),n&&(s.input=(0,j.partialParse)(n)),t.content[e.index]=s}break;case"thinking_delta":"thinking"===a?.type&&(t.content[e.index]={...a,thinking:a.thinking+e.delta.thinking});break;case"signature_delta":"thinking"===a?.type&&(t.content[e.index]={...a,signature:e.delta.signature});break;default:e.delta}return t}}},Symbol.asyncIterator)](){const e=[],t=[];let a=!1;return this.on("streamEvent",a=>{const n=t.shift();n?n.resolve(a):e.push(a)}),this.on("end",()=>{a=!0;for(const e of t)e.resolve(void 0);t.length=0}),this.on("abort",e=>{a=!0;for(const a of t)a.reject(e);t.length=0}),this.on("error",e=>{a=!0;for(const a of t)a.reject(e);t.length=0}),{next:async()=>e.length?{value:e.shift(),done:!1}:a?{value:void 0,done:!0}:new Promise((e,a)=>t.push({resolve:e,reject:a})).then(e=>e?{value:e,done:!1}:{value:void 0,done:!0}),return:async()=>(this.abort(),{value:void 0,done:!0})}}toReadableStream(){return new R.Stream(this[Symbol.asyncIterator].bind(this),this.controller).toReadableStream()}}t.MessageStream=F},8754(e,t,a){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.maybeParseBetaMessage=function(e,t,a){return t&&"parse"in(t.output_format??{})?s(e,t,a):{...e,content:e.content.map(e=>{if("text"===e.type){const t=Object.defineProperty({...e},"parsed_output",{value:null,enumerable:!1});return Object.defineProperty(t,"parsed",{get:()=>(a.logger.warn("The `parsed` property on `text` blocks is deprecated, please use `parsed_output` instead."),null),enumerable:!1})}return e}),parsed_output:null}},t.parseBetaMessage=s;const n=a(8092);function s(e,t,a){let s=null;const i=e.content.map(e=>{if("text"===e.type){const i=function(e,t){if("json_schema"!==e.output_format?.type)return null;try{return"parse"in e.output_format?e.output_format.parse(t):JSON.parse(t)}catch(e){throw new n.AnthropicError(`Failed to parse structured output: ${e}`)}}(t,e.text);null===s&&(s=i);const o=Object.defineProperty({...e},"parsed_output",{value:i,enumerable:!1});return Object.defineProperty(o,"parsed",{get:()=>(a.logger.warn("The `parsed` property on `text` blocks is deprecated, please use `parsed_output` instead."),i),enumerable:!1})}return e});return{...e,content:i,parsed_output:s}}},1584(e,t,a){"use strict";var n,s,i,o,r,c,p,l,u,d,m;Object.defineProperty(t,"__esModule",{value:!0}),t.BetaToolRunner=void 0;const h=a(7984),f=a(8092),v=a(2758),g=a(5818);function x(){let e,t;return{promise:new Promise((a,n)=>{e=a,t=n}),resolve:e,reject:t}}class b{constructor(e,t,a){n.add(this),this.client=e,s.set(this,!1),i.set(this,!1),o.set(this,void 0),r.set(this,void 0),c.set(this,void 0),p.set(this,void 0),l.set(this,void 0),u.set(this,0),h.__classPrivateFieldSet(this,o,{params:{...t,messages:structuredClone(t.messages)}},"f"),h.__classPrivateFieldSet(this,r,{...a,headers:(0,v.buildHeaders)([{"x-stainless-helper":"BetaToolRunner"},a?.headers])},"f"),h.__classPrivateFieldSet(this,l,x(),"f")}async*[(s=new WeakMap,i=new WeakMap,o=new WeakMap,r=new WeakMap,c=new WeakMap,p=new WeakMap,l=new WeakMap,u=new WeakMap,n=new WeakSet,d=async function(){const e=h.__classPrivateFieldGet(this,o,"f").params.compactionControl;if(!e||!e.enabled)return!1;let t=0;if(void 0!==h.__classPrivateFieldGet(this,c,"f"))try{const e=await h.__classPrivateFieldGet(this,c,"f");t=e.usage.input_tokens+(e.usage.cache_creation_input_tokens??0)+(e.usage.cache_read_input_tokens??0)+e.usage.output_tokens}catch{return!1}if(t<(e.contextTokenThreshold??g.DEFAULT_TOKEN_THRESHOLD))return!1;const a=e.model??h.__classPrivateFieldGet(this,o,"f").params.model,n=e.summaryPrompt??g.DEFAULT_SUMMARY_PROMPT,s=h.__classPrivateFieldGet(this,o,"f").params.messages;if("assistant"===s[s.length-1].role){const e=s[s.length-1];if(Array.isArray(e.content)){const t=e.content.filter(e=>"tool_use"!==e.type);0===t.length?s.pop():e.content=t}}const i=await this.client.beta.messages.create({model:a,messages:[...s,{role:"user",content:[{type:"text",text:n}]}],max_tokens:h.__classPrivateFieldGet(this,o,"f").params.max_tokens},{headers:{"x-stainless-helper":"compaction"}});if("text"!==i.content[0]?.type)throw new f.AnthropicError("Expected text response for compaction");return h.__classPrivateFieldGet(this,o,"f").params.messages=[{role:"user",content:i.content}],!0},Symbol.asyncIterator)](){var e;if(h.__classPrivateFieldGet(this,s,"f"))throw new f.AnthropicError("Cannot iterate over a consumed stream");h.__classPrivateFieldSet(this,s,!0,"f"),h.__classPrivateFieldSet(this,i,!0,"f"),h.__classPrivateFieldSet(this,p,void 0,"f");try{for(;;){let t;try{if(h.__classPrivateFieldGet(this,o,"f").params.max_iterations&&h.__classPrivateFieldGet(this,u,"f")>=h.__classPrivateFieldGet(this,o,"f").params.max_iterations)break;h.__classPrivateFieldSet(this,i,!1,"f"),h.__classPrivateFieldSet(this,p,void 0,"f"),h.__classPrivateFieldSet(this,u,(e=h.__classPrivateFieldGet(this,u,"f"),++e),"f"),h.__classPrivateFieldSet(this,c,void 0,"f");const{max_iterations:a,compactionControl:s,...l}=h.__classPrivateFieldGet(this,o,"f").params;if(l.stream?(t=this.client.beta.messages.stream({...l},h.__classPrivateFieldGet(this,r,"f")),h.__classPrivateFieldSet(this,c,t.finalMessage(),"f"),h.__classPrivateFieldGet(this,c,"f").catch(()=>{}),yield t):(h.__classPrivateFieldSet(this,c,this.client.beta.messages.create({...l,stream:!1},h.__classPrivateFieldGet(this,r,"f")),"f"),yield h.__classPrivateFieldGet(this,c,"f")),!await h.__classPrivateFieldGet(this,n,"m",d).call(this)){if(!h.__classPrivateFieldGet(this,i,"f")){const{role:e,content:t}=await h.__classPrivateFieldGet(this,c,"f");h.__classPrivateFieldGet(this,o,"f").params.messages.push({role:e,content:t})}const e=await h.__classPrivateFieldGet(this,n,"m",m).call(this,h.__classPrivateFieldGet(this,o,"f").params.messages.at(-1));if(e)h.__classPrivateFieldGet(this,o,"f").params.messages.push(e);else if(!h.__classPrivateFieldGet(this,i,"f"))break}}finally{t&&t.abort()}}if(!h.__classPrivateFieldGet(this,c,"f"))throw new f.AnthropicError("ToolRunner concluded without a message from the server");h.__classPrivateFieldGet(this,l,"f").resolve(await h.__classPrivateFieldGet(this,c,"f"))}catch(e){throw h.__classPrivateFieldSet(this,s,!1,"f"),h.__classPrivateFieldGet(this,l,"f").promise.catch(()=>{}),h.__classPrivateFieldGet(this,l,"f").reject(e),h.__classPrivateFieldSet(this,l,x(),"f"),e}}setMessagesParams(e){h.__classPrivateFieldGet(this,o,"f").params="function"==typeof e?e(h.__classPrivateFieldGet(this,o,"f").params):e,h.__classPrivateFieldSet(this,i,!0,"f"),h.__classPrivateFieldSet(this,p,void 0,"f")}async generateToolResponse(){const e=await h.__classPrivateFieldGet(this,c,"f")??this.params.messages.at(-1);return e?h.__classPrivateFieldGet(this,n,"m",m).call(this,e):null}done(){return h.__classPrivateFieldGet(this,l,"f").promise}async runUntilDone(){if(!h.__classPrivateFieldGet(this,s,"f"))for await(const e of this);return this.done()}get params(){return h.__classPrivateFieldGet(this,o,"f").params}pushMessages(...e){this.setMessagesParams(t=>({...t,messages:[...t.messages,...e]}))}then(e,t){return this.runUntilDone().then(e,t)}}t.BetaToolRunner=b,m=async function(e){return void 0!==h.__classPrivateFieldGet(this,p,"f")||h.__classPrivateFieldSet(this,p,async function(e,t=e.messages.at(-1)){if(!t||"assistant"!==t.role||!t.content||"string"==typeof t.content)return null;const a=t.content.filter(e=>"tool_use"===e.type);return 0===a.length?null:{role:"user",content:await Promise.all(a.map(async t=>{const a=e.tools.find(e=>("name"in e?e.name:e.mcp_server_name)===t.name);if(!a||!("run"in a))return{type:"tool_result",tool_use_id:t.id,content:`Error: Tool '${t.name}' not found`,is_error:!0};try{let e=t.input;"parse"in a&&a.parse&&(e=a.parse(e));const n=await a.run(e);return{type:"tool_result",tool_use_id:t.id,content:n}}catch(e){return{type:"tool_result",tool_use_id:t.id,content:`Error: ${e instanceof Error?e.message:String(e)}`,is_error:!0}}}))}}(h.__classPrivateFieldGet(this,o,"f").params,e),"f"),h.__classPrivateFieldGet(this,p,"f")}},5818(e,t){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.DEFAULT_SUMMARY_PROMPT=t.DEFAULT_TOKEN_THRESHOLD=void 0,t.DEFAULT_TOKEN_THRESHOLD=1e5,t.DEFAULT_SUMMARY_PROMPT="You have been working on the task described above but have not yet completed it. Write a continuation summary that will allow you (or another instance of yourself) to resume work efficiently in a future context window where the conversation history will be replaced with this summary. Your summary should be structured, concise, and actionable. Include:\n1. Task Overview\nThe user's core request and success criteria\nAny clarifications or constraints they specified\n2. Current State\nWhat has been completed so far\nFiles created, modified, or analyzed (with paths if relevant)\nKey outputs or artifacts produced\n3. Important Discoveries\nTechnical constraints or requirements uncovered\nDecisions made and their rationale\nErrors encountered and how they were resolved\nWhat approaches were tried that didn't work (and why)\n4. Next Steps\nSpecific actions needed to complete the task\nAny blockers or open questions to resolve\nPriority order if multiple steps remain\n5. Context to Preserve\nUser preferences or style requirements\nDomain-specific details that aren't obvious\nAny promises made to the user\nBe concise but complete—err on the side of including information that would prevent duplicate work or repeated mistakes. Write in a way that enables immediate resumption of the task.\nWrap your summary in <summary></summary> tags."},1671(e,t,a){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.Beta=void 0;const n=a(7984),s=a(4472),i=n.__importStar(a(2670)),o=a(2670),r=n.__importStar(a(8091)),c=a(8091),p=n.__importStar(a(1e3)),l=a(1e3),u=n.__importStar(a(5612)),d=a(5612);class m extends s.APIResource{constructor(){super(...arguments),this.models=new r.Models(this._client),this.messages=new p.Messages(this._client),this.files=new i.Files(this._client),this.skills=new u.Skills(this._client)}}t.Beta=m,m.Models=c.Models,m.Messages=l.Messages,m.Files=o.Files,m.Skills=d.Skills},2670(e,t,a){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.Files=void 0;const n=a(4472),s=a(4384),i=a(2758),o=a(7090),r=a(4735);class c extends n.APIResource{list(e={},t){const{betas:a,...n}=e??{};return this._client.getAPIList("/v1/files",s.Page,{query:n,...t,headers:(0,i.buildHeaders)([{"anthropic-beta":[...a??[],"files-api-2025-04-14"].toString()},t?.headers])})}delete(e,t={},a){const{betas:n}=t??{};return this._client.delete(r.path`/v1/files/${e}`,{...a,headers:(0,i.buildHeaders)([{"anthropic-beta":[...n??[],"files-api-2025-04-14"].toString()},a?.headers])})}download(e,t={},a){const{betas:n}=t??{};return this._client.get(r.path`/v1/files/${e}/content`,{...a,headers:(0,i.buildHeaders)([{"anthropic-beta":[...n??[],"files-api-2025-04-14"].toString(),Accept:"application/binary"},a?.headers]),__binaryResponse:!0})}retrieveMetadata(e,t={},a){const{betas:n}=t??{};return this._client.get(r.path`/v1/files/${e}`,{...a,headers:(0,i.buildHeaders)([{"anthropic-beta":[...n??[],"files-api-2025-04-14"].toString()},a?.headers])})}upload(e,t){const{betas:a,...n}=e;return this._client.post("/v1/files",(0,o.multipartFormRequestOptions)({body:n,...t,headers:(0,i.buildHeaders)([{"anthropic-beta":[...a??[],"files-api-2025-04-14"].toString()},t?.headers])},this._client))}}t.Files=c},626(e,t,a){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.Batches=void 0;const n=a(4472),s=a(4384),i=a(2758),o=a(1198),r=a(2854),c=a(4735);class p extends n.APIResource{create(e,t){const{betas:a,...n}=e;return this._client.post("/v1/messages/batches?beta=true",{body:n,...t,headers:(0,i.buildHeaders)([{"anthropic-beta":[...a??[],"message-batches-2024-09-24"].toString()},t?.headers])})}retrieve(e,t={},a){const{betas:n}=t??{};return this._client.get(c.path`/v1/messages/batches/${e}?beta=true`,{...a,headers:(0,i.buildHeaders)([{"anthropic-beta":[...n??[],"message-batches-2024-09-24"].toString()},a?.headers])})}list(e={},t){const{betas:a,...n}=e??{};return this._client.getAPIList("/v1/messages/batches?beta=true",s.Page,{query:n,...t,headers:(0,i.buildHeaders)([{"anthropic-beta":[...a??[],"message-batches-2024-09-24"].toString()},t?.headers])})}delete(e,t={},a){const{betas:n}=t??{};return this._client.delete(c.path`/v1/messages/batches/${e}?beta=true`,{...a,headers:(0,i.buildHeaders)([{"anthropic-beta":[...n??[],"message-batches-2024-09-24"].toString()},a?.headers])})}cancel(e,t={},a){const{betas:n}=t??{};return this._client.post(c.path`/v1/messages/batches/${e}/cancel?beta=true`,{...a,headers:(0,i.buildHeaders)([{"anthropic-beta":[...n??[],"message-batches-2024-09-24"].toString()},a?.headers])})}async results(e,t={},a){const n=await this.retrieve(e);if(!n.results_url)throw new r.AnthropicError(`No batch \`results_url\`; Has it finished processing? ${n.processing_status} - ${n.id}`);const{betas:s}=t??{};return this._client.get(n.results_url,{...a,headers:(0,i.buildHeaders)([{"anthropic-beta":[...s??[],"message-batches-2024-09-24"].toString(),Accept:"application/binary"},a?.headers]),stream:!0,__binaryResponse:!0})._thenUnwrap((e,t)=>o.JSONLDecoder.fromResponse(t.response,t.controller))}}t.Batches=p},1e3(e,t,a){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.BetaToolRunner=t.Messages=void 0;const n=a(7984),s=a(4472),i=a(8585),o=a(2758),r=a(8754),c=a(5369),p=a(1584),l=n.__importStar(a(626)),u=a(626),d={"claude-1.3":"November 6th, 2024","claude-1.3-100k":"November 6th, 2024","claude-instant-1.1":"November 6th, 2024","claude-instant-1.1-100k":"November 6th, 2024","claude-instant-1.2":"November 6th, 2024","claude-3-sonnet-20240229":"July 21st, 2025","claude-3-opus-20240229":"January 5th, 2026","claude-2.1":"July 21st, 2025","claude-2.0":"July 21st, 2025","claude-3-7-sonnet-latest":"February 19th, 2026","claude-3-7-sonnet-20250219":"February 19th, 2026"};class m extends s.APIResource{constructor(){super(...arguments),this.batches=new l.Batches(this._client)}create(e,t){const{betas:a,...n}=e;n.model in d&&console.warn(`The model '${n.model}' is deprecated and will reach end-of-life on ${d[n.model]}\nPlease migrate to a newer model. Visit https://docs.anthropic.com/en/docs/resources/model-deprecations for more information.`);let s=this._client._options.timeout;if(!n.stream&&null==s){const e=i.MODEL_NONSTREAMING_TOKENS[n.model]??void 0;s=this._client.calculateNonstreamingTimeout(n.max_tokens,e)}return this._client.post("/v1/messages?beta=true",{body:n,timeout:s??6e5,...t,headers:(0,o.buildHeaders)([{...null!=a?.toString()?{"anthropic-beta":a?.toString()}:void 0},t?.headers]),stream:e.stream??!1})}parse(e,t){return t={...t,headers:(0,o.buildHeaders)([{"anthropic-beta":[...e.betas??[],"structured-outputs-2025-11-13"].toString()},t?.headers])},this.create(e,t).then(t=>(0,r.parseBetaMessage)(t,e,{logger:this._client.logger??console}))}stream(e,t){return c.BetaMessageStream.createMessage(this,e,t)}countTokens(e,t){const{betas:a,...n}=e;return this._client.post("/v1/messages/count_tokens?beta=true",{body:n,...t,headers:(0,o.buildHeaders)([{"anthropic-beta":[...a??[],"token-counting-2024-11-01"].toString()},t?.headers])})}toolRunner(e,t){return new p.BetaToolRunner(this._client,e,t)}}t.Messages=m;var h=a(1584);Object.defineProperty(t,"BetaToolRunner",{enumerable:!0,get:function(){return h.BetaToolRunner}}),m.Batches=u.Batches,m.BetaToolRunner=p.BetaToolRunner},8091(e,t,a){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.Models=void 0;const n=a(4472),s=a(4384),i=a(2758),o=a(4735);class r extends n.APIResource{retrieve(e,t={},a){const{betas:n}=t??{};return this._client.get(o.path`/v1/models/${e}?beta=true`,{...a,headers:(0,i.buildHeaders)([{...null!=n?.toString()?{"anthropic-beta":n?.toString()}:void 0},a?.headers])})}list(e={},t){const{betas:a,...n}=e??{};return this._client.getAPIList("/v1/models?beta=true",s.Page,{query:n,...t,headers:(0,i.buildHeaders)([{...null!=a?.toString()?{"anthropic-beta":a?.toString()}:void 0},t?.headers])})}}t.Models=r},5612(e,t,a){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.Skills=void 0;const n=a(7984),s=a(4472),i=n.__importStar(a(4675)),o=a(4675),r=a(4384),c=a(2758),p=a(7090),l=a(4735);class u extends s.APIResource{constructor(){super(...arguments),this.versions=new i.Versions(this._client)}create(e={},t){const{betas:a,...n}=e??{};return this._client.post("/v1/skills?beta=true",(0,p.multipartFormRequestOptions)({body:n,...t,headers:(0,c.buildHeaders)([{"anthropic-beta":[...a??[],"skills-2025-10-02"].toString()},t?.headers])},this._client))}retrieve(e,t={},a){const{betas:n}=t??{};return this._client.get(l.path`/v1/skills/${e}?beta=true`,{...a,headers:(0,c.buildHeaders)([{"anthropic-beta":[...n??[],"skills-2025-10-02"].toString()},a?.headers])})}list(e={},t){const{betas:a,...n}=e??{};return this._client.getAPIList("/v1/skills?beta=true",r.PageCursor,{query:n,...t,headers:(0,c.buildHeaders)([{"anthropic-beta":[...a??[],"skills-2025-10-02"].toString()},t?.headers])})}delete(e,t={},a){const{betas:n}=t??{};return this._client.delete(l.path`/v1/skills/${e}?beta=true`,{...a,headers:(0,c.buildHeaders)([{"anthropic-beta":[...n??[],"skills-2025-10-02"].toString()},a?.headers])})}}t.Skills=u,u.Versions=o.Versions},4675(e,t,a){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.Versions=void 0;const n=a(4472),s=a(4384),i=a(2758),o=a(7090),r=a(4735);class c extends n.APIResource{create(e,t={},a){const{betas:n,...s}=t??{};return this._client.post(r.path`/v1/skills/${e}/versions?beta=true`,(0,o.multipartFormRequestOptions)({body:s,...a,headers:(0,i.buildHeaders)([{"anthropic-beta":[...n??[],"skills-2025-10-02"].toString()},a?.headers])},this._client))}retrieve(e,t,a){const{skill_id:n,betas:s}=t;return this._client.get(r.path`/v1/skills/${n}/versions/${e}?beta=true`,{...a,headers:(0,i.buildHeaders)([{"anthropic-beta":[...s??[],"skills-2025-10-02"].toString()},a?.headers])})}list(e,t={},a){const{betas:n,...o}=t??{};return this._client.getAPIList(r.path`/v1/skills/${e}/versions?beta=true`,s.PageCursor,{query:o,...a,headers:(0,i.buildHeaders)([{"anthropic-beta":[...n??[],"skills-2025-10-02"].toString()},a?.headers])})}delete(e,t,a){const{skill_id:n,betas:s}=t;return this._client.delete(r.path`/v1/skills/${n}/versions/${e}?beta=true`,{...a,headers:(0,i.buildHeaders)([{"anthropic-beta":[...s??[],"skills-2025-10-02"].toString()},a?.headers])})}}t.Versions=c},9861(e,t,a){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.Completions=void 0;const n=a(4472),s=a(2758);class i extends n.APIResource{create(e,t){const{betas:a,...n}=e;return this._client.post("/v1/complete",{body:n,timeout:this._client._options.timeout??6e5,...t,headers:(0,s.buildHeaders)([{...null!=a?.toString()?{"anthropic-beta":a?.toString()}:void 0},t?.headers]),stream:e.stream??!1})}}t.Completions=i},410(e,t,a){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.Models=t.Messages=t.Completions=t.Beta=void 0,a(7984).__exportStar(a(6149),t);var n=a(1671);Object.defineProperty(t,"Beta",{enumerable:!0,get:function(){return n.Beta}});var s=a(9861);Object.defineProperty(t,"Completions",{enumerable:!0,get:function(){return s.Completions}});var i=a(1375);Object.defineProperty(t,"Messages",{enumerable:!0,get:function(){return i.Messages}});var o=a(3570);Object.defineProperty(t,"Models",{enumerable:!0,get:function(){return o.Models}})},2047(e,t,a){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.Batches=void 0;const n=a(4472),s=a(4384),i=a(2758),o=a(1198),r=a(2854),c=a(4735);class p extends n.APIResource{create(e,t){return this._client.post("/v1/messages/batches",{body:e,...t})}retrieve(e,t){return this._client.get(c.path`/v1/messages/batches/${e}`,t)}list(e={},t){return this._client.getAPIList("/v1/messages/batches",s.Page,{query:e,...t})}delete(e,t){return this._client.delete(c.path`/v1/messages/batches/${e}`,t)}cancel(e,t){return this._client.post(c.path`/v1/messages/batches/${e}/cancel`,t)}async results(e,t){const a=await this.retrieve(e);if(!a.results_url)throw new r.AnthropicError(`No batch \`results_url\`; Has it finished processing? ${a.processing_status} - ${a.id}`);return this._client.get(a.results_url,{...t,headers:(0,i.buildHeaders)([{Accept:"application/binary"},t?.headers]),stream:!0,__binaryResponse:!0})._thenUnwrap((e,t)=>o.JSONLDecoder.fromResponse(t.response,t.controller))}}t.Batches=p},1375(e,t,a){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.Messages=void 0;const n=a(7984),s=a(4472),i=a(75),o=n.__importStar(a(2047)),r=a(2047),c=a(8585);class p extends s.APIResource{constructor(){super(...arguments),this.batches=new o.Batches(this._client)}create(e,t){e.model in l&&console.warn(`The model '${e.model}' is deprecated and will reach end-of-life on ${l[e.model]}\nPlease migrate to a newer model. Visit https://docs.anthropic.com/en/docs/resources/model-deprecations for more information.`);let a=this._client._options.timeout;if(!e.stream&&null==a){const t=c.MODEL_NONSTREAMING_TOKENS[e.model]??void 0;a=this._client.calculateNonstreamingTimeout(e.max_tokens,t)}return this._client.post("/v1/messages",{body:e,timeout:a??6e5,...t,stream:e.stream??!1})}stream(e,t){return i.MessageStream.createMessage(this,e,t)}countTokens(e,t){return this._client.post("/v1/messages/count_tokens",{body:e,...t})}}t.Messages=p;const l={"claude-1.3":"November 6th, 2024","claude-1.3-100k":"November 6th, 2024","claude-instant-1.1":"November 6th, 2024","claude-instant-1.1-100k":"November 6th, 2024","claude-instant-1.2":"November 6th, 2024","claude-3-sonnet-20240229":"July 21st, 2025","claude-3-opus-20240229":"January 5th, 2026","claude-2.1":"July 21st, 2025","claude-2.0":"July 21st, 2025","claude-3-7-sonnet-latest":"February 19th, 2026","claude-3-7-sonnet-20250219":"February 19th, 2026"};p.Batches=r.Batches},3570(e,t,a){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.Models=void 0;const n=a(4472),s=a(4384),i=a(2758),o=a(4735);class r extends n.APIResource{retrieve(e,t={},a){const{betas:n}=t??{};return this._client.get(o.path`/v1/models/${e}`,{...a,headers:(0,i.buildHeaders)([{...null!=n?.toString()?{"anthropic-beta":n?.toString()}:void 0},a?.headers])})}list(e={},t){const{betas:a,...n}=e??{};return this._client.getAPIList("/v1/models",s.Page,{query:n,...t,headers:(0,i.buildHeaders)([{...null!=a?.toString()?{"anthropic-beta":a?.toString()}:void 0},t?.headers])})}}t.Models=r},6149(e,t){"use strict";Object.defineProperty(t,"__esModule",{value:!0})},2492(e,t,a){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),a(7984).__exportStar(a(4986),t)},9232(e,t){"use strict";Object.defineProperty(t,"__esModule",{value:!0}),t.VERSION=void 0,t.VERSION="0.71.2"},9329(e,t,a){"use strict";const n=a(737),s=a(6982),i=a(7016),o=a(6504),r=a(8611),c=a(5692),p=a(5675),l=a(9023),u=a(3164),d=a(3106),m=a(2203),h=a(4434);function f(e){return e&&"object"==typeof e&&"default"in e?e:{default:e}}const v=f(n),g=f(s),x=f(i),b=f(o),y=f(r),w=f(c),_=f(p),k=f(l),P=f(u),S=f(d),E=f(m);function A(e,t){return function(){return e.apply(t,arguments)}}const{toString:R}=Object.prototype,{getPrototypeOf:j}=Object,{iterator:O,toStringTag:C}=Symbol,F=(T=Object.create(null),e=>{const t=R.call(e);return T[t]||(T[t]=t.slice(8,-1).toLowerCase())});var T;const L=e=>(e=e.toLowerCase(),t=>F(t)===e),M=e=>t=>typeof t===e,{isArray:I}=Array,U=M("undefined");function N(e){return null!==e&&!U(e)&&null!==e.constructor&&!U(e.constructor)&&q(e.constructor.isBuffer)&&e.constructor.isBuffer(e)}const $=L("ArrayBuffer"),B=M("string"),q=M("function"),D=M("number"),z=e=>null!==e&&"object"==typeof e,G=e=>{if("object"!==F(e))return!1;const t=j(e);return!(null!==t&&t!==Object.prototype&&null!==Object.getPrototypeOf(t)||C in e||O in e)},H=L("Date"),W=L("File"),K=L("Blob"),V=L("FileList"),J=L("URLSearchParams"),[X,Y,Q,Z]=["ReadableStream","Request","Response","Headers"].map(L);function ee(e,t,{allOwnKeys:a=!1}={}){if(null==e)return;let n,s;if("object"!=typeof e&&(e=[e]),I(e))for(n=0,s=e.length;n<s;n++)t.call(null,e[n],n,e);else{if(N(e))return;const s=a?Object.getOwnPropertyNames(e):Object.keys(e),i=s.length;let o;for(n=0;n<i;n++)o=s[n],t.call(null,e[o],o,e)}}function te(e,t){if(N(e))return null;t=t.toLowerCase();const a=Object.keys(e);let n,s=a.length;for(;s-- >0;)if(n=a[s],t===n.toLowerCase())return n;return null}const ae="undefined"!=typeof globalThis?globalThis:"undefined"!=typeof self?self:"undefined"!=typeof window?window:global,ne=e=>!U(e)&&e!==ae,se=(ie="undefined"!=typeof Uint8Array&&j(Uint8Array),e=>ie&&e instanceof ie);var ie;const oe=L("HTMLFormElement"),re=(({hasOwnProperty:e})=>(t,a)=>e.call(t,a))(Object.prototype),ce=L("RegExp"),pe=(e,t)=>{const a=Object.getOwnPropertyDescriptors(e),n={};ee(a,(a,s)=>{let i;!1!==(i=t(a,s,e))&&(n[s]=i||a)}),Object.defineProperties(e,n)},le=L("AsyncFunction"),ue=(de="function"==typeof setImmediate,me=q(ae.postMessage),de?setImmediate:me?(he=`axios@${Math.random()}`,fe=[],ae.addEventListener("message",({source:e,data:t})=>{e===ae&&t===he&&fe.length&&fe.shift()()},!1),e=>{fe.push(e),ae.postMessage(he,"*")}):e=>setTimeout(e));var de,me,he,fe;const ve="undefined"!=typeof queueMicrotask?queueMicrotask.bind(ae):"undefined"!=typeof process&&process.nextTick||ue,ge={isArray:I,isArrayBuffer:$,isBuffer:N,isFormData:e=>{let t;return e&&("function"==typeof FormData&&e instanceof FormData||q(e.append)&&("formdata"===(t=F(e))||"object"===t&&q(e.toString)&&"[object FormData]"===e.toString()))},isArrayBufferView:function(e){let t;return t="undefined"!=typeof ArrayBuffer&&ArrayBuffer.isView?ArrayBuffer.isView(e):e&&e.buffer&&$(e.buffer),t},isString:B,isNumber:D,isBoolean:e=>!0===e||!1===e,isObject:z,isPlainObject:G,isEmptyObject:e=>{if(!z(e)||N(e))return!1;try{return 0===Object.keys(e).length&&Object.getPrototypeOf(e)===Object.prototype}catch(e){return!1}},isReadableStream:X,isRequest:Y,isResponse:Q,isHeaders:Z,isUndefined:U,isDate:H,isFile:W,isBlob:K,isRegExp:ce,isFunction:q,isStream:e=>z(e)&&q(e.pipe),isURLSearchParams:J,isTypedArray:se,isFileList:V,forEach:ee,merge:function e(){const{caseless:t,skipUndefined:a}=ne(this)&&this||{},n={},s=(s,i)=>{if("__proto__"===i||"constructor"===i||"prototype"===i)return;const o=t&&te(n,i)||i;G(n[o])&&G(s)?n[o]=e(n[o],s):G(s)?n[o]=e({},s):I(s)?n[o]=s.slice():a&&U(s)||(n[o]=s)};for(let e=0,t=arguments.length;e<t;e++)arguments[e]&&ee(arguments[e],s);return n},extend:(e,t,a,{allOwnKeys:n}={})=>(ee(t,(t,n)=>{a&&q(t)?Object.defineProperty(e,n,{value:A(t,a),writable:!0,enumerable:!0,configurable:!0}):Object.defineProperty(e,n,{value:t,writable:!0,enumerable:!0,configurable:!0})},{allOwnKeys:n}),e),trim:e=>e.trim?e.trim():e.replace(/^[\s\uFEFF\xA0]+|[\s\uFEFF\xA0]+$/g,""),stripBOM:e=>(65279===e.charCodeAt(0)&&(e=e.slice(1)),e),inherits:(e,t,a,n)=>{e.prototype=Object.create(t.prototype,n),Object.defineProperty(e.prototype,"constructor",{value:e,writable:!0,enumerable:!1,configurable:!0}),Object.defineProperty(e,"super",{value:t.prototype}),a&&Object.assign(e.prototype,a)},toFlatObject:(e,t,a,n)=>{let s,i,o;const r={};if(t=t||{},null==e)return t;do{for(s=Object.getOwnPropertyNames(e),i=s.length;i-- >0;)o=s[i],n&&!n(o,e,t)||r[o]||(t[o]=e[o],r[o]=!0);e=!1!==a&&j(e)}while(e&&(!a||a(e,t))&&e!==Object.prototype);return t},kindOf:F,kindOfTest:L,endsWith:(e,t,a)=>{e=String(e),(void 0===a||a>e.length)&&(a=e.length),a-=t.length;const n=e.indexOf(t,a);return-1!==n&&n===a},toArray:e=>{if(!e)return null;if(I(e))return e;let t=e.length;if(!D(t))return null;const a=new Array(t);for(;t-- >0;)a[t]=e[t];return a},forEachEntry:(e,t)=>{const a=(e&&e[O]).call(e);let n;for(;(n=a.next())&&!n.done;){const a=n.value;t.call(e,a[0],a[1])}},matchAll:(e,t)=>{let a;const n=[];for(;null!==(a=e.exec(t));)n.push(a);return n},isHTMLForm:oe,hasOwnProperty:re,hasOwnProp:re,reduceDescriptors:pe,freezeMethods:e=>{pe(e,(t,a)=>{if(q(e)&&-1!==["arguments","caller","callee"].indexOf(a))return!1;const n=e[a];q(n)&&(t.enumerable=!1,"writable"in t?t.writable=!1:t.set||(t.set=()=>{throw Error("Can not rewrite read-only method '"+a+"'")}))})},toObjectSet:(e,t)=>{const a={},n=e=>{e.forEach(e=>{a[e]=!0})};return I(e)?n(e):n(String(e).split(t)),a},toCamelCase:e=>e.toLowerCase().replace(/[-_\s]([a-z\d])(\w*)/g,function(e,t,a){return t.toUpperCase()+a}),noop:()=>{},toFiniteNumber:(e,t)=>null!=e&&Number.isFinite(e=+e)?e:t,findKey:te,global:ae,isContextDefined:ne,isSpecCompliantForm:function(e){return!!(e&&q(e.append)&&"FormData"===e[C]&&e[O])},toJSONObject:e=>{const t=new Array(10),a=(e,n)=>{if(z(e)){if(t.indexOf(e)>=0)return;if(N(e))return e;if(!("toJSON"in e)){t[n]=e;const s=I(e)?[]:{};return ee(e,(e,t)=>{const i=a(e,n+1);!U(i)&&(s[t]=i)}),t[n]=void 0,s}}return e};return a(e,0)},isAsyncFn:le,isThenable:e=>e&&(z(e)||q(e))&&q(e.then)&&q(e.catch),setImmediate:ue,asap:ve,isIterable:e=>null!=e&&q(e[O])};class xe extends Error{static from(e,t,a,n,s,i){const o=new xe(e.message,t||e.code,a,n,s);return o.cause=e,o.name=e.name,i&&Object.assign(o,i),o}constructor(e,t,a,n,s){super(e),this.name="AxiosError",this.isAxiosError=!0,t&&(this.code=t),a&&(this.config=a),n&&(this.request=n),s&&(this.response=s,this.status=s.status)}toJSON(){return{message:this.message,name:this.name,description:this.description,number:this.number,fileName:this.fileName,lineNumber:this.lineNumber,columnNumber:this.columnNumber,stack:this.stack,config:ge.toJSONObject(this.config),code:this.code,status:this.status}}}xe.ERR_BAD_OPTION_VALUE="ERR_BAD_OPTION_VALUE",xe.ERR_BAD_OPTION="ERR_BAD_OPTION",xe.ECONNABORTED="ECONNABORTED",xe.ETIMEDOUT="ETIMEDOUT",xe.ERR_NETWORK="ERR_NETWORK",xe.ERR_FR_TOO_MANY_REDIRECTS="ERR_FR_TOO_MANY_REDIRECTS",xe.ERR_DEPRECATED="ERR_DEPRECATED",xe.ERR_BAD_RESPONSE="ERR_BAD_RESPONSE",xe.ERR_BAD_REQUEST="ERR_BAD_REQUEST",xe.ERR_CANCELED="ERR_CANCELED",xe.ERR_NOT_SUPPORT="ERR_NOT_SUPPORT",xe.ERR_INVALID_URL="ERR_INVALID_URL";const be=xe;function ye(e){return ge.isPlainObject(e)||ge.isArray(e)}function we(e){return ge.endsWith(e,"[]")?e.slice(0,-2):e}function _e(e,t,a){return e?e.concat(t).map(function(e,t){return e=we(e),!a&&t?"["+e+"]":e}).join(a?".":""):t}const ke=ge.toFlatObject(ge,{},null,function(e){return/^is[A-Z]/.test(e)});function Pe(e,t,a){if(!ge.isObject(e))throw new TypeError("target must be an object");t=t||new(v.default||FormData);const n=(a=ge.toFlatObject(a,{metaTokens:!0,dots:!1,indexes:!1},!1,function(e,t){return!ge.isUndefined(t[e])})).metaTokens,s=a.visitor||p,i=a.dots,o=a.indexes,r=(a.Blob||"undefined"!=typeof Blob&&Blob)&&ge.isSpecCompliantForm(t);if(!ge.isFunction(s))throw new TypeError("visitor must be a function");function c(e){if(null===e)return"";if(ge.isDate(e))return e.toISOString();if(ge.isBoolean(e))return e.toString();if(!r&&ge.isBlob(e))throw new be("Blob is not supported. Use a Buffer instead.");return ge.isArrayBuffer(e)||ge.isTypedArray(e)?r&&"function"==typeof Blob?new Blob([e]):Buffer.from(e):e}function p(e,a,s){let r=e;if(e&&!s&&"object"==typeof e)if(ge.endsWith(a,"{}"))a=n?a:a.slice(0,-2),e=JSON.stringify(e);else if(ge.isArray(e)&&function(e){return ge.isArray(e)&&!e.some(ye)}(e)||(ge.isFileList(e)||ge.endsWith(a,"[]"))&&(r=ge.toArray(e)))return a=we(a),r.forEach(function(e,n){!ge.isUndefined(e)&&null!==e&&t.append(!0===o?_e([a],n,i):null===o?a:a+"[]",c(e))}),!1;return!!ye(e)||(t.append(_e(s,a,i),c(e)),!1)}const l=[],u=Object.assign(ke,{defaultVisitor:p,convertValue:c,isVisitable:ye});if(!ge.isObject(e))throw new TypeError("data must be an object");return function e(a,n){if(!ge.isUndefined(a)){if(-1!==l.indexOf(a))throw Error("Circular reference detected in "+n.join("."));l.push(a),ge.forEach(a,function(a,i){!0===(!(ge.isUndefined(a)||null===a)&&s.call(t,a,ge.isString(i)?i.trim():i,n,u))&&e(a,n?n.concat(i):[i])}),l.pop()}}(e),t}function Se(e){const t={"!":"%21","'":"%27","(":"%28",")":"%29","~":"%7E","%20":"+","%00":"\0"};return encodeURIComponent(e).replace(/[!'()~]|%20|%00/g,function(e){return t[e]})}function Ee(e,t){this._pairs=[],e&&Pe(e,this,t)}const Ae=Ee.prototype;function Re(e){return encodeURIComponent(e).replace(/%3A/gi,":").replace(/%24/g,"$").replace(/%2C/gi,",").replace(/%20/g,"+")}function je(e,t,a){if(!t)return e;const n=a&&a.encode||Re,s=ge.isFunction(a)?{serialize:a}:a,i=s&&s.serialize;let o;if(o=i?i(t,s):ge.isURLSearchParams(t)?t.toString():new Ee(t,s).toString(n),o){const t=e.indexOf("#");-1!==t&&(e=e.slice(0,t)),e+=(-1===e.indexOf("?")?"?":"&")+o}return e}Ae.append=function(e,t){this._pairs.push([e,t])},Ae.toString=function(e){const t=e?function(t){return e.call(this,t,Se)}:Se;return this._pairs.map(function(e){return t(e[0])+"="+t(e[1])},"").join("&")};const Oe=class{constructor(){this.handlers=[]}use(e,t,a){return this.handlers.push({fulfilled:e,rejected:t,synchronous:!!a&&a.synchronous,runWhen:a?a.runWhen:null}),this.handlers.length-1}eject(e){this.handlers[e]&&(this.handlers[e]=null)}clear(){this.handlers&&(this.handlers=[])}forEach(e){ge.forEach(this.handlers,function(t){null!==t&&e(t)})}},Ce={silentJSONParsing:!0,forcedJSONParsing:!0,clarifyTimeoutError:!1,legacyInterceptorReqResOrdering:!0},Fe=x.default.URLSearchParams,Te="abcdefghijklmnopqrstuvwxyz",Le="0123456789",Me={DIGIT:Le,ALPHA:Te,ALPHA_DIGIT:Te+Te.toUpperCase()+Le},Ie={isNode:!0,classes:{URLSearchParams:Fe,FormData:v.default,Blob:"undefined"!=typeof Blob&&Blob||null},ALPHABET:Me,generateString:(e=16,t=Me.ALPHA_DIGIT)=>{let a="";const{length:n}=t,s=new Uint32Array(e);g.default.randomFillSync(s);for(let i=0;i<e;i++)a+=t[s[i]%n];return a},protocols:["http","https","file","data"]},Ue="undefined"!=typeof window&&"undefined"!=typeof document,Ne="object"==typeof navigator&&navigator||void 0,$e=Ue&&(!Ne||["ReactNative","NativeScript","NS"].indexOf(Ne.product)<0),Be="undefined"!=typeof WorkerGlobalScope&&self instanceof WorkerGlobalScope&&"function"==typeof self.importScripts,qe=Ue&&window.location.href||"http://localhost",De={...Object.freeze({__proto__:null,hasBrowserEnv:Ue,hasStandardBrowserWebWorkerEnv:Be,hasStandardBrowserEnv:$e,navigator:Ne,origin:qe}),...Ie};function ze(e){function t(e,a,n,s){let i=e[s++];if("__proto__"===i)return!0;const o=Number.isFinite(+i),r=s>=e.length;return i=!i&&ge.isArray(n)?n.length:i,r?(ge.hasOwnProp(n,i)?n[i]=[n[i],a]:n[i]=a,!o):(n[i]&&ge.isObject(n[i])||(n[i]=[]),t(e,a,n[i],s)&&ge.isArray(n[i])&&(n[i]=function(e){const t={},a=Object.keys(e);let n;const s=a.length;let i;for(n=0;n<s;n++)i=a[n],t[i]=e[i];return t}(n[i])),!o)}if(ge.isFormData(e)&&ge.isFunction(e.entries)){const a={};return ge.forEachEntry(e,(e,n)=>{t(function(e){return ge.matchAll(/\w+|\[(\w*)]/g,e).map(e=>"[]"===e[0]?"":e[1]||e[0])}(e),n,a,0)}),a}return null}const Ge={transitional:Ce,adapter:["xhr","http","fetch"],transformRequest:[function(e,t){const a=t.getContentType()||"",n=a.indexOf("application/json")>-1,s=ge.isObject(e);if(s&&ge.isHTMLForm(e)&&(e=new FormData(e)),ge.isFormData(e))return n?JSON.stringify(ze(e)):e;if(ge.isArrayBuffer(e)||ge.isBuffer(e)||ge.isStream(e)||ge.isFile(e)||ge.isBlob(e)||ge.isReadableStream(e))return e;if(ge.isArrayBufferView(e))return e.buffer;if(ge.isURLSearchParams(e))return t.setContentType("application/x-www-form-urlencoded;charset=utf-8",!1),e.toString();let i;if(s){if(a.indexOf("application/x-www-form-urlencoded")>-1)return function(e,t){return Pe(e,new De.classes.URLSearchParams,{visitor:function(e,t,a,n){return De.isNode&&ge.isBuffer(e)?(this.append(t,e.toString("base64")),!1):n.defaultVisitor.apply(this,arguments)},...t})}(e,this.formSerializer).toString();if((i=ge.isFileList(e))||a.indexOf("multipart/form-data")>-1){const t=this.env&&this.env.FormData;return Pe(i?{"files[]":e}:e,t&&new t,this.formSerializer)}}return s||n?(t.setContentType("application/json",!1),function(e){if(ge.isString(e))try{return(0,JSON.parse)(e),ge.trim(e)}catch(e){if("SyntaxError"!==e.name)throw e}return(0,JSON.stringify)(e)}(e)):e}],transformResponse:[function(e){const t=this.transitional||Ge.transitional,a=t&&t.forcedJSONParsing,n="json"===this.responseType;if(ge.isResponse(e)||ge.isReadableStream(e))return e;if(e&&ge.isString(e)&&(a&&!this.responseType||n)){const a=!(t&&t.silentJSONParsing)&&n;try{return JSON.parse(e,this.parseReviver)}catch(e){if(a){if("SyntaxError"===e.name)throw be.from(e,be.ERR_BAD_RESPONSE,this,null,this.response);throw e}}}return e}],timeout:0,xsrfCookieName:"XSRF-TOKEN",xsrfHeaderName:"X-XSRF-TOKEN",maxContentLength:-1,maxBodyLength:-1,env:{FormData:De.classes.FormData,Blob:De.classes.Blob},validateStatus:function(e){return e>=200&&e<300},headers:{common:{Accept:"application/json, text/plain, */*","Content-Type":void 0}}};ge.forEach(["delete","get","head","post","put","patch"],e=>{Ge.headers[e]={}});const He=Ge,We=ge.toObjectSet(["age","authorization","content-length","content-type","etag","expires","from","host","if-modified-since","if-unmodified-since","last-modified","location","max-forwards","proxy-authorization","referer","retry-after","user-agent"]),Ke=Symbol("internals");function Ve(e){return e&&String(e).trim().toLowerCase()}function Je(e){return!1===e||null==e?e:ge.isArray(e)?e.map(Je):String(e)}function Xe(e,t,a,n,s){return ge.isFunction(n)?n.call(this,t,a):(s&&(t=a),ge.isString(t)?ge.isString(n)?-1!==t.indexOf(n):ge.isRegExp(n)?n.test(t):void 0:void 0)}class Ye{constructor(e){e&&this.set(e)}set(e,t,a){const n=this;function s(e,t,a){const s=Ve(t);if(!s)throw new Error("header name must be a non-empty string");const i=ge.findKey(n,s);(!i||void 0===n[i]||!0===a||void 0===a&&!1!==n[i])&&(n[i||t]=Je(e))}const i=(e,t)=>ge.forEach(e,(e,a)=>s(e,a,t));if(ge.isPlainObject(e)||e instanceof this.constructor)i(e,t);else if(ge.isString(e)&&(e=e.trim())&&!/^[-_a-zA-Z0-9^`|~,!#$%&'*+.]+$/.test(e.trim()))i((e=>{const t={};let a,n,s;return e&&e.split("\n").forEach(function(e){s=e.indexOf(":"),a=e.substring(0,s).trim().toLowerCase(),n=e.substring(s+1).trim(),!a||t[a]&&We[a]||("set-cookie"===a?t[a]?t[a].push(n):t[a]=[n]:t[a]=t[a]?t[a]+", "+n:n)}),t})(e),t);else if(ge.isObject(e)&&ge.isIterable(e)){let a,n,s={};for(const t of e){if(!ge.isArray(t))throw TypeError("Object iterator must return a key-value pair");s[n=t[0]]=(a=s[n])?ge.isArray(a)?[...a,t[1]]:[a,t[1]]:t[1]}i(s,t)}else null!=e&&s(t,e,a);return this}get(e,t){if(e=Ve(e)){const a=ge.findKey(this,e);if(a){const e=this[a];if(!t)return e;if(!0===t)return function(e){const t=Object.create(null),a=/([^\s,;=]+)\s*(?:=\s*([^,;]+))?/g;let n;for(;n=a.exec(e);)t[n[1]]=n[2];return t}(e);if(ge.isFunction(t))return t.call(this,e,a);if(ge.isRegExp(t))return t.exec(e);throw new TypeError("parser must be boolean|regexp|function")}}}has(e,t){if(e=Ve(e)){const a=ge.findKey(this,e);return!(!a||void 0===this[a]||t&&!Xe(0,this[a],a,t))}return!1}delete(e,t){const a=this;let n=!1;function s(e){if(e=Ve(e)){const s=ge.findKey(a,e);!s||t&&!Xe(0,a[s],s,t)||(delete a[s],n=!0)}}return ge.isArray(e)?e.forEach(s):s(e),n}clear(e){const t=Object.keys(this);let a=t.length,n=!1;for(;a--;){const s=t[a];e&&!Xe(0,this[s],s,e,!0)||(delete this[s],n=!0)}return n}normalize(e){const t=this,a={};return ge.forEach(this,(n,s)=>{const i=ge.findKey(a,s);if(i)return t[i]=Je(n),void delete t[s];const o=e?function(e){return e.trim().toLowerCase().replace(/([a-z\d])(\w*)/g,(e,t,a)=>t.toUpperCase()+a)}(s):String(s).trim();o!==s&&delete t[s],t[o]=Je(n),a[o]=!0}),this}concat(...e){return this.constructor.concat(this,...e)}toJSON(e){const t=Object.create(null);return ge.forEach(this,(a,n)=>{null!=a&&!1!==a&&(t[n]=e&&ge.isArray(a)?a.join(", "):a)}),t}[Symbol.iterator](){return Object.entries(this.toJSON())[Symbol.iterator]()}toString(){return Object.entries(this.toJSON()).map(([e,t])=>e+": "+t).join("\n")}getSetCookie(){return this.get("set-cookie")||[]}get[Symbol.toStringTag](){return"AxiosHeaders"}static from(e){return e instanceof this?e:new this(e)}static concat(e,...t){const a=new this(e);return t.forEach(e=>a.set(e)),a}static accessor(e){const t=(this[Ke]=this[Ke]={accessors:{}}).accessors,a=this.prototype;function n(e){const n=Ve(e);t[n]||(function(e,t){const a=ge.toCamelCase(" "+t);["get","set","has"].forEach(n=>{Object.defineProperty(e,n+a,{value:function(e,a,s){return this[n].call(this,t,e,a,s)},configurable:!0})})}(a,e),t[n]=!0)}return ge.isArray(e)?e.forEach(n):n(e),this}}Ye.accessor(["Content-Type","Content-Length","Accept","Accept-Encoding","User-Agent","Authorization"]),ge.reduceDescriptors(Ye.prototype,({value:e},t)=>{let a=t[0].toUpperCase()+t.slice(1);return{get:()=>e,set(e){this[a]=e}}}),ge.freezeMethods(Ye);const Qe=Ye;function Ze(e,t){const a=this||He,n=t||a,s=Qe.from(n.headers);let i=n.data;return ge.forEach(e,function(e){i=e.call(a,i,s.normalize(),t?t.status:void 0)}),s.normalize(),i}function et(e){return!(!e||!e.__CANCEL__)}const tt=class extends be{constructor(e,t,a){super(null==e?"canceled":e,be.ERR_CANCELED,t,a),this.name="CanceledError",this.__CANCEL__=!0}};function at(e,t,a){const n=a.config.validateStatus;a.status&&n&&!n(a.status)?t(new be("Request failed with status code "+a.status,[be.ERR_BAD_REQUEST,be.ERR_BAD_RESPONSE][Math.floor(a.status/100)-4],a.config,a.request,a)):e(a)}function nt(e,t,a){let n=!function(e){return"string"==typeof e&&/^([a-z][a-z\d+\-.]*:)?\/\//i.test(e)}(t);return e&&(n||0==a)?function(e,t){return t?e.replace(/\/?\/$/,"")+"/"+t.replace(/^\/+/,""):e}(e,t):t}const st="1.13.5";function it(e){const t=/^([-+\w]{1,25})(:?\/\/|:)/.exec(e);return t&&t[1]||""}const ot=/^(?:([^;]+);)?(?:[^;]+;)?(base64|),([\s\S]*)$/,rt=Symbol("internals");class ct extends E.default.Transform{constructor(e){super({readableHighWaterMark:(e=ge.toFlatObject(e,{maxRate:0,chunkSize:65536,minChunkSize:100,timeWindow:500,ticksRate:2,samplesCount:15},null,(e,t)=>!ge.isUndefined(t[e]))).chunkSize});const t=this[rt]={timeWindow:e.timeWindow,chunkSize:e.chunkSize,maxRate:e.maxRate,minChunkSize:e.minChunkSize,bytesSeen:0,isCaptured:!1,notifiedBytesLoaded:0,ts:Date.now(),bytes:0,onReadCallback:null};this.on("newListener",e=>{"progress"===e&&(t.isCaptured||(t.isCaptured=!0))})}_read(e){const t=this[rt];return t.onReadCallback&&t.onReadCallback(),super._read(e)}_transform(e,t,a){const n=this[rt],s=n.maxRate,i=this.readableHighWaterMark,o=n.timeWindow,r=s/(1e3/o),c=!1!==n.minChunkSize?Math.max(n.minChunkSize,.01*r):0,p=(e,t)=>{const a=Buffer.byteLength(e);n.bytesSeen+=a,n.bytes+=a,n.isCaptured&&this.emit("progress",n.bytesSeen),this.push(e)?process.nextTick(t):n.onReadCallback=()=>{n.onReadCallback=null,process.nextTick(t)}},l=(e,t)=>{const a=Buffer.byteLength(e);let l,u=null,d=i,m=0;if(s){const e=Date.now();(!n.ts||(m=e-n.ts)>=o)&&(n.ts=e,l=r-n.bytes,n.bytes=l<0?-l:0,m=0),l=r-n.bytes}if(s){if(l<=0)return setTimeout(()=>{t(null,e)},o-m);l<d&&(d=l)}d&&a>d&&a-d>c&&(u=e.subarray(d),e=e.subarray(0,d)),p(e,u?()=>{process.nextTick(t,null,u)}:t)};l(e,function e(t,n){if(t)return a(t);n?l(n,e):a(null)})}}const pt=ct,{asyncIterator:lt}=Symbol,ut=async function*(e){e.stream?yield*e.stream():e.arrayBuffer?yield await e.arrayBuffer():e[lt]?yield*e[lt]():yield e},dt=De.ALPHABET.ALPHA_DIGIT+"-_",mt="function"==typeof TextEncoder?new TextEncoder:new k.default.TextEncoder,ht="\r\n",ft=mt.encode(ht);class vt{constructor(e,t){const{escapeName:a}=this.constructor,n=ge.isString(t);let s=`Content-Disposition: form-data; name="${a(e)}"${!n&&t.name?`; filename="${a(t.name)}"`:""}${ht}`;n?t=mt.encode(String(t).replace(/\r?\n|\r\n?/g,ht)):s+=`Content-Type: ${t.type||"application/octet-stream"}${ht}`,this.headers=mt.encode(s+ht),this.contentLength=n?t.byteLength:t.size,this.size=this.headers.byteLength+this.contentLength+2,this.name=e,this.value=t}async*encode(){yield this.headers;const{value:e}=this;ge.isTypedArray(e)?yield e:yield*ut(e),yield ft}static escapeName(e){return String(e).replace(/[\r\n"]/g,e=>({"\r":"%0D","\n":"%0A",'"':"%22"}[e]))}}class gt extends E.default.Transform{__transform(e,t,a){this.push(e),a()}_transform(e,t,a){if(0!==e.length&&(this._transform=this.__transform,120!==e[0])){const e=Buffer.alloc(2);e[0]=120,e[1]=156,this.push(e,t)}this.__transform(e,t,a)}}const xt=gt,bt=(e,t)=>ge.isAsyncFn(e)?function(...a){const n=a.pop();e.apply(this,a).then(e=>{try{t?n(null,...t(e)):n(null,e)}catch(e){n(e)}},n)}:e,yt=(e,t,a=3)=>{let n=0;const s=function(e,t){e=e||10;const a=new Array(e),n=new Array(e);let s,i=0,o=0;return t=void 0!==t?t:1e3,function(r){const c=Date.now(),p=n[o];s||(s=c),a[i]=r,n[i]=c;let l=o,u=0;for(;l!==i;)u+=a[l++],l%=e;if(i=(i+1)%e,i===o&&(o=(o+1)%e),c-s<t)return;const d=p&&c-p;return d?Math.round(1e3*u/d):void 0}}(50,250);return function(a,i){let o,r,c=0,p=1e3/i;const l=(a,i=Date.now())=>{c=i,o=null,r&&(clearTimeout(r),r=null),(a=>{const i=a.loaded,o=a.lengthComputable?a.total:void 0,r=i-n,c=s(r);n=i,e({loaded:i,total:o,progress:o?i/o:void 0,bytes:r,rate:c||void 0,estimated:c&&o&&i<=o?(o-i)/c:void 0,event:a,lengthComputable:null!=o,[t?"download":"upload"]:!0})})(...a)};return[(...e)=>{const t=Date.now(),a=t-c;a>=p?l(e,t):(o=e,r||(r=setTimeout(()=>{r=null,l(o)},p-a)))},()=>o&&l(o)]}(0,a)},wt=(e,t)=>{const a=null!=e;return[n=>t[0]({lengthComputable:a,total:e,loaded:n}),t[1]]},_t=e=>(...t)=>ge.asap(()=>e(...t)),kt={flush:S.default.constants.Z_SYNC_FLUSH,finishFlush:S.default.constants.Z_SYNC_FLUSH},Pt={flush:S.default.constants.BROTLI_OPERATION_FLUSH,finishFlush:S.default.constants.BROTLI_OPERATION_FLUSH},St=ge.isFunction(S.default.createBrotliDecompress),{http:Et,https:At}=P.default,Rt=/https:?/,jt=De.protocols.map(e=>e+":"),Ot=(e,[t,a])=>(e.on("end",a).on("error",a),t),Ct=new class{constructor(){this.sessions=Object.create(null)}getSession(e,t){t=Object.assign({sessionTimeout:1e3},t);let a=this.sessions[e];if(a){let e=a.length;for(let n=0;n<e;n++){const[e,s]=a[n];if(!e.destroyed&&!e.closed&&k.default.isDeepStrictEqual(s,t))return e}}const n=_.default.connect(e,t);let s;const i=()=>{if(s)return;s=!0;let t=a,i=t.length,o=i;for(;o--;)if(t[o][0]===n)return void(1===i?delete this.sessions[e]:t.splice(o,1))},o=n.request,{sessionTimeout:r}=t;if(null!=r){let e,t=0;n.request=function(){const a=o.apply(this,arguments);return t++,e&&(clearTimeout(e),e=null),a.once("close",()=>{--t||(e=setTimeout(()=>{e=null,i()},r))}),a}}n.once("close",i);let c=[n,t];return a?a.push(c):a=this.sessions[e]=[c],n}};function Ft(e,t){e.beforeRedirects.proxy&&e.beforeRedirects.proxy(e),e.beforeRedirects.config&&e.beforeRedirects.config(e,t)}function Tt(e,t,a){let n=t;if(!n&&!1!==n){const e=b.default.getProxyForUrl(a);e&&(n=new URL(e))}if(n){if(n.username&&(n.auth=(n.username||"")+":"+(n.password||"")),n.auth){if(Boolean(n.auth.username||n.auth.password))n.auth=(n.auth.username||"")+":"+(n.auth.password||"");else if("object"==typeof n.auth)throw new be("Invalid proxy authorization",be.ERR_BAD_OPTION,{proxy:n});const t=Buffer.from(n.auth,"utf8").toString("base64");e.headers["Proxy-Authorization"]="Basic "+t}e.headers.host=e.hostname+(e.port?":"+e.port:"");const t=n.hostname||n.host;e.hostname=t,e.host=t,e.port=n.port,e.path=a,n.protocol&&(e.protocol=n.protocol.includes(":")?n.protocol:`${n.protocol}:`)}e.beforeRedirects.proxy=function(e){Tt(e,t,e.href)}}const Lt="undefined"!=typeof process&&"process"===ge.kindOf(process),Mt=(e,t)=>(({address:e,family:t})=>{if(!ge.isString(e))throw TypeError("address must be a string");return{address:e,family:t||(e.indexOf(".")<0?6:4)}})(ge.isObject(e)?e:{address:e,family:t}),It={request(e,t){const a=e.protocol+"//"+e.hostname+":"+(e.port||("https:"===e.protocol?443:80)),{http2Options:n,headers:s}=e,i=Ct.getSession(a,n),{HTTP2_HEADER_SCHEME:o,HTTP2_HEADER_METHOD:r,HTTP2_HEADER_PATH:c,HTTP2_HEADER_STATUS:p}=_.default.constants,l={[o]:e.protocol.replace(":",""),[r]:e.method,[c]:e.path};ge.forEach(s,(e,t)=>{":"!==t.charAt(0)&&(l[t]=e)});const u=i.request(l);return u.once("response",e=>{const a=u,n=(e=Object.assign({},e))[p];delete e[p],a.headers=e,a.statusCode=+n,t(a)}),u}},Ut=Lt&&function(e){return t=async function(t,a,n){let{data:s,lookup:i,family:o,httpVersion:r=1,http2Options:c}=e;const{responseType:p,responseEncoding:l}=e,u=e.method.toUpperCase();let d,f,v=!1;if(r=+r,Number.isNaN(r))throw TypeError(`Invalid protocol version: '${e.httpVersion}' is not a number`);if(1!==r&&2!==r)throw TypeError(`Unsupported protocol version '${r}'`);const g=2===r;if(i){const e=bt(i,e=>ge.isArray(e)?e:[e]);i=(t,a,n)=>{e(t,a,(e,t,s)=>{if(e)return n(e);const i=ge.isArray(t)?t.map(e=>Mt(e)):[Mt(t,s)];a.all?n(e,i):n(e,i[0].address,i[0].family)})}}const x=new h.EventEmitter;function b(t){try{x.emit("abort",!t||t.type?new tt(null,e,f):t)}catch(e){console.warn("emit error",e)}}x.once("abort",a);const _=()=>{e.cancelToken&&e.cancelToken.unsubscribe(b),e.signal&&e.signal.removeEventListener("abort",b),x.removeAllListeners()};(e.cancelToken||e.signal)&&(e.cancelToken&&e.cancelToken.subscribe(b),e.signal&&(e.signal.aborted?b():e.signal.addEventListener("abort",b))),n((e,t)=>{if(d=!0,t)return v=!0,void _();const{data:a}=e;if(a instanceof E.default.Readable||a instanceof E.default.Duplex){const e=E.default.finished(a,()=>{e(),_()})}else _()});const P=nt(e.baseURL,e.url,e.allowAbsoluteUrls),A=new URL(P,De.hasBrowserEnv?De.origin:void 0),R=A.protocol||jt[0];if("data:"===R){if(e.maxContentLength>-1){const t=function(e){if(!e||"string"!=typeof e)return 0;if(!e.startsWith("data:"))return 0;const t=e.indexOf(",");if(t<0)return 0;const a=e.slice(5,t),n=e.slice(t+1);if(/;base64/i.test(a)){let e=n.length;const t=n.length;for(let a=0;a<t;a++)if(37===n.charCodeAt(a)&&a+2<t){const t=n.charCodeAt(a+1),s=n.charCodeAt(a+2);(t>=48&&t<=57||t>=65&&t<=70||t>=97&&t<=102)&&(s>=48&&s<=57||s>=65&&s<=70||s>=97&&s<=102)&&(e-=2,a+=2)}let a=0,s=t-1;const i=e=>e>=2&&37===n.charCodeAt(e-2)&&51===n.charCodeAt(e-1)&&(68===n.charCodeAt(e)||100===n.charCodeAt(e));s>=0&&(61===n.charCodeAt(s)?(a++,s--):i(s)&&(a++,s-=3)),1===a&&s>=0&&(61===n.charCodeAt(s)||i(s))&&a++;const o=3*Math.floor(e/4)-(a||0);return o>0?o:0}return Buffer.byteLength(n,"utf8")}(String(e.url||P||""));if(t>e.maxContentLength)return a(new be("maxContentLength size of "+e.maxContentLength+" exceeded",be.ERR_BAD_RESPONSE,e))}let n;if("GET"!==u)return at(t,a,{status:405,statusText:"method not allowed",headers:{},config:e});try{n=function(e,t,a){const n=a&&a.Blob||De.classes.Blob,s=it(e);if(void 0===t&&n&&(t=!0),"data"===s){e=s.length?e.slice(s.length+1):e;const a=ot.exec(e);if(!a)throw new be("Invalid URL",be.ERR_INVALID_URL);const i=a[1],o=a[2],r=a[3],c=Buffer.from(decodeURIComponent(r),o?"base64":"utf8");if(t){if(!n)throw new be("Blob is not supported",be.ERR_NOT_SUPPORT);return new n([c],{type:i})}return c}throw new be("Unsupported protocol "+s,be.ERR_NOT_SUPPORT)}(e.url,"blob"===p,{Blob:e.env&&e.env.Blob})}catch(t){throw be.from(t,be.ERR_BAD_REQUEST,e)}return"text"===p?(n=n.toString(l),l&&"utf8"!==l||(n=ge.stripBOM(n))):"stream"===p&&(n=E.default.Readable.from(n)),at(t,a,{data:n,status:200,statusText:"OK",headers:new Qe,config:e})}if(-1===jt.indexOf(R))return a(new be("Unsupported protocol "+R,be.ERR_BAD_REQUEST,e));const j=Qe.from(e.headers).normalize();j.set("User-Agent","axios/"+st,!1);const{onUploadProgress:O,onDownloadProgress:C}=e,F=e.maxRate;let T,L;if(ge.isSpecCompliantForm(s)){const e=j.getContentType(/boundary=([-_\w\d]{10,70})/i);s=((e,t,a)=>{const{tag:n="form-data-boundary",size:s=25,boundary:i=n+"-"+De.generateString(s,dt)}=a||{};if(!ge.isFormData(e))throw TypeError("FormData instance required");if(i.length<1||i.length>70)throw Error("boundary must be 10-70 characters long");const o=mt.encode("--"+i+ht),r=mt.encode("--"+i+"--"+ht);let c=r.byteLength;const p=Array.from(e.entries()).map(([e,t])=>{const a=new vt(e,t);return c+=a.size,a});c+=o.byteLength*p.length,c=ge.toFiniteNumber(c);const l={"Content-Type":`multipart/form-data; boundary=${i}`};return Number.isFinite(c)&&(l["Content-Length"]=c),t&&t(l),m.Readable.from(async function*(){for(const e of p)yield o,yield*e.encode();yield r}())})(s,e=>{j.set(e)},{tag:`axios-${st}-boundary`,boundary:e&&e[1]||void 0})}else if(ge.isFormData(s)&&ge.isFunction(s.getHeaders)){if(j.set(s.getHeaders()),!j.hasContentLength())try{const e=await k.default.promisify(s.getLength).call(s);Number.isFinite(e)&&e>=0&&j.setContentLength(e)}catch(e){}}else if(ge.isBlob(s)||ge.isFile(s))s.size&&j.setContentType(s.type||"application/octet-stream"),j.setContentLength(s.size||0),s=E.default.Readable.from(ut(s));else if(s&&!ge.isStream(s)){if(Buffer.isBuffer(s));else if(ge.isArrayBuffer(s))s=Buffer.from(new Uint8Array(s));else{if(!ge.isString(s))return a(new be("Data after transformation must be a string, an ArrayBuffer, a Buffer, or a Stream",be.ERR_BAD_REQUEST,e));s=Buffer.from(s,"utf-8")}if(j.setContentLength(s.length,!1),e.maxBodyLength>-1&&s.length>e.maxBodyLength)return a(new be("Request body larger than maxBodyLength limit",be.ERR_BAD_REQUEST,e))}const M=ge.toFiniteNumber(j.getContentLength());let I,U;ge.isArray(F)?(T=F[0],L=F[1]):T=L=F,s&&(O||T)&&(ge.isStream(s)||(s=E.default.Readable.from(s,{objectMode:!1})),s=E.default.pipeline([s,new pt({maxRate:ge.toFiniteNumber(T)})],ge.noop),O&&s.on("progress",Ot(s,wt(M,yt(_t(O),!1,3))))),e.auth&&(I=(e.auth.username||"")+":"+(e.auth.password||"")),!I&&A.username&&(I=A.username+":"+A.password),I&&j.delete("authorization");try{U=je(A.pathname+A.search,e.params,e.paramsSerializer).replace(/^\?/,"")}catch(t){const n=new Error(t.message);return n.config=e,n.url=e.url,n.exists=!0,a(n)}j.set("Accept-Encoding","gzip, compress, deflate"+(St?", br":""),!1);const N={path:U,method:u,headers:j.toJSON(),agents:{http:e.httpAgent,https:e.httpsAgent},auth:I,protocol:R,family:o,beforeRedirect:Ft,beforeRedirects:{},http2Options:c};let $;!ge.isUndefined(i)&&(N.lookup=i),e.socketPath?N.socketPath=e.socketPath:(N.hostname=A.hostname.startsWith("[")?A.hostname.slice(1,-1):A.hostname,N.port=A.port,Tt(N,e.proxy,R+"//"+A.hostname+(A.port?":"+A.port:"")+N.path));const B=Rt.test(N.protocol);if(N.agent=B?e.httpsAgent:e.httpAgent,g?$=It:e.transport?$=e.transport:0===e.maxRedirects?$=B?w.default:y.default:(e.maxRedirects&&(N.maxRedirects=e.maxRedirects),e.beforeRedirect&&(N.beforeRedirects.config=e.beforeRedirect),$=B?At:Et),e.maxBodyLength>-1?N.maxBodyLength=e.maxBodyLength:N.maxBodyLength=1/0,e.insecureHTTPParser&&(N.insecureHTTPParser=e.insecureHTTPParser),f=$.request(N,function(n){if(f.destroyed)return;const s=[n],i=ge.toFiniteNumber(n.headers["content-length"]);if(C||L){const e=new pt({maxRate:ge.toFiniteNumber(L)});C&&e.on("progress",Ot(e,wt(i,yt(_t(C),!0,3)))),s.push(e)}let o=n;const r=n.req||f;if(!1!==e.decompress&&n.headers["content-encoding"])switch("HEAD"!==u&&204!==n.statusCode||delete n.headers["content-encoding"],(n.headers["content-encoding"]||"").toLowerCase()){case"gzip":case"x-gzip":case"compress":case"x-compress":s.push(S.default.createUnzip(kt)),delete n.headers["content-encoding"];break;case"deflate":s.push(new xt),s.push(S.default.createUnzip(kt)),delete n.headers["content-encoding"];break;case"br":St&&(s.push(S.default.createBrotliDecompress(Pt)),delete n.headers["content-encoding"])}o=s.length>1?E.default.pipeline(s,ge.noop):s[0];const c={status:n.statusCode,statusText:n.statusMessage,headers:new Qe(n.headers),config:e,request:r};if("stream"===p)c.data=o,at(t,a,c);else{const n=[];let s=0;o.on("data",function(t){n.push(t),s+=t.length,e.maxContentLength>-1&&s>e.maxContentLength&&(v=!0,o.destroy(),b(new be("maxContentLength size of "+e.maxContentLength+" exceeded",be.ERR_BAD_RESPONSE,e,r)))}),o.on("aborted",function(){if(v)return;const t=new be("stream has been aborted",be.ERR_BAD_RESPONSE,e,r);o.destroy(t),a(t)}),o.on("error",function(t){f.destroyed||a(be.from(t,null,e,r))}),o.on("end",function(){try{let e=1===n.length?n[0]:Buffer.concat(n);"arraybuffer"!==p&&(e=e.toString(l),l&&"utf8"!==l||(e=ge.stripBOM(e))),c.data=e}catch(t){return a(be.from(t,null,e,c.request,c))}at(t,a,c)})}x.once("abort",e=>{o.destroyed||(o.emit("error",e),o.destroy())})}),x.once("abort",e=>{f.close?f.close():f.destroy(e)}),f.on("error",function(t){a(be.from(t,null,e,f))}),f.on("socket",function(e){e.setKeepAlive(!0,6e4)}),e.timeout){const t=parseInt(e.timeout,10);if(Number.isNaN(t))return void b(new be("error trying to parse `config.timeout` to int",be.ERR_BAD_OPTION_VALUE,e,f));f.setTimeout(t,function(){if(d)return;let t=e.timeout?"timeout of "+e.timeout+"ms exceeded":"timeout exceeded";const a=e.transitional||Ce;e.timeoutErrorMessage&&(t=e.timeoutErrorMessage),b(new be(t,a.clarifyTimeoutError?be.ETIMEDOUT:be.ECONNABORTED,e,f))})}else f.setTimeout(0);if(ge.isStream(s)){let t=!1,a=!1;s.on("end",()=>{t=!0}),s.once("error",e=>{a=!0,f.destroy(e)}),s.on("close",()=>{t||a||b(new tt("Request stream has been aborted",e,f))}),s.pipe(f)}else s&&f.write(s),f.end()},new Promise((e,a)=>{let n,s;const i=(e,t)=>{s||(s=!0,n&&n(e,t))},o=e=>{i(e,!0),a(e)};t(t=>{i(t),e(t)},o,e=>n=e).catch(o)});var t},Nt=De.hasStandardBrowserEnv?((e,t)=>a=>(a=new URL(a,De.origin),e.protocol===a.protocol&&e.host===a.host&&(t||e.port===a.port)))(new URL(De.origin),De.navigator&&/(msie|trident)/i.test(De.navigator.userAgent)):()=>!0,$t=De.hasStandardBrowserEnv?{write(e,t,a,n,s,i,o){if("undefined"==typeof document)return;const r=[`${e}=${encodeURIComponent(t)}`];ge.isNumber(a)&&r.push(`expires=${new Date(a).toUTCString()}`),ge.isString(n)&&r.push(`path=${n}`),ge.isString(s)&&r.push(`domain=${s}`),!0===i&&r.push("secure"),ge.isString(o)&&r.push(`SameSite=${o}`),document.cookie=r.join("; ")},read(e){if("undefined"==typeof document)return null;const t=document.cookie.match(new RegExp("(?:^|; )"+e+"=([^;]*)"));return t?decodeURIComponent(t[1]):null},remove(e){this.write(e,"",Date.now()-864e5,"/")}}:{write(){},read:()=>null,remove(){}},Bt=e=>e instanceof Qe?{...e}:e;function qt(e,t){t=t||{};const a={};function n(e,t,a,n){return ge.isPlainObject(e)&&ge.isPlainObject(t)?ge.merge.call({caseless:n},e,t):ge.isPlainObject(t)?ge.merge({},t):ge.isArray(t)?t.slice():t}function s(e,t,a,s){return ge.isUndefined(t)?ge.isUndefined(e)?void 0:n(void 0,e,0,s):n(e,t,0,s)}function i(e,t){if(!ge.isUndefined(t))return n(void 0,t)}function o(e,t){return ge.isUndefined(t)?ge.isUndefined(e)?void 0:n(void 0,e):n(void 0,t)}function r(a,s,i){return i in t?n(a,s):i in e?n(void 0,a):void 0}const c={url:i,method:i,data:i,baseURL:o,transformRequest:o,transformResponse:o,paramsSerializer:o,timeout:o,timeoutMessage:o,withCredentials:o,withXSRFToken:o,adapter:o,responseType:o,xsrfCookieName:o,xsrfHeaderName:o,onUploadProgress:o,onDownloadProgress:o,decompress:o,maxContentLength:o,maxBodyLength:o,beforeRedirect:o,transport:o,httpAgent:o,httpsAgent:o,cancelToken:o,socketPath:o,responseEncoding:o,validateStatus:r,headers:(e,t,a)=>s(Bt(e),Bt(t),0,!0)};return ge.forEach(Object.keys({...e,...t}),function(n){if("__proto__"===n||"constructor"===n||"prototype"===n)return;const i=ge.hasOwnProp(c,n)?c[n]:s,o=i(e[n],t[n],n);ge.isUndefined(o)&&i!==r||(a[n]=o)}),a}const Dt=e=>{const t=qt({},e);let{data:a,withXSRFToken:n,xsrfHeaderName:s,xsrfCookieName:i,headers:o,auth:r}=t;if(t.headers=o=Qe.from(o),t.url=je(nt(t.baseURL,t.url,t.allowAbsoluteUrls),e.params,e.paramsSerializer),r&&o.set("Authorization","Basic "+btoa((r.username||"")+":"+(r.password?unescape(encodeURIComponent(r.password)):""))),ge.isFormData(a))if(De.hasStandardBrowserEnv||De.hasStandardBrowserWebWorkerEnv)o.setContentType(void 0);else if(ge.isFunction(a.getHeaders)){const e=a.getHeaders(),t=["content-type","content-length"];Object.entries(e).forEach(([e,a])=>{t.includes(e.toLowerCase())&&o.set(e,a)})}if(De.hasStandardBrowserEnv&&(n&&ge.isFunction(n)&&(n=n(t)),n||!1!==n&&Nt(t.url))){const e=s&&i&&$t.read(i);e&&o.set(s,e)}return t},zt="undefined"!=typeof XMLHttpRequest&&function(e){return new Promise(function(t,a){const n=Dt(e);let s=n.data;const i=Qe.from(n.headers).normalize();let o,r,c,p,l,{responseType:u,onUploadProgress:d,onDownloadProgress:m}=n;function h(){p&&p(),l&&l(),n.cancelToken&&n.cancelToken.unsubscribe(o),n.signal&&n.signal.removeEventListener("abort",o)}let f=new XMLHttpRequest;function v(){if(!f)return;const n=Qe.from("getAllResponseHeaders"in f&&f.getAllResponseHeaders());at(function(e){t(e),h()},function(e){a(e),h()},{data:u&&"text"!==u&&"json"!==u?f.response:f.responseText,status:f.status,statusText:f.statusText,headers:n,config:e,request:f}),f=null}f.open(n.method.toUpperCase(),n.url,!0),f.timeout=n.timeout,"onloadend"in f?f.onloadend=v:f.onreadystatechange=function(){f&&4===f.readyState&&(0!==f.status||f.responseURL&&0===f.responseURL.indexOf("file:"))&&setTimeout(v)},f.onabort=function(){f&&(a(new be("Request aborted",be.ECONNABORTED,e,f)),f=null)},f.onerror=function(t){const n=t&&t.message?t.message:"Network Error",s=new be(n,be.ERR_NETWORK,e,f);s.event=t||null,a(s),f=null},f.ontimeout=function(){let t=n.timeout?"timeout of "+n.timeout+"ms exceeded":"timeout exceeded";const s=n.transitional||Ce;n.timeoutErrorMessage&&(t=n.timeoutErrorMessage),a(new be(t,s.clarifyTimeoutError?be.ETIMEDOUT:be.ECONNABORTED,e,f)),f=null},void 0===s&&i.setContentType(null),"setRequestHeader"in f&&ge.forEach(i.toJSON(),function(e,t){f.setRequestHeader(t,e)}),ge.isUndefined(n.withCredentials)||(f.withCredentials=!!n.withCredentials),u&&"json"!==u&&(f.responseType=n.responseType),m&&([c,l]=yt(m,!0),f.addEventListener("progress",c)),d&&f.upload&&([r,p]=yt(d),f.upload.addEventListener("progress",r),f.upload.addEventListener("loadend",p)),(n.cancelToken||n.signal)&&(o=t=>{f&&(a(!t||t.type?new tt(null,e,f):t),f.abort(),f=null)},n.cancelToken&&n.cancelToken.subscribe(o),n.signal&&(n.signal.aborted?o():n.signal.addEventListener("abort",o)));const g=it(n.url);g&&-1===De.protocols.indexOf(g)?a(new be("Unsupported protocol "+g+":",be.ERR_BAD_REQUEST,e)):f.send(s||null)})},Gt=(e,t)=>{const{length:a}=e=e?e.filter(Boolean):[];if(t||a){let a,n=new AbortController;const s=function(e){if(!a){a=!0,o();const t=e instanceof Error?e:this.reason;n.abort(t instanceof be?t:new tt(t instanceof Error?t.message:t))}};let i=t&&setTimeout(()=>{i=null,s(new be(`timeout of ${t}ms exceeded`,be.ETIMEDOUT))},t);const o=()=>{e&&(i&&clearTimeout(i),i=null,e.forEach(e=>{e.unsubscribe?e.unsubscribe(s):e.removeEventListener("abort",s)}),e=null)};e.forEach(e=>e.addEventListener("abort",s));const{signal:r}=n;return r.unsubscribe=()=>ge.asap(o),r}},Ht=function*(e,t){let a=e.byteLength;if(!t||a<t)return void(yield e);let n,s=0;for(;s<a;)n=s+t,yield e.slice(s,n),s=n},Wt=(e,t,a,n)=>{const s=async function*(e,t){for await(const a of async function*(e){if(e[Symbol.asyncIterator])return void(yield*e);const t=e.getReader();try{for(;;){const{done:e,value:a}=await t.read();if(e)break;yield a}}finally{await t.cancel()}}(e))yield*Ht(a,t)}(e,t);let i,o=0,r=e=>{i||(i=!0,n&&n(e))};return new ReadableStream({async pull(e){try{const{done:t,value:n}=await s.next();if(t)return r(),void e.close();let i=n.byteLength;if(a){let e=o+=i;a(e)}e.enqueue(new Uint8Array(n))}catch(e){throw r(e),e}},cancel:e=>(r(e),s.return())},{highWaterMark:2})},{isFunction:Kt}=ge,Vt=(({Request:e,Response:t})=>({Request:e,Response:t}))(ge.global),{ReadableStream:Jt,TextEncoder:Xt}=ge.global,Yt=(e,...t)=>{try{return!!e(...t)}catch(e){return!1}},Qt=e=>{e=ge.merge.call({skipUndefined:!0},Vt,e);const{fetch:t,Request:a,Response:n}=e,s=t?Kt(t):"function"==typeof fetch,i=Kt(a),o=Kt(n);if(!s)return!1;const r=s&&Kt(Jt),c=s&&("function"==typeof Xt?(p=new Xt,e=>p.encode(e)):async e=>new Uint8Array(await new a(e).arrayBuffer()));var p;const l=i&&r&&Yt(()=>{let e=!1;const t=new a(De.origin,{body:new Jt,method:"POST",get duplex(){return e=!0,"half"}}).headers.has("Content-Type");return e&&!t}),u=o&&r&&Yt(()=>ge.isReadableStream(new n("").body)),d={stream:u&&(e=>e.body)};s&&["text","arrayBuffer","blob","formData","stream"].forEach(e=>{!d[e]&&(d[e]=(t,a)=>{let n=t&&t[e];if(n)return n.call(t);throw new be(`Response type '${e}' is not supported`,be.ERR_NOT_SUPPORT,a)})});return async e=>{let{url:s,method:o,data:r,signal:p,cancelToken:m,timeout:h,onDownloadProgress:f,onUploadProgress:v,responseType:g,headers:x,withCredentials:b="same-origin",fetchOptions:y}=Dt(e),w=t||fetch;g=g?(g+"").toLowerCase():"text";let _=Gt([p,m&&m.toAbortSignal()],h),k=null;const P=_&&_.unsubscribe&&(()=>{_.unsubscribe()});let S;try{if(v&&l&&"get"!==o&&"head"!==o&&0!==(S=await(async(e,t)=>{const n=ge.toFiniteNumber(e.getContentLength());return null==n?(async e=>{if(null==e)return 0;if(ge.isBlob(e))return e.size;if(ge.isSpecCompliantForm(e)){const t=new a(De.origin,{method:"POST",body:e});return(await t.arrayBuffer()).byteLength}return ge.isArrayBufferView(e)||ge.isArrayBuffer(e)?e.byteLength:(ge.isURLSearchParams(e)&&(e+=""),ge.isString(e)?(await c(e)).byteLength:void 0)})(t):n})(x,r))){let e,t=new a(s,{method:"POST",body:r,duplex:"half"});if(ge.isFormData(r)&&(e=t.headers.get("content-type"))&&x.setContentType(e),t.body){const[e,a]=wt(S,yt(_t(v)));r=Wt(t.body,65536,e,a)}}ge.isString(b)||(b=b?"include":"omit");const t=i&&"credentials"in a.prototype,p={...y,signal:_,method:o.toUpperCase(),headers:x.normalize().toJSON(),body:r,duplex:"half",credentials:t?b:void 0};k=i&&new a(s,p);let m=await(i?w(k,y):w(s,p));const h=u&&("stream"===g||"response"===g);if(u&&(f||h&&P)){const e={};["status","statusText","headers"].forEach(t=>{e[t]=m[t]});const t=ge.toFiniteNumber(m.headers.get("content-length")),[a,s]=f&&wt(t,yt(_t(f),!0))||[];m=new n(Wt(m.body,65536,a,()=>{s&&s(),P&&P()}),e)}g=g||"text";let E=await d[ge.findKey(d,g)||"text"](m,e);return!h&&P&&P(),await new Promise((t,a)=>{at(t,a,{data:E,headers:Qe.from(m.headers),status:m.status,statusText:m.statusText,config:e,request:k})})}catch(t){if(P&&P(),t&&"TypeError"===t.name&&/Load failed|fetch/i.test(t.message))throw Object.assign(new be("Network Error",be.ERR_NETWORK,e,k,t&&t.response),{cause:t.cause||t});throw be.from(t,t&&t.code,e,k,t&&t.response)}}},Zt=new Map,ea=e=>{let t=e&&e.env||{};const{fetch:a,Request:n,Response:s}=t,i=[n,s,a];let o,r,c=i.length,p=Zt;for(;c--;)o=i[c],r=p.get(o),void 0===r&&p.set(o,r=c?new Map:Qt(t)),p=r;return r};ea();const ta={http:Ut,xhr:zt,fetch:{get:ea}};ge.forEach(ta,(e,t)=>{if(e){try{Object.defineProperty(e,"name",{value:t})}catch(e){}Object.defineProperty(e,"adapterName",{value:t})}});const aa=e=>`- ${e}`,na=e=>ge.isFunction(e)||null===e||!1===e,sa=function(e,t){e=ge.isArray(e)?e:[e];const{length:a}=e;let n,s;const i={};for(let o=0;o<a;o++){let a;if(n=e[o],s=n,!na(n)&&(s=ta[(a=String(n)).toLowerCase()],void 0===s))throw new be(`Unknown adapter '${a}'`);if(s&&(ge.isFunction(s)||(s=s.get(t))))break;i[a||"#"+o]=s}if(!s){const e=Object.entries(i).map(([e,t])=>`adapter ${e} `+(!1===t?"is not supported by the environment":"is not available in the build"));let t=a?e.length>1?"since :\n"+e.map(aa).join("\n"):" "+aa(e[0]):"as no adapter specified";throw new be("There is no suitable adapter to dispatch the request "+t,"ERR_NOT_SUPPORT")}return s};function ia(e){if(e.cancelToken&&e.cancelToken.throwIfRequested(),e.signal&&e.signal.aborted)throw new tt(null,e)}function oa(e){return ia(e),e.headers=Qe.from(e.headers),e.data=Ze.call(e,e.transformRequest),-1!==["post","put","patch"].indexOf(e.method)&&e.headers.setContentType("application/x-www-form-urlencoded",!1),sa(e.adapter||He.adapter,e)(e).then(function(t){return ia(e),t.data=Ze.call(e,e.transformResponse,t),t.headers=Qe.from(t.headers),t},function(t){return et(t)||(ia(e),t&&t.response&&(t.response.data=Ze.call(e,e.transformResponse,t.response),t.response.headers=Qe.from(t.response.headers))),Promise.reject(t)})}const ra={};["object","boolean","number","function","string","symbol"].forEach((e,t)=>{ra[e]=function(a){return typeof a===e||"a"+(t<1?"n ":" ")+e}});const ca={};ra.transitional=function(e,t,a){function n(e,t){return"[Axios v"+st+"] Transitional option '"+e+"'"+t+(a?". "+a:"")}return(a,s,i)=>{if(!1===e)throw new be(n(s," has been removed"+(t?" in "+t:"")),be.ERR_DEPRECATED);return t&&!ca[s]&&(ca[s]=!0,console.warn(n(s," has been deprecated since v"+t+" and will be removed in the near future"))),!e||e(a,s,i)}},ra.spelling=function(e){return(t,a)=>(console.warn(`${a} is likely a misspelling of ${e}`),!0)};const pa={assertOptions:function(e,t,a){if("object"!=typeof e)throw new be("options must be an object",be.ERR_BAD_OPTION_VALUE);const n=Object.keys(e);let s=n.length;for(;s-- >0;){const i=n[s],o=t[i];if(o){const t=e[i],a=void 0===t||o(t,i,e);if(!0!==a)throw new be("option "+i+" must be "+a,be.ERR_BAD_OPTION_VALUE);continue}if(!0!==a)throw new be("Unknown option "+i,be.ERR_BAD_OPTION)}},validators:ra},la=pa.validators;class ua{constructor(e){this.defaults=e||{},this.interceptors={request:new Oe,response:new Oe}}async request(e,t){try{return await this._request(e,t)}catch(e){if(e instanceof Error){let t={};Error.captureStackTrace?Error.captureStackTrace(t):t=new Error;const a=t.stack?t.stack.replace(/^.+\n/,""):"";try{e.stack?a&&!String(e.stack).endsWith(a.replace(/^.+\n.+\n/,""))&&(e.stack+="\n"+a):e.stack=a}catch(e){}}throw e}}_request(e,t){"string"==typeof e?(t=t||{}).url=e:t=e||{},t=qt(this.defaults,t);const{transitional:a,paramsSerializer:n,headers:s}=t;void 0!==a&&pa.assertOptions(a,{silentJSONParsing:la.transitional(la.boolean),forcedJSONParsing:la.transitional(la.boolean),clarifyTimeoutError:la.transitional(la.boolean),legacyInterceptorReqResOrdering:la.transitional(la.boolean)},!1),null!=n&&(ge.isFunction(n)?t.paramsSerializer={serialize:n}:pa.assertOptions(n,{encode:la.function,serialize:la.function},!0)),void 0!==t.allowAbsoluteUrls||(void 0!==this.defaults.allowAbsoluteUrls?t.allowAbsoluteUrls=this.defaults.allowAbsoluteUrls:t.allowAbsoluteUrls=!0),pa.assertOptions(t,{baseUrl:la.spelling("baseURL"),withXsrfToken:la.spelling("withXSRFToken")},!0),t.method=(t.method||this.defaults.method||"get").toLowerCase();let i=s&&ge.merge(s.common,s[t.method]);s&&ge.forEach(["delete","get","head","post","put","patch","common"],e=>{delete s[e]}),t.headers=Qe.concat(i,s);const o=[];let r=!0;this.interceptors.request.forEach(function(e){if("function"==typeof e.runWhen&&!1===e.runWhen(t))return;r=r&&e.synchronous;const a=t.transitional||Ce;a&&a.legacyInterceptorReqResOrdering?o.unshift(e.fulfilled,e.rejected):o.push(e.fulfilled,e.rejected)});const c=[];let p;this.interceptors.response.forEach(function(e){c.push(e.fulfilled,e.rejected)});let l,u=0;if(!r){const e=[oa.bind(this),void 0];for(e.unshift(...o),e.push(...c),l=e.length,p=Promise.resolve(t);u<l;)p=p.then(e[u++],e[u++]);return p}l=o.length;let d=t;for(;u<l;){const e=o[u++],t=o[u++];try{d=e(d)}catch(e){t.call(this,e);break}}try{p=oa.call(this,d)}catch(e){return Promise.reject(e)}for(u=0,l=c.length;u<l;)p=p.then(c[u++],c[u++]);return p}getUri(e){return je(nt((e=qt(this.defaults,e)).baseURL,e.url,e.allowAbsoluteUrls),e.params,e.paramsSerializer)}}ge.forEach(["delete","get","head","options"],function(e){ua.prototype[e]=function(t,a){return this.request(qt(a||{},{method:e,url:t,data:(a||{}).data}))}}),ge.forEach(["post","put","patch"],function(e){function t(t){return function(a,n,s){return this.request(qt(s||{},{method:e,headers:t?{"Content-Type":"multipart/form-data"}:{},url:a,data:n}))}}ua.prototype[e]=t(),ua.prototype[e+"Form"]=t(!0)});const da=ua;class ma{constructor(e){if("function"!=typeof e)throw new TypeError("executor must be a function.");let t;this.promise=new Promise(function(e){t=e});const a=this;this.promise.then(e=>{if(!a._listeners)return;let t=a._listeners.length;for(;t-- >0;)a._listeners[t](e);a._listeners=null}),this.promise.then=e=>{let t;const n=new Promise(e=>{a.subscribe(e),t=e}).then(e);return n.cancel=function(){a.unsubscribe(t)},n},e(function(e,n,s){a.reason||(a.reason=new tt(e,n,s),t(a.reason))})}throwIfRequested(){if(this.reason)throw this.reason}subscribe(e){this.reason?e(this.reason):this._listeners?this._listeners.push(e):this._listeners=[e]}unsubscribe(e){if(!this._listeners)return;const t=this._listeners.indexOf(e);-1!==t&&this._listeners.splice(t,1)}toAbortSignal(){const e=new AbortController,t=t=>{e.abort(t)};return this.subscribe(t),e.signal.unsubscribe=()=>this.unsubscribe(t),e.signal}static source(){let e;return{token:new ma(function(t){e=t}),cancel:e}}}const ha=ma,fa={Continue:100,SwitchingProtocols:101,Processing:102,EarlyHints:103,Ok:200,Created:201,Accepted:202,NonAuthoritativeInformation:203,NoContent:204,ResetContent:205,PartialContent:206,MultiStatus:207,AlreadyReported:208,ImUsed:226,MultipleChoices:300,MovedPermanently:301,Found:302,SeeOther:303,NotModified:304,UseProxy:305,Unused:306,TemporaryRedirect:307,PermanentRedirect:308,BadRequest:400,Unauthorized:401,PaymentRequired:402,Forbidden:403,NotFound:404,MethodNotAllowed:405,NotAcceptable:406,ProxyAuthenticationRequired:407,RequestTimeout:408,Conflict:409,Gone:410,LengthRequired:411,PreconditionFailed:412,PayloadTooLarge:413,UriTooLong:414,UnsupportedMediaType:415,RangeNotSatisfiable:416,ExpectationFailed:417,ImATeapot:418,MisdirectedRequest:421,UnprocessableEntity:422,Locked:423,FailedDependency:424,TooEarly:425,UpgradeRequired:426,PreconditionRequired:428,TooManyRequests:429,RequestHeaderFieldsTooLarge:431,UnavailableForLegalReasons:451,InternalServerError:500,NotImplemented:501,BadGateway:502,ServiceUnavailable:503,GatewayTimeout:504,HttpVersionNotSupported:505,VariantAlsoNegotiates:506,InsufficientStorage:507,LoopDetected:508,NotExtended:510,NetworkAuthenticationRequired:511,WebServerIsDown:521,ConnectionTimedOut:522,OriginIsUnreachable:523,TimeoutOccurred:524,SslHandshakeFailed:525,InvalidSslCertificate:526};Object.entries(fa).forEach(([e,t])=>{fa[t]=e});const va=fa,ga=function e(t){const a=new da(t),n=A(da.prototype.request,a);return ge.extend(n,da.prototype,a,{allOwnKeys:!0}),ge.extend(n,a,null,{allOwnKeys:!0}),n.create=function(a){return e(qt(t,a))},n}(He);ga.Axios=da,ga.CanceledError=tt,ga.CancelToken=ha,ga.isCancel=et,ga.VERSION=st,ga.toFormData=Pe,ga.AxiosError=be,ga.Cancel=ga.CanceledError,ga.all=function(e){return Promise.all(e)},ga.spread=function(e){return function(t){return e.apply(null,t)}},ga.isAxiosError=function(e){return ge.isObject(e)&&!0===e.isAxiosError},ga.mergeConfig=qt,ga.AxiosHeaders=Qe,ga.formToJSON=e=>ze(ge.isHTMLForm(e)?new FormData(e):e),ga.getAdapter=sa,ga.HttpStatusCode=va,ga.default=ga,e.exports=ga},1813(e){"use strict";e.exports=JSON.parse('{"application/1d-interleaved-parityfec":{"source":"iana"},"application/3gpdash-qoe-report+xml":{"source":"iana","charset":"UTF-8","compressible":true},"application/3gpp-ims+xml":{"source":"iana","compressible":true},"application/3gpphal+json":{"source":"iana","compressible":true},"application/3gpphalforms+json":{"source":"iana","compressible":true},"application/a2l":{"source":"iana"},"application/ace+cbor":{"source":"iana"},"application/activemessage":{"source":"iana"},"application/activity+json":{"source":"iana","compressible":true},"application/alto-costmap+json":{"source":"iana","compressible":true},"application/alto-costmapfilter+json":{"source":"iana","compressible":true},"application/alto-directory+json":{"source":"iana","compressible":true},"application/alto-endpointcost+json":{"source":"iana","compressible":true},"application/alto-endpointcostparams+json":{"source":"iana","compressible":true},"application/alto-endpointprop+json":{"source":"iana","compressible":true},"application/alto-endpointpropparams+json":{"source":"iana","compressible":true},"application/alto-error+json":{"source":"iana","compressible":true},"application/alto-networkmap+json":{"source":"iana","compressible":true},"application/alto-networkmapfilter+json":{"source":"iana","compressible":true},"application/alto-updatestreamcontrol+json":{"source":"iana","compressible":true},"application/alto-updatestreamparams+json":{"source":"iana","compressible":true},"application/aml":{"source":"iana"},"application/andrew-inset":{"source":"iana","extensions":["ez"]},"application/applefile":{"source":"iana"},"application/applixware":{"source":"apache","extensions":["aw"]},"application/at+jwt":{"source":"iana"},"application/atf":{"source":"iana"},"application/atfx":{"source":"iana"},"application/atom+xml":{"source":"iana","compressible":true,"extensions":["atom"]},"application/atomcat+xml":{"source":"iana","compressible":true,"extensions":["atomcat"]},"application/atomdeleted+xml":{"source":"iana","compressible":true,"extensions":["atomdeleted"]},"application/atomicmail":{"source":"iana"},"application/atomsvc+xml":{"source":"iana","compressible":true,"extensions":["atomsvc"]},"application/atsc-dwd+xml":{"source":"iana","compressible":true,"extensions":["dwd"]},"application/atsc-dynamic-event-message":{"source":"iana"},"application/atsc-held+xml":{"source":"iana","compressible":true,"extensions":["held"]},"application/atsc-rdt+json":{"source":"iana","compressible":true},"application/atsc-rsat+xml":{"source":"iana","compressible":true,"extensions":["rsat"]},"application/atxml":{"source":"iana"},"application/auth-policy+xml":{"source":"iana","compressible":true},"application/bacnet-xdd+zip":{"source":"iana","compressible":false},"application/batch-smtp":{"source":"iana"},"application/bdoc":{"compressible":false,"extensions":["bdoc"]},"application/beep+xml":{"source":"iana","charset":"UTF-8","compressible":true},"application/calendar+json":{"source":"iana","compressible":true},"application/calendar+xml":{"source":"iana","compressible":true,"extensions":["xcs"]},"application/call-completion":{"source":"iana"},"application/cals-1840":{"source":"iana"},"application/captive+json":{"source":"iana","compressible":true},"application/cbor":{"source":"iana"},"application/cbor-seq":{"source":"iana"},"application/cccex":{"source":"iana"},"application/ccmp+xml":{"source":"iana","compressible":true},"application/ccxml+xml":{"source":"iana","compressible":true,"extensions":["ccxml"]},"application/cdfx+xml":{"source":"iana","compressible":true,"extensions":["cdfx"]},"application/cdmi-capability":{"source":"iana","extensions":["cdmia"]},"application/cdmi-container":{"source":"iana","extensions":["cdmic"]},"application/cdmi-domain":{"source":"iana","extensions":["cdmid"]},"application/cdmi-object":{"source":"iana","extensions":["cdmio"]},"application/cdmi-queue":{"source":"iana","extensions":["cdmiq"]},"application/cdni":{"source":"iana"},"application/cea":{"source":"iana"},"application/cea-2018+xml":{"source":"iana","compressible":true},"application/cellml+xml":{"source":"iana","compressible":true},"application/cfw":{"source":"iana"},"application/city+json":{"source":"iana","compressible":true},"application/clr":{"source":"iana"},"application/clue+xml":{"source":"iana","compressible":true},"application/clue_info+xml":{"source":"iana","compressible":true},"application/cms":{"source":"iana"},"application/cnrp+xml":{"source":"iana","compressible":true},"application/coap-group+json":{"source":"iana","compressible":true},"application/coap-payload":{"source":"iana"},"application/commonground":{"source":"iana"},"application/conference-info+xml":{"source":"iana","compressible":true},"application/cose":{"source":"iana"},"application/cose-key":{"source":"iana"},"application/cose-key-set":{"source":"iana"},"application/cpl+xml":{"source":"iana","compressible":true,"extensions":["cpl"]},"application/csrattrs":{"source":"iana"},"application/csta+xml":{"source":"iana","compressible":true},"application/cstadata+xml":{"source":"iana","compressible":true},"application/csvm+json":{"source":"iana","compressible":true},"application/cu-seeme":{"source":"apache","extensions":["cu"]},"application/cwt":{"source":"iana"},"application/cybercash":{"source":"iana"},"application/dart":{"compressible":true},"application/dash+xml":{"source":"iana","compressible":true,"extensions":["mpd"]},"application/dash-patch+xml":{"source":"iana","compressible":true,"extensions":["mpp"]},"application/dashdelta":{"source":"iana"},"application/davmount+xml":{"source":"iana","compressible":true,"extensions":["davmount"]},"application/dca-rft":{"source":"iana"},"application/dcd":{"source":"iana"},"application/dec-dx":{"source":"iana"},"application/dialog-info+xml":{"source":"iana","compressible":true},"application/dicom":{"source":"iana"},"application/dicom+json":{"source":"iana","compressible":true},"application/dicom+xml":{"source":"iana","compressible":true},"application/dii":{"source":"iana"},"application/dit":{"source":"iana"},"application/dns":{"source":"iana"},"application/dns+json":{"source":"iana","compressible":true},"application/dns-message":{"source":"iana"},"application/docbook+xml":{"source":"apache","compressible":true,"extensions":["dbk"]},"application/dots+cbor":{"source":"iana"},"application/dskpp+xml":{"source":"iana","compressible":true},"application/dssc+der":{"source":"iana","extensions":["dssc"]},"application/dssc+xml":{"source":"iana","compressible":true,"extensions":["xdssc"]},"application/dvcs":{"source":"iana"},"application/ecmascript":{"source":"iana","compressible":true,"extensions":["es","ecma"]},"application/edi-consent":{"source":"iana"},"application/edi-x12":{"source":"iana","compressible":false},"application/edifact":{"source":"iana","compressible":false},"application/efi":{"source":"iana"},"application/elm+json":{"source":"iana","charset":"UTF-8","compressible":true},"application/elm+xml":{"source":"iana","compressible":true},"application/emergencycalldata.cap+xml":{"source":"iana","charset":"UTF-8","compressible":true},"application/emergencycalldata.comment+xml":{"source":"iana","compressible":true},"application/emergencycalldata.control+xml":{"source":"iana","compressible":true},"application/emergencycalldata.deviceinfo+xml":{"source":"iana","compressible":true},"application/emergencycalldata.ecall.msd":{"source":"iana"},"application/emergencycalldata.providerinfo+xml":{"source":"iana","compressible":true},"application/emergencycalldata.serviceinfo+xml":{"source":"iana","compressible":true},"application/emergencycalldata.subscriberinfo+xml":{"source":"iana","compressible":true},"application/emergencycalldata.veds+xml":{"source":"iana","compressible":true},"application/emma+xml":{"source":"iana","compressible":true,"extensions":["emma"]},"application/emotionml+xml":{"source":"iana","compressible":true,"extensions":["emotionml"]},"application/encaprtp":{"source":"iana"},"application/epp+xml":{"source":"iana","compressible":true},"application/epub+zip":{"source":"iana","compressible":false,"extensions":["epub"]},"application/eshop":{"source":"iana"},"application/exi":{"source":"iana","extensions":["exi"]},"application/expect-ct-report+json":{"source":"iana","compressible":true},"application/express":{"source":"iana","extensions":["exp"]},"application/fastinfoset":{"source":"iana"},"application/fastsoap":{"source":"iana"},"application/fdt+xml":{"source":"iana","compressible":true,"extensions":["fdt"]},"application/fhir+json":{"source":"iana","charset":"UTF-8","compressible":true},"application/fhir+xml":{"source":"iana","charset":"UTF-8","compressible":true},"application/fido.trusted-apps+json":{"compressible":true},"application/fits":{"source":"iana"},"application/flexfec":{"source":"iana"},"application/font-sfnt":{"source":"iana"},"application/font-tdpfr":{"source":"iana","extensions":["pfr"]},"application/font-woff":{"source":"iana","compressible":false},"application/framework-attributes+xml":{"source":"iana","compressible":true},"application/geo+json":{"source":"iana","compressible":true,"extensions":["geojson"]},"application/geo+json-seq":{"source":"iana"},"application/geopackage+sqlite3":{"source":"iana"},"application/geoxacml+xml":{"source":"iana","compressible":true},"application/gltf-buffer":{"source":"iana"},"application/gml+xml":{"source":"iana","compressible":true,"extensions":["gml"]},"application/gpx+xml":{"source":"apache","compressible":true,"extensions":["gpx"]},"application/gxf":{"source":"apache","extensions":["gxf"]},"application/gzip":{"source":"iana","compressible":false,"extensions":["gz"]},"application/h224":{"source":"iana"},"application/held+xml":{"source":"iana","compressible":true},"application/hjson":{"extensions":["hjson"]},"application/http":{"source":"iana"},"application/hyperstudio":{"source":"iana","extensions":["stk"]},"application/ibe-key-request+xml":{"source":"iana","compressible":true},"application/ibe-pkg-reply+xml":{"source":"iana","compressible":true},"application/ibe-pp-data":{"source":"iana"},"application/iges":{"source":"iana"},"application/im-iscomposing+xml":{"source":"iana","charset":"UTF-8","compressible":true},"application/index":{"source":"iana"},"application/index.cmd":{"source":"iana"},"application/index.obj":{"source":"iana"},"application/index.response":{"source":"iana"},"application/index.vnd":{"source":"iana"},"application/inkml+xml":{"source":"iana","compressible":true,"extensions":["ink","inkml"]},"application/iotp":{"source":"iana"},"application/ipfix":{"source":"iana","extensions":["ipfix"]},"application/ipp":{"source":"iana"},"application/isup":{"source":"iana"},"application/its+xml":{"source":"iana","compressible":true,"extensions":["its"]},"application/java-archive":{"source":"apache","compressible":false,"extensions":["jar","war","ear"]},"application/java-serialized-object":{"source":"apache","compressible":false,"extensions":["ser"]},"application/java-vm":{"source":"apache","compressible":false,"extensions":["class"]},"application/javascript":{"source":"iana","charset":"UTF-8","compressible":true,"extensions":["js","mjs"]},"application/jf2feed+json":{"source":"iana","compressible":true},"application/jose":{"source":"iana"},"application/jose+json":{"source":"iana","compressible":true},"application/jrd+json":{"source":"iana","compressible":true},"application/jscalendar+json":{"source":"iana","compressible":true},"application/json":{"source":"iana","charset":"UTF-8","compressible":true,"extensions":["json","map"]},"application/json-patch+json":{"source":"iana","compressible":true},"application/json-seq":{"source":"iana"},"application/json5":{"extensions":["json5"]},"application/jsonml+json":{"source":"apache","compressible":true,"extensions":["jsonml"]},"application/jwk+json":{"source":"iana","compressible":true},"application/jwk-set+json":{"source":"iana","compressible":true},"application/jwt":{"source":"iana"},"application/kpml-request+xml":{"source":"iana","compressible":true},"application/kpml-response+xml":{"source":"iana","compressible":true},"application/ld+json":{"source":"iana","compressible":true,"extensions":["jsonld"]},"application/lgr+xml":{"source":"iana","compressible":true,"extensions":["lgr"]},"application/link-format":{"source":"iana"},"application/load-control+xml":{"source":"iana","compressible":true},"application/lost+xml":{"source":"iana","compressible":true,"extensions":["lostxml"]},"application/lostsync+xml":{"source":"iana","compressible":true},"application/lpf+zip":{"source":"iana","compressible":false},"application/lxf":{"source":"iana"},"application/mac-binhex40":{"source":"iana","extensions":["hqx"]},"application/mac-compactpro":{"source":"apache","extensions":["cpt"]},"application/macwriteii":{"source":"iana"},"application/mads+xml":{"source":"iana","compressible":true,"extensions":["mads"]},"application/manifest+json":{"source":"iana","charset":"UTF-8","compressible":true,"extensions":["webmanifest"]},"application/marc":{"source":"iana","extensions":["mrc"]},"application/marcxml+xml":{"source":"iana","compressible":true,"extensions":["mrcx"]},"application/mathematica":{"source":"iana","extensions":["ma","nb","mb"]},"application/mathml+xml":{"source":"iana","compressible":true,"extensions":["mathml"]},"application/mathml-content+xml":{"source":"iana","compressible":true},"application/mathml-presentation+xml":{"source":"iana","compressible":true},"application/mbms-associated-procedure-description+xml":{"source":"iana","compressible":true},"application/mbms-deregister+xml":{"source":"iana","compressible":true},"application/mbms-envelope+xml":{"source":"iana","compressible":true},"application/mbms-msk+xml":{"source":"iana","compressible":true},"application/mbms-msk-response+xml":{"source":"iana","compressible":true},"application/mbms-protection-description+xml":{"source":"iana","compressible":true},"application/mbms-reception-report+xml":{"source":"iana","compressible":true},"application/mbms-register+xml":{"source":"iana","compressible":true},"application/mbms-register-response+xml":{"source":"iana","compressible":true},"application/mbms-schedule+xml":{"source":"iana","compressible":true},"application/mbms-user-service-description+xml":{"source":"iana","compressible":true},"application/mbox":{"source":"iana","extensions":["mbox"]},"application/media-policy-dataset+xml":{"source":"iana","compressible":true,"extensions":["mpf"]},"application/media_control+xml":{"source":"iana","compressible":true},"application/mediaservercontrol+xml":{"source":"iana","compressible":true,"extensions":["mscml"]},"application/merge-patch+json":{"source":"iana","compressible":true},"application/metalink+xml":{"source":"apache","compressible":true,"extensions":["metalink"]},"application/metalink4+xml":{"source":"iana","compressible":true,"extensions":["meta4"]},"application/mets+xml":{"source":"iana","compressible":true,"extensions":["mets"]},"application/mf4":{"source":"iana"},"application/mikey":{"source":"iana"},"application/mipc":{"source":"iana"},"application/missing-blocks+cbor-seq":{"source":"iana"},"application/mmt-aei+xml":{"source":"iana","compressible":true,"extensions":["maei"]},"application/mmt-usd+xml":{"source":"iana","compressible":true,"extensions":["musd"]},"application/mods+xml":{"source":"iana","compressible":true,"extensions":["mods"]},"application/moss-keys":{"source":"iana"},"application/moss-signature":{"source":"iana"},"application/mosskey-data":{"source":"iana"},"application/mosskey-request":{"source":"iana"},"application/mp21":{"source":"iana","extensions":["m21","mp21"]},"application/mp4":{"source":"iana","extensions":["mp4s","m4p"]},"application/mpeg4-generic":{"source":"iana"},"application/mpeg4-iod":{"source":"iana"},"application/mpeg4-iod-xmt":{"source":"iana"},"application/mrb-consumer+xml":{"source":"iana","compressible":true},"application/mrb-publish+xml":{"source":"iana","compressible":true},"application/msc-ivr+xml":{"source":"iana","charset":"UTF-8","compressible":true},"application/msc-mixer+xml":{"source":"iana","charset":"UTF-8","compressible":true},"application/msword":{"source":"iana","compressible":false,"extensions":["doc","dot"]},"application/mud+json":{"source":"iana","compressible":true},"application/multipart-core":{"source":"iana"},"application/mxf":{"source":"iana","extensions":["mxf"]},"application/n-quads":{"source":"iana","extensions":["nq"]},"application/n-triples":{"source":"iana","extensions":["nt"]},"application/nasdata":{"source":"iana"},"application/news-checkgroups":{"source":"iana","charset":"US-ASCII"},"application/news-groupinfo":{"source":"iana","charset":"US-ASCII"},"application/news-transmission":{"source":"iana"},"application/nlsml+xml":{"source":"iana","compressible":true},"application/node":{"source":"iana","extensions":["cjs"]},"application/nss":{"source":"iana"},"application/oauth-authz-req+jwt":{"source":"iana"},"application/oblivious-dns-message":{"source":"iana"},"application/ocsp-request":{"source":"iana"},"application/ocsp-response":{"source":"iana"},"application/octet-stream":{"source":"iana","compressible":false,"extensions":["bin","dms","lrf","mar","so","dist","distz","pkg","bpk","dump","elc","deploy","exe","dll","deb","dmg","iso","img","msi","msp","msm","buffer"]},"application/oda":{"source":"iana","extensions":["oda"]},"application/odm+xml":{"source":"iana","compressible":true},"application/odx":{"source":"iana"},"application/oebps-package+xml":{"source":"iana","compressible":true,"extensions":["opf"]},"application/ogg":{"source":"iana","compressible":false,"extensions":["ogx"]},"application/omdoc+xml":{"source":"apache","compressible":true,"extensions":["omdoc"]},"application/onenote":{"source":"apache","extensions":["onetoc","onetoc2","onetmp","onepkg"]},"application/opc-nodeset+xml":{"source":"iana","compressible":true},"application/oscore":{"source":"iana"},"application/oxps":{"source":"iana","extensions":["oxps"]},"application/p21":{"source":"iana"},"application/p21+zip":{"source":"iana","compressible":false},"application/p2p-overlay+xml":{"source":"iana","compressible":true,"extensions":["relo"]},"application/parityfec":{"source":"iana"},"application/passport":{"source":"iana"},"application/patch-ops-error+xml":{"source":"iana","compressible":true,"extensions":["xer"]},"application/pdf":{"source":"iana","compressible":false,"extensions":["pdf"]},"application/pdx":{"source":"iana"},"application/pem-certificate-chain":{"source":"iana"},"application/pgp-encrypted":{"source":"iana","compressible":false,"extensions":["pgp"]},"application/pgp-keys":{"source":"iana","extensions":["asc"]},"application/pgp-signature":{"source":"iana","extensions":["asc","sig"]},"application/pics-rules":{"source":"apache","extensions":["prf"]},"application/pidf+xml":{"source":"iana","charset":"UTF-8","compressible":true},"application/pidf-diff+xml":{"source":"iana","charset":"UTF-8","compressible":true},"application/pkcs10":{"source":"iana","extensions":["p10"]},"application/pkcs12":{"source":"iana"},"application/pkcs7-mime":{"source":"iana","extensions":["p7m","p7c"]},"application/pkcs7-signature":{"source":"iana","extensions":["p7s"]},"application/pkcs8":{"source":"iana","extensions":["p8"]},"application/pkcs8-encrypted":{"source":"iana"},"application/pkix-attr-cert":{"source":"iana","extensions":["ac"]},"application/pkix-cert":{"source":"iana","extensions":["cer"]},"application/pkix-crl":{"source":"iana","extensions":["crl"]},"application/pkix-pkipath":{"source":"iana","extensions":["pkipath"]},"application/pkixcmp":{"source":"iana","extensions":["pki"]},"application/pls+xml":{"source":"iana","compressible":true,"extensions":["pls"]},"application/poc-settings+xml":{"source":"iana","charset":"UTF-8","compressible":true},"application/postscript":{"source":"iana","compressible":true,"extensions":["ai","eps","ps"]},"application/ppsp-tracker+json":{"source":"iana","compressible":true},"application/problem+json":{"source":"iana","compressible":true},"application/problem+xml":{"source":"iana","compressible":true},"application/provenance+xml":{"source":"iana","compressible":true,"extensions":["provx"]},"application/prs.alvestrand.titrax-sheet":{"source":"iana"},"application/prs.cww":{"source":"iana","extensions":["cww"]},"application/prs.cyn":{"source":"iana","charset":"7-BIT"},"application/prs.hpub+zip":{"source":"iana","compressible":false},"application/prs.nprend":{"source":"iana"},"application/prs.plucker":{"source":"iana"},"application/prs.rdf-xml-crypt":{"source":"iana"},"application/prs.xsf+xml":{"source":"iana","compressible":true},"application/pskc+xml":{"source":"iana","compressible":true,"extensions":["pskcxml"]},"application/pvd+json":{"source":"iana","compressible":true},"application/qsig":{"source":"iana"},"application/raml+yaml":{"compressible":true,"extensions":["raml"]},"application/raptorfec":{"source":"iana"},"application/rdap+json":{"source":"iana","compressible":true},"application/rdf+xml":{"source":"iana","compressible":true,"extensions":["rdf","owl"]},"application/reginfo+xml":{"source":"iana","compressible":true,"extensions":["rif"]},"application/relax-ng-compact-syntax":{"source":"iana","extensions":["rnc"]},"application/remote-printing":{"source":"iana"},"application/reputon+json":{"source":"iana","compressible":true},"application/resource-lists+xml":{"source":"iana","compressible":true,"extensions":["rl"]},"application/resource-lists-diff+xml":{"source":"iana","compressible":true,"extensions":["rld"]},"application/rfc+xml":{"source":"iana","compressible":true},"application/riscos":{"source":"iana"},"application/rlmi+xml":{"source":"iana","compressible":true},"application/rls-services+xml":{"source":"iana","compressible":true,"extensions":["rs"]},"application/route-apd+xml":{"source":"iana","compressible":true,"extensions":["rapd"]},"application/route-s-tsid+xml":{"source":"iana","compressible":true,"extensions":["sls"]},"application/route-usd+xml":{"source":"iana","compressible":true,"extensions":["rusd"]},"application/rpki-ghostbusters":{"source":"iana","extensions":["gbr"]},"application/rpki-manifest":{"source":"iana","extensions":["mft"]},"application/rpki-publication":{"source":"iana"},"application/rpki-roa":{"source":"iana","extensions":["roa"]},"application/rpki-updown":{"source":"iana"},"application/rsd+xml":{"source":"apache","compressible":true,"extensions":["rsd"]},"application/rss+xml":{"source":"apache","compressible":true,"extensions":["rss"]},"application/rtf":{"source":"iana","compressible":true,"extensions":["rtf"]},"application/rtploopback":{"source":"iana"},"application/rtx":{"source":"iana"},"application/samlassertion+xml":{"source":"iana","compressible":true},"application/samlmetadata+xml":{"source":"iana","compressible":true},"application/sarif+json":{"source":"iana","compressible":true},"application/sarif-external-properties+json":{"source":"iana","compressible":true},"application/sbe":{"source":"iana"},"application/sbml+xml":{"source":"iana","compressible":true,"extensions":["sbml"]},"application/scaip+xml":{"source":"iana","compressible":true},"application/scim+json":{"source":"iana","compressible":true},"application/scvp-cv-request":{"source":"iana","extensions":["scq"]},"application/scvp-cv-response":{"source":"iana","extensions":["scs"]},"application/scvp-vp-request":{"source":"iana","extensions":["spq"]},"application/scvp-vp-response":{"source":"iana","extensions":["spp"]},"application/sdp":{"source":"iana","extensions":["sdp"]},"application/secevent+jwt":{"source":"iana"},"application/senml+cbor":{"source":"iana"},"application/senml+json":{"source":"iana","compressible":true},"application/senml+xml":{"source":"iana","compressible":true,"extensions":["senmlx"]},"application/senml-etch+cbor":{"source":"iana"},"application/senml-etch+json":{"source":"iana","compressible":true},"application/senml-exi":{"source":"iana"},"application/sensml+cbor":{"source":"iana"},"application/sensml+json":{"source":"iana","compressible":true},"application/sensml+xml":{"source":"iana","compressible":true,"extensions":["sensmlx"]},"application/sensml-exi":{"source":"iana"},"application/sep+xml":{"source":"iana","compressible":true},"application/sep-exi":{"source":"iana"},"application/session-info":{"source":"iana"},"application/set-payment":{"source":"iana"},"application/set-payment-initiation":{"source":"iana","extensions":["setpay"]},"application/set-registration":{"source":"iana"},"application/set-registration-initiation":{"source":"iana","extensions":["setreg"]},"application/sgml":{"source":"iana"},"application/sgml-open-catalog":{"source":"iana"},"application/shf+xml":{"source":"iana","compressible":true,"extensions":["shf"]},"application/sieve":{"source":"iana","extensions":["siv","sieve"]},"application/simple-filter+xml":{"source":"iana","compressible":true},"application/simple-message-summary":{"source":"iana"},"application/simplesymbolcontainer":{"source":"iana"},"application/sipc":{"source":"iana"},"application/slate":{"source":"iana"},"application/smil":{"source":"iana"},"application/smil+xml":{"source":"iana","compressible":true,"extensions":["smi","smil"]},"application/smpte336m":{"source":"iana"},"application/soap+fastinfoset":{"source":"iana"},"application/soap+xml":{"source":"iana","compressible":true},"application/sparql-query":{"source":"iana","extensions":["rq"]},"application/sparql-results+xml":{"source":"iana","compressible":true,"extensions":["srx"]},"application/spdx+json":{"source":"iana","compressible":true},"application/spirits-event+xml":{"source":"iana","compressible":true},"application/sql":{"source":"iana"},"application/srgs":{"source":"iana","extensions":["gram"]},"application/srgs+xml":{"source":"iana","compressible":true,"extensions":["grxml"]},"application/sru+xml":{"source":"iana","compressible":true,"extensions":["sru"]},"application/ssdl+xml":{"source":"apache","compressible":true,"extensions":["ssdl"]},"application/ssml+xml":{"source":"iana","compressible":true,"extensions":["ssml"]},"application/stix+json":{"source":"iana","compressible":true},"application/swid+xml":{"source":"iana","compressible":true,"extensions":["swidtag"]},"application/tamp-apex-update":{"source":"iana"},"application/tamp-apex-update-confirm":{"source":"iana"},"application/tamp-community-update":{"source":"iana"},"application/tamp-community-update-confirm":{"source":"iana"},"application/tamp-error":{"source":"iana"},"application/tamp-sequence-adjust":{"source":"iana"},"application/tamp-sequence-adjust-confirm":{"source":"iana"},"application/tamp-status-query":{"source":"iana"},"application/tamp-status-response":{"source":"iana"},"application/tamp-update":{"source":"iana"},"application/tamp-update-confirm":{"source":"iana"},"application/tar":{"compressible":true},"application/taxii+json":{"source":"iana","compressible":true},"application/td+json":{"source":"iana","compressible":true},"application/tei+xml":{"source":"iana","compressible":true,"extensions":["tei","teicorpus"]},"application/tetra_isi":{"source":"iana"},"application/thraud+xml":{"source":"iana","compressible":true,"extensions":["tfi"]},"application/timestamp-query":{"source":"iana"},"application/timestamp-reply":{"source":"iana"},"application/timestamped-data":{"source":"iana","extensions":["tsd"]},"application/tlsrpt+gzip":{"source":"iana"},"application/tlsrpt+json":{"source":"iana","compressible":true},"application/tnauthlist":{"source":"iana"},"application/token-introspection+jwt":{"source":"iana"},"application/toml":{"compressible":true,"extensions":["toml"]},"application/trickle-ice-sdpfrag":{"source":"iana"},"application/trig":{"source":"iana","extensions":["trig"]},"application/ttml+xml":{"source":"iana","compressible":true,"extensions":["ttml"]},"application/tve-trigger":{"source":"iana"},"application/tzif":{"source":"iana"},"application/tzif-leap":{"source":"iana"},"application/ubjson":{"compressible":false,"extensions":["ubj"]},"application/ulpfec":{"source":"iana"},"application/urc-grpsheet+xml":{"source":"iana","compressible":true},"application/urc-ressheet+xml":{"source":"iana","compressible":true,"extensions":["rsheet"]},"application/urc-targetdesc+xml":{"source":"iana","compressible":true,"extensions":["td"]},"application/urc-uisocketdesc+xml":{"source":"iana","compressible":true},"application/vcard+json":{"source":"iana","compressible":true},"application/vcard+xml":{"source":"iana","compressible":true},"application/vemmi":{"source":"iana"},"application/vividence.scriptfile":{"source":"apache"},"application/vnd.1000minds.decision-model+xml":{"source":"iana","compressible":true,"extensions":["1km"]},"application/vnd.3gpp-prose+xml":{"source":"iana","compressible":true},"application/vnd.3gpp-prose-pc3ch+xml":{"source":"iana","compressible":true},"application/vnd.3gpp-v2x-local-service-information":{"source":"iana"},"application/vnd.3gpp.5gnas":{"source":"iana"},"application/vnd.3gpp.access-transfer-events+xml":{"source":"iana","compressible":true},"application/vnd.3gpp.bsf+xml":{"source":"iana","compressible":true},"application/vnd.3gpp.gmop+xml":{"source":"iana","compressible":true},"application/vnd.3gpp.gtpc":{"source":"iana"},"application/vnd.3gpp.interworking-data":{"source":"iana"},"application/vnd.3gpp.lpp":{"source":"iana"},"application/vnd.3gpp.mc-signalling-ear":{"source":"iana"},"application/vnd.3gpp.mcdata-affiliation-command+xml":{"source":"iana","compressible":true},"application/vnd.3gpp.mcdata-info+xml":{"source":"iana","compressible":true},"application/vnd.3gpp.mcdata-payload":{"source":"iana"},"application/vnd.3gpp.mcdata-service-config+xml":{"source":"iana","compressible":true},"application/vnd.3gpp.mcdata-signalling":{"source":"iana"},"application/vnd.3gpp.mcdata-ue-config+xml":{"source":"iana","compressible":true},"application/vnd.3gpp.mcdata-user-profile+xml":{"source":"iana","compressible":true},"application/vnd.3gpp.mcptt-affiliation-command+xml":{"source":"iana","compressible":true},"application/vnd.3gpp.mcptt-floor-request+xml":{"source":"iana","compressible":true},"application/vnd.3gpp.mcptt-info+xml":{"source":"iana","compressible":true},"application/vnd.3gpp.mcptt-location-info+xml":{"source":"iana","compressible":true},"application/vnd.3gpp.mcptt-mbms-usage-info+xml":{"source":"iana","compressible":true},"application/vnd.3gpp.mcptt-service-config+xml":{"source":"iana","compressible":true},"application/vnd.3gpp.mcptt-signed+xml":{"source":"iana","compressible":true},"application/vnd.3gpp.mcptt-ue-config+xml":{"source":"iana","compressible":true},"application/vnd.3gpp.mcptt-ue-init-config+xml":{"source":"iana","compressible":true},"application/vnd.3gpp.mcptt-user-profile+xml":{"source":"iana","compressible":true},"application/vnd.3gpp.mcvideo-affiliation-command+xml":{"source":"iana","compressible":true},"application/vnd.3gpp.mcvideo-affiliation-info+xml":{"source":"iana","compressible":true},"application/vnd.3gpp.mcvideo-info+xml":{"source":"iana","compressible":true},"application/vnd.3gpp.mcvideo-location-info+xml":{"source":"iana","compressible":true},"application/vnd.3gpp.mcvideo-mbms-usage-info+xml":{"source":"iana","compressible":true},"application/vnd.3gpp.mcvideo-service-config+xml":{"source":"iana","compressible":true},"application/vnd.3gpp.mcvideo-transmission-request+xml":{"source":"iana","compressible":true},"application/vnd.3gpp.mcvideo-ue-config+xml":{"source":"iana","compressible":true},"application/vnd.3gpp.mcvideo-user-profile+xml":{"source":"iana","compressible":true},"application/vnd.3gpp.mid-call+xml":{"source":"iana","compressible":true},"application/vnd.3gpp.ngap":{"source":"iana"},"application/vnd.3gpp.pfcp":{"source":"iana"},"application/vnd.3gpp.pic-bw-large":{"source":"iana","extensions":["plb"]},"application/vnd.3gpp.pic-bw-small":{"source":"iana","extensions":["psb"]},"application/vnd.3gpp.pic-bw-var":{"source":"iana","extensions":["pvb"]},"application/vnd.3gpp.s1ap":{"source":"iana"},"application/vnd.3gpp.sms":{"source":"iana"},"application/vnd.3gpp.sms+xml":{"source":"iana","compressible":true},"application/vnd.3gpp.srvcc-ext+xml":{"source":"iana","compressible":true},"application/vnd.3gpp.srvcc-info+xml":{"source":"iana","compressible":true},"application/vnd.3gpp.state-and-event-info+xml":{"source":"iana","compressible":true},"application/vnd.3gpp.ussd+xml":{"source":"iana","compressible":true},"application/vnd.3gpp2.bcmcsinfo+xml":{"source":"iana","compressible":true},"application/vnd.3gpp2.sms":{"source":"iana"},"application/vnd.3gpp2.tcap":{"source":"iana","extensions":["tcap"]},"application/vnd.3lightssoftware.imagescal":{"source":"iana"},"application/vnd.3m.post-it-notes":{"source":"iana","extensions":["pwn"]},"application/vnd.accpac.simply.aso":{"source":"iana","extensions":["aso"]},"application/vnd.accpac.simply.imp":{"source":"iana","extensions":["imp"]},"application/vnd.acucobol":{"source":"iana","extensions":["acu"]},"application/vnd.acucorp":{"source":"iana","extensions":["atc","acutc"]},"application/vnd.adobe.air-application-installer-package+zip":{"source":"apache","compressible":false,"extensions":["air"]},"application/vnd.adobe.flash.movie":{"source":"iana"},"application/vnd.adobe.formscentral.fcdt":{"source":"iana","extensions":["fcdt"]},"application/vnd.adobe.fxp":{"source":"iana","extensions":["fxp","fxpl"]},"application/vnd.adobe.partial-upload":{"source":"iana"},"application/vnd.adobe.xdp+xml":{"source":"iana","compressible":true,"extensions":["xdp"]},"application/vnd.adobe.xfdf":{"source":"iana","extensions":["xfdf"]},"application/vnd.aether.imp":{"source":"iana"},"application/vnd.afpc.afplinedata":{"source":"iana"},"application/vnd.afpc.afplinedata-pagedef":{"source":"iana"},"application/vnd.afpc.cmoca-cmresource":{"source":"iana"},"application/vnd.afpc.foca-charset":{"source":"iana"},"application/vnd.afpc.foca-codedfont":{"source":"iana"},"application/vnd.afpc.foca-codepage":{"source":"iana"},"application/vnd.afpc.modca":{"source":"iana"},"application/vnd.afpc.modca-cmtable":{"source":"iana"},"application/vnd.afpc.modca-formdef":{"source":"iana"},"application/vnd.afpc.modca-mediummap":{"source":"iana"},"application/vnd.afpc.modca-objectcontainer":{"source":"iana"},"application/vnd.afpc.modca-overlay":{"source":"iana"},"application/vnd.afpc.modca-pagesegment":{"source":"iana"},"application/vnd.age":{"source":"iana","extensions":["age"]},"application/vnd.ah-barcode":{"source":"iana"},"application/vnd.ahead.space":{"source":"iana","extensions":["ahead"]},"application/vnd.airzip.filesecure.azf":{"source":"iana","extensions":["azf"]},"application/vnd.airzip.filesecure.azs":{"source":"iana","extensions":["azs"]},"application/vnd.amadeus+json":{"source":"iana","compressible":true},"application/vnd.amazon.ebook":{"source":"apache","extensions":["azw"]},"application/vnd.amazon.mobi8-ebook":{"source":"iana"},"application/vnd.americandynamics.acc":{"source":"iana","extensions":["acc"]},"application/vnd.amiga.ami":{"source":"iana","extensions":["ami"]},"application/vnd.amundsen.maze+xml":{"source":"iana","compressible":true},"application/vnd.android.ota":{"source":"iana"},"application/vnd.android.package-archive":{"source":"apache","compressible":false,"extensions":["apk"]},"application/vnd.anki":{"source":"iana"},"application/vnd.anser-web-certificate-issue-initiation":{"source":"iana","extensions":["cii"]},"application/vnd.anser-web-funds-transfer-initiation":{"source":"apache","extensions":["fti"]},"application/vnd.antix.game-component":{"source":"iana","extensions":["atx"]},"application/vnd.apache.arrow.file":{"source":"iana"},"application/vnd.apache.arrow.stream":{"source":"iana"},"application/vnd.apache.thrift.binary":{"source":"iana"},"application/vnd.apache.thrift.compact":{"source":"iana"},"application/vnd.apache.thrift.json":{"source":"iana"},"application/vnd.api+json":{"source":"iana","compressible":true},"application/vnd.aplextor.warrp+json":{"source":"iana","compressible":true},"application/vnd.apothekende.reservation+json":{"source":"iana","compressible":true},"application/vnd.apple.installer+xml":{"source":"iana","compressible":true,"extensions":["mpkg"]},"application/vnd.apple.keynote":{"source":"iana","extensions":["key"]},"application/vnd.apple.mpegurl":{"source":"iana","extensions":["m3u8"]},"application/vnd.apple.numbers":{"source":"iana","extensions":["numbers"]},"application/vnd.apple.pages":{"source":"iana","extensions":["pages"]},"application/vnd.apple.pkpass":{"compressible":false,"extensions":["pkpass"]},"application/vnd.arastra.swi":{"source":"iana"},"application/vnd.aristanetworks.swi":{"source":"iana","extensions":["swi"]},"application/vnd.artisan+json":{"source":"iana","compressible":true},"application/vnd.artsquare":{"source":"iana"},"application/vnd.astraea-software.iota":{"source":"iana","extensions":["iota"]},"application/vnd.audiograph":{"source":"iana","extensions":["aep"]},"application/vnd.autopackage":{"source":"iana"},"application/vnd.avalon+json":{"source":"iana","compressible":true},"application/vnd.avistar+xml":{"source":"iana","compressible":true},"application/vnd.balsamiq.bmml+xml":{"source":"iana","compressible":true,"extensions":["bmml"]},"application/vnd.balsamiq.bmpr":{"source":"iana"},"application/vnd.banana-accounting":{"source":"iana"},"application/vnd.bbf.usp.error":{"source":"iana"},"application/vnd.bbf.usp.msg":{"source":"iana"},"application/vnd.bbf.usp.msg+json":{"source":"iana","compressible":true},"application/vnd.bekitzur-stech+json":{"source":"iana","compressible":true},"application/vnd.bint.med-content":{"source":"iana"},"application/vnd.biopax.rdf+xml":{"source":"iana","compressible":true},"application/vnd.blink-idb-value-wrapper":{"source":"iana"},"application/vnd.blueice.multipass":{"source":"iana","extensions":["mpm"]},"application/vnd.bluetooth.ep.oob":{"source":"iana"},"application/vnd.bluetooth.le.oob":{"source":"iana"},"application/vnd.bmi":{"source":"iana","extensions":["bmi"]},"application/vnd.bpf":{"source":"iana"},"application/vnd.bpf3":{"source":"iana"},"application/vnd.businessobjects":{"source":"iana","extensions":["rep"]},"application/vnd.byu.uapi+json":{"source":"iana","compressible":true},"application/vnd.cab-jscript":{"source":"iana"},"application/vnd.canon-cpdl":{"source":"iana"},"application/vnd.canon-lips":{"source":"iana"},"application/vnd.capasystems-pg+json":{"source":"iana","compressible":true},"application/vnd.cendio.thinlinc.clientconf":{"source":"iana"},"application/vnd.century-systems.tcp_stream":{"source":"iana"},"application/vnd.chemdraw+xml":{"source":"iana","compressible":true,"extensions":["cdxml"]},"application/vnd.chess-pgn":{"source":"iana"},"application/vnd.chipnuts.karaoke-mmd":{"source":"iana","extensions":["mmd"]},"application/vnd.ciedi":{"source":"iana"},"application/vnd.cinderella":{"source":"iana","extensions":["cdy"]},"application/vnd.cirpack.isdn-ext":{"source":"iana"},"application/vnd.citationstyles.style+xml":{"source":"iana","compressible":true,"extensions":["csl"]},"application/vnd.claymore":{"source":"iana","extensions":["cla"]},"application/vnd.cloanto.rp9":{"source":"iana","extensions":["rp9"]},"application/vnd.clonk.c4group":{"source":"iana","extensions":["c4g","c4d","c4f","c4p","c4u"]},"application/vnd.cluetrust.cartomobile-config":{"source":"iana","extensions":["c11amc"]},"application/vnd.cluetrust.cartomobile-config-pkg":{"source":"iana","extensions":["c11amz"]},"application/vnd.coffeescript":{"source":"iana"},"application/vnd.collabio.xodocuments.document":{"source":"iana"},"application/vnd.collabio.xodocuments.document-template":{"source":"iana"},"application/vnd.collabio.xodocuments.presentation":{"source":"iana"},"application/vnd.collabio.xodocuments.presentation-template":{"source":"iana"},"application/vnd.collabio.xodocuments.spreadsheet":{"source":"iana"},"application/vnd.collabio.xodocuments.spreadsheet-template":{"source":"iana"},"application/vnd.collection+json":{"source":"iana","compressible":true},"application/vnd.collection.doc+json":{"source":"iana","compressible":true},"application/vnd.collection.next+json":{"source":"iana","compressible":true},"application/vnd.comicbook+zip":{"source":"iana","compressible":false},"application/vnd.comicbook-rar":{"source":"iana"},"application/vnd.commerce-battelle":{"source":"iana"},"application/vnd.commonspace":{"source":"iana","extensions":["csp"]},"application/vnd.contact.cmsg":{"source":"iana","extensions":["cdbcmsg"]},"application/vnd.coreos.ignition+json":{"source":"iana","compressible":true},"application/vnd.cosmocaller":{"source":"iana","extensions":["cmc"]},"application/vnd.crick.clicker":{"source":"iana","extensions":["clkx"]},"application/vnd.crick.clicker.keyboard":{"source":"iana","extensions":["clkk"]},"application/vnd.crick.clicker.palette":{"source":"iana","extensions":["clkp"]},"application/vnd.crick.clicker.template":{"source":"iana","extensions":["clkt"]},"application/vnd.crick.clicker.wordbank":{"source":"iana","extensions":["clkw"]},"application/vnd.criticaltools.wbs+xml":{"source":"iana","compressible":true,"extensions":["wbs"]},"application/vnd.cryptii.pipe+json":{"source":"iana","compressible":true},"application/vnd.crypto-shade-file":{"source":"iana"},"application/vnd.cryptomator.encrypted":{"source":"iana"},"application/vnd.cryptomator.vault":{"source":"iana"},"application/vnd.ctc-posml":{"source":"iana","extensions":["pml"]},"application/vnd.ctct.ws+xml":{"source":"iana","compressible":true},"application/vnd.cups-pdf":{"source":"iana"},"application/vnd.cups-postscript":{"source":"iana"},"application/vnd.cups-ppd":{"source":"iana","extensions":["ppd"]},"application/vnd.cups-raster":{"source":"iana"},"application/vnd.cups-raw":{"source":"iana"},"application/vnd.curl":{"source":"iana"},"application/vnd.curl.car":{"source":"apache","extensions":["car"]},"application/vnd.curl.pcurl":{"source":"apache","extensions":["pcurl"]},"application/vnd.cyan.dean.root+xml":{"source":"iana","compressible":true},"application/vnd.cybank":{"source":"iana"},"application/vnd.cyclonedx+json":{"source":"iana","compressible":true},"application/vnd.cyclonedx+xml":{"source":"iana","compressible":true},"application/vnd.d2l.coursepackage1p0+zip":{"source":"iana","compressible":false},"application/vnd.d3m-dataset":{"source":"iana"},"application/vnd.d3m-problem":{"source":"iana"},"application/vnd.dart":{"source":"iana","compressible":true,"extensions":["dart"]},"application/vnd.data-vision.rdz":{"source":"iana","extensions":["rdz"]},"application/vnd.datapackage+json":{"source":"iana","compressible":true},"application/vnd.dataresource+json":{"source":"iana","compressible":true},"application/vnd.dbf":{"source":"iana","extensions":["dbf"]},"application/vnd.debian.binary-package":{"source":"iana"},"application/vnd.dece.data":{"source":"iana","extensions":["uvf","uvvf","uvd","uvvd"]},"application/vnd.dece.ttml+xml":{"source":"iana","compressible":true,"extensions":["uvt","uvvt"]},"application/vnd.dece.unspecified":{"source":"iana","extensions":["uvx","uvvx"]},"application/vnd.dece.zip":{"source":"iana","extensions":["uvz","uvvz"]},"application/vnd.denovo.fcselayout-link":{"source":"iana","extensions":["fe_launch"]},"application/vnd.desmume.movie":{"source":"iana"},"application/vnd.dir-bi.plate-dl-nosuffix":{"source":"iana"},"application/vnd.dm.delegation+xml":{"source":"iana","compressible":true},"application/vnd.dna":{"source":"iana","extensions":["dna"]},"application/vnd.document+json":{"source":"iana","compressible":true},"application/vnd.dolby.mlp":{"source":"apache","extensions":["mlp"]},"application/vnd.dolby.mobile.1":{"source":"iana"},"application/vnd.dolby.mobile.2":{"source":"iana"},"application/vnd.doremir.scorecloud-binary-document":{"source":"iana"},"application/vnd.dpgraph":{"source":"iana","extensions":["dpg"]},"application/vnd.dreamfactory":{"source":"iana","extensions":["dfac"]},"application/vnd.drive+json":{"source":"iana","compressible":true},"application/vnd.ds-keypoint":{"source":"apache","extensions":["kpxx"]},"application/vnd.dtg.local":{"source":"iana"},"application/vnd.dtg.local.flash":{"source":"iana"},"application/vnd.dtg.local.html":{"source":"iana"},"application/vnd.dvb.ait":{"source":"iana","extensions":["ait"]},"application/vnd.dvb.dvbisl+xml":{"source":"iana","compressible":true},"application/vnd.dvb.dvbj":{"source":"iana"},"application/vnd.dvb.esgcontainer":{"source":"iana"},"application/vnd.dvb.ipdcdftnotifaccess":{"source":"iana"},"application/vnd.dvb.ipdcesgaccess":{"source":"iana"},"application/vnd.dvb.ipdcesgaccess2":{"source":"iana"},"application/vnd.dvb.ipdcesgpdd":{"source":"iana"},"application/vnd.dvb.ipdcroaming":{"source":"iana"},"application/vnd.dvb.iptv.alfec-base":{"source":"iana"},"application/vnd.dvb.iptv.alfec-enhancement":{"source":"iana"},"application/vnd.dvb.notif-aggregate-root+xml":{"source":"iana","compressible":true},"application/vnd.dvb.notif-container+xml":{"source":"iana","compressible":true},"application/vnd.dvb.notif-generic+xml":{"source":"iana","compressible":true},"application/vnd.dvb.notif-ia-msglist+xml":{"source":"iana","compressible":true},"application/vnd.dvb.notif-ia-registration-request+xml":{"source":"iana","compressible":true},"application/vnd.dvb.notif-ia-registration-response+xml":{"source":"iana","compressible":true},"application/vnd.dvb.notif-init+xml":{"source":"iana","compressible":true},"application/vnd.dvb.pfr":{"source":"iana"},"application/vnd.dvb.service":{"source":"iana","extensions":["svc"]},"application/vnd.dxr":{"source":"iana"},"application/vnd.dynageo":{"source":"iana","extensions":["geo"]},"application/vnd.dzr":{"source":"iana"},"application/vnd.easykaraoke.cdgdownload":{"source":"iana"},"application/vnd.ecdis-update":{"source":"iana"},"application/vnd.ecip.rlp":{"source":"iana"},"application/vnd.eclipse.ditto+json":{"source":"iana","compressible":true},"application/vnd.ecowin.chart":{"source":"iana","extensions":["mag"]},"application/vnd.ecowin.filerequest":{"source":"iana"},"application/vnd.ecowin.fileupdate":{"source":"iana"},"application/vnd.ecowin.series":{"source":"iana"},"application/vnd.ecowin.seriesrequest":{"source":"iana"},"application/vnd.ecowin.seriesupdate":{"source":"iana"},"application/vnd.efi.img":{"source":"iana"},"application/vnd.efi.iso":{"source":"iana"},"application/vnd.emclient.accessrequest+xml":{"source":"iana","compressible":true},"application/vnd.enliven":{"source":"iana","extensions":["nml"]},"application/vnd.enphase.envoy":{"source":"iana"},"application/vnd.eprints.data+xml":{"source":"iana","compressible":true},"application/vnd.epson.esf":{"source":"iana","extensions":["esf"]},"application/vnd.epson.msf":{"source":"iana","extensions":["msf"]},"application/vnd.epson.quickanime":{"source":"iana","extensions":["qam"]},"application/vnd.epson.salt":{"source":"iana","extensions":["slt"]},"application/vnd.epson.ssf":{"source":"iana","extensions":["ssf"]},"application/vnd.ericsson.quickcall":{"source":"iana"},"application/vnd.espass-espass+zip":{"source":"iana","compressible":false},"application/vnd.eszigno3+xml":{"source":"iana","compressible":true,"extensions":["es3","et3"]},"application/vnd.etsi.aoc+xml":{"source":"iana","compressible":true},"application/vnd.etsi.asic-e+zip":{"source":"iana","compressible":false},"application/vnd.etsi.asic-s+zip":{"source":"iana","compressible":false},"application/vnd.etsi.cug+xml":{"source":"iana","compressible":true},"application/vnd.etsi.iptvcommand+xml":{"source":"iana","compressible":true},"application/vnd.etsi.iptvdiscovery+xml":{"source":"iana","compressible":true},"application/vnd.etsi.iptvprofile+xml":{"source":"iana","compressible":true},"application/vnd.etsi.iptvsad-bc+xml":{"source":"iana","compressible":true},"application/vnd.etsi.iptvsad-cod+xml":{"source":"iana","compressible":true},"application/vnd.etsi.iptvsad-npvr+xml":{"source":"iana","compressible":true},"application/vnd.etsi.iptvservice+xml":{"source":"iana","compressible":true},"application/vnd.etsi.iptvsync+xml":{"source":"iana","compressible":true},"application/vnd.etsi.iptvueprofile+xml":{"source":"iana","compressible":true},"application/vnd.etsi.mcid+xml":{"source":"iana","compressible":true},"application/vnd.etsi.mheg5":{"source":"iana"},"application/vnd.etsi.overload-control-policy-dataset+xml":{"source":"iana","compressible":true},"application/vnd.etsi.pstn+xml":{"source":"iana","compressible":true},"application/vnd.etsi.sci+xml":{"source":"iana","compressible":true},"application/vnd.etsi.simservs+xml":{"source":"iana","compressible":true},"application/vnd.etsi.timestamp-token":{"source":"iana"},"application/vnd.etsi.tsl+xml":{"source":"iana","compressible":true},"application/vnd.etsi.tsl.der":{"source":"iana"},"application/vnd.eu.kasparian.car+json":{"source":"iana","compressible":true},"application/vnd.eudora.data":{"source":"iana"},"application/vnd.evolv.ecig.profile":{"source":"iana"},"application/vnd.evolv.ecig.settings":{"source":"iana"},"application/vnd.evolv.ecig.theme":{"source":"iana"},"application/vnd.exstream-empower+zip":{"source":"iana","compressible":false},"application/vnd.exstream-package":{"source":"iana"},"application/vnd.ezpix-album":{"source":"iana","extensions":["ez2"]},"application/vnd.ezpix-package":{"source":"iana","extensions":["ez3"]},"application/vnd.f-secure.mobile":{"source":"iana"},"application/vnd.familysearch.gedcom+zip":{"source":"iana","compressible":false},"application/vnd.fastcopy-disk-image":{"source":"iana"},"application/vnd.fdf":{"source":"iana","extensions":["fdf"]},"application/vnd.fdsn.mseed":{"source":"iana","extensions":["mseed"]},"application/vnd.fdsn.seed":{"source":"iana","extensions":["seed","dataless"]},"application/vnd.ffsns":{"source":"iana"},"application/vnd.ficlab.flb+zip":{"source":"iana","compressible":false},"application/vnd.filmit.zfc":{"source":"iana"},"application/vnd.fints":{"source":"iana"},"application/vnd.firemonkeys.cloudcell":{"source":"iana"},"application/vnd.flographit":{"source":"iana","extensions":["gph"]},"application/vnd.fluxtime.clip":{"source":"iana","extensions":["ftc"]},"application/vnd.font-fontforge-sfd":{"source":"iana"},"application/vnd.framemaker":{"source":"iana","extensions":["fm","frame","maker","book"]},"application/vnd.frogans.fnc":{"source":"iana","extensions":["fnc"]},"application/vnd.frogans.ltf":{"source":"iana","extensions":["ltf"]},"application/vnd.fsc.weblaunch":{"source":"iana","extensions":["fsc"]},"application/vnd.fujifilm.fb.docuworks":{"source":"iana"},"application/vnd.fujifilm.fb.docuworks.binder":{"source":"iana"},"application/vnd.fujifilm.fb.docuworks.container":{"source":"iana"},"application/vnd.fujifilm.fb.jfi+xml":{"source":"iana","compressible":true},"application/vnd.fujitsu.oasys":{"source":"iana","extensions":["oas"]},"application/vnd.fujitsu.oasys2":{"source":"iana","extensions":["oa2"]},"application/vnd.fujitsu.oasys3":{"source":"iana","extensions":["oa3"]},"application/vnd.fujitsu.oasysgp":{"source":"iana","extensions":["fg5"]},"application/vnd.fujitsu.oasysprs":{"source":"iana","extensions":["bh2"]},"application/vnd.fujixerox.art-ex":{"source":"iana"},"application/vnd.fujixerox.art4":{"source":"iana"},"application/vnd.fujixerox.ddd":{"source":"iana","extensions":["ddd"]},"application/vnd.fujixerox.docuworks":{"source":"iana","extensions":["xdw"]},"application/vnd.fujixerox.docuworks.binder":{"source":"iana","extensions":["xbd"]},"application/vnd.fujixerox.docuworks.container":{"source":"iana"},"application/vnd.fujixerox.hbpl":{"source":"iana"},"application/vnd.fut-misnet":{"source":"iana"},"application/vnd.futoin+cbor":{"source":"iana"},"application/vnd.futoin+json":{"source":"iana","compressible":true},"application/vnd.fuzzysheet":{"source":"iana","extensions":["fzs"]},"application/vnd.genomatix.tuxedo":{"source":"iana","extensions":["txd"]},"application/vnd.gentics.grd+json":{"source":"iana","compressible":true},"application/vnd.geo+json":{"source":"iana","compressible":true},"application/vnd.geocube+xml":{"source":"iana","compressible":true},"application/vnd.geogebra.file":{"source":"iana","extensions":["ggb"]},"application/vnd.geogebra.slides":{"source":"iana"},"application/vnd.geogebra.tool":{"source":"iana","extensions":["ggt"]},"application/vnd.geometry-explorer":{"source":"iana","extensions":["gex","gre"]},"application/vnd.geonext":{"source":"iana","extensions":["gxt"]},"application/vnd.geoplan":{"source":"iana","extensions":["g2w"]},"application/vnd.geospace":{"source":"iana","extensions":["g3w"]},"application/vnd.gerber":{"source":"iana"},"application/vnd.globalplatform.card-content-mgt":{"source":"iana"},"application/vnd.globalplatform.card-content-mgt-response":{"source":"iana"},"application/vnd.gmx":{"source":"iana","extensions":["gmx"]},"application/vnd.google-apps.document":{"compressible":false,"extensions":["gdoc"]},"application/vnd.google-apps.presentation":{"compressible":false,"extensions":["gslides"]},"application/vnd.google-apps.spreadsheet":{"compressible":false,"extensions":["gsheet"]},"application/vnd.google-earth.kml+xml":{"source":"iana","compressible":true,"extensions":["kml"]},"application/vnd.google-earth.kmz":{"source":"iana","compressible":false,"extensions":["kmz"]},"application/vnd.gov.sk.e-form+xml":{"source":"iana","compressible":true},"application/vnd.gov.sk.e-form+zip":{"source":"iana","compressible":false},"application/vnd.gov.sk.xmldatacontainer+xml":{"source":"iana","compressible":true},"application/vnd.grafeq":{"source":"iana","extensions":["gqf","gqs"]},"application/vnd.gridmp":{"source":"iana"},"application/vnd.groove-account":{"source":"iana","extensions":["gac"]},"application/vnd.groove-help":{"source":"iana","extensions":["ghf"]},"application/vnd.groove-identity-message":{"source":"iana","extensions":["gim"]},"application/vnd.groove-injector":{"source":"iana","extensions":["grv"]},"application/vnd.groove-tool-message":{"source":"iana","extensions":["gtm"]},"application/vnd.groove-tool-template":{"source":"iana","extensions":["tpl"]},"application/vnd.groove-vcard":{"source":"iana","extensions":["vcg"]},"application/vnd.hal+json":{"source":"iana","compressible":true},"application/vnd.hal+xml":{"source":"iana","compressible":true,"extensions":["hal"]},"application/vnd.handheld-entertainment+xml":{"source":"iana","compressible":true,"extensions":["zmm"]},"application/vnd.hbci":{"source":"iana","extensions":["hbci"]},"application/vnd.hc+json":{"source":"iana","compressible":true},"application/vnd.hcl-bireports":{"source":"iana"},"application/vnd.hdt":{"source":"iana"},"application/vnd.heroku+json":{"source":"iana","compressible":true},"application/vnd.hhe.lesson-player":{"source":"iana","extensions":["les"]},"application/vnd.hl7cda+xml":{"source":"iana","charset":"UTF-8","compressible":true},"application/vnd.hl7v2+xml":{"source":"iana","charset":"UTF-8","compressible":true},"application/vnd.hp-hpgl":{"source":"iana","extensions":["hpgl"]},"application/vnd.hp-hpid":{"source":"iana","extensions":["hpid"]},"application/vnd.hp-hps":{"source":"iana","extensions":["hps"]},"application/vnd.hp-jlyt":{"source":"iana","extensions":["jlt"]},"application/vnd.hp-pcl":{"source":"iana","extensions":["pcl"]},"application/vnd.hp-pclxl":{"source":"iana","extensions":["pclxl"]},"application/vnd.httphone":{"source":"iana"},"application/vnd.hydrostatix.sof-data":{"source":"iana","extensions":["sfd-hdstx"]},"application/vnd.hyper+json":{"source":"iana","compressible":true},"application/vnd.hyper-item+json":{"source":"iana","compressible":true},"application/vnd.hyperdrive+json":{"source":"iana","compressible":true},"application/vnd.hzn-3d-crossword":{"source":"iana"},"application/vnd.ibm.afplinedata":{"source":"iana"},"application/vnd.ibm.electronic-media":{"source":"iana"},"application/vnd.ibm.minipay":{"source":"iana","extensions":["mpy"]},"application/vnd.ibm.modcap":{"source":"iana","extensions":["afp","listafp","list3820"]},"application/vnd.ibm.rights-management":{"source":"iana","extensions":["irm"]},"application/vnd.ibm.secure-container":{"source":"iana","extensions":["sc"]},"application/vnd.iccprofile":{"source":"iana","extensions":["icc","icm"]},"application/vnd.ieee.1905":{"source":"iana"},"application/vnd.igloader":{"source":"iana","extensions":["igl"]},"application/vnd.imagemeter.folder+zip":{"source":"iana","compressible":false},"application/vnd.imagemeter.image+zip":{"source":"iana","compressible":false},"application/vnd.immervision-ivp":{"source":"iana","extensions":["ivp"]},"application/vnd.immervision-ivu":{"source":"iana","extensions":["ivu"]},"application/vnd.ims.imsccv1p1":{"source":"iana"},"application/vnd.ims.imsccv1p2":{"source":"iana"},"application/vnd.ims.imsccv1p3":{"source":"iana"},"application/vnd.ims.lis.v2.result+json":{"source":"iana","compressible":true},"application/vnd.ims.lti.v2.toolconsumerprofile+json":{"source":"iana","compressible":true},"application/vnd.ims.lti.v2.toolproxy+json":{"source":"iana","compressible":true},"application/vnd.ims.lti.v2.toolproxy.id+json":{"source":"iana","compressible":true},"application/vnd.ims.lti.v2.toolsettings+json":{"source":"iana","compressible":true},"application/vnd.ims.lti.v2.toolsettings.simple+json":{"source":"iana","compressible":true},"application/vnd.informedcontrol.rms+xml":{"source":"iana","compressible":true},"application/vnd.informix-visionary":{"source":"iana"},"application/vnd.infotech.project":{"source":"iana"},"application/vnd.infotech.project+xml":{"source":"iana","compressible":true},"application/vnd.innopath.wamp.notification":{"source":"iana"},"application/vnd.insors.igm":{"source":"iana","extensions":["igm"]},"application/vnd.intercon.formnet":{"source":"iana","extensions":["xpw","xpx"]},"application/vnd.intergeo":{"source":"iana","extensions":["i2g"]},"application/vnd.intertrust.digibox":{"source":"iana"},"application/vnd.intertrust.nncp":{"source":"iana"},"application/vnd.intu.qbo":{"source":"iana","extensions":["qbo"]},"application/vnd.intu.qfx":{"source":"iana","extensions":["qfx"]},"application/vnd.iptc.g2.catalogitem+xml":{"source":"iana","compressible":true},"application/vnd.iptc.g2.conceptitem+xml":{"source":"iana","compressible":true},"application/vnd.iptc.g2.knowledgeitem+xml":{"source":"iana","compressible":true},"application/vnd.iptc.g2.newsitem+xml":{"source":"iana","compressible":true},"application/vnd.iptc.g2.newsmessage+xml":{"source":"iana","compressible":true},"application/vnd.iptc.g2.packageitem+xml":{"source":"iana","compressible":true},"application/vnd.iptc.g2.planningitem+xml":{"source":"iana","compressible":true},"application/vnd.ipunplugged.rcprofile":{"source":"iana","extensions":["rcprofile"]},"application/vnd.irepository.package+xml":{"source":"iana","compressible":true,"extensions":["irp"]},"application/vnd.is-xpr":{"source":"iana","extensions":["xpr"]},"application/vnd.isac.fcs":{"source":"iana","extensions":["fcs"]},"application/vnd.iso11783-10+zip":{"source":"iana","compressible":false},"application/vnd.jam":{"source":"iana","extensions":["jam"]},"application/vnd.japannet-directory-service":{"source":"iana"},"application/vnd.japannet-jpnstore-wakeup":{"source":"iana"},"application/vnd.japannet-payment-wakeup":{"source":"iana"},"application/vnd.japannet-registration":{"source":"iana"},"application/vnd.japannet-registration-wakeup":{"source":"iana"},"application/vnd.japannet-setstore-wakeup":{"source":"iana"},"application/vnd.japannet-verification":{"source":"iana"},"application/vnd.japannet-verification-wakeup":{"source":"iana"},"application/vnd.jcp.javame.midlet-rms":{"source":"iana","extensions":["rms"]},"application/vnd.jisp":{"source":"iana","extensions":["jisp"]},"application/vnd.joost.joda-archive":{"source":"iana","extensions":["joda"]},"application/vnd.jsk.isdn-ngn":{"source":"iana"},"application/vnd.kahootz":{"source":"iana","extensions":["ktz","ktr"]},"application/vnd.kde.karbon":{"source":"iana","extensions":["karbon"]},"application/vnd.kde.kchart":{"source":"iana","extensions":["chrt"]},"application/vnd.kde.kformula":{"source":"iana","extensions":["kfo"]},"application/vnd.kde.kivio":{"source":"iana","extensions":["flw"]},"application/vnd.kde.kontour":{"source":"iana","extensions":["kon"]},"application/vnd.kde.kpresenter":{"source":"iana","extensions":["kpr","kpt"]},"application/vnd.kde.kspread":{"source":"iana","extensions":["ksp"]},"application/vnd.kde.kword":{"source":"iana","extensions":["kwd","kwt"]},"application/vnd.kenameaapp":{"source":"iana","extensions":["htke"]},"application/vnd.kidspiration":{"source":"iana","extensions":["kia"]},"application/vnd.kinar":{"source":"iana","extensions":["kne","knp"]},"application/vnd.koan":{"source":"iana","extensions":["skp","skd","skt","skm"]},"application/vnd.kodak-descriptor":{"source":"iana","extensions":["sse"]},"application/vnd.las":{"source":"iana"},"application/vnd.las.las+json":{"source":"iana","compressible":true},"application/vnd.las.las+xml":{"source":"iana","compressible":true,"extensions":["lasxml"]},"application/vnd.laszip":{"source":"iana"},"application/vnd.leap+json":{"source":"iana","compressible":true},"application/vnd.liberty-request+xml":{"source":"iana","compressible":true},"application/vnd.llamagraphics.life-balance.desktop":{"source":"iana","extensions":["lbd"]},"application/vnd.llamagraphics.life-balance.exchange+xml":{"source":"iana","compressible":true,"extensions":["lbe"]},"application/vnd.logipipe.circuit+zip":{"source":"iana","compressible":false},"application/vnd.loom":{"source":"iana"},"application/vnd.lotus-1-2-3":{"source":"iana","extensions":["123"]},"application/vnd.lotus-approach":{"source":"iana","extensions":["apr"]},"application/vnd.lotus-freelance":{"source":"iana","extensions":["pre"]},"application/vnd.lotus-notes":{"source":"iana","extensions":["nsf"]},"application/vnd.lotus-organizer":{"source":"iana","extensions":["org"]},"application/vnd.lotus-screencam":{"source":"iana","extensions":["scm"]},"application/vnd.lotus-wordpro":{"source":"iana","extensions":["lwp"]},"application/vnd.macports.portpkg":{"source":"iana","extensions":["portpkg"]},"application/vnd.mapbox-vector-tile":{"source":"iana","extensions":["mvt"]},"application/vnd.marlin.drm.actiontoken+xml":{"source":"iana","compressible":true},"application/vnd.marlin.drm.conftoken+xml":{"source":"iana","compressible":true},"application/vnd.marlin.drm.license+xml":{"source":"iana","compressible":true},"application/vnd.marlin.drm.mdcf":{"source":"iana"},"application/vnd.mason+json":{"source":"iana","compressible":true},"application/vnd.maxar.archive.3tz+zip":{"source":"iana","compressible":false},"application/vnd.maxmind.maxmind-db":{"source":"iana"},"application/vnd.mcd":{"source":"iana","extensions":["mcd"]},"application/vnd.medcalcdata":{"source":"iana","extensions":["mc1"]},"application/vnd.mediastation.cdkey":{"source":"iana","extensions":["cdkey"]},"application/vnd.meridian-slingshot":{"source":"iana"},"application/vnd.mfer":{"source":"iana","extensions":["mwf"]},"application/vnd.mfmp":{"source":"iana","extensions":["mfm"]},"application/vnd.micro+json":{"source":"iana","compressible":true},"application/vnd.micrografx.flo":{"source":"iana","extensions":["flo"]},"application/vnd.micrografx.igx":{"source":"iana","extensions":["igx"]},"application/vnd.microsoft.portable-executable":{"source":"iana"},"application/vnd.microsoft.windows.thumbnail-cache":{"source":"iana"},"application/vnd.miele+json":{"source":"iana","compressible":true},"application/vnd.mif":{"source":"iana","extensions":["mif"]},"application/vnd.minisoft-hp3000-save":{"source":"iana"},"application/vnd.mitsubishi.misty-guard.trustweb":{"source":"iana"},"application/vnd.mobius.daf":{"source":"iana","extensions":["daf"]},"application/vnd.mobius.dis":{"source":"iana","extensions":["dis"]},"application/vnd.mobius.mbk":{"source":"iana","extensions":["mbk"]},"application/vnd.mobius.mqy":{"source":"iana","extensions":["mqy"]},"application/vnd.mobius.msl":{"source":"iana","extensions":["msl"]},"application/vnd.mobius.plc":{"source":"iana","extensions":["plc"]},"application/vnd.mobius.txf":{"source":"iana","extensions":["txf"]},"application/vnd.mophun.application":{"source":"iana","extensions":["mpn"]},"application/vnd.mophun.certificate":{"source":"iana","extensions":["mpc"]},"application/vnd.motorola.flexsuite":{"source":"iana"},"application/vnd.motorola.flexsuite.adsi":{"source":"iana"},"application/vnd.motorola.flexsuite.fis":{"source":"iana"},"application/vnd.motorola.flexsuite.gotap":{"source":"iana"},"application/vnd.motorola.flexsuite.kmr":{"source":"iana"},"application/vnd.motorola.flexsuite.ttc":{"source":"iana"},"application/vnd.motorola.flexsuite.wem":{"source":"iana"},"application/vnd.motorola.iprm":{"source":"iana"},"application/vnd.mozilla.xul+xml":{"source":"iana","compressible":true,"extensions":["xul"]},"application/vnd.ms-3mfdocument":{"source":"iana"},"application/vnd.ms-artgalry":{"source":"iana","extensions":["cil"]},"application/vnd.ms-asf":{"source":"iana"},"application/vnd.ms-cab-compressed":{"source":"iana","extensions":["cab"]},"application/vnd.ms-color.iccprofile":{"source":"apache"},"application/vnd.ms-excel":{"source":"iana","compressible":false,"extensions":["xls","xlm","xla","xlc","xlt","xlw"]},"application/vnd.ms-excel.addin.macroenabled.12":{"source":"iana","extensions":["xlam"]},"application/vnd.ms-excel.sheet.binary.macroenabled.12":{"source":"iana","extensions":["xlsb"]},"application/vnd.ms-excel.sheet.macroenabled.12":{"source":"iana","extensions":["xlsm"]},"application/vnd.ms-excel.template.macroenabled.12":{"source":"iana","extensions":["xltm"]},"application/vnd.ms-fontobject":{"source":"iana","compressible":true,"extensions":["eot"]},"application/vnd.ms-htmlhelp":{"source":"iana","extensions":["chm"]},"application/vnd.ms-ims":{"source":"iana","extensions":["ims"]},"application/vnd.ms-lrm":{"source":"iana","extensions":["lrm"]},"application/vnd.ms-office.activex+xml":{"source":"iana","compressible":true},"application/vnd.ms-officetheme":{"source":"iana","extensions":["thmx"]},"application/vnd.ms-opentype":{"source":"apache","compressible":true},"application/vnd.ms-outlook":{"compressible":false,"extensions":["msg"]},"application/vnd.ms-package.obfuscated-opentype":{"source":"apache"},"application/vnd.ms-pki.seccat":{"source":"apache","extensions":["cat"]},"application/vnd.ms-pki.stl":{"source":"apache","extensions":["stl"]},"application/vnd.ms-playready.initiator+xml":{"source":"iana","compressible":true},"application/vnd.ms-powerpoint":{"source":"iana","compressible":false,"extensions":["ppt","pps","pot"]},"application/vnd.ms-powerpoint.addin.macroenabled.12":{"source":"iana","extensions":["ppam"]},"application/vnd.ms-powerpoint.presentation.macroenabled.12":{"source":"iana","extensions":["pptm"]},"application/vnd.ms-powerpoint.slide.macroenabled.12":{"source":"iana","extensions":["sldm"]},"application/vnd.ms-powerpoint.slideshow.macroenabled.12":{"source":"iana","extensions":["ppsm"]},"application/vnd.ms-powerpoint.template.macroenabled.12":{"source":"iana","extensions":["potm"]},"application/vnd.ms-printdevicecapabilities+xml":{"source":"iana","compressible":true},"application/vnd.ms-printing.printticket+xml":{"source":"apache","compressible":true},"application/vnd.ms-printschematicket+xml":{"source":"iana","compressible":true},"application/vnd.ms-project":{"source":"iana","extensions":["mpp","mpt"]},"application/vnd.ms-tnef":{"source":"iana"},"application/vnd.ms-windows.devicepairing":{"source":"iana"},"application/vnd.ms-windows.nwprinting.oob":{"source":"iana"},"application/vnd.ms-windows.printerpairing":{"source":"iana"},"application/vnd.ms-windows.wsd.oob":{"source":"iana"},"application/vnd.ms-wmdrm.lic-chlg-req":{"source":"iana"},"application/vnd.ms-wmdrm.lic-resp":{"source":"iana"},"application/vnd.ms-wmdrm.meter-chlg-req":{"source":"iana"},"application/vnd.ms-wmdrm.meter-resp":{"source":"iana"},"application/vnd.ms-word.document.macroenabled.12":{"source":"iana","extensions":["docm"]},"application/vnd.ms-word.template.macroenabled.12":{"source":"iana","extensions":["dotm"]},"application/vnd.ms-works":{"source":"iana","extensions":["wps","wks","wcm","wdb"]},"application/vnd.ms-wpl":{"source":"iana","extensions":["wpl"]},"application/vnd.ms-xpsdocument":{"source":"iana","compressible":false,"extensions":["xps"]},"application/vnd.msa-disk-image":{"source":"iana"},"application/vnd.mseq":{"source":"iana","extensions":["mseq"]},"application/vnd.msign":{"source":"iana"},"application/vnd.multiad.creator":{"source":"iana"},"application/vnd.multiad.creator.cif":{"source":"iana"},"application/vnd.music-niff":{"source":"iana"},"application/vnd.musician":{"source":"iana","extensions":["mus"]},"application/vnd.muvee.style":{"source":"iana","extensions":["msty"]},"application/vnd.mynfc":{"source":"iana","extensions":["taglet"]},"application/vnd.nacamar.ybrid+json":{"source":"iana","compressible":true},"application/vnd.ncd.control":{"source":"iana"},"application/vnd.ncd.reference":{"source":"iana"},"application/vnd.nearst.inv+json":{"source":"iana","compressible":true},"application/vnd.nebumind.line":{"source":"iana"},"application/vnd.nervana":{"source":"iana"},"application/vnd.netfpx":{"source":"iana"},"application/vnd.neurolanguage.nlu":{"source":"iana","extensions":["nlu"]},"application/vnd.nimn":{"source":"iana"},"application/vnd.nintendo.nitro.rom":{"source":"iana"},"application/vnd.nintendo.snes.rom":{"source":"iana"},"application/vnd.nitf":{"source":"iana","extensions":["ntf","nitf"]},"application/vnd.noblenet-directory":{"source":"iana","extensions":["nnd"]},"application/vnd.noblenet-sealer":{"source":"iana","extensions":["nns"]},"application/vnd.noblenet-web":{"source":"iana","extensions":["nnw"]},"application/vnd.nokia.catalogs":{"source":"iana"},"application/vnd.nokia.conml+wbxml":{"source":"iana"},"application/vnd.nokia.conml+xml":{"source":"iana","compressible":true},"application/vnd.nokia.iptv.config+xml":{"source":"iana","compressible":true},"application/vnd.nokia.isds-radio-presets":{"source":"iana"},"application/vnd.nokia.landmark+wbxml":{"source":"iana"},"application/vnd.nokia.landmark+xml":{"source":"iana","compressible":true},"application/vnd.nokia.landmarkcollection+xml":{"source":"iana","compressible":true},"application/vnd.nokia.n-gage.ac+xml":{"source":"iana","compressible":true,"extensions":["ac"]},"application/vnd.nokia.n-gage.data":{"source":"iana","extensions":["ngdat"]},"application/vnd.nokia.n-gage.symbian.install":{"source":"iana","extensions":["n-gage"]},"application/vnd.nokia.ncd":{"source":"iana"},"application/vnd.nokia.pcd+wbxml":{"source":"iana"},"application/vnd.nokia.pcd+xml":{"source":"iana","compressible":true},"application/vnd.nokia.radio-preset":{"source":"iana","extensions":["rpst"]},"application/vnd.nokia.radio-presets":{"source":"iana","extensions":["rpss"]},"application/vnd.novadigm.edm":{"source":"iana","extensions":["edm"]},"application/vnd.novadigm.edx":{"source":"iana","extensions":["edx"]},"application/vnd.novadigm.ext":{"source":"iana","extensions":["ext"]},"application/vnd.ntt-local.content-share":{"source":"iana"},"application/vnd.ntt-local.file-transfer":{"source":"iana"},"application/vnd.ntt-local.ogw_remote-access":{"source":"iana"},"application/vnd.ntt-local.sip-ta_remote":{"source":"iana"},"application/vnd.ntt-local.sip-ta_tcp_stream":{"source":"iana"},"application/vnd.oasis.opendocument.chart":{"source":"iana","extensions":["odc"]},"application/vnd.oasis.opendocument.chart-template":{"source":"iana","extensions":["otc"]},"application/vnd.oasis.opendocument.database":{"source":"iana","extensions":["odb"]},"application/vnd.oasis.opendocument.formula":{"source":"iana","extensions":["odf"]},"application/vnd.oasis.opendocument.formula-template":{"source":"iana","extensions":["odft"]},"application/vnd.oasis.opendocument.graphics":{"source":"iana","compressible":false,"extensions":["odg"]},"application/vnd.oasis.opendocument.graphics-template":{"source":"iana","extensions":["otg"]},"application/vnd.oasis.opendocument.image":{"source":"iana","extensions":["odi"]},"application/vnd.oasis.opendocument.image-template":{"source":"iana","extensions":["oti"]},"application/vnd.oasis.opendocument.presentation":{"source":"iana","compressible":false,"extensions":["odp"]},"application/vnd.oasis.opendocument.presentation-template":{"source":"iana","extensions":["otp"]},"application/vnd.oasis.opendocument.spreadsheet":{"source":"iana","compressible":false,"extensions":["ods"]},"application/vnd.oasis.opendocument.spreadsheet-template":{"source":"iana","extensions":["ots"]},"application/vnd.oasis.opendocument.text":{"source":"iana","compressible":false,"extensions":["odt"]},"application/vnd.oasis.opendocument.text-master":{"source":"iana","extensions":["odm"]},"application/vnd.oasis.opendocument.text-template":{"source":"iana","extensions":["ott"]},"application/vnd.oasis.opendocument.text-web":{"source":"iana","extensions":["oth"]},"application/vnd.obn":{"source":"iana"},"application/vnd.ocf+cbor":{"source":"iana"},"application/vnd.oci.image.manifest.v1+json":{"source":"iana","compressible":true},"application/vnd.oftn.l10n+json":{"source":"iana","compressible":true},"application/vnd.oipf.contentaccessdownload+xml":{"source":"iana","compressible":true},"application/vnd.oipf.contentaccessstreaming+xml":{"source":"iana","compressible":true},"application/vnd.oipf.cspg-hexbinary":{"source":"iana"},"application/vnd.oipf.dae.svg+xml":{"source":"iana","compressible":true},"application/vnd.oipf.dae.xhtml+xml":{"source":"iana","compressible":true},"application/vnd.oipf.mippvcontrolmessage+xml":{"source":"iana","compressible":true},"application/vnd.oipf.pae.gem":{"source":"iana"},"application/vnd.oipf.spdiscovery+xml":{"source":"iana","compressible":true},"application/vnd.oipf.spdlist+xml":{"source":"iana","compressible":true},"application/vnd.oipf.ueprofile+xml":{"source":"iana","compressible":true},"application/vnd.oipf.userprofile+xml":{"source":"iana","compressible":true},"application/vnd.olpc-sugar":{"source":"iana","extensions":["xo"]},"application/vnd.oma-scws-config":{"source":"iana"},"application/vnd.oma-scws-http-request":{"source":"iana"},"application/vnd.oma-scws-http-response":{"source":"iana"},"application/vnd.oma.bcast.associated-procedure-parameter+xml":{"source":"iana","compressible":true},"application/vnd.oma.bcast.drm-trigger+xml":{"source":"iana","compressible":true},"application/vnd.oma.bcast.imd+xml":{"source":"iana","compressible":true},"application/vnd.oma.bcast.ltkm":{"source":"iana"},"application/vnd.oma.bcast.notification+xml":{"source":"iana","compressible":true},"application/vnd.oma.bcast.provisioningtrigger":{"source":"iana"},"application/vnd.oma.bcast.sgboot":{"source":"iana"},"application/vnd.oma.bcast.sgdd+xml":{"source":"iana","compressible":true},"application/vnd.oma.bcast.sgdu":{"source":"iana"},"application/vnd.oma.bcast.simple-symbol-container":{"source":"iana"},"application/vnd.oma.bcast.smartcard-trigger+xml":{"source":"iana","compressible":true},"application/vnd.oma.bcast.sprov+xml":{"source":"iana","compressible":true},"application/vnd.oma.bcast.stkm":{"source":"iana"},"application/vnd.oma.cab-address-book+xml":{"source":"iana","compressible":true},"application/vnd.oma.cab-feature-handler+xml":{"source":"iana","compressible":true},"application/vnd.oma.cab-pcc+xml":{"source":"iana","compressible":true},"application/vnd.oma.cab-subs-invite+xml":{"source":"iana","compressible":true},"application/vnd.oma.cab-user-prefs+xml":{"source":"iana","compressible":true},"application/vnd.oma.dcd":{"source":"iana"},"application/vnd.oma.dcdc":{"source":"iana"},"application/vnd.oma.dd2+xml":{"source":"iana","compressible":true,"extensions":["dd2"]},"application/vnd.oma.drm.risd+xml":{"source":"iana","compressible":true},"application/vnd.oma.group-usage-list+xml":{"source":"iana","compressible":true},"application/vnd.oma.lwm2m+cbor":{"source":"iana"},"application/vnd.oma.lwm2m+json":{"source":"iana","compressible":true},"application/vnd.oma.lwm2m+tlv":{"source":"iana"},"application/vnd.oma.pal+xml":{"source":"iana","compressible":true},"application/vnd.oma.poc.detailed-progress-report+xml":{"source":"iana","compressible":true},"application/vnd.oma.poc.final-report+xml":{"source":"iana","compressible":true},"application/vnd.oma.poc.groups+xml":{"source":"iana","compressible":true},"application/vnd.oma.poc.invocation-descriptor+xml":{"source":"iana","compressible":true},"application/vnd.oma.poc.optimized-progress-report+xml":{"source":"iana","compressible":true},"application/vnd.oma.push":{"source":"iana"},"application/vnd.oma.scidm.messages+xml":{"source":"iana","compressible":true},"application/vnd.oma.xcap-directory+xml":{"source":"iana","compressible":true},"application/vnd.omads-email+xml":{"source":"iana","charset":"UTF-8","compressible":true},"application/vnd.omads-file+xml":{"source":"iana","charset":"UTF-8","compressible":true},"application/vnd.omads-folder+xml":{"source":"iana","charset":"UTF-8","compressible":true},"application/vnd.omaloc-supl-init":{"source":"iana"},"application/vnd.onepager":{"source":"iana"},"application/vnd.onepagertamp":{"source":"iana"},"application/vnd.onepagertamx":{"source":"iana"},"application/vnd.onepagertat":{"source":"iana"},"application/vnd.onepagertatp":{"source":"iana"},"application/vnd.onepagertatx":{"source":"iana"},"application/vnd.openblox.game+xml":{"source":"iana","compressible":true,"extensions":["obgx"]},"application/vnd.openblox.game-binary":{"source":"iana"},"application/vnd.openeye.oeb":{"source":"iana"},"application/vnd.openofficeorg.extension":{"source":"apache","extensions":["oxt"]},"application/vnd.openstreetmap.data+xml":{"source":"iana","compressible":true,"extensions":["osm"]},"application/vnd.opentimestamps.ots":{"source":"iana"},"application/vnd.openxmlformats-officedocument.custom-properties+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.customxmlproperties+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.drawing+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.drawingml.chart+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.drawingml.chartshapes+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.drawingml.diagramcolors+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.drawingml.diagramdata+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.drawingml.diagramlayout+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.drawingml.diagramstyle+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.extended-properties+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.presentationml.commentauthors+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.presentationml.comments+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.presentationml.handoutmaster+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.presentationml.notesmaster+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.presentationml.notesslide+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.presentationml.presentation":{"source":"iana","compressible":false,"extensions":["pptx"]},"application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.presentationml.presprops+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.presentationml.slide":{"source":"iana","extensions":["sldx"]},"application/vnd.openxmlformats-officedocument.presentationml.slide+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.presentationml.slidelayout+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.presentationml.slidemaster+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.presentationml.slideshow":{"source":"iana","extensions":["ppsx"]},"application/vnd.openxmlformats-officedocument.presentationml.slideshow.main+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.presentationml.slideupdateinfo+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.presentationml.tablestyles+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.presentationml.tags+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.presentationml.template":{"source":"iana","extensions":["potx"]},"application/vnd.openxmlformats-officedocument.presentationml.template.main+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.presentationml.viewprops+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.spreadsheetml.calcchain+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.spreadsheetml.chartsheet+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.spreadsheetml.comments+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.spreadsheetml.connections+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.spreadsheetml.dialogsheet+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.spreadsheetml.externallink+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.spreadsheetml.pivotcachedefinition+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.spreadsheetml.pivotcacherecords+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.spreadsheetml.pivottable+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.spreadsheetml.querytable+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.spreadsheetml.revisionheaders+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.spreadsheetml.revisionlog+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.spreadsheetml.sharedstrings+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":{"source":"iana","compressible":false,"extensions":["xlsx"]},"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.spreadsheetml.sheetmetadata+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.spreadsheetml.table+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.spreadsheetml.tablesinglecells+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.spreadsheetml.template":{"source":"iana","extensions":["xltx"]},"application/vnd.openxmlformats-officedocument.spreadsheetml.template.main+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.spreadsheetml.usernames+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.spreadsheetml.volatiledependencies+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.theme+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.themeoverride+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.vmldrawing":{"source":"iana"},"application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.wordprocessingml.document":{"source":"iana","compressible":false,"extensions":["docx"]},"application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.wordprocessingml.fonttable+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.wordprocessingml.template":{"source":"iana","extensions":["dotx"]},"application/vnd.openxmlformats-officedocument.wordprocessingml.template.main+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-officedocument.wordprocessingml.websettings+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-package.core-properties+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml":{"source":"iana","compressible":true},"application/vnd.openxmlformats-package.relationships+xml":{"source":"iana","compressible":true},"application/vnd.oracle.resource+json":{"source":"iana","compressible":true},"application/vnd.orange.indata":{"source":"iana"},"application/vnd.osa.netdeploy":{"source":"iana"},"application/vnd.osgeo.mapguide.package":{"source":"iana","extensions":["mgp"]},"application/vnd.osgi.bundle":{"source":"iana"},"application/vnd.osgi.dp":{"source":"iana","extensions":["dp"]},"application/vnd.osgi.subsystem":{"source":"iana","extensions":["esa"]},"application/vnd.otps.ct-kip+xml":{"source":"iana","compressible":true},"application/vnd.oxli.countgraph":{"source":"iana"},"application/vnd.pagerduty+json":{"source":"iana","compressible":true},"application/vnd.palm":{"source":"iana","extensions":["pdb","pqa","oprc"]},"application/vnd.panoply":{"source":"iana"},"application/vnd.paos.xml":{"source":"iana"},"application/vnd.patentdive":{"source":"iana"},"application/vnd.patientecommsdoc":{"source":"iana"},"application/vnd.pawaafile":{"source":"iana","extensions":["paw"]},"application/vnd.pcos":{"source":"iana"},"application/vnd.pg.format":{"source":"iana","extensions":["str"]},"application/vnd.pg.osasli":{"source":"iana","extensions":["ei6"]},"application/vnd.piaccess.application-licence":{"source":"iana"},"application/vnd.picsel":{"source":"iana","extensions":["efif"]},"application/vnd.pmi.widget":{"source":"iana","extensions":["wg"]},"application/vnd.poc.group-advertisement+xml":{"source":"iana","compressible":true},"application/vnd.pocketlearn":{"source":"iana","extensions":["plf"]},"application/vnd.powerbuilder6":{"source":"iana","extensions":["pbd"]},"application/vnd.powerbuilder6-s":{"source":"iana"},"application/vnd.powerbuilder7":{"source":"iana"},"application/vnd.powerbuilder7-s":{"source":"iana"},"application/vnd.powerbuilder75":{"source":"iana"},"application/vnd.powerbuilder75-s":{"source":"iana"},"application/vnd.preminet":{"source":"iana"},"application/vnd.previewsystems.box":{"source":"iana","extensions":["box"]},"application/vnd.proteus.magazine":{"source":"iana","extensions":["mgz"]},"application/vnd.psfs":{"source":"iana"},"application/vnd.publishare-delta-tree":{"source":"iana","extensions":["qps"]},"application/vnd.pvi.ptid1":{"source":"iana","extensions":["ptid"]},"application/vnd.pwg-multiplexed":{"source":"iana"},"application/vnd.pwg-xhtml-print+xml":{"source":"iana","compressible":true},"application/vnd.qualcomm.brew-app-res":{"source":"iana"},"application/vnd.quarantainenet":{"source":"iana"},"application/vnd.quark.quarkxpress":{"source":"iana","extensions":["qxd","qxt","qwd","qwt","qxl","qxb"]},"application/vnd.quobject-quoxdocument":{"source":"iana"},"application/vnd.radisys.moml+xml":{"source":"iana","compressible":true},"application/vnd.radisys.msml+xml":{"source":"iana","compressible":true},"application/vnd.radisys.msml-audit+xml":{"source":"iana","compressible":true},"application/vnd.radisys.msml-audit-conf+xml":{"source":"iana","compressible":true},"application/vnd.radisys.msml-audit-conn+xml":{"source":"iana","compressible":true},"application/vnd.radisys.msml-audit-dialog+xml":{"source":"iana","compressible":true},"application/vnd.radisys.msml-audit-stream+xml":{"source":"iana","compressible":true},"application/vnd.radisys.msml-conf+xml":{"source":"iana","compressible":true},"application/vnd.radisys.msml-dialog+xml":{"source":"iana","compressible":true},"application/vnd.radisys.msml-dialog-base+xml":{"source":"iana","compressible":true},"application/vnd.radisys.msml-dialog-fax-detect+xml":{"source":"iana","compressible":true},"application/vnd.radisys.msml-dialog-fax-sendrecv+xml":{"source":"iana","compressible":true},"application/vnd.radisys.msml-dialog-group+xml":{"source":"iana","compressible":true},"application/vnd.radisys.msml-dialog-speech+xml":{"source":"iana","compressible":true},"application/vnd.radisys.msml-dialog-transform+xml":{"source":"iana","compressible":true},"application/vnd.rainstor.data":{"source":"iana"},"application/vnd.rapid":{"source":"iana"},"application/vnd.rar":{"source":"iana","extensions":["rar"]},"application/vnd.realvnc.bed":{"source":"iana","extensions":["bed"]},"application/vnd.recordare.musicxml":{"source":"iana","extensions":["mxl"]},"application/vnd.recordare.musicxml+xml":{"source":"iana","compressible":true,"extensions":["musicxml"]},"application/vnd.renlearn.rlprint":{"source":"iana"},"application/vnd.resilient.logic":{"source":"iana"},"application/vnd.restful+json":{"source":"iana","compressible":true},"application/vnd.rig.cryptonote":{"source":"iana","extensions":["cryptonote"]},"application/vnd.rim.cod":{"source":"apache","extensions":["cod"]},"application/vnd.rn-realmedia":{"source":"apache","extensions":["rm"]},"application/vnd.rn-realmedia-vbr":{"source":"apache","extensions":["rmvb"]},"application/vnd.route66.link66+xml":{"source":"iana","compressible":true,"extensions":["link66"]},"application/vnd.rs-274x":{"source":"iana"},"application/vnd.ruckus.download":{"source":"iana"},"application/vnd.s3sms":{"source":"iana"},"application/vnd.sailingtracker.track":{"source":"iana","extensions":["st"]},"application/vnd.sar":{"source":"iana"},"application/vnd.sbm.cid":{"source":"iana"},"application/vnd.sbm.mid2":{"source":"iana"},"application/vnd.scribus":{"source":"iana"},"application/vnd.sealed.3df":{"source":"iana"},"application/vnd.sealed.csf":{"source":"iana"},"application/vnd.sealed.doc":{"source":"iana"},"application/vnd.sealed.eml":{"source":"iana"},"application/vnd.sealed.mht":{"source":"iana"},"application/vnd.sealed.net":{"source":"iana"},"application/vnd.sealed.ppt":{"source":"iana"},"application/vnd.sealed.tiff":{"source":"iana"},"application/vnd.sealed.xls":{"source":"iana"},"application/vnd.sealedmedia.softseal.html":{"source":"iana"},"application/vnd.sealedmedia.softseal.pdf":{"source":"iana"},"application/vnd.seemail":{"source":"iana","extensions":["see"]},"application/vnd.seis+json":{"source":"iana","compressible":true},"application/vnd.sema":{"source":"iana","extensions":["sema"]},"application/vnd.semd":{"source":"iana","extensions":["semd"]},"application/vnd.semf":{"source":"iana","extensions":["semf"]},"application/vnd.shade-save-file":{"source":"iana"},"application/vnd.shana.informed.formdata":{"source":"iana","extensions":["ifm"]},"application/vnd.shana.informed.formtemplate":{"source":"iana","extensions":["itp"]},"application/vnd.shana.informed.interchange":{"source":"iana","extensions":["iif"]},"application/vnd.shana.informed.package":{"source":"iana","extensions":["ipk"]},"application/vnd.shootproof+json":{"source":"iana","compressible":true},"application/vnd.shopkick+json":{"source":"iana","compressible":true},"application/vnd.shp":{"source":"iana"},"application/vnd.shx":{"source":"iana"},"application/vnd.sigrok.session":{"source":"iana"},"application/vnd.simtech-mindmapper":{"source":"iana","extensions":["twd","twds"]},"application/vnd.siren+json":{"source":"iana","compressible":true},"application/vnd.smaf":{"source":"iana","extensions":["mmf"]},"application/vnd.smart.notebook":{"source":"iana"},"application/vnd.smart.teacher":{"source":"iana","extensions":["teacher"]},"application/vnd.snesdev-page-table":{"source":"iana"},"application/vnd.software602.filler.form+xml":{"source":"iana","compressible":true,"extensions":["fo"]},"application/vnd.software602.filler.form-xml-zip":{"source":"iana"},"application/vnd.solent.sdkm+xml":{"source":"iana","compressible":true,"extensions":["sdkm","sdkd"]},"application/vnd.spotfire.dxp":{"source":"iana","extensions":["dxp"]},"application/vnd.spotfire.sfs":{"source":"iana","extensions":["sfs"]},"application/vnd.sqlite3":{"source":"iana"},"application/vnd.sss-cod":{"source":"iana"},"application/vnd.sss-dtf":{"source":"iana"},"application/vnd.sss-ntf":{"source":"iana"},"application/vnd.stardivision.calc":{"source":"apache","extensions":["sdc"]},"application/vnd.stardivision.draw":{"source":"apache","extensions":["sda"]},"application/vnd.stardivision.impress":{"source":"apache","extensions":["sdd"]},"application/vnd.stardivision.math":{"source":"apache","extensions":["smf"]},"application/vnd.stardivision.writer":{"source":"apache","extensions":["sdw","vor"]},"application/vnd.stardivision.writer-global":{"source":"apache","extensions":["sgl"]},"application/vnd.stepmania.package":{"source":"iana","extensions":["smzip"]},"application/vnd.stepmania.stepchart":{"source":"iana","extensions":["sm"]},"application/vnd.street-stream":{"source":"iana"},"application/vnd.sun.wadl+xml":{"source":"iana","compressible":true,"extensions":["wadl"]},"application/vnd.sun.xml.calc":{"source":"apache","extensions":["sxc"]},"application/vnd.sun.xml.calc.template":{"source":"apache","extensions":["stc"]},"application/vnd.sun.xml.draw":{"source":"apache","extensions":["sxd"]},"application/vnd.sun.xml.draw.template":{"source":"apache","extensions":["std"]},"application/vnd.sun.xml.impress":{"source":"apache","extensions":["sxi"]},"application/vnd.sun.xml.impress.template":{"source":"apache","extensions":["sti"]},"application/vnd.sun.xml.math":{"source":"apache","extensions":["sxm"]},"application/vnd.sun.xml.writer":{"source":"apache","extensions":["sxw"]},"application/vnd.sun.xml.writer.global":{"source":"apache","extensions":["sxg"]},"application/vnd.sun.xml.writer.template":{"source":"apache","extensions":["stw"]},"application/vnd.sus-calendar":{"source":"iana","extensions":["sus","susp"]},"application/vnd.svd":{"source":"iana","extensions":["svd"]},"application/vnd.swiftview-ics":{"source":"iana"},"application/vnd.sycle+xml":{"source":"iana","compressible":true},"application/vnd.syft+json":{"source":"iana","compressible":true},"application/vnd.symbian.install":{"source":"apache","extensions":["sis","sisx"]},"application/vnd.syncml+xml":{"source":"iana","charset":"UTF-8","compressible":true,"extensions":["xsm"]},"application/vnd.syncml.dm+wbxml":{"source":"iana","charset":"UTF-8","extensions":["bdm"]},"application/vnd.syncml.dm+xml":{"source":"iana","charset":"UTF-8","compressible":true,"extensions":["xdm"]},"application/vnd.syncml.dm.notification":{"source":"iana"},"application/vnd.syncml.dmddf+wbxml":{"source":"iana"},"application/vnd.syncml.dmddf+xml":{"source":"iana","charset":"UTF-8","compressible":true,"extensions":["ddf"]},"application/vnd.syncml.dmtnds+wbxml":{"source":"iana"},"application/vnd.syncml.dmtnds+xml":{"source":"iana","charset":"UTF-8","compressible":true},"application/vnd.syncml.ds.notification":{"source":"iana"},"application/vnd.tableschema+json":{"source":"iana","compressible":true},"application/vnd.tao.intent-module-archive":{"source":"iana","extensions":["tao"]},"application/vnd.tcpdump.pcap":{"source":"iana","extensions":["pcap","cap","dmp"]},"application/vnd.think-cell.ppttc+json":{"source":"iana","compressible":true},"application/vnd.tmd.mediaflex.api+xml":{"source":"iana","compressible":true},"application/vnd.tml":{"source":"iana"},"application/vnd.tmobile-livetv":{"source":"iana","extensions":["tmo"]},"application/vnd.tri.onesource":{"source":"iana"},"application/vnd.trid.tpt":{"source":"iana","extensions":["tpt"]},"application/vnd.triscape.mxs":{"source":"iana","extensions":["mxs"]},"application/vnd.trueapp":{"source":"iana","extensions":["tra"]},"application/vnd.truedoc":{"source":"iana"},"application/vnd.ubisoft.webplayer":{"source":"iana"},"application/vnd.ufdl":{"source":"iana","extensions":["ufd","ufdl"]},"application/vnd.uiq.theme":{"source":"iana","extensions":["utz"]},"application/vnd.umajin":{"source":"iana","extensions":["umj"]},"application/vnd.unity":{"source":"iana","extensions":["unityweb"]},"application/vnd.uoml+xml":{"source":"iana","compressible":true,"extensions":["uoml"]},"application/vnd.uplanet.alert":{"source":"iana"},"application/vnd.uplanet.alert-wbxml":{"source":"iana"},"application/vnd.uplanet.bearer-choice":{"source":"iana"},"application/vnd.uplanet.bearer-choice-wbxml":{"source":"iana"},"application/vnd.uplanet.cacheop":{"source":"iana"},"application/vnd.uplanet.cacheop-wbxml":{"source":"iana"},"application/vnd.uplanet.channel":{"source":"iana"},"application/vnd.uplanet.channel-wbxml":{"source":"iana"},"application/vnd.uplanet.list":{"source":"iana"},"application/vnd.uplanet.list-wbxml":{"source":"iana"},"application/vnd.uplanet.listcmd":{"source":"iana"},"application/vnd.uplanet.listcmd-wbxml":{"source":"iana"},"application/vnd.uplanet.signal":{"source":"iana"},"application/vnd.uri-map":{"source":"iana"},"application/vnd.valve.source.material":{"source":"iana"},"application/vnd.vcx":{"source":"iana","extensions":["vcx"]},"application/vnd.vd-study":{"source":"iana"},"application/vnd.vectorworks":{"source":"iana"},"application/vnd.vel+json":{"source":"iana","compressible":true},"application/vnd.verimatrix.vcas":{"source":"iana"},"application/vnd.veritone.aion+json":{"source":"iana","compressible":true},"application/vnd.veryant.thin":{"source":"iana"},"application/vnd.ves.encrypted":{"source":"iana"},"application/vnd.vidsoft.vidconference":{"source":"iana"},"application/vnd.visio":{"source":"iana","extensions":["vsd","vst","vss","vsw"]},"application/vnd.visionary":{"source":"iana","extensions":["vis"]},"application/vnd.vividence.scriptfile":{"source":"iana"},"application/vnd.vsf":{"source":"iana","extensions":["vsf"]},"application/vnd.wap.sic":{"source":"iana"},"application/vnd.wap.slc":{"source":"iana"},"application/vnd.wap.wbxml":{"source":"iana","charset":"UTF-8","extensions":["wbxml"]},"application/vnd.wap.wmlc":{"source":"iana","extensions":["wmlc"]},"application/vnd.wap.wmlscriptc":{"source":"iana","extensions":["wmlsc"]},"application/vnd.webturbo":{"source":"iana","extensions":["wtb"]},"application/vnd.wfa.dpp":{"source":"iana"},"application/vnd.wfa.p2p":{"source":"iana"},"application/vnd.wfa.wsc":{"source":"iana"},"application/vnd.windows.devicepairing":{"source":"iana"},"application/vnd.wmc":{"source":"iana"},"application/vnd.wmf.bootstrap":{"source":"iana"},"application/vnd.wolfram.mathematica":{"source":"iana"},"application/vnd.wolfram.mathematica.package":{"source":"iana"},"application/vnd.wolfram.player":{"source":"iana","extensions":["nbp"]},"application/vnd.wordperfect":{"source":"iana","extensions":["wpd"]},"application/vnd.wqd":{"source":"iana","extensions":["wqd"]},"application/vnd.wrq-hp3000-labelled":{"source":"iana"},"application/vnd.wt.stf":{"source":"iana","extensions":["stf"]},"application/vnd.wv.csp+wbxml":{"source":"iana"},"application/vnd.wv.csp+xml":{"source":"iana","compressible":true},"application/vnd.wv.ssp+xml":{"source":"iana","compressible":true},"application/vnd.xacml+json":{"source":"iana","compressible":true},"application/vnd.xara":{"source":"iana","extensions":["xar"]},"application/vnd.xfdl":{"source":"iana","extensions":["xfdl"]},"application/vnd.xfdl.webform":{"source":"iana"},"application/vnd.xmi+xml":{"source":"iana","compressible":true},"application/vnd.xmpie.cpkg":{"source":"iana"},"application/vnd.xmpie.dpkg":{"source":"iana"},"application/vnd.xmpie.plan":{"source":"iana"},"application/vnd.xmpie.ppkg":{"source":"iana"},"application/vnd.xmpie.xlim":{"source":"iana"},"application/vnd.yamaha.hv-dic":{"source":"iana","extensions":["hvd"]},"application/vnd.yamaha.hv-script":{"source":"iana","extensions":["hvs"]},"application/vnd.yamaha.hv-voice":{"source":"iana","extensions":["hvp"]},"application/vnd.yamaha.openscoreformat":{"source":"iana","extensions":["osf"]},"application/vnd.yamaha.openscoreformat.osfpvg+xml":{"source":"iana","compressible":true,"extensions":["osfpvg"]},"application/vnd.yamaha.remote-setup":{"source":"iana"},"application/vnd.yamaha.smaf-audio":{"source":"iana","extensions":["saf"]},"application/vnd.yamaha.smaf-phrase":{"source":"iana","extensions":["spf"]},"application/vnd.yamaha.through-ngn":{"source":"iana"},"application/vnd.yamaha.tunnel-udpencap":{"source":"iana"},"application/vnd.yaoweme":{"source":"iana"},"application/vnd.yellowriver-custom-menu":{"source":"iana","extensions":["cmp"]},"application/vnd.youtube.yt":{"source":"iana"},"application/vnd.zul":{"source":"iana","extensions":["zir","zirz"]},"application/vnd.zzazz.deck+xml":{"source":"iana","compressible":true,"extensions":["zaz"]},"application/voicexml+xml":{"source":"iana","compressible":true,"extensions":["vxml"]},"application/voucher-cms+json":{"source":"iana","compressible":true},"application/vq-rtcpxr":{"source":"iana"},"application/wasm":{"source":"iana","compressible":true,"extensions":["wasm"]},"application/watcherinfo+xml":{"source":"iana","compressible":true,"extensions":["wif"]},"application/webpush-options+json":{"source":"iana","compressible":true},"application/whoispp-query":{"source":"iana"},"application/whoispp-response":{"source":"iana"},"application/widget":{"source":"iana","extensions":["wgt"]},"application/winhlp":{"source":"apache","extensions":["hlp"]},"application/wita":{"source":"iana"},"application/wordperfect5.1":{"source":"iana"},"application/wsdl+xml":{"source":"iana","compressible":true,"extensions":["wsdl"]},"application/wspolicy+xml":{"source":"iana","compressible":true,"extensions":["wspolicy"]},"application/x-7z-compressed":{"source":"apache","compressible":false,"extensions":["7z"]},"application/x-abiword":{"source":"apache","extensions":["abw"]},"application/x-ace-compressed":{"source":"apache","extensions":["ace"]},"application/x-amf":{"source":"apache"},"application/x-apple-diskimage":{"source":"apache","extensions":["dmg"]},"application/x-arj":{"compressible":false,"extensions":["arj"]},"application/x-authorware-bin":{"source":"apache","extensions":["aab","x32","u32","vox"]},"application/x-authorware-map":{"source":"apache","extensions":["aam"]},"application/x-authorware-seg":{"source":"apache","extensions":["aas"]},"application/x-bcpio":{"source":"apache","extensions":["bcpio"]},"application/x-bdoc":{"compressible":false,"extensions":["bdoc"]},"application/x-bittorrent":{"source":"apache","extensions":["torrent"]},"application/x-blorb":{"source":"apache","extensions":["blb","blorb"]},"application/x-bzip":{"source":"apache","compressible":false,"extensions":["bz"]},"application/x-bzip2":{"source":"apache","compressible":false,"extensions":["bz2","boz"]},"application/x-cbr":{"source":"apache","extensions":["cbr","cba","cbt","cbz","cb7"]},"application/x-cdlink":{"source":"apache","extensions":["vcd"]},"application/x-cfs-compressed":{"source":"apache","extensions":["cfs"]},"application/x-chat":{"source":"apache","extensions":["chat"]},"application/x-chess-pgn":{"source":"apache","extensions":["pgn"]},"application/x-chrome-extension":{"extensions":["crx"]},"application/x-cocoa":{"source":"nginx","extensions":["cco"]},"application/x-compress":{"source":"apache"},"application/x-conference":{"source":"apache","extensions":["nsc"]},"application/x-cpio":{"source":"apache","extensions":["cpio"]},"application/x-csh":{"source":"apache","extensions":["csh"]},"application/x-deb":{"compressible":false},"application/x-debian-package":{"source":"apache","extensions":["deb","udeb"]},"application/x-dgc-compressed":{"source":"apache","extensions":["dgc"]},"application/x-director":{"source":"apache","extensions":["dir","dcr","dxr","cst","cct","cxt","w3d","fgd","swa"]},"application/x-doom":{"source":"apache","extensions":["wad"]},"application/x-dtbncx+xml":{"source":"apache","compressible":true,"extensions":["ncx"]},"application/x-dtbook+xml":{"source":"apache","compressible":true,"extensions":["dtb"]},"application/x-dtbresource+xml":{"source":"apache","compressible":true,"extensions":["res"]},"application/x-dvi":{"source":"apache","compressible":false,"extensions":["dvi"]},"application/x-envoy":{"source":"apache","extensions":["evy"]},"application/x-eva":{"source":"apache","extensions":["eva"]},"application/x-font-bdf":{"source":"apache","extensions":["bdf"]},"application/x-font-dos":{"source":"apache"},"application/x-font-framemaker":{"source":"apache"},"application/x-font-ghostscript":{"source":"apache","extensions":["gsf"]},"application/x-font-libgrx":{"source":"apache"},"application/x-font-linux-psf":{"source":"apache","extensions":["psf"]},"application/x-font-pcf":{"source":"apache","extensions":["pcf"]},"application/x-font-snf":{"source":"apache","extensions":["snf"]},"application/x-font-speedo":{"source":"apache"},"application/x-font-sunos-news":{"source":"apache"},"application/x-font-type1":{"source":"apache","extensions":["pfa","pfb","pfm","afm"]},"application/x-font-vfont":{"source":"apache"},"application/x-freearc":{"source":"apache","extensions":["arc"]},"application/x-futuresplash":{"source":"apache","extensions":["spl"]},"application/x-gca-compressed":{"source":"apache","extensions":["gca"]},"application/x-glulx":{"source":"apache","extensions":["ulx"]},"application/x-gnumeric":{"source":"apache","extensions":["gnumeric"]},"application/x-gramps-xml":{"source":"apache","extensions":["gramps"]},"application/x-gtar":{"source":"apache","extensions":["gtar"]},"application/x-gzip":{"source":"apache"},"application/x-hdf":{"source":"apache","extensions":["hdf"]},"application/x-httpd-php":{"compressible":true,"extensions":["php"]},"application/x-install-instructions":{"source":"apache","extensions":["install"]},"application/x-iso9660-image":{"source":"apache","extensions":["iso"]},"application/x-iwork-keynote-sffkey":{"extensions":["key"]},"application/x-iwork-numbers-sffnumbers":{"extensions":["numbers"]},"application/x-iwork-pages-sffpages":{"extensions":["pages"]},"application/x-java-archive-diff":{"source":"nginx","extensions":["jardiff"]},"application/x-java-jnlp-file":{"source":"apache","compressible":false,"extensions":["jnlp"]},"application/x-javascript":{"compressible":true},"application/x-keepass2":{"extensions":["kdbx"]},"application/x-latex":{"source":"apache","compressible":false,"extensions":["latex"]},"application/x-lua-bytecode":{"extensions":["luac"]},"application/x-lzh-compressed":{"source":"apache","extensions":["lzh","lha"]},"application/x-makeself":{"source":"nginx","extensions":["run"]},"application/x-mie":{"source":"apache","extensions":["mie"]},"application/x-mobipocket-ebook":{"source":"apache","extensions":["prc","mobi"]},"application/x-mpegurl":{"compressible":false},"application/x-ms-application":{"source":"apache","extensions":["application"]},"application/x-ms-shortcut":{"source":"apache","extensions":["lnk"]},"application/x-ms-wmd":{"source":"apache","extensions":["wmd"]},"application/x-ms-wmz":{"source":"apache","extensions":["wmz"]},"application/x-ms-xbap":{"source":"apache","extensions":["xbap"]},"application/x-msaccess":{"source":"apache","extensions":["mdb"]},"application/x-msbinder":{"source":"apache","extensions":["obd"]},"application/x-mscardfile":{"source":"apache","extensions":["crd"]},"application/x-msclip":{"source":"apache","extensions":["clp"]},"application/x-msdos-program":{"extensions":["exe"]},"application/x-msdownload":{"source":"apache","extensions":["exe","dll","com","bat","msi"]},"application/x-msmediaview":{"source":"apache","extensions":["mvb","m13","m14"]},"application/x-msmetafile":{"source":"apache","extensions":["wmf","wmz","emf","emz"]},"application/x-msmoney":{"source":"apache","extensions":["mny"]},"application/x-mspublisher":{"source":"apache","extensions":["pub"]},"application/x-msschedule":{"source":"apache","extensions":["scd"]},"application/x-msterminal":{"source":"apache","extensions":["trm"]},"application/x-mswrite":{"source":"apache","extensions":["wri"]},"application/x-netcdf":{"source":"apache","extensions":["nc","cdf"]},"application/x-ns-proxy-autoconfig":{"compressible":true,"extensions":["pac"]},"application/x-nzb":{"source":"apache","extensions":["nzb"]},"application/x-perl":{"source":"nginx","extensions":["pl","pm"]},"application/x-pilot":{"source":"nginx","extensions":["prc","pdb"]},"application/x-pkcs12":{"source":"apache","compressible":false,"extensions":["p12","pfx"]},"application/x-pkcs7-certificates":{"source":"apache","extensions":["p7b","spc"]},"application/x-pkcs7-certreqresp":{"source":"apache","extensions":["p7r"]},"application/x-pki-message":{"source":"iana"},"application/x-rar-compressed":{"source":"apache","compressible":false,"extensions":["rar"]},"application/x-redhat-package-manager":{"source":"nginx","extensions":["rpm"]},"application/x-research-info-systems":{"source":"apache","extensions":["ris"]},"application/x-sea":{"source":"nginx","extensions":["sea"]},"application/x-sh":{"source":"apache","compressible":true,"extensions":["sh"]},"application/x-shar":{"source":"apache","extensions":["shar"]},"application/x-shockwave-flash":{"source":"apache","compressible":false,"extensions":["swf"]},"application/x-silverlight-app":{"source":"apache","extensions":["xap"]},"application/x-sql":{"source":"apache","extensions":["sql"]},"application/x-stuffit":{"source":"apache","compressible":false,"extensions":["sit"]},"application/x-stuffitx":{"source":"apache","extensions":["sitx"]},"application/x-subrip":{"source":"apache","extensions":["srt"]},"application/x-sv4cpio":{"source":"apache","extensions":["sv4cpio"]},"application/x-sv4crc":{"source":"apache","extensions":["sv4crc"]},"application/x-t3vm-image":{"source":"apache","extensions":["t3"]},"application/x-tads":{"source":"apache","extensions":["gam"]},"application/x-tar":{"source":"apache","compressible":true,"extensions":["tar"]},"application/x-tcl":{"source":"apache","extensions":["tcl","tk"]},"application/x-tex":{"source":"apache","extensions":["tex"]},"application/x-tex-tfm":{"source":"apache","extensions":["tfm"]},"application/x-texinfo":{"source":"apache","extensions":["texinfo","texi"]},"application/x-tgif":{"source":"apache","extensions":["obj"]},"application/x-ustar":{"source":"apache","extensions":["ustar"]},"application/x-virtualbox-hdd":{"compressible":true,"extensions":["hdd"]},"application/x-virtualbox-ova":{"compressible":true,"extensions":["ova"]},"application/x-virtualbox-ovf":{"compressible":true,"extensions":["ovf"]},"application/x-virtualbox-vbox":{"compressible":true,"extensions":["vbox"]},"application/x-virtualbox-vbox-extpack":{"compressible":false,"extensions":["vbox-extpack"]},"application/x-virtualbox-vdi":{"compressible":true,"extensions":["vdi"]},"application/x-virtualbox-vhd":{"compressible":true,"extensions":["vhd"]},"application/x-virtualbox-vmdk":{"compressible":true,"extensions":["vmdk"]},"application/x-wais-source":{"source":"apache","extensions":["src"]},"application/x-web-app-manifest+json":{"compressible":true,"extensions":["webapp"]},"application/x-www-form-urlencoded":{"source":"iana","compressible":true},"application/x-x509-ca-cert":{"source":"iana","extensions":["der","crt","pem"]},"application/x-x509-ca-ra-cert":{"source":"iana"},"application/x-x509-next-ca-cert":{"source":"iana"},"application/x-xfig":{"source":"apache","extensions":["fig"]},"application/x-xliff+xml":{"source":"apache","compressible":true,"extensions":["xlf"]},"application/x-xpinstall":{"source":"apache","compressible":false,"extensions":["xpi"]},"application/x-xz":{"source":"apache","extensions":["xz"]},"application/x-zmachine":{"source":"apache","extensions":["z1","z2","z3","z4","z5","z6","z7","z8"]},"application/x400-bp":{"source":"iana"},"application/xacml+xml":{"source":"iana","compressible":true},"application/xaml+xml":{"source":"apache","compressible":true,"extensions":["xaml"]},"application/xcap-att+xml":{"source":"iana","compressible":true,"extensions":["xav"]},"application/xcap-caps+xml":{"source":"iana","compressible":true,"extensions":["xca"]},"application/xcap-diff+xml":{"source":"iana","compressible":true,"extensions":["xdf"]},"application/xcap-el+xml":{"source":"iana","compressible":true,"extensions":["xel"]},"application/xcap-error+xml":{"source":"iana","compressible":true},"application/xcap-ns+xml":{"source":"iana","compressible":true,"extensions":["xns"]},"application/xcon-conference-info+xml":{"source":"iana","compressible":true},"application/xcon-conference-info-diff+xml":{"source":"iana","compressible":true},"application/xenc+xml":{"source":"iana","compressible":true,"extensions":["xenc"]},"application/xhtml+xml":{"source":"iana","compressible":true,"extensions":["xhtml","xht"]},"application/xhtml-voice+xml":{"source":"apache","compressible":true},"application/xliff+xml":{"source":"iana","compressible":true,"extensions":["xlf"]},"application/xml":{"source":"iana","compressible":true,"extensions":["xml","xsl","xsd","rng"]},"application/xml-dtd":{"source":"iana","compressible":true,"extensions":["dtd"]},"application/xml-external-parsed-entity":{"source":"iana"},"application/xml-patch+xml":{"source":"iana","compressible":true},"application/xmpp+xml":{"source":"iana","compressible":true},"application/xop+xml":{"source":"iana","compressible":true,"extensions":["xop"]},"application/xproc+xml":{"source":"apache","compressible":true,"extensions":["xpl"]},"application/xslt+xml":{"source":"iana","compressible":true,"extensions":["xsl","xslt"]},"application/xspf+xml":{"source":"apache","compressible":true,"extensions":["xspf"]},"application/xv+xml":{"source":"iana","compressible":true,"extensions":["mxml","xhvml","xvml","xvm"]},"application/yang":{"source":"iana","extensions":["yang"]},"application/yang-data+json":{"source":"iana","compressible":true},"application/yang-data+xml":{"source":"iana","compressible":true},"application/yang-patch+json":{"source":"iana","compressible":true},"application/yang-patch+xml":{"source":"iana","compressible":true},"application/yin+xml":{"source":"iana","compressible":true,"extensions":["yin"]},"application/zip":{"source":"iana","compressible":false,"extensions":["zip"]},"application/zlib":{"source":"iana"},"application/zstd":{"source":"iana"},"audio/1d-interleaved-parityfec":{"source":"iana"},"audio/32kadpcm":{"source":"iana"},"audio/3gpp":{"source":"iana","compressible":false,"extensions":["3gpp"]},"audio/3gpp2":{"source":"iana"},"audio/aac":{"source":"iana"},"audio/ac3":{"source":"iana"},"audio/adpcm":{"source":"apache","extensions":["adp"]},"audio/amr":{"source":"iana","extensions":["amr"]},"audio/amr-wb":{"source":"iana"},"audio/amr-wb+":{"source":"iana"},"audio/aptx":{"source":"iana"},"audio/asc":{"source":"iana"},"audio/atrac-advanced-lossless":{"source":"iana"},"audio/atrac-x":{"source":"iana"},"audio/atrac3":{"source":"iana"},"audio/basic":{"source":"iana","compressible":false,"extensions":["au","snd"]},"audio/bv16":{"source":"iana"},"audio/bv32":{"source":"iana"},"audio/clearmode":{"source":"iana"},"audio/cn":{"source":"iana"},"audio/dat12":{"source":"iana"},"audio/dls":{"source":"iana"},"audio/dsr-es201108":{"source":"iana"},"audio/dsr-es202050":{"source":"iana"},"audio/dsr-es202211":{"source":"iana"},"audio/dsr-es202212":{"source":"iana"},"audio/dv":{"source":"iana"},"audio/dvi4":{"source":"iana"},"audio/eac3":{"source":"iana"},"audio/encaprtp":{"source":"iana"},"audio/evrc":{"source":"iana"},"audio/evrc-qcp":{"source":"iana"},"audio/evrc0":{"source":"iana"},"audio/evrc1":{"source":"iana"},"audio/evrcb":{"source":"iana"},"audio/evrcb0":{"source":"iana"},"audio/evrcb1":{"source":"iana"},"audio/evrcnw":{"source":"iana"},"audio/evrcnw0":{"source":"iana"},"audio/evrcnw1":{"source":"iana"},"audio/evrcwb":{"source":"iana"},"audio/evrcwb0":{"source":"iana"},"audio/evrcwb1":{"source":"iana"},"audio/evs":{"source":"iana"},"audio/flexfec":{"source":"iana"},"audio/fwdred":{"source":"iana"},"audio/g711-0":{"source":"iana"},"audio/g719":{"source":"iana"},"audio/g722":{"source":"iana"},"audio/g7221":{"source":"iana"},"audio/g723":{"source":"iana"},"audio/g726-16":{"source":"iana"},"audio/g726-24":{"source":"iana"},"audio/g726-32":{"source":"iana"},"audio/g726-40":{"source":"iana"},"audio/g728":{"source":"iana"},"audio/g729":{"source":"iana"},"audio/g7291":{"source":"iana"},"audio/g729d":{"source":"iana"},"audio/g729e":{"source":"iana"},"audio/gsm":{"source":"iana"},"audio/gsm-efr":{"source":"iana"},"audio/gsm-hr-08":{"source":"iana"},"audio/ilbc":{"source":"iana"},"audio/ip-mr_v2.5":{"source":"iana"},"audio/isac":{"source":"apache"},"audio/l16":{"source":"iana"},"audio/l20":{"source":"iana"},"audio/l24":{"source":"iana","compressible":false},"audio/l8":{"source":"iana"},"audio/lpc":{"source":"iana"},"audio/melp":{"source":"iana"},"audio/melp1200":{"source":"iana"},"audio/melp2400":{"source":"iana"},"audio/melp600":{"source":"iana"},"audio/mhas":{"source":"iana"},"audio/midi":{"source":"apache","extensions":["mid","midi","kar","rmi"]},"audio/mobile-xmf":{"source":"iana","extensions":["mxmf"]},"audio/mp3":{"compressible":false,"extensions":["mp3"]},"audio/mp4":{"source":"iana","compressible":false,"extensions":["m4a","mp4a"]},"audio/mp4a-latm":{"source":"iana"},"audio/mpa":{"source":"iana"},"audio/mpa-robust":{"source":"iana"},"audio/mpeg":{"source":"iana","compressible":false,"extensions":["mpga","mp2","mp2a","mp3","m2a","m3a"]},"audio/mpeg4-generic":{"source":"iana"},"audio/musepack":{"source":"apache"},"audio/ogg":{"source":"iana","compressible":false,"extensions":["oga","ogg","spx","opus"]},"audio/opus":{"source":"iana"},"audio/parityfec":{"source":"iana"},"audio/pcma":{"source":"iana"},"audio/pcma-wb":{"source":"iana"},"audio/pcmu":{"source":"iana"},"audio/pcmu-wb":{"source":"iana"},"audio/prs.sid":{"source":"iana"},"audio/qcelp":{"source":"iana"},"audio/raptorfec":{"source":"iana"},"audio/red":{"source":"iana"},"audio/rtp-enc-aescm128":{"source":"iana"},"audio/rtp-midi":{"source":"iana"},"audio/rtploopback":{"source":"iana"},"audio/rtx":{"source":"iana"},"audio/s3m":{"source":"apache","extensions":["s3m"]},"audio/scip":{"source":"iana"},"audio/silk":{"source":"apache","extensions":["sil"]},"audio/smv":{"source":"iana"},"audio/smv-qcp":{"source":"iana"},"audio/smv0":{"source":"iana"},"audio/sofa":{"source":"iana"},"audio/sp-midi":{"source":"iana"},"audio/speex":{"source":"iana"},"audio/t140c":{"source":"iana"},"audio/t38":{"source":"iana"},"audio/telephone-event":{"source":"iana"},"audio/tetra_acelp":{"source":"iana"},"audio/tetra_acelp_bb":{"source":"iana"},"audio/tone":{"source":"iana"},"audio/tsvcis":{"source":"iana"},"audio/uemclip":{"source":"iana"},"audio/ulpfec":{"source":"iana"},"audio/usac":{"source":"iana"},"audio/vdvi":{"source":"iana"},"audio/vmr-wb":{"source":"iana"},"audio/vnd.3gpp.iufp":{"source":"iana"},"audio/vnd.4sb":{"source":"iana"},"audio/vnd.audiokoz":{"source":"iana"},"audio/vnd.celp":{"source":"iana"},"audio/vnd.cisco.nse":{"source":"iana"},"audio/vnd.cmles.radio-events":{"source":"iana"},"audio/vnd.cns.anp1":{"source":"iana"},"audio/vnd.cns.inf1":{"source":"iana"},"audio/vnd.dece.audio":{"source":"iana","extensions":["uva","uvva"]},"audio/vnd.digital-winds":{"source":"iana","extensions":["eol"]},"audio/vnd.dlna.adts":{"source":"iana"},"audio/vnd.dolby.heaac.1":{"source":"iana"},"audio/vnd.dolby.heaac.2":{"source":"iana"},"audio/vnd.dolby.mlp":{"source":"iana"},"audio/vnd.dolby.mps":{"source":"iana"},"audio/vnd.dolby.pl2":{"source":"iana"},"audio/vnd.dolby.pl2x":{"source":"iana"},"audio/vnd.dolby.pl2z":{"source":"iana"},"audio/vnd.dolby.pulse.1":{"source":"iana"},"audio/vnd.dra":{"source":"iana","extensions":["dra"]},"audio/vnd.dts":{"source":"iana","extensions":["dts"]},"audio/vnd.dts.hd":{"source":"iana","extensions":["dtshd"]},"audio/vnd.dts.uhd":{"source":"iana"},"audio/vnd.dvb.file":{"source":"iana"},"audio/vnd.everad.plj":{"source":"iana"},"audio/vnd.hns.audio":{"source":"iana"},"audio/vnd.lucent.voice":{"source":"iana","extensions":["lvp"]},"audio/vnd.ms-playready.media.pya":{"source":"iana","extensions":["pya"]},"audio/vnd.nokia.mobile-xmf":{"source":"iana"},"audio/vnd.nortel.vbk":{"source":"iana"},"audio/vnd.nuera.ecelp4800":{"source":"iana","extensions":["ecelp4800"]},"audio/vnd.nuera.ecelp7470":{"source":"iana","extensions":["ecelp7470"]},"audio/vnd.nuera.ecelp9600":{"source":"iana","extensions":["ecelp9600"]},"audio/vnd.octel.sbc":{"source":"iana"},"audio/vnd.presonus.multitrack":{"source":"iana"},"audio/vnd.qcelp":{"source":"iana"},"audio/vnd.rhetorex.32kadpcm":{"source":"iana"},"audio/vnd.rip":{"source":"iana","extensions":["rip"]},"audio/vnd.rn-realaudio":{"compressible":false},"audio/vnd.sealedmedia.softseal.mpeg":{"source":"iana"},"audio/vnd.vmx.cvsd":{"source":"iana"},"audio/vnd.wave":{"compressible":false},"audio/vorbis":{"source":"iana","compressible":false},"audio/vorbis-config":{"source":"iana"},"audio/wav":{"compressible":false,"extensions":["wav"]},"audio/wave":{"compressible":false,"extensions":["wav"]},"audio/webm":{"source":"apache","compressible":false,"extensions":["weba"]},"audio/x-aac":{"source":"apache","compressible":false,"extensions":["aac"]},"audio/x-aiff":{"source":"apache","extensions":["aif","aiff","aifc"]},"audio/x-caf":{"source":"apache","compressible":false,"extensions":["caf"]},"audio/x-flac":{"source":"apache","extensions":["flac"]},"audio/x-m4a":{"source":"nginx","extensions":["m4a"]},"audio/x-matroska":{"source":"apache","extensions":["mka"]},"audio/x-mpegurl":{"source":"apache","extensions":["m3u"]},"audio/x-ms-wax":{"source":"apache","extensions":["wax"]},"audio/x-ms-wma":{"source":"apache","extensions":["wma"]},"audio/x-pn-realaudio":{"source":"apache","extensions":["ram","ra"]},"audio/x-pn-realaudio-plugin":{"source":"apache","extensions":["rmp"]},"audio/x-realaudio":{"source":"nginx","extensions":["ra"]},"audio/x-tta":{"source":"apache"},"audio/x-wav":{"source":"apache","extensions":["wav"]},"audio/xm":{"source":"apache","extensions":["xm"]},"chemical/x-cdx":{"source":"apache","extensions":["cdx"]},"chemical/x-cif":{"source":"apache","extensions":["cif"]},"chemical/x-cmdf":{"source":"apache","extensions":["cmdf"]},"chemical/x-cml":{"source":"apache","extensions":["cml"]},"chemical/x-csml":{"source":"apache","extensions":["csml"]},"chemical/x-pdb":{"source":"apache"},"chemical/x-xyz":{"source":"apache","extensions":["xyz"]},"font/collection":{"source":"iana","extensions":["ttc"]},"font/otf":{"source":"iana","compressible":true,"extensions":["otf"]},"font/sfnt":{"source":"iana"},"font/ttf":{"source":"iana","compressible":true,"extensions":["ttf"]},"font/woff":{"source":"iana","extensions":["woff"]},"font/woff2":{"source":"iana","extensions":["woff2"]},"image/aces":{"source":"iana","extensions":["exr"]},"image/apng":{"compressible":false,"extensions":["apng"]},"image/avci":{"source":"iana","extensions":["avci"]},"image/avcs":{"source":"iana","extensions":["avcs"]},"image/avif":{"source":"iana","compressible":false,"extensions":["avif"]},"image/bmp":{"source":"iana","compressible":true,"extensions":["bmp"]},"image/cgm":{"source":"iana","extensions":["cgm"]},"image/dicom-rle":{"source":"iana","extensions":["drle"]},"image/emf":{"source":"iana","extensions":["emf"]},"image/fits":{"source":"iana","extensions":["fits"]},"image/g3fax":{"source":"iana","extensions":["g3"]},"image/gif":{"source":"iana","compressible":false,"extensions":["gif"]},"image/heic":{"source":"iana","extensions":["heic"]},"image/heic-sequence":{"source":"iana","extensions":["heics"]},"image/heif":{"source":"iana","extensions":["heif"]},"image/heif-sequence":{"source":"iana","extensions":["heifs"]},"image/hej2k":{"source":"iana","extensions":["hej2"]},"image/hsj2":{"source":"iana","extensions":["hsj2"]},"image/ief":{"source":"iana","extensions":["ief"]},"image/jls":{"source":"iana","extensions":["jls"]},"image/jp2":{"source":"iana","compressible":false,"extensions":["jp2","jpg2"]},"image/jpeg":{"source":"iana","compressible":false,"extensions":["jpeg","jpg","jpe"]},"image/jph":{"source":"iana","extensions":["jph"]},"image/jphc":{"source":"iana","extensions":["jhc"]},"image/jpm":{"source":"iana","compressible":false,"extensions":["jpm"]},"image/jpx":{"source":"iana","compressible":false,"extensions":["jpx","jpf"]},"image/jxr":{"source":"iana","extensions":["jxr"]},"image/jxra":{"source":"iana","extensions":["jxra"]},"image/jxrs":{"source":"iana","extensions":["jxrs"]},"image/jxs":{"source":"iana","extensions":["jxs"]},"image/jxsc":{"source":"iana","extensions":["jxsc"]},"image/jxsi":{"source":"iana","extensions":["jxsi"]},"image/jxss":{"source":"iana","extensions":["jxss"]},"image/ktx":{"source":"iana","extensions":["ktx"]},"image/ktx2":{"source":"iana","extensions":["ktx2"]},"image/naplps":{"source":"iana"},"image/pjpeg":{"compressible":false},"image/png":{"source":"iana","compressible":false,"extensions":["png"]},"image/prs.btif":{"source":"iana","extensions":["btif"]},"image/prs.pti":{"source":"iana","extensions":["pti"]},"image/pwg-raster":{"source":"iana"},"image/sgi":{"source":"apache","extensions":["sgi"]},"image/svg+xml":{"source":"iana","compressible":true,"extensions":["svg","svgz"]},"image/t38":{"source":"iana","extensions":["t38"]},"image/tiff":{"source":"iana","compressible":false,"extensions":["tif","tiff"]},"image/tiff-fx":{"source":"iana","extensions":["tfx"]},"image/vnd.adobe.photoshop":{"source":"iana","compressible":true,"extensions":["psd"]},"image/vnd.airzip.accelerator.azv":{"source":"iana","extensions":["azv"]},"image/vnd.cns.inf2":{"source":"iana"},"image/vnd.dece.graphic":{"source":"iana","extensions":["uvi","uvvi","uvg","uvvg"]},"image/vnd.djvu":{"source":"iana","extensions":["djvu","djv"]},"image/vnd.dvb.subtitle":{"source":"iana","extensions":["sub"]},"image/vnd.dwg":{"source":"iana","extensions":["dwg"]},"image/vnd.dxf":{"source":"iana","extensions":["dxf"]},"image/vnd.fastbidsheet":{"source":"iana","extensions":["fbs"]},"image/vnd.fpx":{"source":"iana","extensions":["fpx"]},"image/vnd.fst":{"source":"iana","extensions":["fst"]},"image/vnd.fujixerox.edmics-mmr":{"source":"iana","extensions":["mmr"]},"image/vnd.fujixerox.edmics-rlc":{"source":"iana","extensions":["rlc"]},"image/vnd.globalgraphics.pgb":{"source":"iana"},"image/vnd.microsoft.icon":{"source":"iana","compressible":true,"extensions":["ico"]},"image/vnd.mix":{"source":"iana"},"image/vnd.mozilla.apng":{"source":"iana"},"image/vnd.ms-dds":{"compressible":true,"extensions":["dds"]},"image/vnd.ms-modi":{"source":"iana","extensions":["mdi"]},"image/vnd.ms-photo":{"source":"apache","extensions":["wdp"]},"image/vnd.net-fpx":{"source":"iana","extensions":["npx"]},"image/vnd.pco.b16":{"source":"iana","extensions":["b16"]},"image/vnd.radiance":{"source":"iana"},"image/vnd.sealed.png":{"source":"iana"},"image/vnd.sealedmedia.softseal.gif":{"source":"iana"},"image/vnd.sealedmedia.softseal.jpg":{"source":"iana"},"image/vnd.svf":{"source":"iana"},"image/vnd.tencent.tap":{"source":"iana","extensions":["tap"]},"image/vnd.valve.source.texture":{"source":"iana","extensions":["vtf"]},"image/vnd.wap.wbmp":{"source":"iana","extensions":["wbmp"]},"image/vnd.xiff":{"source":"iana","extensions":["xif"]},"image/vnd.zbrush.pcx":{"source":"iana","extensions":["pcx"]},"image/webp":{"source":"apache","extensions":["webp"]},"image/wmf":{"source":"iana","extensions":["wmf"]},"image/x-3ds":{"source":"apache","extensions":["3ds"]},"image/x-cmu-raster":{"source":"apache","extensions":["ras"]},"image/x-cmx":{"source":"apache","extensions":["cmx"]},"image/x-freehand":{"source":"apache","extensions":["fh","fhc","fh4","fh5","fh7"]},"image/x-icon":{"source":"apache","compressible":true,"extensions":["ico"]},"image/x-jng":{"source":"nginx","extensions":["jng"]},"image/x-mrsid-image":{"source":"apache","extensions":["sid"]},"image/x-ms-bmp":{"source":"nginx","compressible":true,"extensions":["bmp"]},"image/x-pcx":{"source":"apache","extensions":["pcx"]},"image/x-pict":{"source":"apache","extensions":["pic","pct"]},"image/x-portable-anymap":{"source":"apache","extensions":["pnm"]},"image/x-portable-bitmap":{"source":"apache","extensions":["pbm"]},"image/x-portable-graymap":{"source":"apache","extensions":["pgm"]},"image/x-portable-pixmap":{"source":"apache","extensions":["ppm"]},"image/x-rgb":{"source":"apache","extensions":["rgb"]},"image/x-tga":{"source":"apache","extensions":["tga"]},"image/x-xbitmap":{"source":"apache","extensions":["xbm"]},"image/x-xcf":{"compressible":false},"image/x-xpixmap":{"source":"apache","extensions":["xpm"]},"image/x-xwindowdump":{"source":"apache","extensions":["xwd"]},"message/cpim":{"source":"iana"},"message/delivery-status":{"source":"iana"},"message/disposition-notification":{"source":"iana","extensions":["disposition-notification"]},"message/external-body":{"source":"iana"},"message/feedback-report":{"source":"iana"},"message/global":{"source":"iana","extensions":["u8msg"]},"message/global-delivery-status":{"source":"iana","extensions":["u8dsn"]},"message/global-disposition-notification":{"source":"iana","extensions":["u8mdn"]},"message/global-headers":{"source":"iana","extensions":["u8hdr"]},"message/http":{"source":"iana","compressible":false},"message/imdn+xml":{"source":"iana","compressible":true},"message/news":{"source":"iana"},"message/partial":{"source":"iana","compressible":false},"message/rfc822":{"source":"iana","compressible":true,"extensions":["eml","mime"]},"message/s-http":{"source":"iana"},"message/sip":{"source":"iana"},"message/sipfrag":{"source":"iana"},"message/tracking-status":{"source":"iana"},"message/vnd.si.simp":{"source":"iana"},"message/vnd.wfa.wsc":{"source":"iana","extensions":["wsc"]},"model/3mf":{"source":"iana","extensions":["3mf"]},"model/e57":{"source":"iana"},"model/gltf+json":{"source":"iana","compressible":true,"extensions":["gltf"]},"model/gltf-binary":{"source":"iana","compressible":true,"extensions":["glb"]},"model/iges":{"source":"iana","compressible":false,"extensions":["igs","iges"]},"model/mesh":{"source":"iana","compressible":false,"extensions":["msh","mesh","silo"]},"model/mtl":{"source":"iana","extensions":["mtl"]},"model/obj":{"source":"iana","extensions":["obj"]},"model/step":{"source":"iana"},"model/step+xml":{"source":"iana","compressible":true,"extensions":["stpx"]},"model/step+zip":{"source":"iana","compressible":false,"extensions":["stpz"]},"model/step-xml+zip":{"source":"iana","compressible":false,"extensions":["stpxz"]},"model/stl":{"source":"iana","extensions":["stl"]},"model/vnd.collada+xml":{"source":"iana","compressible":true,"extensions":["dae"]},"model/vnd.dwf":{"source":"iana","extensions":["dwf"]},"model/vnd.flatland.3dml":{"source":"iana"},"model/vnd.gdl":{"source":"iana","extensions":["gdl"]},"model/vnd.gs-gdl":{"source":"apache"},"model/vnd.gs.gdl":{"source":"iana"},"model/vnd.gtw":{"source":"iana","extensions":["gtw"]},"model/vnd.moml+xml":{"source":"iana","compressible":true},"model/vnd.mts":{"source":"iana","extensions":["mts"]},"model/vnd.opengex":{"source":"iana","extensions":["ogex"]},"model/vnd.parasolid.transmit.binary":{"source":"iana","extensions":["x_b"]},"model/vnd.parasolid.transmit.text":{"source":"iana","extensions":["x_t"]},"model/vnd.pytha.pyox":{"source":"iana"},"model/vnd.rosette.annotated-data-model":{"source":"iana"},"model/vnd.sap.vds":{"source":"iana","extensions":["vds"]},"model/vnd.usdz+zip":{"source":"iana","compressible":false,"extensions":["usdz"]},"model/vnd.valve.source.compiled-map":{"source":"iana","extensions":["bsp"]},"model/vnd.vtu":{"source":"iana","extensions":["vtu"]},"model/vrml":{"source":"iana","compressible":false,"extensions":["wrl","vrml"]},"model/x3d+binary":{"source":"apache","compressible":false,"extensions":["x3db","x3dbz"]},"model/x3d+fastinfoset":{"source":"iana","extensions":["x3db"]},"model/x3d+vrml":{"source":"apache","compressible":false,"extensions":["x3dv","x3dvz"]},"model/x3d+xml":{"source":"iana","compressible":true,"extensions":["x3d","x3dz"]},"model/x3d-vrml":{"source":"iana","extensions":["x3dv"]},"multipart/alternative":{"source":"iana","compressible":false},"multipart/appledouble":{"source":"iana"},"multipart/byteranges":{"source":"iana"},"multipart/digest":{"source":"iana"},"multipart/encrypted":{"source":"iana","compressible":false},"multipart/form-data":{"source":"iana","compressible":false},"multipart/header-set":{"source":"iana"},"multipart/mixed":{"source":"iana"},"multipart/multilingual":{"source":"iana"},"multipart/parallel":{"source":"iana"},"multipart/related":{"source":"iana","compressible":false},"multipart/report":{"source":"iana"},"multipart/signed":{"source":"iana","compressible":false},"multipart/vnd.bint.med-plus":{"source":"iana"},"multipart/voice-message":{"source":"iana"},"multipart/x-mixed-replace":{"source":"iana"},"text/1d-interleaved-parityfec":{"source":"iana"},"text/cache-manifest":{"source":"iana","compressible":true,"extensions":["appcache","manifest"]},"text/calendar":{"source":"iana","extensions":["ics","ifb"]},"text/calender":{"compressible":true},"text/cmd":{"compressible":true},"text/coffeescript":{"extensions":["coffee","litcoffee"]},"text/cql":{"source":"iana"},"text/cql-expression":{"source":"iana"},"text/cql-identifier":{"source":"iana"},"text/css":{"source":"iana","charset":"UTF-8","compressible":true,"extensions":["css"]},"text/csv":{"source":"iana","compressible":true,"extensions":["csv"]},"text/csv-schema":{"source":"iana"},"text/directory":{"source":"iana"},"text/dns":{"source":"iana"},"text/ecmascript":{"source":"iana"},"text/encaprtp":{"source":"iana"},"text/enriched":{"source":"iana"},"text/fhirpath":{"source":"iana"},"text/flexfec":{"source":"iana"},"text/fwdred":{"source":"iana"},"text/gff3":{"source":"iana"},"text/grammar-ref-list":{"source":"iana"},"text/html":{"source":"iana","compressible":true,"extensions":["html","htm","shtml"]},"text/jade":{"extensions":["jade"]},"text/javascript":{"source":"iana","compressible":true},"text/jcr-cnd":{"source":"iana"},"text/jsx":{"compressible":true,"extensions":["jsx"]},"text/less":{"compressible":true,"extensions":["less"]},"text/markdown":{"source":"iana","compressible":true,"extensions":["markdown","md"]},"text/mathml":{"source":"nginx","extensions":["mml"]},"text/mdx":{"compressible":true,"extensions":["mdx"]},"text/mizar":{"source":"iana"},"text/n3":{"source":"iana","charset":"UTF-8","compressible":true,"extensions":["n3"]},"text/parameters":{"source":"iana","charset":"UTF-8"},"text/parityfec":{"source":"iana"},"text/plain":{"source":"iana","compressible":true,"extensions":["txt","text","conf","def","list","log","in","ini"]},"text/provenance-notation":{"source":"iana","charset":"UTF-8"},"text/prs.fallenstein.rst":{"source":"iana"},"text/prs.lines.tag":{"source":"iana","extensions":["dsc"]},"text/prs.prop.logic":{"source":"iana"},"text/raptorfec":{"source":"iana"},"text/red":{"source":"iana"},"text/rfc822-headers":{"source":"iana"},"text/richtext":{"source":"iana","compressible":true,"extensions":["rtx"]},"text/rtf":{"source":"iana","compressible":true,"extensions":["rtf"]},"text/rtp-enc-aescm128":{"source":"iana"},"text/rtploopback":{"source":"iana"},"text/rtx":{"source":"iana"},"text/sgml":{"source":"iana","extensions":["sgml","sgm"]},"text/shaclc":{"source":"iana"},"text/shex":{"source":"iana","extensions":["shex"]},"text/slim":{"extensions":["slim","slm"]},"text/spdx":{"source":"iana","extensions":["spdx"]},"text/strings":{"source":"iana"},"text/stylus":{"extensions":["stylus","styl"]},"text/t140":{"source":"iana"},"text/tab-separated-values":{"source":"iana","compressible":true,"extensions":["tsv"]},"text/troff":{"source":"iana","extensions":["t","tr","roff","man","me","ms"]},"text/turtle":{"source":"iana","charset":"UTF-8","extensions":["ttl"]},"text/ulpfec":{"source":"iana"},"text/uri-list":{"source":"iana","compressible":true,"extensions":["uri","uris","urls"]},"text/vcard":{"source":"iana","compressible":true,"extensions":["vcard"]},"text/vnd.a":{"source":"iana"},"text/vnd.abc":{"source":"iana"},"text/vnd.ascii-art":{"source":"iana"},"text/vnd.curl":{"source":"iana","extensions":["curl"]},"text/vnd.curl.dcurl":{"source":"apache","extensions":["dcurl"]},"text/vnd.curl.mcurl":{"source":"apache","extensions":["mcurl"]},"text/vnd.curl.scurl":{"source":"apache","extensions":["scurl"]},"text/vnd.debian.copyright":{"source":"iana","charset":"UTF-8"},"text/vnd.dmclientscript":{"source":"iana"},"text/vnd.dvb.subtitle":{"source":"iana","extensions":["sub"]},"text/vnd.esmertec.theme-descriptor":{"source":"iana","charset":"UTF-8"},"text/vnd.familysearch.gedcom":{"source":"iana","extensions":["ged"]},"text/vnd.ficlab.flt":{"source":"iana"},"text/vnd.fly":{"source":"iana","extensions":["fly"]},"text/vnd.fmi.flexstor":{"source":"iana","extensions":["flx"]},"text/vnd.gml":{"source":"iana"},"text/vnd.graphviz":{"source":"iana","extensions":["gv"]},"text/vnd.hans":{"source":"iana"},"text/vnd.hgl":{"source":"iana"},"text/vnd.in3d.3dml":{"source":"iana","extensions":["3dml"]},"text/vnd.in3d.spot":{"source":"iana","extensions":["spot"]},"text/vnd.iptc.newsml":{"source":"iana"},"text/vnd.iptc.nitf":{"source":"iana"},"text/vnd.latex-z":{"source":"iana"},"text/vnd.motorola.reflex":{"source":"iana"},"text/vnd.ms-mediapackage":{"source":"iana"},"text/vnd.net2phone.commcenter.command":{"source":"iana"},"text/vnd.radisys.msml-basic-layout":{"source":"iana"},"text/vnd.senx.warpscript":{"source":"iana"},"text/vnd.si.uricatalogue":{"source":"iana"},"text/vnd.sosi":{"source":"iana"},"text/vnd.sun.j2me.app-descriptor":{"source":"iana","charset":"UTF-8","extensions":["jad"]},"text/vnd.trolltech.linguist":{"source":"iana","charset":"UTF-8"},"text/vnd.wap.si":{"source":"iana"},"text/vnd.wap.sl":{"source":"iana"},"text/vnd.wap.wml":{"source":"iana","extensions":["wml"]},"text/vnd.wap.wmlscript":{"source":"iana","extensions":["wmls"]},"text/vtt":{"source":"iana","charset":"UTF-8","compressible":true,"extensions":["vtt"]},"text/x-asm":{"source":"apache","extensions":["s","asm"]},"text/x-c":{"source":"apache","extensions":["c","cc","cxx","cpp","h","hh","dic"]},"text/x-component":{"source":"nginx","extensions":["htc"]},"text/x-fortran":{"source":"apache","extensions":["f","for","f77","f90"]},"text/x-gwt-rpc":{"compressible":true},"text/x-handlebars-template":{"extensions":["hbs"]},"text/x-java-source":{"source":"apache","extensions":["java"]},"text/x-jquery-tmpl":{"compressible":true},"text/x-lua":{"extensions":["lua"]},"text/x-markdown":{"compressible":true,"extensions":["mkd"]},"text/x-nfo":{"source":"apache","extensions":["nfo"]},"text/x-opml":{"source":"apache","extensions":["opml"]},"text/x-org":{"compressible":true,"extensions":["org"]},"text/x-pascal":{"source":"apache","extensions":["p","pas"]},"text/x-processing":{"compressible":true,"extensions":["pde"]},"text/x-sass":{"extensions":["sass"]},"text/x-scss":{"extensions":["scss"]},"text/x-setext":{"source":"apache","extensions":["etx"]},"text/x-sfv":{"source":"apache","extensions":["sfv"]},"text/x-suse-ymp":{"compressible":true,"extensions":["ymp"]},"text/x-uuencode":{"source":"apache","extensions":["uu"]},"text/x-vcalendar":{"source":"apache","extensions":["vcs"]},"text/x-vcard":{"source":"apache","extensions":["vcf"]},"text/xml":{"source":"iana","compressible":true,"extensions":["xml"]},"text/xml-external-parsed-entity":{"source":"iana"},"text/yaml":{"compressible":true,"extensions":["yaml","yml"]},"video/1d-interleaved-parityfec":{"source":"iana"},"video/3gpp":{"source":"iana","extensions":["3gp","3gpp"]},"video/3gpp-tt":{"source":"iana"},"video/3gpp2":{"source":"iana","extensions":["3g2"]},"video/av1":{"source":"iana"},"video/bmpeg":{"source":"iana"},"video/bt656":{"source":"iana"},"video/celb":{"source":"iana"},"video/dv":{"source":"iana"},"video/encaprtp":{"source":"iana"},"video/ffv1":{"source":"iana"},"video/flexfec":{"source":"iana"},"video/h261":{"source":"iana","extensions":["h261"]},"video/h263":{"source":"iana","extensions":["h263"]},"video/h263-1998":{"source":"iana"},"video/h263-2000":{"source":"iana"},"video/h264":{"source":"iana","extensions":["h264"]},"video/h264-rcdo":{"source":"iana"},"video/h264-svc":{"source":"iana"},"video/h265":{"source":"iana"},"video/iso.segment":{"source":"iana","extensions":["m4s"]},"video/jpeg":{"source":"iana","extensions":["jpgv"]},"video/jpeg2000":{"source":"iana"},"video/jpm":{"source":"apache","extensions":["jpm","jpgm"]},"video/jxsv":{"source":"iana"},"video/mj2":{"source":"iana","extensions":["mj2","mjp2"]},"video/mp1s":{"source":"iana"},"video/mp2p":{"source":"iana"},"video/mp2t":{"source":"iana","extensions":["ts"]},"video/mp4":{"source":"iana","compressible":false,"extensions":["mp4","mp4v","mpg4"]},"video/mp4v-es":{"source":"iana"},"video/mpeg":{"source":"iana","compressible":false,"extensions":["mpeg","mpg","mpe","m1v","m2v"]},"video/mpeg4-generic":{"source":"iana"},"video/mpv":{"source":"iana"},"video/nv":{"source":"iana"},"video/ogg":{"source":"iana","compressible":false,"extensions":["ogv"]},"video/parityfec":{"source":"iana"},"video/pointer":{"source":"iana"},"video/quicktime":{"source":"iana","compressible":false,"extensions":["qt","mov"]},"video/raptorfec":{"source":"iana"},"video/raw":{"source":"iana"},"video/rtp-enc-aescm128":{"source":"iana"},"video/rtploopback":{"source":"iana"},"video/rtx":{"source":"iana"},"video/scip":{"source":"iana"},"video/smpte291":{"source":"iana"},"video/smpte292m":{"source":"iana"},"video/ulpfec":{"source":"iana"},"video/vc1":{"source":"iana"},"video/vc2":{"source":"iana"},"video/vnd.cctv":{"source":"iana"},"video/vnd.dece.hd":{"source":"iana","extensions":["uvh","uvvh"]},"video/vnd.dece.mobile":{"source":"iana","extensions":["uvm","uvvm"]},"video/vnd.dece.mp4":{"source":"iana"},"video/vnd.dece.pd":{"source":"iana","extensions":["uvp","uvvp"]},"video/vnd.dece.sd":{"source":"iana","extensions":["uvs","uvvs"]},"video/vnd.dece.video":{"source":"iana","extensions":["uvv","uvvv"]},"video/vnd.directv.mpeg":{"source":"iana"},"video/vnd.directv.mpeg-tts":{"source":"iana"},"video/vnd.dlna.mpeg-tts":{"source":"iana"},"video/vnd.dvb.file":{"source":"iana","extensions":["dvb"]},"video/vnd.fvt":{"source":"iana","extensions":["fvt"]},"video/vnd.hns.video":{"source":"iana"},"video/vnd.iptvforum.1dparityfec-1010":{"source":"iana"},"video/vnd.iptvforum.1dparityfec-2005":{"source":"iana"},"video/vnd.iptvforum.2dparityfec-1010":{"source":"iana"},"video/vnd.iptvforum.2dparityfec-2005":{"source":"iana"},"video/vnd.iptvforum.ttsavc":{"source":"iana"},"video/vnd.iptvforum.ttsmpeg2":{"source":"iana"},"video/vnd.motorola.video":{"source":"iana"},"video/vnd.motorola.videop":{"source":"iana"},"video/vnd.mpegurl":{"source":"iana","extensions":["mxu","m4u"]},"video/vnd.ms-playready.media.pyv":{"source":"iana","extensions":["pyv"]},"video/vnd.nokia.interleaved-multimedia":{"source":"iana"},"video/vnd.nokia.mp4vr":{"source":"iana"},"video/vnd.nokia.videovoip":{"source":"iana"},"video/vnd.objectvideo":{"source":"iana"},"video/vnd.radgamettools.bink":{"source":"iana"},"video/vnd.radgamettools.smacker":{"source":"iana"},"video/vnd.sealed.mpeg1":{"source":"iana"},"video/vnd.sealed.mpeg4":{"source":"iana"},"video/vnd.sealed.swf":{"source":"iana"},"video/vnd.sealedmedia.softseal.mov":{"source":"iana"},"video/vnd.uvvu.mp4":{"source":"iana","extensions":["uvu","uvvu"]},"video/vnd.vivo":{"source":"iana","extensions":["viv"]},"video/vnd.youtube.yt":{"source":"iana"},"video/vp8":{"source":"iana"},"video/vp9":{"source":"iana"},"video/webm":{"source":"apache","compressible":false,"extensions":["webm"]},"video/x-f4v":{"source":"apache","extensions":["f4v"]},"video/x-fli":{"source":"apache","extensions":["fli"]},"video/x-flv":{"source":"apache","compressible":false,"extensions":["flv"]},"video/x-m4v":{"source":"apache","extensions":["m4v"]},"video/x-matroska":{"source":"apache","compressible":false,"extensions":["mkv","mk3d","mks"]},"video/x-mng":{"source":"apache","extensions":["mng"]},"video/x-ms-asf":{"source":"apache","extensions":["asf","asx"]},"video/x-ms-vob":{"source":"apache","extensions":["vob"]},"video/x-ms-wm":{"source":"apache","extensions":["wm"]},"video/x-ms-wmv":{"source":"apache","compressible":false,"extensions":["wmv"]},"video/x-ms-wmx":{"source":"apache","extensions":["wmx"]},"video/x-ms-wvx":{"source":"apache","extensions":["wvx"]},"video/x-msvideo":{"source":"apache","extensions":["avi"]},"video/x-sgi-movie":{"source":"apache","extensions":["movie"]},"video/x-smv":{"source":"apache","extensions":["smv"]},"x-conference/x-cooltalk":{"source":"apache","extensions":["ice"]},"x-shader/x-fragment":{"compressible":true},"x-shader/x-vertex":{"compressible":true}}')}},t={},a=function a(n){var s=t[n];if(void 0!==s)return s.exports;var i=t[n]={exports:{}};return e[n].call(i.exports,i,i.exports,a),i.exports}(4265);module.exports=a})();
-//# sourceMappingURL=extension.js.map
+"use strict";
+var __create = Object.create;
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getProtoOf = Object.getPrototypeOf;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __commonJS = (cb, mod) => function __require() {
+  return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
+};
+var __export = (target, all3) => {
+  for (var name in all3)
+    __defProp(target, name, { get: all3[name], enumerable: true });
+};
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+  // If the importer is in node compatibility mode or this is not an ESM
+  // file that has been converted to a CommonJS file using a Babel-
+  // compatible transform (i.e. "__esModule" has not been set), then set
+  // "default" to the CommonJS "module.exports" for node compatibility.
+  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+  mod
+));
+var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+
+// node_modules/delayed-stream/lib/delayed_stream.js
+var require_delayed_stream = __commonJS({
+  "node_modules/delayed-stream/lib/delayed_stream.js"(exports2, module2) {
+    var Stream = require("stream").Stream;
+    var util3 = require("util");
+    module2.exports = DelayedStream;
+    function DelayedStream() {
+      this.source = null;
+      this.dataSize = 0;
+      this.maxDataSize = 1024 * 1024;
+      this.pauseStream = true;
+      this._maxDataSizeExceeded = false;
+      this._released = false;
+      this._bufferedEvents = [];
+    }
+    util3.inherits(DelayedStream, Stream);
+    DelayedStream.create = function(source, options) {
+      var delayedStream = new this();
+      options = options || {};
+      for (var option in options) {
+        delayedStream[option] = options[option];
+      }
+      delayedStream.source = source;
+      var realEmit = source.emit;
+      source.emit = function() {
+        delayedStream._handleEmit(arguments);
+        return realEmit.apply(source, arguments);
+      };
+      source.on("error", function() {
+      });
+      if (delayedStream.pauseStream) {
+        source.pause();
+      }
+      return delayedStream;
+    };
+    Object.defineProperty(DelayedStream.prototype, "readable", {
+      configurable: true,
+      enumerable: true,
+      get: function() {
+        return this.source.readable;
+      }
+    });
+    DelayedStream.prototype.setEncoding = function() {
+      return this.source.setEncoding.apply(this.source, arguments);
+    };
+    DelayedStream.prototype.resume = function() {
+      if (!this._released) {
+        this.release();
+      }
+      this.source.resume();
+    };
+    DelayedStream.prototype.pause = function() {
+      this.source.pause();
+    };
+    DelayedStream.prototype.release = function() {
+      this._released = true;
+      this._bufferedEvents.forEach(function(args) {
+        this.emit.apply(this, args);
+      }.bind(this));
+      this._bufferedEvents = [];
+    };
+    DelayedStream.prototype.pipe = function() {
+      var r = Stream.prototype.pipe.apply(this, arguments);
+      this.resume();
+      return r;
+    };
+    DelayedStream.prototype._handleEmit = function(args) {
+      if (this._released) {
+        this.emit.apply(this, args);
+        return;
+      }
+      if (args[0] === "data") {
+        this.dataSize += args[1].length;
+        this._checkIfMaxDataSizeExceeded();
+      }
+      this._bufferedEvents.push(args);
+    };
+    DelayedStream.prototype._checkIfMaxDataSizeExceeded = function() {
+      if (this._maxDataSizeExceeded) {
+        return;
+      }
+      if (this.dataSize <= this.maxDataSize) {
+        return;
+      }
+      this._maxDataSizeExceeded = true;
+      var message = "DelayedStream#maxDataSize of " + this.maxDataSize + " bytes exceeded.";
+      this.emit("error", new Error(message));
+    };
+  }
+});
+
+// node_modules/combined-stream/lib/combined_stream.js
+var require_combined_stream = __commonJS({
+  "node_modules/combined-stream/lib/combined_stream.js"(exports2, module2) {
+    var util3 = require("util");
+    var Stream = require("stream").Stream;
+    var DelayedStream = require_delayed_stream();
+    module2.exports = CombinedStream;
+    function CombinedStream() {
+      this.writable = false;
+      this.readable = true;
+      this.dataSize = 0;
+      this.maxDataSize = 2 * 1024 * 1024;
+      this.pauseStreams = true;
+      this._released = false;
+      this._streams = [];
+      this._currentStream = null;
+      this._insideLoop = false;
+      this._pendingNext = false;
+    }
+    util3.inherits(CombinedStream, Stream);
+    CombinedStream.create = function(options) {
+      var combinedStream = new this();
+      options = options || {};
+      for (var option in options) {
+        combinedStream[option] = options[option];
+      }
+      return combinedStream;
+    };
+    CombinedStream.isStreamLike = function(stream4) {
+      return typeof stream4 !== "function" && typeof stream4 !== "string" && typeof stream4 !== "boolean" && typeof stream4 !== "number" && !Buffer.isBuffer(stream4);
+    };
+    CombinedStream.prototype.append = function(stream4) {
+      var isStreamLike = CombinedStream.isStreamLike(stream4);
+      if (isStreamLike) {
+        if (!(stream4 instanceof DelayedStream)) {
+          var newStream = DelayedStream.create(stream4, {
+            maxDataSize: Infinity,
+            pauseStream: this.pauseStreams
+          });
+          stream4.on("data", this._checkDataSize.bind(this));
+          stream4 = newStream;
+        }
+        this._handleErrors(stream4);
+        if (this.pauseStreams) {
+          stream4.pause();
+        }
+      }
+      this._streams.push(stream4);
+      return this;
+    };
+    CombinedStream.prototype.pipe = function(dest, options) {
+      Stream.prototype.pipe.call(this, dest, options);
+      this.resume();
+      return dest;
+    };
+    CombinedStream.prototype._getNext = function() {
+      this._currentStream = null;
+      if (this._insideLoop) {
+        this._pendingNext = true;
+        return;
+      }
+      this._insideLoop = true;
+      try {
+        do {
+          this._pendingNext = false;
+          this._realGetNext();
+        } while (this._pendingNext);
+      } finally {
+        this._insideLoop = false;
+      }
+    };
+    CombinedStream.prototype._realGetNext = function() {
+      var stream4 = this._streams.shift();
+      if (typeof stream4 == "undefined") {
+        this.end();
+        return;
+      }
+      if (typeof stream4 !== "function") {
+        this._pipeNext(stream4);
+        return;
+      }
+      var getStream = stream4;
+      getStream(function(stream5) {
+        var isStreamLike = CombinedStream.isStreamLike(stream5);
+        if (isStreamLike) {
+          stream5.on("data", this._checkDataSize.bind(this));
+          this._handleErrors(stream5);
+        }
+        this._pipeNext(stream5);
+      }.bind(this));
+    };
+    CombinedStream.prototype._pipeNext = function(stream4) {
+      this._currentStream = stream4;
+      var isStreamLike = CombinedStream.isStreamLike(stream4);
+      if (isStreamLike) {
+        stream4.on("end", this._getNext.bind(this));
+        stream4.pipe(this, { end: false });
+        return;
+      }
+      var value = stream4;
+      this.write(value);
+      this._getNext();
+    };
+    CombinedStream.prototype._handleErrors = function(stream4) {
+      var self2 = this;
+      stream4.on("error", function(err) {
+        self2._emitError(err);
+      });
+    };
+    CombinedStream.prototype.write = function(data) {
+      this.emit("data", data);
+    };
+    CombinedStream.prototype.pause = function() {
+      if (!this.pauseStreams) {
+        return;
+      }
+      if (this.pauseStreams && this._currentStream && typeof this._currentStream.pause == "function")
+        this._currentStream.pause();
+      this.emit("pause");
+    };
+    CombinedStream.prototype.resume = function() {
+      if (!this._released) {
+        this._released = true;
+        this.writable = true;
+        this._getNext();
+      }
+      if (this.pauseStreams && this._currentStream && typeof this._currentStream.resume == "function")
+        this._currentStream.resume();
+      this.emit("resume");
+    };
+    CombinedStream.prototype.end = function() {
+      this._reset();
+      this.emit("end");
+    };
+    CombinedStream.prototype.destroy = function() {
+      this._reset();
+      this.emit("close");
+    };
+    CombinedStream.prototype._reset = function() {
+      this.writable = false;
+      this._streams = [];
+      this._currentStream = null;
+    };
+    CombinedStream.prototype._checkDataSize = function() {
+      this._updateDataSize();
+      if (this.dataSize <= this.maxDataSize) {
+        return;
+      }
+      var message = "DelayedStream#maxDataSize of " + this.maxDataSize + " bytes exceeded.";
+      this._emitError(new Error(message));
+    };
+    CombinedStream.prototype._updateDataSize = function() {
+      this.dataSize = 0;
+      var self2 = this;
+      this._streams.forEach(function(stream4) {
+        if (!stream4.dataSize) {
+          return;
+        }
+        self2.dataSize += stream4.dataSize;
+      });
+      if (this._currentStream && this._currentStream.dataSize) {
+        this.dataSize += this._currentStream.dataSize;
+      }
+    };
+    CombinedStream.prototype._emitError = function(err) {
+      this._reset();
+      this.emit("error", err);
+    };
+  }
+});
+
+// node_modules/mime-db/db.json
+var require_db = __commonJS({
+  "node_modules/mime-db/db.json"(exports2, module2) {
+    module2.exports = {
+      "application/1d-interleaved-parityfec": {
+        source: "iana"
+      },
+      "application/3gpdash-qoe-report+xml": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true
+      },
+      "application/3gpp-ims+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/3gpphal+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/3gpphalforms+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/a2l": {
+        source: "iana"
+      },
+      "application/ace+cbor": {
+        source: "iana"
+      },
+      "application/activemessage": {
+        source: "iana"
+      },
+      "application/activity+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/alto-costmap+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/alto-costmapfilter+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/alto-directory+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/alto-endpointcost+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/alto-endpointcostparams+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/alto-endpointprop+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/alto-endpointpropparams+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/alto-error+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/alto-networkmap+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/alto-networkmapfilter+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/alto-updatestreamcontrol+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/alto-updatestreamparams+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/aml": {
+        source: "iana"
+      },
+      "application/andrew-inset": {
+        source: "iana",
+        extensions: ["ez"]
+      },
+      "application/applefile": {
+        source: "iana"
+      },
+      "application/applixware": {
+        source: "apache",
+        extensions: ["aw"]
+      },
+      "application/at+jwt": {
+        source: "iana"
+      },
+      "application/atf": {
+        source: "iana"
+      },
+      "application/atfx": {
+        source: "iana"
+      },
+      "application/atom+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["atom"]
+      },
+      "application/atomcat+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["atomcat"]
+      },
+      "application/atomdeleted+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["atomdeleted"]
+      },
+      "application/atomicmail": {
+        source: "iana"
+      },
+      "application/atomsvc+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["atomsvc"]
+      },
+      "application/atsc-dwd+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["dwd"]
+      },
+      "application/atsc-dynamic-event-message": {
+        source: "iana"
+      },
+      "application/atsc-held+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["held"]
+      },
+      "application/atsc-rdt+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/atsc-rsat+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["rsat"]
+      },
+      "application/atxml": {
+        source: "iana"
+      },
+      "application/auth-policy+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/bacnet-xdd+zip": {
+        source: "iana",
+        compressible: false
+      },
+      "application/batch-smtp": {
+        source: "iana"
+      },
+      "application/bdoc": {
+        compressible: false,
+        extensions: ["bdoc"]
+      },
+      "application/beep+xml": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true
+      },
+      "application/calendar+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/calendar+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["xcs"]
+      },
+      "application/call-completion": {
+        source: "iana"
+      },
+      "application/cals-1840": {
+        source: "iana"
+      },
+      "application/captive+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/cbor": {
+        source: "iana"
+      },
+      "application/cbor-seq": {
+        source: "iana"
+      },
+      "application/cccex": {
+        source: "iana"
+      },
+      "application/ccmp+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/ccxml+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["ccxml"]
+      },
+      "application/cdfx+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["cdfx"]
+      },
+      "application/cdmi-capability": {
+        source: "iana",
+        extensions: ["cdmia"]
+      },
+      "application/cdmi-container": {
+        source: "iana",
+        extensions: ["cdmic"]
+      },
+      "application/cdmi-domain": {
+        source: "iana",
+        extensions: ["cdmid"]
+      },
+      "application/cdmi-object": {
+        source: "iana",
+        extensions: ["cdmio"]
+      },
+      "application/cdmi-queue": {
+        source: "iana",
+        extensions: ["cdmiq"]
+      },
+      "application/cdni": {
+        source: "iana"
+      },
+      "application/cea": {
+        source: "iana"
+      },
+      "application/cea-2018+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/cellml+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/cfw": {
+        source: "iana"
+      },
+      "application/city+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/clr": {
+        source: "iana"
+      },
+      "application/clue+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/clue_info+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/cms": {
+        source: "iana"
+      },
+      "application/cnrp+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/coap-group+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/coap-payload": {
+        source: "iana"
+      },
+      "application/commonground": {
+        source: "iana"
+      },
+      "application/conference-info+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/cose": {
+        source: "iana"
+      },
+      "application/cose-key": {
+        source: "iana"
+      },
+      "application/cose-key-set": {
+        source: "iana"
+      },
+      "application/cpl+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["cpl"]
+      },
+      "application/csrattrs": {
+        source: "iana"
+      },
+      "application/csta+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/cstadata+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/csvm+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/cu-seeme": {
+        source: "apache",
+        extensions: ["cu"]
+      },
+      "application/cwt": {
+        source: "iana"
+      },
+      "application/cybercash": {
+        source: "iana"
+      },
+      "application/dart": {
+        compressible: true
+      },
+      "application/dash+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["mpd"]
+      },
+      "application/dash-patch+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["mpp"]
+      },
+      "application/dashdelta": {
+        source: "iana"
+      },
+      "application/davmount+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["davmount"]
+      },
+      "application/dca-rft": {
+        source: "iana"
+      },
+      "application/dcd": {
+        source: "iana"
+      },
+      "application/dec-dx": {
+        source: "iana"
+      },
+      "application/dialog-info+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/dicom": {
+        source: "iana"
+      },
+      "application/dicom+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/dicom+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/dii": {
+        source: "iana"
+      },
+      "application/dit": {
+        source: "iana"
+      },
+      "application/dns": {
+        source: "iana"
+      },
+      "application/dns+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/dns-message": {
+        source: "iana"
+      },
+      "application/docbook+xml": {
+        source: "apache",
+        compressible: true,
+        extensions: ["dbk"]
+      },
+      "application/dots+cbor": {
+        source: "iana"
+      },
+      "application/dskpp+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/dssc+der": {
+        source: "iana",
+        extensions: ["dssc"]
+      },
+      "application/dssc+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["xdssc"]
+      },
+      "application/dvcs": {
+        source: "iana"
+      },
+      "application/ecmascript": {
+        source: "iana",
+        compressible: true,
+        extensions: ["es", "ecma"]
+      },
+      "application/edi-consent": {
+        source: "iana"
+      },
+      "application/edi-x12": {
+        source: "iana",
+        compressible: false
+      },
+      "application/edifact": {
+        source: "iana",
+        compressible: false
+      },
+      "application/efi": {
+        source: "iana"
+      },
+      "application/elm+json": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true
+      },
+      "application/elm+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/emergencycalldata.cap+xml": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true
+      },
+      "application/emergencycalldata.comment+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/emergencycalldata.control+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/emergencycalldata.deviceinfo+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/emergencycalldata.ecall.msd": {
+        source: "iana"
+      },
+      "application/emergencycalldata.providerinfo+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/emergencycalldata.serviceinfo+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/emergencycalldata.subscriberinfo+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/emergencycalldata.veds+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/emma+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["emma"]
+      },
+      "application/emotionml+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["emotionml"]
+      },
+      "application/encaprtp": {
+        source: "iana"
+      },
+      "application/epp+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/epub+zip": {
+        source: "iana",
+        compressible: false,
+        extensions: ["epub"]
+      },
+      "application/eshop": {
+        source: "iana"
+      },
+      "application/exi": {
+        source: "iana",
+        extensions: ["exi"]
+      },
+      "application/expect-ct-report+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/express": {
+        source: "iana",
+        extensions: ["exp"]
+      },
+      "application/fastinfoset": {
+        source: "iana"
+      },
+      "application/fastsoap": {
+        source: "iana"
+      },
+      "application/fdt+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["fdt"]
+      },
+      "application/fhir+json": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true
+      },
+      "application/fhir+xml": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true
+      },
+      "application/fido.trusted-apps+json": {
+        compressible: true
+      },
+      "application/fits": {
+        source: "iana"
+      },
+      "application/flexfec": {
+        source: "iana"
+      },
+      "application/font-sfnt": {
+        source: "iana"
+      },
+      "application/font-tdpfr": {
+        source: "iana",
+        extensions: ["pfr"]
+      },
+      "application/font-woff": {
+        source: "iana",
+        compressible: false
+      },
+      "application/framework-attributes+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/geo+json": {
+        source: "iana",
+        compressible: true,
+        extensions: ["geojson"]
+      },
+      "application/geo+json-seq": {
+        source: "iana"
+      },
+      "application/geopackage+sqlite3": {
+        source: "iana"
+      },
+      "application/geoxacml+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/gltf-buffer": {
+        source: "iana"
+      },
+      "application/gml+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["gml"]
+      },
+      "application/gpx+xml": {
+        source: "apache",
+        compressible: true,
+        extensions: ["gpx"]
+      },
+      "application/gxf": {
+        source: "apache",
+        extensions: ["gxf"]
+      },
+      "application/gzip": {
+        source: "iana",
+        compressible: false,
+        extensions: ["gz"]
+      },
+      "application/h224": {
+        source: "iana"
+      },
+      "application/held+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/hjson": {
+        extensions: ["hjson"]
+      },
+      "application/http": {
+        source: "iana"
+      },
+      "application/hyperstudio": {
+        source: "iana",
+        extensions: ["stk"]
+      },
+      "application/ibe-key-request+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/ibe-pkg-reply+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/ibe-pp-data": {
+        source: "iana"
+      },
+      "application/iges": {
+        source: "iana"
+      },
+      "application/im-iscomposing+xml": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true
+      },
+      "application/index": {
+        source: "iana"
+      },
+      "application/index.cmd": {
+        source: "iana"
+      },
+      "application/index.obj": {
+        source: "iana"
+      },
+      "application/index.response": {
+        source: "iana"
+      },
+      "application/index.vnd": {
+        source: "iana"
+      },
+      "application/inkml+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["ink", "inkml"]
+      },
+      "application/iotp": {
+        source: "iana"
+      },
+      "application/ipfix": {
+        source: "iana",
+        extensions: ["ipfix"]
+      },
+      "application/ipp": {
+        source: "iana"
+      },
+      "application/isup": {
+        source: "iana"
+      },
+      "application/its+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["its"]
+      },
+      "application/java-archive": {
+        source: "apache",
+        compressible: false,
+        extensions: ["jar", "war", "ear"]
+      },
+      "application/java-serialized-object": {
+        source: "apache",
+        compressible: false,
+        extensions: ["ser"]
+      },
+      "application/java-vm": {
+        source: "apache",
+        compressible: false,
+        extensions: ["class"]
+      },
+      "application/javascript": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true,
+        extensions: ["js", "mjs"]
+      },
+      "application/jf2feed+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/jose": {
+        source: "iana"
+      },
+      "application/jose+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/jrd+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/jscalendar+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/json": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true,
+        extensions: ["json", "map"]
+      },
+      "application/json-patch+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/json-seq": {
+        source: "iana"
+      },
+      "application/json5": {
+        extensions: ["json5"]
+      },
+      "application/jsonml+json": {
+        source: "apache",
+        compressible: true,
+        extensions: ["jsonml"]
+      },
+      "application/jwk+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/jwk-set+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/jwt": {
+        source: "iana"
+      },
+      "application/kpml-request+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/kpml-response+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/ld+json": {
+        source: "iana",
+        compressible: true,
+        extensions: ["jsonld"]
+      },
+      "application/lgr+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["lgr"]
+      },
+      "application/link-format": {
+        source: "iana"
+      },
+      "application/load-control+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/lost+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["lostxml"]
+      },
+      "application/lostsync+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/lpf+zip": {
+        source: "iana",
+        compressible: false
+      },
+      "application/lxf": {
+        source: "iana"
+      },
+      "application/mac-binhex40": {
+        source: "iana",
+        extensions: ["hqx"]
+      },
+      "application/mac-compactpro": {
+        source: "apache",
+        extensions: ["cpt"]
+      },
+      "application/macwriteii": {
+        source: "iana"
+      },
+      "application/mads+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["mads"]
+      },
+      "application/manifest+json": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true,
+        extensions: ["webmanifest"]
+      },
+      "application/marc": {
+        source: "iana",
+        extensions: ["mrc"]
+      },
+      "application/marcxml+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["mrcx"]
+      },
+      "application/mathematica": {
+        source: "iana",
+        extensions: ["ma", "nb", "mb"]
+      },
+      "application/mathml+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["mathml"]
+      },
+      "application/mathml-content+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/mathml-presentation+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/mbms-associated-procedure-description+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/mbms-deregister+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/mbms-envelope+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/mbms-msk+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/mbms-msk-response+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/mbms-protection-description+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/mbms-reception-report+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/mbms-register+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/mbms-register-response+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/mbms-schedule+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/mbms-user-service-description+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/mbox": {
+        source: "iana",
+        extensions: ["mbox"]
+      },
+      "application/media-policy-dataset+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["mpf"]
+      },
+      "application/media_control+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/mediaservercontrol+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["mscml"]
+      },
+      "application/merge-patch+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/metalink+xml": {
+        source: "apache",
+        compressible: true,
+        extensions: ["metalink"]
+      },
+      "application/metalink4+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["meta4"]
+      },
+      "application/mets+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["mets"]
+      },
+      "application/mf4": {
+        source: "iana"
+      },
+      "application/mikey": {
+        source: "iana"
+      },
+      "application/mipc": {
+        source: "iana"
+      },
+      "application/missing-blocks+cbor-seq": {
+        source: "iana"
+      },
+      "application/mmt-aei+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["maei"]
+      },
+      "application/mmt-usd+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["musd"]
+      },
+      "application/mods+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["mods"]
+      },
+      "application/moss-keys": {
+        source: "iana"
+      },
+      "application/moss-signature": {
+        source: "iana"
+      },
+      "application/mosskey-data": {
+        source: "iana"
+      },
+      "application/mosskey-request": {
+        source: "iana"
+      },
+      "application/mp21": {
+        source: "iana",
+        extensions: ["m21", "mp21"]
+      },
+      "application/mp4": {
+        source: "iana",
+        extensions: ["mp4s", "m4p"]
+      },
+      "application/mpeg4-generic": {
+        source: "iana"
+      },
+      "application/mpeg4-iod": {
+        source: "iana"
+      },
+      "application/mpeg4-iod-xmt": {
+        source: "iana"
+      },
+      "application/mrb-consumer+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/mrb-publish+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/msc-ivr+xml": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true
+      },
+      "application/msc-mixer+xml": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true
+      },
+      "application/msword": {
+        source: "iana",
+        compressible: false,
+        extensions: ["doc", "dot"]
+      },
+      "application/mud+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/multipart-core": {
+        source: "iana"
+      },
+      "application/mxf": {
+        source: "iana",
+        extensions: ["mxf"]
+      },
+      "application/n-quads": {
+        source: "iana",
+        extensions: ["nq"]
+      },
+      "application/n-triples": {
+        source: "iana",
+        extensions: ["nt"]
+      },
+      "application/nasdata": {
+        source: "iana"
+      },
+      "application/news-checkgroups": {
+        source: "iana",
+        charset: "US-ASCII"
+      },
+      "application/news-groupinfo": {
+        source: "iana",
+        charset: "US-ASCII"
+      },
+      "application/news-transmission": {
+        source: "iana"
+      },
+      "application/nlsml+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/node": {
+        source: "iana",
+        extensions: ["cjs"]
+      },
+      "application/nss": {
+        source: "iana"
+      },
+      "application/oauth-authz-req+jwt": {
+        source: "iana"
+      },
+      "application/oblivious-dns-message": {
+        source: "iana"
+      },
+      "application/ocsp-request": {
+        source: "iana"
+      },
+      "application/ocsp-response": {
+        source: "iana"
+      },
+      "application/octet-stream": {
+        source: "iana",
+        compressible: false,
+        extensions: ["bin", "dms", "lrf", "mar", "so", "dist", "distz", "pkg", "bpk", "dump", "elc", "deploy", "exe", "dll", "deb", "dmg", "iso", "img", "msi", "msp", "msm", "buffer"]
+      },
+      "application/oda": {
+        source: "iana",
+        extensions: ["oda"]
+      },
+      "application/odm+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/odx": {
+        source: "iana"
+      },
+      "application/oebps-package+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["opf"]
+      },
+      "application/ogg": {
+        source: "iana",
+        compressible: false,
+        extensions: ["ogx"]
+      },
+      "application/omdoc+xml": {
+        source: "apache",
+        compressible: true,
+        extensions: ["omdoc"]
+      },
+      "application/onenote": {
+        source: "apache",
+        extensions: ["onetoc", "onetoc2", "onetmp", "onepkg"]
+      },
+      "application/opc-nodeset+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/oscore": {
+        source: "iana"
+      },
+      "application/oxps": {
+        source: "iana",
+        extensions: ["oxps"]
+      },
+      "application/p21": {
+        source: "iana"
+      },
+      "application/p21+zip": {
+        source: "iana",
+        compressible: false
+      },
+      "application/p2p-overlay+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["relo"]
+      },
+      "application/parityfec": {
+        source: "iana"
+      },
+      "application/passport": {
+        source: "iana"
+      },
+      "application/patch-ops-error+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["xer"]
+      },
+      "application/pdf": {
+        source: "iana",
+        compressible: false,
+        extensions: ["pdf"]
+      },
+      "application/pdx": {
+        source: "iana"
+      },
+      "application/pem-certificate-chain": {
+        source: "iana"
+      },
+      "application/pgp-encrypted": {
+        source: "iana",
+        compressible: false,
+        extensions: ["pgp"]
+      },
+      "application/pgp-keys": {
+        source: "iana",
+        extensions: ["asc"]
+      },
+      "application/pgp-signature": {
+        source: "iana",
+        extensions: ["asc", "sig"]
+      },
+      "application/pics-rules": {
+        source: "apache",
+        extensions: ["prf"]
+      },
+      "application/pidf+xml": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true
+      },
+      "application/pidf-diff+xml": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true
+      },
+      "application/pkcs10": {
+        source: "iana",
+        extensions: ["p10"]
+      },
+      "application/pkcs12": {
+        source: "iana"
+      },
+      "application/pkcs7-mime": {
+        source: "iana",
+        extensions: ["p7m", "p7c"]
+      },
+      "application/pkcs7-signature": {
+        source: "iana",
+        extensions: ["p7s"]
+      },
+      "application/pkcs8": {
+        source: "iana",
+        extensions: ["p8"]
+      },
+      "application/pkcs8-encrypted": {
+        source: "iana"
+      },
+      "application/pkix-attr-cert": {
+        source: "iana",
+        extensions: ["ac"]
+      },
+      "application/pkix-cert": {
+        source: "iana",
+        extensions: ["cer"]
+      },
+      "application/pkix-crl": {
+        source: "iana",
+        extensions: ["crl"]
+      },
+      "application/pkix-pkipath": {
+        source: "iana",
+        extensions: ["pkipath"]
+      },
+      "application/pkixcmp": {
+        source: "iana",
+        extensions: ["pki"]
+      },
+      "application/pls+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["pls"]
+      },
+      "application/poc-settings+xml": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true
+      },
+      "application/postscript": {
+        source: "iana",
+        compressible: true,
+        extensions: ["ai", "eps", "ps"]
+      },
+      "application/ppsp-tracker+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/problem+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/problem+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/provenance+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["provx"]
+      },
+      "application/prs.alvestrand.titrax-sheet": {
+        source: "iana"
+      },
+      "application/prs.cww": {
+        source: "iana",
+        extensions: ["cww"]
+      },
+      "application/prs.cyn": {
+        source: "iana",
+        charset: "7-BIT"
+      },
+      "application/prs.hpub+zip": {
+        source: "iana",
+        compressible: false
+      },
+      "application/prs.nprend": {
+        source: "iana"
+      },
+      "application/prs.plucker": {
+        source: "iana"
+      },
+      "application/prs.rdf-xml-crypt": {
+        source: "iana"
+      },
+      "application/prs.xsf+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/pskc+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["pskcxml"]
+      },
+      "application/pvd+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/qsig": {
+        source: "iana"
+      },
+      "application/raml+yaml": {
+        compressible: true,
+        extensions: ["raml"]
+      },
+      "application/raptorfec": {
+        source: "iana"
+      },
+      "application/rdap+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/rdf+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["rdf", "owl"]
+      },
+      "application/reginfo+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["rif"]
+      },
+      "application/relax-ng-compact-syntax": {
+        source: "iana",
+        extensions: ["rnc"]
+      },
+      "application/remote-printing": {
+        source: "iana"
+      },
+      "application/reputon+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/resource-lists+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["rl"]
+      },
+      "application/resource-lists-diff+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["rld"]
+      },
+      "application/rfc+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/riscos": {
+        source: "iana"
+      },
+      "application/rlmi+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/rls-services+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["rs"]
+      },
+      "application/route-apd+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["rapd"]
+      },
+      "application/route-s-tsid+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["sls"]
+      },
+      "application/route-usd+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["rusd"]
+      },
+      "application/rpki-ghostbusters": {
+        source: "iana",
+        extensions: ["gbr"]
+      },
+      "application/rpki-manifest": {
+        source: "iana",
+        extensions: ["mft"]
+      },
+      "application/rpki-publication": {
+        source: "iana"
+      },
+      "application/rpki-roa": {
+        source: "iana",
+        extensions: ["roa"]
+      },
+      "application/rpki-updown": {
+        source: "iana"
+      },
+      "application/rsd+xml": {
+        source: "apache",
+        compressible: true,
+        extensions: ["rsd"]
+      },
+      "application/rss+xml": {
+        source: "apache",
+        compressible: true,
+        extensions: ["rss"]
+      },
+      "application/rtf": {
+        source: "iana",
+        compressible: true,
+        extensions: ["rtf"]
+      },
+      "application/rtploopback": {
+        source: "iana"
+      },
+      "application/rtx": {
+        source: "iana"
+      },
+      "application/samlassertion+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/samlmetadata+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/sarif+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/sarif-external-properties+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/sbe": {
+        source: "iana"
+      },
+      "application/sbml+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["sbml"]
+      },
+      "application/scaip+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/scim+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/scvp-cv-request": {
+        source: "iana",
+        extensions: ["scq"]
+      },
+      "application/scvp-cv-response": {
+        source: "iana",
+        extensions: ["scs"]
+      },
+      "application/scvp-vp-request": {
+        source: "iana",
+        extensions: ["spq"]
+      },
+      "application/scvp-vp-response": {
+        source: "iana",
+        extensions: ["spp"]
+      },
+      "application/sdp": {
+        source: "iana",
+        extensions: ["sdp"]
+      },
+      "application/secevent+jwt": {
+        source: "iana"
+      },
+      "application/senml+cbor": {
+        source: "iana"
+      },
+      "application/senml+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/senml+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["senmlx"]
+      },
+      "application/senml-etch+cbor": {
+        source: "iana"
+      },
+      "application/senml-etch+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/senml-exi": {
+        source: "iana"
+      },
+      "application/sensml+cbor": {
+        source: "iana"
+      },
+      "application/sensml+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/sensml+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["sensmlx"]
+      },
+      "application/sensml-exi": {
+        source: "iana"
+      },
+      "application/sep+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/sep-exi": {
+        source: "iana"
+      },
+      "application/session-info": {
+        source: "iana"
+      },
+      "application/set-payment": {
+        source: "iana"
+      },
+      "application/set-payment-initiation": {
+        source: "iana",
+        extensions: ["setpay"]
+      },
+      "application/set-registration": {
+        source: "iana"
+      },
+      "application/set-registration-initiation": {
+        source: "iana",
+        extensions: ["setreg"]
+      },
+      "application/sgml": {
+        source: "iana"
+      },
+      "application/sgml-open-catalog": {
+        source: "iana"
+      },
+      "application/shf+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["shf"]
+      },
+      "application/sieve": {
+        source: "iana",
+        extensions: ["siv", "sieve"]
+      },
+      "application/simple-filter+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/simple-message-summary": {
+        source: "iana"
+      },
+      "application/simplesymbolcontainer": {
+        source: "iana"
+      },
+      "application/sipc": {
+        source: "iana"
+      },
+      "application/slate": {
+        source: "iana"
+      },
+      "application/smil": {
+        source: "iana"
+      },
+      "application/smil+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["smi", "smil"]
+      },
+      "application/smpte336m": {
+        source: "iana"
+      },
+      "application/soap+fastinfoset": {
+        source: "iana"
+      },
+      "application/soap+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/sparql-query": {
+        source: "iana",
+        extensions: ["rq"]
+      },
+      "application/sparql-results+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["srx"]
+      },
+      "application/spdx+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/spirits-event+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/sql": {
+        source: "iana"
+      },
+      "application/srgs": {
+        source: "iana",
+        extensions: ["gram"]
+      },
+      "application/srgs+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["grxml"]
+      },
+      "application/sru+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["sru"]
+      },
+      "application/ssdl+xml": {
+        source: "apache",
+        compressible: true,
+        extensions: ["ssdl"]
+      },
+      "application/ssml+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["ssml"]
+      },
+      "application/stix+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/swid+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["swidtag"]
+      },
+      "application/tamp-apex-update": {
+        source: "iana"
+      },
+      "application/tamp-apex-update-confirm": {
+        source: "iana"
+      },
+      "application/tamp-community-update": {
+        source: "iana"
+      },
+      "application/tamp-community-update-confirm": {
+        source: "iana"
+      },
+      "application/tamp-error": {
+        source: "iana"
+      },
+      "application/tamp-sequence-adjust": {
+        source: "iana"
+      },
+      "application/tamp-sequence-adjust-confirm": {
+        source: "iana"
+      },
+      "application/tamp-status-query": {
+        source: "iana"
+      },
+      "application/tamp-status-response": {
+        source: "iana"
+      },
+      "application/tamp-update": {
+        source: "iana"
+      },
+      "application/tamp-update-confirm": {
+        source: "iana"
+      },
+      "application/tar": {
+        compressible: true
+      },
+      "application/taxii+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/td+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/tei+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["tei", "teicorpus"]
+      },
+      "application/tetra_isi": {
+        source: "iana"
+      },
+      "application/thraud+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["tfi"]
+      },
+      "application/timestamp-query": {
+        source: "iana"
+      },
+      "application/timestamp-reply": {
+        source: "iana"
+      },
+      "application/timestamped-data": {
+        source: "iana",
+        extensions: ["tsd"]
+      },
+      "application/tlsrpt+gzip": {
+        source: "iana"
+      },
+      "application/tlsrpt+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/tnauthlist": {
+        source: "iana"
+      },
+      "application/token-introspection+jwt": {
+        source: "iana"
+      },
+      "application/toml": {
+        compressible: true,
+        extensions: ["toml"]
+      },
+      "application/trickle-ice-sdpfrag": {
+        source: "iana"
+      },
+      "application/trig": {
+        source: "iana",
+        extensions: ["trig"]
+      },
+      "application/ttml+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["ttml"]
+      },
+      "application/tve-trigger": {
+        source: "iana"
+      },
+      "application/tzif": {
+        source: "iana"
+      },
+      "application/tzif-leap": {
+        source: "iana"
+      },
+      "application/ubjson": {
+        compressible: false,
+        extensions: ["ubj"]
+      },
+      "application/ulpfec": {
+        source: "iana"
+      },
+      "application/urc-grpsheet+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/urc-ressheet+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["rsheet"]
+      },
+      "application/urc-targetdesc+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["td"]
+      },
+      "application/urc-uisocketdesc+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vcard+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vcard+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vemmi": {
+        source: "iana"
+      },
+      "application/vividence.scriptfile": {
+        source: "apache"
+      },
+      "application/vnd.1000minds.decision-model+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["1km"]
+      },
+      "application/vnd.3gpp-prose+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp-prose-pc3ch+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp-v2x-local-service-information": {
+        source: "iana"
+      },
+      "application/vnd.3gpp.5gnas": {
+        source: "iana"
+      },
+      "application/vnd.3gpp.access-transfer-events+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.bsf+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.gmop+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.gtpc": {
+        source: "iana"
+      },
+      "application/vnd.3gpp.interworking-data": {
+        source: "iana"
+      },
+      "application/vnd.3gpp.lpp": {
+        source: "iana"
+      },
+      "application/vnd.3gpp.mc-signalling-ear": {
+        source: "iana"
+      },
+      "application/vnd.3gpp.mcdata-affiliation-command+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mcdata-info+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mcdata-payload": {
+        source: "iana"
+      },
+      "application/vnd.3gpp.mcdata-service-config+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mcdata-signalling": {
+        source: "iana"
+      },
+      "application/vnd.3gpp.mcdata-ue-config+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mcdata-user-profile+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mcptt-affiliation-command+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mcptt-floor-request+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mcptt-info+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mcptt-location-info+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mcptt-mbms-usage-info+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mcptt-service-config+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mcptt-signed+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mcptt-ue-config+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mcptt-ue-init-config+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mcptt-user-profile+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mcvideo-affiliation-command+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mcvideo-affiliation-info+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mcvideo-info+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mcvideo-location-info+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mcvideo-mbms-usage-info+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mcvideo-service-config+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mcvideo-transmission-request+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mcvideo-ue-config+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mcvideo-user-profile+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mid-call+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.ngap": {
+        source: "iana"
+      },
+      "application/vnd.3gpp.pfcp": {
+        source: "iana"
+      },
+      "application/vnd.3gpp.pic-bw-large": {
+        source: "iana",
+        extensions: ["plb"]
+      },
+      "application/vnd.3gpp.pic-bw-small": {
+        source: "iana",
+        extensions: ["psb"]
+      },
+      "application/vnd.3gpp.pic-bw-var": {
+        source: "iana",
+        extensions: ["pvb"]
+      },
+      "application/vnd.3gpp.s1ap": {
+        source: "iana"
+      },
+      "application/vnd.3gpp.sms": {
+        source: "iana"
+      },
+      "application/vnd.3gpp.sms+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.srvcc-ext+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.srvcc-info+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.state-and-event-info+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.ussd+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp2.bcmcsinfo+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp2.sms": {
+        source: "iana"
+      },
+      "application/vnd.3gpp2.tcap": {
+        source: "iana",
+        extensions: ["tcap"]
+      },
+      "application/vnd.3lightssoftware.imagescal": {
+        source: "iana"
+      },
+      "application/vnd.3m.post-it-notes": {
+        source: "iana",
+        extensions: ["pwn"]
+      },
+      "application/vnd.accpac.simply.aso": {
+        source: "iana",
+        extensions: ["aso"]
+      },
+      "application/vnd.accpac.simply.imp": {
+        source: "iana",
+        extensions: ["imp"]
+      },
+      "application/vnd.acucobol": {
+        source: "iana",
+        extensions: ["acu"]
+      },
+      "application/vnd.acucorp": {
+        source: "iana",
+        extensions: ["atc", "acutc"]
+      },
+      "application/vnd.adobe.air-application-installer-package+zip": {
+        source: "apache",
+        compressible: false,
+        extensions: ["air"]
+      },
+      "application/vnd.adobe.flash.movie": {
+        source: "iana"
+      },
+      "application/vnd.adobe.formscentral.fcdt": {
+        source: "iana",
+        extensions: ["fcdt"]
+      },
+      "application/vnd.adobe.fxp": {
+        source: "iana",
+        extensions: ["fxp", "fxpl"]
+      },
+      "application/vnd.adobe.partial-upload": {
+        source: "iana"
+      },
+      "application/vnd.adobe.xdp+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["xdp"]
+      },
+      "application/vnd.adobe.xfdf": {
+        source: "iana",
+        extensions: ["xfdf"]
+      },
+      "application/vnd.aether.imp": {
+        source: "iana"
+      },
+      "application/vnd.afpc.afplinedata": {
+        source: "iana"
+      },
+      "application/vnd.afpc.afplinedata-pagedef": {
+        source: "iana"
+      },
+      "application/vnd.afpc.cmoca-cmresource": {
+        source: "iana"
+      },
+      "application/vnd.afpc.foca-charset": {
+        source: "iana"
+      },
+      "application/vnd.afpc.foca-codedfont": {
+        source: "iana"
+      },
+      "application/vnd.afpc.foca-codepage": {
+        source: "iana"
+      },
+      "application/vnd.afpc.modca": {
+        source: "iana"
+      },
+      "application/vnd.afpc.modca-cmtable": {
+        source: "iana"
+      },
+      "application/vnd.afpc.modca-formdef": {
+        source: "iana"
+      },
+      "application/vnd.afpc.modca-mediummap": {
+        source: "iana"
+      },
+      "application/vnd.afpc.modca-objectcontainer": {
+        source: "iana"
+      },
+      "application/vnd.afpc.modca-overlay": {
+        source: "iana"
+      },
+      "application/vnd.afpc.modca-pagesegment": {
+        source: "iana"
+      },
+      "application/vnd.age": {
+        source: "iana",
+        extensions: ["age"]
+      },
+      "application/vnd.ah-barcode": {
+        source: "iana"
+      },
+      "application/vnd.ahead.space": {
+        source: "iana",
+        extensions: ["ahead"]
+      },
+      "application/vnd.airzip.filesecure.azf": {
+        source: "iana",
+        extensions: ["azf"]
+      },
+      "application/vnd.airzip.filesecure.azs": {
+        source: "iana",
+        extensions: ["azs"]
+      },
+      "application/vnd.amadeus+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.amazon.ebook": {
+        source: "apache",
+        extensions: ["azw"]
+      },
+      "application/vnd.amazon.mobi8-ebook": {
+        source: "iana"
+      },
+      "application/vnd.americandynamics.acc": {
+        source: "iana",
+        extensions: ["acc"]
+      },
+      "application/vnd.amiga.ami": {
+        source: "iana",
+        extensions: ["ami"]
+      },
+      "application/vnd.amundsen.maze+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.android.ota": {
+        source: "iana"
+      },
+      "application/vnd.android.package-archive": {
+        source: "apache",
+        compressible: false,
+        extensions: ["apk"]
+      },
+      "application/vnd.anki": {
+        source: "iana"
+      },
+      "application/vnd.anser-web-certificate-issue-initiation": {
+        source: "iana",
+        extensions: ["cii"]
+      },
+      "application/vnd.anser-web-funds-transfer-initiation": {
+        source: "apache",
+        extensions: ["fti"]
+      },
+      "application/vnd.antix.game-component": {
+        source: "iana",
+        extensions: ["atx"]
+      },
+      "application/vnd.apache.arrow.file": {
+        source: "iana"
+      },
+      "application/vnd.apache.arrow.stream": {
+        source: "iana"
+      },
+      "application/vnd.apache.thrift.binary": {
+        source: "iana"
+      },
+      "application/vnd.apache.thrift.compact": {
+        source: "iana"
+      },
+      "application/vnd.apache.thrift.json": {
+        source: "iana"
+      },
+      "application/vnd.api+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.aplextor.warrp+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.apothekende.reservation+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.apple.installer+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["mpkg"]
+      },
+      "application/vnd.apple.keynote": {
+        source: "iana",
+        extensions: ["key"]
+      },
+      "application/vnd.apple.mpegurl": {
+        source: "iana",
+        extensions: ["m3u8"]
+      },
+      "application/vnd.apple.numbers": {
+        source: "iana",
+        extensions: ["numbers"]
+      },
+      "application/vnd.apple.pages": {
+        source: "iana",
+        extensions: ["pages"]
+      },
+      "application/vnd.apple.pkpass": {
+        compressible: false,
+        extensions: ["pkpass"]
+      },
+      "application/vnd.arastra.swi": {
+        source: "iana"
+      },
+      "application/vnd.aristanetworks.swi": {
+        source: "iana",
+        extensions: ["swi"]
+      },
+      "application/vnd.artisan+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.artsquare": {
+        source: "iana"
+      },
+      "application/vnd.astraea-software.iota": {
+        source: "iana",
+        extensions: ["iota"]
+      },
+      "application/vnd.audiograph": {
+        source: "iana",
+        extensions: ["aep"]
+      },
+      "application/vnd.autopackage": {
+        source: "iana"
+      },
+      "application/vnd.avalon+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.avistar+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.balsamiq.bmml+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["bmml"]
+      },
+      "application/vnd.balsamiq.bmpr": {
+        source: "iana"
+      },
+      "application/vnd.banana-accounting": {
+        source: "iana"
+      },
+      "application/vnd.bbf.usp.error": {
+        source: "iana"
+      },
+      "application/vnd.bbf.usp.msg": {
+        source: "iana"
+      },
+      "application/vnd.bbf.usp.msg+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.bekitzur-stech+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.bint.med-content": {
+        source: "iana"
+      },
+      "application/vnd.biopax.rdf+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.blink-idb-value-wrapper": {
+        source: "iana"
+      },
+      "application/vnd.blueice.multipass": {
+        source: "iana",
+        extensions: ["mpm"]
+      },
+      "application/vnd.bluetooth.ep.oob": {
+        source: "iana"
+      },
+      "application/vnd.bluetooth.le.oob": {
+        source: "iana"
+      },
+      "application/vnd.bmi": {
+        source: "iana",
+        extensions: ["bmi"]
+      },
+      "application/vnd.bpf": {
+        source: "iana"
+      },
+      "application/vnd.bpf3": {
+        source: "iana"
+      },
+      "application/vnd.businessobjects": {
+        source: "iana",
+        extensions: ["rep"]
+      },
+      "application/vnd.byu.uapi+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.cab-jscript": {
+        source: "iana"
+      },
+      "application/vnd.canon-cpdl": {
+        source: "iana"
+      },
+      "application/vnd.canon-lips": {
+        source: "iana"
+      },
+      "application/vnd.capasystems-pg+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.cendio.thinlinc.clientconf": {
+        source: "iana"
+      },
+      "application/vnd.century-systems.tcp_stream": {
+        source: "iana"
+      },
+      "application/vnd.chemdraw+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["cdxml"]
+      },
+      "application/vnd.chess-pgn": {
+        source: "iana"
+      },
+      "application/vnd.chipnuts.karaoke-mmd": {
+        source: "iana",
+        extensions: ["mmd"]
+      },
+      "application/vnd.ciedi": {
+        source: "iana"
+      },
+      "application/vnd.cinderella": {
+        source: "iana",
+        extensions: ["cdy"]
+      },
+      "application/vnd.cirpack.isdn-ext": {
+        source: "iana"
+      },
+      "application/vnd.citationstyles.style+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["csl"]
+      },
+      "application/vnd.claymore": {
+        source: "iana",
+        extensions: ["cla"]
+      },
+      "application/vnd.cloanto.rp9": {
+        source: "iana",
+        extensions: ["rp9"]
+      },
+      "application/vnd.clonk.c4group": {
+        source: "iana",
+        extensions: ["c4g", "c4d", "c4f", "c4p", "c4u"]
+      },
+      "application/vnd.cluetrust.cartomobile-config": {
+        source: "iana",
+        extensions: ["c11amc"]
+      },
+      "application/vnd.cluetrust.cartomobile-config-pkg": {
+        source: "iana",
+        extensions: ["c11amz"]
+      },
+      "application/vnd.coffeescript": {
+        source: "iana"
+      },
+      "application/vnd.collabio.xodocuments.document": {
+        source: "iana"
+      },
+      "application/vnd.collabio.xodocuments.document-template": {
+        source: "iana"
+      },
+      "application/vnd.collabio.xodocuments.presentation": {
+        source: "iana"
+      },
+      "application/vnd.collabio.xodocuments.presentation-template": {
+        source: "iana"
+      },
+      "application/vnd.collabio.xodocuments.spreadsheet": {
+        source: "iana"
+      },
+      "application/vnd.collabio.xodocuments.spreadsheet-template": {
+        source: "iana"
+      },
+      "application/vnd.collection+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.collection.doc+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.collection.next+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.comicbook+zip": {
+        source: "iana",
+        compressible: false
+      },
+      "application/vnd.comicbook-rar": {
+        source: "iana"
+      },
+      "application/vnd.commerce-battelle": {
+        source: "iana"
+      },
+      "application/vnd.commonspace": {
+        source: "iana",
+        extensions: ["csp"]
+      },
+      "application/vnd.contact.cmsg": {
+        source: "iana",
+        extensions: ["cdbcmsg"]
+      },
+      "application/vnd.coreos.ignition+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.cosmocaller": {
+        source: "iana",
+        extensions: ["cmc"]
+      },
+      "application/vnd.crick.clicker": {
+        source: "iana",
+        extensions: ["clkx"]
+      },
+      "application/vnd.crick.clicker.keyboard": {
+        source: "iana",
+        extensions: ["clkk"]
+      },
+      "application/vnd.crick.clicker.palette": {
+        source: "iana",
+        extensions: ["clkp"]
+      },
+      "application/vnd.crick.clicker.template": {
+        source: "iana",
+        extensions: ["clkt"]
+      },
+      "application/vnd.crick.clicker.wordbank": {
+        source: "iana",
+        extensions: ["clkw"]
+      },
+      "application/vnd.criticaltools.wbs+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["wbs"]
+      },
+      "application/vnd.cryptii.pipe+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.crypto-shade-file": {
+        source: "iana"
+      },
+      "application/vnd.cryptomator.encrypted": {
+        source: "iana"
+      },
+      "application/vnd.cryptomator.vault": {
+        source: "iana"
+      },
+      "application/vnd.ctc-posml": {
+        source: "iana",
+        extensions: ["pml"]
+      },
+      "application/vnd.ctct.ws+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.cups-pdf": {
+        source: "iana"
+      },
+      "application/vnd.cups-postscript": {
+        source: "iana"
+      },
+      "application/vnd.cups-ppd": {
+        source: "iana",
+        extensions: ["ppd"]
+      },
+      "application/vnd.cups-raster": {
+        source: "iana"
+      },
+      "application/vnd.cups-raw": {
+        source: "iana"
+      },
+      "application/vnd.curl": {
+        source: "iana"
+      },
+      "application/vnd.curl.car": {
+        source: "apache",
+        extensions: ["car"]
+      },
+      "application/vnd.curl.pcurl": {
+        source: "apache",
+        extensions: ["pcurl"]
+      },
+      "application/vnd.cyan.dean.root+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.cybank": {
+        source: "iana"
+      },
+      "application/vnd.cyclonedx+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.cyclonedx+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.d2l.coursepackage1p0+zip": {
+        source: "iana",
+        compressible: false
+      },
+      "application/vnd.d3m-dataset": {
+        source: "iana"
+      },
+      "application/vnd.d3m-problem": {
+        source: "iana"
+      },
+      "application/vnd.dart": {
+        source: "iana",
+        compressible: true,
+        extensions: ["dart"]
+      },
+      "application/vnd.data-vision.rdz": {
+        source: "iana",
+        extensions: ["rdz"]
+      },
+      "application/vnd.datapackage+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.dataresource+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.dbf": {
+        source: "iana",
+        extensions: ["dbf"]
+      },
+      "application/vnd.debian.binary-package": {
+        source: "iana"
+      },
+      "application/vnd.dece.data": {
+        source: "iana",
+        extensions: ["uvf", "uvvf", "uvd", "uvvd"]
+      },
+      "application/vnd.dece.ttml+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["uvt", "uvvt"]
+      },
+      "application/vnd.dece.unspecified": {
+        source: "iana",
+        extensions: ["uvx", "uvvx"]
+      },
+      "application/vnd.dece.zip": {
+        source: "iana",
+        extensions: ["uvz", "uvvz"]
+      },
+      "application/vnd.denovo.fcselayout-link": {
+        source: "iana",
+        extensions: ["fe_launch"]
+      },
+      "application/vnd.desmume.movie": {
+        source: "iana"
+      },
+      "application/vnd.dir-bi.plate-dl-nosuffix": {
+        source: "iana"
+      },
+      "application/vnd.dm.delegation+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.dna": {
+        source: "iana",
+        extensions: ["dna"]
+      },
+      "application/vnd.document+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.dolby.mlp": {
+        source: "apache",
+        extensions: ["mlp"]
+      },
+      "application/vnd.dolby.mobile.1": {
+        source: "iana"
+      },
+      "application/vnd.dolby.mobile.2": {
+        source: "iana"
+      },
+      "application/vnd.doremir.scorecloud-binary-document": {
+        source: "iana"
+      },
+      "application/vnd.dpgraph": {
+        source: "iana",
+        extensions: ["dpg"]
+      },
+      "application/vnd.dreamfactory": {
+        source: "iana",
+        extensions: ["dfac"]
+      },
+      "application/vnd.drive+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.ds-keypoint": {
+        source: "apache",
+        extensions: ["kpxx"]
+      },
+      "application/vnd.dtg.local": {
+        source: "iana"
+      },
+      "application/vnd.dtg.local.flash": {
+        source: "iana"
+      },
+      "application/vnd.dtg.local.html": {
+        source: "iana"
+      },
+      "application/vnd.dvb.ait": {
+        source: "iana",
+        extensions: ["ait"]
+      },
+      "application/vnd.dvb.dvbisl+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.dvb.dvbj": {
+        source: "iana"
+      },
+      "application/vnd.dvb.esgcontainer": {
+        source: "iana"
+      },
+      "application/vnd.dvb.ipdcdftnotifaccess": {
+        source: "iana"
+      },
+      "application/vnd.dvb.ipdcesgaccess": {
+        source: "iana"
+      },
+      "application/vnd.dvb.ipdcesgaccess2": {
+        source: "iana"
+      },
+      "application/vnd.dvb.ipdcesgpdd": {
+        source: "iana"
+      },
+      "application/vnd.dvb.ipdcroaming": {
+        source: "iana"
+      },
+      "application/vnd.dvb.iptv.alfec-base": {
+        source: "iana"
+      },
+      "application/vnd.dvb.iptv.alfec-enhancement": {
+        source: "iana"
+      },
+      "application/vnd.dvb.notif-aggregate-root+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.dvb.notif-container+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.dvb.notif-generic+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.dvb.notif-ia-msglist+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.dvb.notif-ia-registration-request+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.dvb.notif-ia-registration-response+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.dvb.notif-init+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.dvb.pfr": {
+        source: "iana"
+      },
+      "application/vnd.dvb.service": {
+        source: "iana",
+        extensions: ["svc"]
+      },
+      "application/vnd.dxr": {
+        source: "iana"
+      },
+      "application/vnd.dynageo": {
+        source: "iana",
+        extensions: ["geo"]
+      },
+      "application/vnd.dzr": {
+        source: "iana"
+      },
+      "application/vnd.easykaraoke.cdgdownload": {
+        source: "iana"
+      },
+      "application/vnd.ecdis-update": {
+        source: "iana"
+      },
+      "application/vnd.ecip.rlp": {
+        source: "iana"
+      },
+      "application/vnd.eclipse.ditto+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.ecowin.chart": {
+        source: "iana",
+        extensions: ["mag"]
+      },
+      "application/vnd.ecowin.filerequest": {
+        source: "iana"
+      },
+      "application/vnd.ecowin.fileupdate": {
+        source: "iana"
+      },
+      "application/vnd.ecowin.series": {
+        source: "iana"
+      },
+      "application/vnd.ecowin.seriesrequest": {
+        source: "iana"
+      },
+      "application/vnd.ecowin.seriesupdate": {
+        source: "iana"
+      },
+      "application/vnd.efi.img": {
+        source: "iana"
+      },
+      "application/vnd.efi.iso": {
+        source: "iana"
+      },
+      "application/vnd.emclient.accessrequest+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.enliven": {
+        source: "iana",
+        extensions: ["nml"]
+      },
+      "application/vnd.enphase.envoy": {
+        source: "iana"
+      },
+      "application/vnd.eprints.data+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.epson.esf": {
+        source: "iana",
+        extensions: ["esf"]
+      },
+      "application/vnd.epson.msf": {
+        source: "iana",
+        extensions: ["msf"]
+      },
+      "application/vnd.epson.quickanime": {
+        source: "iana",
+        extensions: ["qam"]
+      },
+      "application/vnd.epson.salt": {
+        source: "iana",
+        extensions: ["slt"]
+      },
+      "application/vnd.epson.ssf": {
+        source: "iana",
+        extensions: ["ssf"]
+      },
+      "application/vnd.ericsson.quickcall": {
+        source: "iana"
+      },
+      "application/vnd.espass-espass+zip": {
+        source: "iana",
+        compressible: false
+      },
+      "application/vnd.eszigno3+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["es3", "et3"]
+      },
+      "application/vnd.etsi.aoc+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.etsi.asic-e+zip": {
+        source: "iana",
+        compressible: false
+      },
+      "application/vnd.etsi.asic-s+zip": {
+        source: "iana",
+        compressible: false
+      },
+      "application/vnd.etsi.cug+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.etsi.iptvcommand+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.etsi.iptvdiscovery+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.etsi.iptvprofile+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.etsi.iptvsad-bc+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.etsi.iptvsad-cod+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.etsi.iptvsad-npvr+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.etsi.iptvservice+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.etsi.iptvsync+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.etsi.iptvueprofile+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.etsi.mcid+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.etsi.mheg5": {
+        source: "iana"
+      },
+      "application/vnd.etsi.overload-control-policy-dataset+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.etsi.pstn+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.etsi.sci+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.etsi.simservs+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.etsi.timestamp-token": {
+        source: "iana"
+      },
+      "application/vnd.etsi.tsl+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.etsi.tsl.der": {
+        source: "iana"
+      },
+      "application/vnd.eu.kasparian.car+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.eudora.data": {
+        source: "iana"
+      },
+      "application/vnd.evolv.ecig.profile": {
+        source: "iana"
+      },
+      "application/vnd.evolv.ecig.settings": {
+        source: "iana"
+      },
+      "application/vnd.evolv.ecig.theme": {
+        source: "iana"
+      },
+      "application/vnd.exstream-empower+zip": {
+        source: "iana",
+        compressible: false
+      },
+      "application/vnd.exstream-package": {
+        source: "iana"
+      },
+      "application/vnd.ezpix-album": {
+        source: "iana",
+        extensions: ["ez2"]
+      },
+      "application/vnd.ezpix-package": {
+        source: "iana",
+        extensions: ["ez3"]
+      },
+      "application/vnd.f-secure.mobile": {
+        source: "iana"
+      },
+      "application/vnd.familysearch.gedcom+zip": {
+        source: "iana",
+        compressible: false
+      },
+      "application/vnd.fastcopy-disk-image": {
+        source: "iana"
+      },
+      "application/vnd.fdf": {
+        source: "iana",
+        extensions: ["fdf"]
+      },
+      "application/vnd.fdsn.mseed": {
+        source: "iana",
+        extensions: ["mseed"]
+      },
+      "application/vnd.fdsn.seed": {
+        source: "iana",
+        extensions: ["seed", "dataless"]
+      },
+      "application/vnd.ffsns": {
+        source: "iana"
+      },
+      "application/vnd.ficlab.flb+zip": {
+        source: "iana",
+        compressible: false
+      },
+      "application/vnd.filmit.zfc": {
+        source: "iana"
+      },
+      "application/vnd.fints": {
+        source: "iana"
+      },
+      "application/vnd.firemonkeys.cloudcell": {
+        source: "iana"
+      },
+      "application/vnd.flographit": {
+        source: "iana",
+        extensions: ["gph"]
+      },
+      "application/vnd.fluxtime.clip": {
+        source: "iana",
+        extensions: ["ftc"]
+      },
+      "application/vnd.font-fontforge-sfd": {
+        source: "iana"
+      },
+      "application/vnd.framemaker": {
+        source: "iana",
+        extensions: ["fm", "frame", "maker", "book"]
+      },
+      "application/vnd.frogans.fnc": {
+        source: "iana",
+        extensions: ["fnc"]
+      },
+      "application/vnd.frogans.ltf": {
+        source: "iana",
+        extensions: ["ltf"]
+      },
+      "application/vnd.fsc.weblaunch": {
+        source: "iana",
+        extensions: ["fsc"]
+      },
+      "application/vnd.fujifilm.fb.docuworks": {
+        source: "iana"
+      },
+      "application/vnd.fujifilm.fb.docuworks.binder": {
+        source: "iana"
+      },
+      "application/vnd.fujifilm.fb.docuworks.container": {
+        source: "iana"
+      },
+      "application/vnd.fujifilm.fb.jfi+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.fujitsu.oasys": {
+        source: "iana",
+        extensions: ["oas"]
+      },
+      "application/vnd.fujitsu.oasys2": {
+        source: "iana",
+        extensions: ["oa2"]
+      },
+      "application/vnd.fujitsu.oasys3": {
+        source: "iana",
+        extensions: ["oa3"]
+      },
+      "application/vnd.fujitsu.oasysgp": {
+        source: "iana",
+        extensions: ["fg5"]
+      },
+      "application/vnd.fujitsu.oasysprs": {
+        source: "iana",
+        extensions: ["bh2"]
+      },
+      "application/vnd.fujixerox.art-ex": {
+        source: "iana"
+      },
+      "application/vnd.fujixerox.art4": {
+        source: "iana"
+      },
+      "application/vnd.fujixerox.ddd": {
+        source: "iana",
+        extensions: ["ddd"]
+      },
+      "application/vnd.fujixerox.docuworks": {
+        source: "iana",
+        extensions: ["xdw"]
+      },
+      "application/vnd.fujixerox.docuworks.binder": {
+        source: "iana",
+        extensions: ["xbd"]
+      },
+      "application/vnd.fujixerox.docuworks.container": {
+        source: "iana"
+      },
+      "application/vnd.fujixerox.hbpl": {
+        source: "iana"
+      },
+      "application/vnd.fut-misnet": {
+        source: "iana"
+      },
+      "application/vnd.futoin+cbor": {
+        source: "iana"
+      },
+      "application/vnd.futoin+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.fuzzysheet": {
+        source: "iana",
+        extensions: ["fzs"]
+      },
+      "application/vnd.genomatix.tuxedo": {
+        source: "iana",
+        extensions: ["txd"]
+      },
+      "application/vnd.gentics.grd+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.geo+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.geocube+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.geogebra.file": {
+        source: "iana",
+        extensions: ["ggb"]
+      },
+      "application/vnd.geogebra.slides": {
+        source: "iana"
+      },
+      "application/vnd.geogebra.tool": {
+        source: "iana",
+        extensions: ["ggt"]
+      },
+      "application/vnd.geometry-explorer": {
+        source: "iana",
+        extensions: ["gex", "gre"]
+      },
+      "application/vnd.geonext": {
+        source: "iana",
+        extensions: ["gxt"]
+      },
+      "application/vnd.geoplan": {
+        source: "iana",
+        extensions: ["g2w"]
+      },
+      "application/vnd.geospace": {
+        source: "iana",
+        extensions: ["g3w"]
+      },
+      "application/vnd.gerber": {
+        source: "iana"
+      },
+      "application/vnd.globalplatform.card-content-mgt": {
+        source: "iana"
+      },
+      "application/vnd.globalplatform.card-content-mgt-response": {
+        source: "iana"
+      },
+      "application/vnd.gmx": {
+        source: "iana",
+        extensions: ["gmx"]
+      },
+      "application/vnd.google-apps.document": {
+        compressible: false,
+        extensions: ["gdoc"]
+      },
+      "application/vnd.google-apps.presentation": {
+        compressible: false,
+        extensions: ["gslides"]
+      },
+      "application/vnd.google-apps.spreadsheet": {
+        compressible: false,
+        extensions: ["gsheet"]
+      },
+      "application/vnd.google-earth.kml+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["kml"]
+      },
+      "application/vnd.google-earth.kmz": {
+        source: "iana",
+        compressible: false,
+        extensions: ["kmz"]
+      },
+      "application/vnd.gov.sk.e-form+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.gov.sk.e-form+zip": {
+        source: "iana",
+        compressible: false
+      },
+      "application/vnd.gov.sk.xmldatacontainer+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.grafeq": {
+        source: "iana",
+        extensions: ["gqf", "gqs"]
+      },
+      "application/vnd.gridmp": {
+        source: "iana"
+      },
+      "application/vnd.groove-account": {
+        source: "iana",
+        extensions: ["gac"]
+      },
+      "application/vnd.groove-help": {
+        source: "iana",
+        extensions: ["ghf"]
+      },
+      "application/vnd.groove-identity-message": {
+        source: "iana",
+        extensions: ["gim"]
+      },
+      "application/vnd.groove-injector": {
+        source: "iana",
+        extensions: ["grv"]
+      },
+      "application/vnd.groove-tool-message": {
+        source: "iana",
+        extensions: ["gtm"]
+      },
+      "application/vnd.groove-tool-template": {
+        source: "iana",
+        extensions: ["tpl"]
+      },
+      "application/vnd.groove-vcard": {
+        source: "iana",
+        extensions: ["vcg"]
+      },
+      "application/vnd.hal+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.hal+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["hal"]
+      },
+      "application/vnd.handheld-entertainment+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["zmm"]
+      },
+      "application/vnd.hbci": {
+        source: "iana",
+        extensions: ["hbci"]
+      },
+      "application/vnd.hc+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.hcl-bireports": {
+        source: "iana"
+      },
+      "application/vnd.hdt": {
+        source: "iana"
+      },
+      "application/vnd.heroku+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.hhe.lesson-player": {
+        source: "iana",
+        extensions: ["les"]
+      },
+      "application/vnd.hl7cda+xml": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true
+      },
+      "application/vnd.hl7v2+xml": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true
+      },
+      "application/vnd.hp-hpgl": {
+        source: "iana",
+        extensions: ["hpgl"]
+      },
+      "application/vnd.hp-hpid": {
+        source: "iana",
+        extensions: ["hpid"]
+      },
+      "application/vnd.hp-hps": {
+        source: "iana",
+        extensions: ["hps"]
+      },
+      "application/vnd.hp-jlyt": {
+        source: "iana",
+        extensions: ["jlt"]
+      },
+      "application/vnd.hp-pcl": {
+        source: "iana",
+        extensions: ["pcl"]
+      },
+      "application/vnd.hp-pclxl": {
+        source: "iana",
+        extensions: ["pclxl"]
+      },
+      "application/vnd.httphone": {
+        source: "iana"
+      },
+      "application/vnd.hydrostatix.sof-data": {
+        source: "iana",
+        extensions: ["sfd-hdstx"]
+      },
+      "application/vnd.hyper+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.hyper-item+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.hyperdrive+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.hzn-3d-crossword": {
+        source: "iana"
+      },
+      "application/vnd.ibm.afplinedata": {
+        source: "iana"
+      },
+      "application/vnd.ibm.electronic-media": {
+        source: "iana"
+      },
+      "application/vnd.ibm.minipay": {
+        source: "iana",
+        extensions: ["mpy"]
+      },
+      "application/vnd.ibm.modcap": {
+        source: "iana",
+        extensions: ["afp", "listafp", "list3820"]
+      },
+      "application/vnd.ibm.rights-management": {
+        source: "iana",
+        extensions: ["irm"]
+      },
+      "application/vnd.ibm.secure-container": {
+        source: "iana",
+        extensions: ["sc"]
+      },
+      "application/vnd.iccprofile": {
+        source: "iana",
+        extensions: ["icc", "icm"]
+      },
+      "application/vnd.ieee.1905": {
+        source: "iana"
+      },
+      "application/vnd.igloader": {
+        source: "iana",
+        extensions: ["igl"]
+      },
+      "application/vnd.imagemeter.folder+zip": {
+        source: "iana",
+        compressible: false
+      },
+      "application/vnd.imagemeter.image+zip": {
+        source: "iana",
+        compressible: false
+      },
+      "application/vnd.immervision-ivp": {
+        source: "iana",
+        extensions: ["ivp"]
+      },
+      "application/vnd.immervision-ivu": {
+        source: "iana",
+        extensions: ["ivu"]
+      },
+      "application/vnd.ims.imsccv1p1": {
+        source: "iana"
+      },
+      "application/vnd.ims.imsccv1p2": {
+        source: "iana"
+      },
+      "application/vnd.ims.imsccv1p3": {
+        source: "iana"
+      },
+      "application/vnd.ims.lis.v2.result+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.ims.lti.v2.toolconsumerprofile+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.ims.lti.v2.toolproxy+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.ims.lti.v2.toolproxy.id+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.ims.lti.v2.toolsettings+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.ims.lti.v2.toolsettings.simple+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.informedcontrol.rms+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.informix-visionary": {
+        source: "iana"
+      },
+      "application/vnd.infotech.project": {
+        source: "iana"
+      },
+      "application/vnd.infotech.project+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.innopath.wamp.notification": {
+        source: "iana"
+      },
+      "application/vnd.insors.igm": {
+        source: "iana",
+        extensions: ["igm"]
+      },
+      "application/vnd.intercon.formnet": {
+        source: "iana",
+        extensions: ["xpw", "xpx"]
+      },
+      "application/vnd.intergeo": {
+        source: "iana",
+        extensions: ["i2g"]
+      },
+      "application/vnd.intertrust.digibox": {
+        source: "iana"
+      },
+      "application/vnd.intertrust.nncp": {
+        source: "iana"
+      },
+      "application/vnd.intu.qbo": {
+        source: "iana",
+        extensions: ["qbo"]
+      },
+      "application/vnd.intu.qfx": {
+        source: "iana",
+        extensions: ["qfx"]
+      },
+      "application/vnd.iptc.g2.catalogitem+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.iptc.g2.conceptitem+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.iptc.g2.knowledgeitem+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.iptc.g2.newsitem+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.iptc.g2.newsmessage+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.iptc.g2.packageitem+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.iptc.g2.planningitem+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.ipunplugged.rcprofile": {
+        source: "iana",
+        extensions: ["rcprofile"]
+      },
+      "application/vnd.irepository.package+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["irp"]
+      },
+      "application/vnd.is-xpr": {
+        source: "iana",
+        extensions: ["xpr"]
+      },
+      "application/vnd.isac.fcs": {
+        source: "iana",
+        extensions: ["fcs"]
+      },
+      "application/vnd.iso11783-10+zip": {
+        source: "iana",
+        compressible: false
+      },
+      "application/vnd.jam": {
+        source: "iana",
+        extensions: ["jam"]
+      },
+      "application/vnd.japannet-directory-service": {
+        source: "iana"
+      },
+      "application/vnd.japannet-jpnstore-wakeup": {
+        source: "iana"
+      },
+      "application/vnd.japannet-payment-wakeup": {
+        source: "iana"
+      },
+      "application/vnd.japannet-registration": {
+        source: "iana"
+      },
+      "application/vnd.japannet-registration-wakeup": {
+        source: "iana"
+      },
+      "application/vnd.japannet-setstore-wakeup": {
+        source: "iana"
+      },
+      "application/vnd.japannet-verification": {
+        source: "iana"
+      },
+      "application/vnd.japannet-verification-wakeup": {
+        source: "iana"
+      },
+      "application/vnd.jcp.javame.midlet-rms": {
+        source: "iana",
+        extensions: ["rms"]
+      },
+      "application/vnd.jisp": {
+        source: "iana",
+        extensions: ["jisp"]
+      },
+      "application/vnd.joost.joda-archive": {
+        source: "iana",
+        extensions: ["joda"]
+      },
+      "application/vnd.jsk.isdn-ngn": {
+        source: "iana"
+      },
+      "application/vnd.kahootz": {
+        source: "iana",
+        extensions: ["ktz", "ktr"]
+      },
+      "application/vnd.kde.karbon": {
+        source: "iana",
+        extensions: ["karbon"]
+      },
+      "application/vnd.kde.kchart": {
+        source: "iana",
+        extensions: ["chrt"]
+      },
+      "application/vnd.kde.kformula": {
+        source: "iana",
+        extensions: ["kfo"]
+      },
+      "application/vnd.kde.kivio": {
+        source: "iana",
+        extensions: ["flw"]
+      },
+      "application/vnd.kde.kontour": {
+        source: "iana",
+        extensions: ["kon"]
+      },
+      "application/vnd.kde.kpresenter": {
+        source: "iana",
+        extensions: ["kpr", "kpt"]
+      },
+      "application/vnd.kde.kspread": {
+        source: "iana",
+        extensions: ["ksp"]
+      },
+      "application/vnd.kde.kword": {
+        source: "iana",
+        extensions: ["kwd", "kwt"]
+      },
+      "application/vnd.kenameaapp": {
+        source: "iana",
+        extensions: ["htke"]
+      },
+      "application/vnd.kidspiration": {
+        source: "iana",
+        extensions: ["kia"]
+      },
+      "application/vnd.kinar": {
+        source: "iana",
+        extensions: ["kne", "knp"]
+      },
+      "application/vnd.koan": {
+        source: "iana",
+        extensions: ["skp", "skd", "skt", "skm"]
+      },
+      "application/vnd.kodak-descriptor": {
+        source: "iana",
+        extensions: ["sse"]
+      },
+      "application/vnd.las": {
+        source: "iana"
+      },
+      "application/vnd.las.las+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.las.las+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["lasxml"]
+      },
+      "application/vnd.laszip": {
+        source: "iana"
+      },
+      "application/vnd.leap+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.liberty-request+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.llamagraphics.life-balance.desktop": {
+        source: "iana",
+        extensions: ["lbd"]
+      },
+      "application/vnd.llamagraphics.life-balance.exchange+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["lbe"]
+      },
+      "application/vnd.logipipe.circuit+zip": {
+        source: "iana",
+        compressible: false
+      },
+      "application/vnd.loom": {
+        source: "iana"
+      },
+      "application/vnd.lotus-1-2-3": {
+        source: "iana",
+        extensions: ["123"]
+      },
+      "application/vnd.lotus-approach": {
+        source: "iana",
+        extensions: ["apr"]
+      },
+      "application/vnd.lotus-freelance": {
+        source: "iana",
+        extensions: ["pre"]
+      },
+      "application/vnd.lotus-notes": {
+        source: "iana",
+        extensions: ["nsf"]
+      },
+      "application/vnd.lotus-organizer": {
+        source: "iana",
+        extensions: ["org"]
+      },
+      "application/vnd.lotus-screencam": {
+        source: "iana",
+        extensions: ["scm"]
+      },
+      "application/vnd.lotus-wordpro": {
+        source: "iana",
+        extensions: ["lwp"]
+      },
+      "application/vnd.macports.portpkg": {
+        source: "iana",
+        extensions: ["portpkg"]
+      },
+      "application/vnd.mapbox-vector-tile": {
+        source: "iana",
+        extensions: ["mvt"]
+      },
+      "application/vnd.marlin.drm.actiontoken+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.marlin.drm.conftoken+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.marlin.drm.license+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.marlin.drm.mdcf": {
+        source: "iana"
+      },
+      "application/vnd.mason+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.maxar.archive.3tz+zip": {
+        source: "iana",
+        compressible: false
+      },
+      "application/vnd.maxmind.maxmind-db": {
+        source: "iana"
+      },
+      "application/vnd.mcd": {
+        source: "iana",
+        extensions: ["mcd"]
+      },
+      "application/vnd.medcalcdata": {
+        source: "iana",
+        extensions: ["mc1"]
+      },
+      "application/vnd.mediastation.cdkey": {
+        source: "iana",
+        extensions: ["cdkey"]
+      },
+      "application/vnd.meridian-slingshot": {
+        source: "iana"
+      },
+      "application/vnd.mfer": {
+        source: "iana",
+        extensions: ["mwf"]
+      },
+      "application/vnd.mfmp": {
+        source: "iana",
+        extensions: ["mfm"]
+      },
+      "application/vnd.micro+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.micrografx.flo": {
+        source: "iana",
+        extensions: ["flo"]
+      },
+      "application/vnd.micrografx.igx": {
+        source: "iana",
+        extensions: ["igx"]
+      },
+      "application/vnd.microsoft.portable-executable": {
+        source: "iana"
+      },
+      "application/vnd.microsoft.windows.thumbnail-cache": {
+        source: "iana"
+      },
+      "application/vnd.miele+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.mif": {
+        source: "iana",
+        extensions: ["mif"]
+      },
+      "application/vnd.minisoft-hp3000-save": {
+        source: "iana"
+      },
+      "application/vnd.mitsubishi.misty-guard.trustweb": {
+        source: "iana"
+      },
+      "application/vnd.mobius.daf": {
+        source: "iana",
+        extensions: ["daf"]
+      },
+      "application/vnd.mobius.dis": {
+        source: "iana",
+        extensions: ["dis"]
+      },
+      "application/vnd.mobius.mbk": {
+        source: "iana",
+        extensions: ["mbk"]
+      },
+      "application/vnd.mobius.mqy": {
+        source: "iana",
+        extensions: ["mqy"]
+      },
+      "application/vnd.mobius.msl": {
+        source: "iana",
+        extensions: ["msl"]
+      },
+      "application/vnd.mobius.plc": {
+        source: "iana",
+        extensions: ["plc"]
+      },
+      "application/vnd.mobius.txf": {
+        source: "iana",
+        extensions: ["txf"]
+      },
+      "application/vnd.mophun.application": {
+        source: "iana",
+        extensions: ["mpn"]
+      },
+      "application/vnd.mophun.certificate": {
+        source: "iana",
+        extensions: ["mpc"]
+      },
+      "application/vnd.motorola.flexsuite": {
+        source: "iana"
+      },
+      "application/vnd.motorola.flexsuite.adsi": {
+        source: "iana"
+      },
+      "application/vnd.motorola.flexsuite.fis": {
+        source: "iana"
+      },
+      "application/vnd.motorola.flexsuite.gotap": {
+        source: "iana"
+      },
+      "application/vnd.motorola.flexsuite.kmr": {
+        source: "iana"
+      },
+      "application/vnd.motorola.flexsuite.ttc": {
+        source: "iana"
+      },
+      "application/vnd.motorola.flexsuite.wem": {
+        source: "iana"
+      },
+      "application/vnd.motorola.iprm": {
+        source: "iana"
+      },
+      "application/vnd.mozilla.xul+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["xul"]
+      },
+      "application/vnd.ms-3mfdocument": {
+        source: "iana"
+      },
+      "application/vnd.ms-artgalry": {
+        source: "iana",
+        extensions: ["cil"]
+      },
+      "application/vnd.ms-asf": {
+        source: "iana"
+      },
+      "application/vnd.ms-cab-compressed": {
+        source: "iana",
+        extensions: ["cab"]
+      },
+      "application/vnd.ms-color.iccprofile": {
+        source: "apache"
+      },
+      "application/vnd.ms-excel": {
+        source: "iana",
+        compressible: false,
+        extensions: ["xls", "xlm", "xla", "xlc", "xlt", "xlw"]
+      },
+      "application/vnd.ms-excel.addin.macroenabled.12": {
+        source: "iana",
+        extensions: ["xlam"]
+      },
+      "application/vnd.ms-excel.sheet.binary.macroenabled.12": {
+        source: "iana",
+        extensions: ["xlsb"]
+      },
+      "application/vnd.ms-excel.sheet.macroenabled.12": {
+        source: "iana",
+        extensions: ["xlsm"]
+      },
+      "application/vnd.ms-excel.template.macroenabled.12": {
+        source: "iana",
+        extensions: ["xltm"]
+      },
+      "application/vnd.ms-fontobject": {
+        source: "iana",
+        compressible: true,
+        extensions: ["eot"]
+      },
+      "application/vnd.ms-htmlhelp": {
+        source: "iana",
+        extensions: ["chm"]
+      },
+      "application/vnd.ms-ims": {
+        source: "iana",
+        extensions: ["ims"]
+      },
+      "application/vnd.ms-lrm": {
+        source: "iana",
+        extensions: ["lrm"]
+      },
+      "application/vnd.ms-office.activex+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.ms-officetheme": {
+        source: "iana",
+        extensions: ["thmx"]
+      },
+      "application/vnd.ms-opentype": {
+        source: "apache",
+        compressible: true
+      },
+      "application/vnd.ms-outlook": {
+        compressible: false,
+        extensions: ["msg"]
+      },
+      "application/vnd.ms-package.obfuscated-opentype": {
+        source: "apache"
+      },
+      "application/vnd.ms-pki.seccat": {
+        source: "apache",
+        extensions: ["cat"]
+      },
+      "application/vnd.ms-pki.stl": {
+        source: "apache",
+        extensions: ["stl"]
+      },
+      "application/vnd.ms-playready.initiator+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.ms-powerpoint": {
+        source: "iana",
+        compressible: false,
+        extensions: ["ppt", "pps", "pot"]
+      },
+      "application/vnd.ms-powerpoint.addin.macroenabled.12": {
+        source: "iana",
+        extensions: ["ppam"]
+      },
+      "application/vnd.ms-powerpoint.presentation.macroenabled.12": {
+        source: "iana",
+        extensions: ["pptm"]
+      },
+      "application/vnd.ms-powerpoint.slide.macroenabled.12": {
+        source: "iana",
+        extensions: ["sldm"]
+      },
+      "application/vnd.ms-powerpoint.slideshow.macroenabled.12": {
+        source: "iana",
+        extensions: ["ppsm"]
+      },
+      "application/vnd.ms-powerpoint.template.macroenabled.12": {
+        source: "iana",
+        extensions: ["potm"]
+      },
+      "application/vnd.ms-printdevicecapabilities+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.ms-printing.printticket+xml": {
+        source: "apache",
+        compressible: true
+      },
+      "application/vnd.ms-printschematicket+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.ms-project": {
+        source: "iana",
+        extensions: ["mpp", "mpt"]
+      },
+      "application/vnd.ms-tnef": {
+        source: "iana"
+      },
+      "application/vnd.ms-windows.devicepairing": {
+        source: "iana"
+      },
+      "application/vnd.ms-windows.nwprinting.oob": {
+        source: "iana"
+      },
+      "application/vnd.ms-windows.printerpairing": {
+        source: "iana"
+      },
+      "application/vnd.ms-windows.wsd.oob": {
+        source: "iana"
+      },
+      "application/vnd.ms-wmdrm.lic-chlg-req": {
+        source: "iana"
+      },
+      "application/vnd.ms-wmdrm.lic-resp": {
+        source: "iana"
+      },
+      "application/vnd.ms-wmdrm.meter-chlg-req": {
+        source: "iana"
+      },
+      "application/vnd.ms-wmdrm.meter-resp": {
+        source: "iana"
+      },
+      "application/vnd.ms-word.document.macroenabled.12": {
+        source: "iana",
+        extensions: ["docm"]
+      },
+      "application/vnd.ms-word.template.macroenabled.12": {
+        source: "iana",
+        extensions: ["dotm"]
+      },
+      "application/vnd.ms-works": {
+        source: "iana",
+        extensions: ["wps", "wks", "wcm", "wdb"]
+      },
+      "application/vnd.ms-wpl": {
+        source: "iana",
+        extensions: ["wpl"]
+      },
+      "application/vnd.ms-xpsdocument": {
+        source: "iana",
+        compressible: false,
+        extensions: ["xps"]
+      },
+      "application/vnd.msa-disk-image": {
+        source: "iana"
+      },
+      "application/vnd.mseq": {
+        source: "iana",
+        extensions: ["mseq"]
+      },
+      "application/vnd.msign": {
+        source: "iana"
+      },
+      "application/vnd.multiad.creator": {
+        source: "iana"
+      },
+      "application/vnd.multiad.creator.cif": {
+        source: "iana"
+      },
+      "application/vnd.music-niff": {
+        source: "iana"
+      },
+      "application/vnd.musician": {
+        source: "iana",
+        extensions: ["mus"]
+      },
+      "application/vnd.muvee.style": {
+        source: "iana",
+        extensions: ["msty"]
+      },
+      "application/vnd.mynfc": {
+        source: "iana",
+        extensions: ["taglet"]
+      },
+      "application/vnd.nacamar.ybrid+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.ncd.control": {
+        source: "iana"
+      },
+      "application/vnd.ncd.reference": {
+        source: "iana"
+      },
+      "application/vnd.nearst.inv+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.nebumind.line": {
+        source: "iana"
+      },
+      "application/vnd.nervana": {
+        source: "iana"
+      },
+      "application/vnd.netfpx": {
+        source: "iana"
+      },
+      "application/vnd.neurolanguage.nlu": {
+        source: "iana",
+        extensions: ["nlu"]
+      },
+      "application/vnd.nimn": {
+        source: "iana"
+      },
+      "application/vnd.nintendo.nitro.rom": {
+        source: "iana"
+      },
+      "application/vnd.nintendo.snes.rom": {
+        source: "iana"
+      },
+      "application/vnd.nitf": {
+        source: "iana",
+        extensions: ["ntf", "nitf"]
+      },
+      "application/vnd.noblenet-directory": {
+        source: "iana",
+        extensions: ["nnd"]
+      },
+      "application/vnd.noblenet-sealer": {
+        source: "iana",
+        extensions: ["nns"]
+      },
+      "application/vnd.noblenet-web": {
+        source: "iana",
+        extensions: ["nnw"]
+      },
+      "application/vnd.nokia.catalogs": {
+        source: "iana"
+      },
+      "application/vnd.nokia.conml+wbxml": {
+        source: "iana"
+      },
+      "application/vnd.nokia.conml+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.nokia.iptv.config+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.nokia.isds-radio-presets": {
+        source: "iana"
+      },
+      "application/vnd.nokia.landmark+wbxml": {
+        source: "iana"
+      },
+      "application/vnd.nokia.landmark+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.nokia.landmarkcollection+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.nokia.n-gage.ac+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["ac"]
+      },
+      "application/vnd.nokia.n-gage.data": {
+        source: "iana",
+        extensions: ["ngdat"]
+      },
+      "application/vnd.nokia.n-gage.symbian.install": {
+        source: "iana",
+        extensions: ["n-gage"]
+      },
+      "application/vnd.nokia.ncd": {
+        source: "iana"
+      },
+      "application/vnd.nokia.pcd+wbxml": {
+        source: "iana"
+      },
+      "application/vnd.nokia.pcd+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.nokia.radio-preset": {
+        source: "iana",
+        extensions: ["rpst"]
+      },
+      "application/vnd.nokia.radio-presets": {
+        source: "iana",
+        extensions: ["rpss"]
+      },
+      "application/vnd.novadigm.edm": {
+        source: "iana",
+        extensions: ["edm"]
+      },
+      "application/vnd.novadigm.edx": {
+        source: "iana",
+        extensions: ["edx"]
+      },
+      "application/vnd.novadigm.ext": {
+        source: "iana",
+        extensions: ["ext"]
+      },
+      "application/vnd.ntt-local.content-share": {
+        source: "iana"
+      },
+      "application/vnd.ntt-local.file-transfer": {
+        source: "iana"
+      },
+      "application/vnd.ntt-local.ogw_remote-access": {
+        source: "iana"
+      },
+      "application/vnd.ntt-local.sip-ta_remote": {
+        source: "iana"
+      },
+      "application/vnd.ntt-local.sip-ta_tcp_stream": {
+        source: "iana"
+      },
+      "application/vnd.oasis.opendocument.chart": {
+        source: "iana",
+        extensions: ["odc"]
+      },
+      "application/vnd.oasis.opendocument.chart-template": {
+        source: "iana",
+        extensions: ["otc"]
+      },
+      "application/vnd.oasis.opendocument.database": {
+        source: "iana",
+        extensions: ["odb"]
+      },
+      "application/vnd.oasis.opendocument.formula": {
+        source: "iana",
+        extensions: ["odf"]
+      },
+      "application/vnd.oasis.opendocument.formula-template": {
+        source: "iana",
+        extensions: ["odft"]
+      },
+      "application/vnd.oasis.opendocument.graphics": {
+        source: "iana",
+        compressible: false,
+        extensions: ["odg"]
+      },
+      "application/vnd.oasis.opendocument.graphics-template": {
+        source: "iana",
+        extensions: ["otg"]
+      },
+      "application/vnd.oasis.opendocument.image": {
+        source: "iana",
+        extensions: ["odi"]
+      },
+      "application/vnd.oasis.opendocument.image-template": {
+        source: "iana",
+        extensions: ["oti"]
+      },
+      "application/vnd.oasis.opendocument.presentation": {
+        source: "iana",
+        compressible: false,
+        extensions: ["odp"]
+      },
+      "application/vnd.oasis.opendocument.presentation-template": {
+        source: "iana",
+        extensions: ["otp"]
+      },
+      "application/vnd.oasis.opendocument.spreadsheet": {
+        source: "iana",
+        compressible: false,
+        extensions: ["ods"]
+      },
+      "application/vnd.oasis.opendocument.spreadsheet-template": {
+        source: "iana",
+        extensions: ["ots"]
+      },
+      "application/vnd.oasis.opendocument.text": {
+        source: "iana",
+        compressible: false,
+        extensions: ["odt"]
+      },
+      "application/vnd.oasis.opendocument.text-master": {
+        source: "iana",
+        extensions: ["odm"]
+      },
+      "application/vnd.oasis.opendocument.text-template": {
+        source: "iana",
+        extensions: ["ott"]
+      },
+      "application/vnd.oasis.opendocument.text-web": {
+        source: "iana",
+        extensions: ["oth"]
+      },
+      "application/vnd.obn": {
+        source: "iana"
+      },
+      "application/vnd.ocf+cbor": {
+        source: "iana"
+      },
+      "application/vnd.oci.image.manifest.v1+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oftn.l10n+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oipf.contentaccessdownload+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oipf.contentaccessstreaming+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oipf.cspg-hexbinary": {
+        source: "iana"
+      },
+      "application/vnd.oipf.dae.svg+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oipf.dae.xhtml+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oipf.mippvcontrolmessage+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oipf.pae.gem": {
+        source: "iana"
+      },
+      "application/vnd.oipf.spdiscovery+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oipf.spdlist+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oipf.ueprofile+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oipf.userprofile+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.olpc-sugar": {
+        source: "iana",
+        extensions: ["xo"]
+      },
+      "application/vnd.oma-scws-config": {
+        source: "iana"
+      },
+      "application/vnd.oma-scws-http-request": {
+        source: "iana"
+      },
+      "application/vnd.oma-scws-http-response": {
+        source: "iana"
+      },
+      "application/vnd.oma.bcast.associated-procedure-parameter+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oma.bcast.drm-trigger+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oma.bcast.imd+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oma.bcast.ltkm": {
+        source: "iana"
+      },
+      "application/vnd.oma.bcast.notification+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oma.bcast.provisioningtrigger": {
+        source: "iana"
+      },
+      "application/vnd.oma.bcast.sgboot": {
+        source: "iana"
+      },
+      "application/vnd.oma.bcast.sgdd+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oma.bcast.sgdu": {
+        source: "iana"
+      },
+      "application/vnd.oma.bcast.simple-symbol-container": {
+        source: "iana"
+      },
+      "application/vnd.oma.bcast.smartcard-trigger+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oma.bcast.sprov+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oma.bcast.stkm": {
+        source: "iana"
+      },
+      "application/vnd.oma.cab-address-book+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oma.cab-feature-handler+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oma.cab-pcc+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oma.cab-subs-invite+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oma.cab-user-prefs+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oma.dcd": {
+        source: "iana"
+      },
+      "application/vnd.oma.dcdc": {
+        source: "iana"
+      },
+      "application/vnd.oma.dd2+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["dd2"]
+      },
+      "application/vnd.oma.drm.risd+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oma.group-usage-list+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oma.lwm2m+cbor": {
+        source: "iana"
+      },
+      "application/vnd.oma.lwm2m+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oma.lwm2m+tlv": {
+        source: "iana"
+      },
+      "application/vnd.oma.pal+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oma.poc.detailed-progress-report+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oma.poc.final-report+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oma.poc.groups+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oma.poc.invocation-descriptor+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oma.poc.optimized-progress-report+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oma.push": {
+        source: "iana"
+      },
+      "application/vnd.oma.scidm.messages+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oma.xcap-directory+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.omads-email+xml": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true
+      },
+      "application/vnd.omads-file+xml": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true
+      },
+      "application/vnd.omads-folder+xml": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true
+      },
+      "application/vnd.omaloc-supl-init": {
+        source: "iana"
+      },
+      "application/vnd.onepager": {
+        source: "iana"
+      },
+      "application/vnd.onepagertamp": {
+        source: "iana"
+      },
+      "application/vnd.onepagertamx": {
+        source: "iana"
+      },
+      "application/vnd.onepagertat": {
+        source: "iana"
+      },
+      "application/vnd.onepagertatp": {
+        source: "iana"
+      },
+      "application/vnd.onepagertatx": {
+        source: "iana"
+      },
+      "application/vnd.openblox.game+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["obgx"]
+      },
+      "application/vnd.openblox.game-binary": {
+        source: "iana"
+      },
+      "application/vnd.openeye.oeb": {
+        source: "iana"
+      },
+      "application/vnd.openofficeorg.extension": {
+        source: "apache",
+        extensions: ["oxt"]
+      },
+      "application/vnd.openstreetmap.data+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["osm"]
+      },
+      "application/vnd.opentimestamps.ots": {
+        source: "iana"
+      },
+      "application/vnd.openxmlformats-officedocument.custom-properties+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.customxmlproperties+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.drawing+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.drawingml.chart+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.drawingml.chartshapes+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.drawingml.diagramcolors+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.drawingml.diagramdata+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.drawingml.diagramlayout+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.drawingml.diagramstyle+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.extended-properties+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.presentationml.commentauthors+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.presentationml.comments+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.presentationml.handoutmaster+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.presentationml.notesmaster+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.presentationml.notesslide+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation": {
+        source: "iana",
+        compressible: false,
+        extensions: ["pptx"]
+      },
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.presentationml.presprops+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.presentationml.slide": {
+        source: "iana",
+        extensions: ["sldx"]
+      },
+      "application/vnd.openxmlformats-officedocument.presentationml.slide+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.presentationml.slidelayout+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.presentationml.slidemaster+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.presentationml.slideshow": {
+        source: "iana",
+        extensions: ["ppsx"]
+      },
+      "application/vnd.openxmlformats-officedocument.presentationml.slideshow.main+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.presentationml.slideupdateinfo+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.presentationml.tablestyles+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.presentationml.tags+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.presentationml.template": {
+        source: "iana",
+        extensions: ["potx"]
+      },
+      "application/vnd.openxmlformats-officedocument.presentationml.template.main+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.presentationml.viewprops+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.calcchain+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.chartsheet+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.comments+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.connections+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.dialogsheet+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.externallink+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.pivotcachedefinition+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.pivotcacherecords+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.pivottable+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.querytable+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.revisionheaders+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.revisionlog+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sharedstrings+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+        source: "iana",
+        compressible: false,
+        extensions: ["xlsx"]
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheetmetadata+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.table+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.tablesinglecells+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.template": {
+        source: "iana",
+        extensions: ["xltx"]
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.template.main+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.usernames+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.volatiledependencies+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.theme+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.themeoverride+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.vmldrawing": {
+        source: "iana"
+      },
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document": {
+        source: "iana",
+        compressible: false,
+        extensions: ["docx"]
+      },
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.fonttable+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.template": {
+        source: "iana",
+        extensions: ["dotx"]
+      },
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.template.main+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.websettings+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-package.core-properties+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-package.relationships+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oracle.resource+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.orange.indata": {
+        source: "iana"
+      },
+      "application/vnd.osa.netdeploy": {
+        source: "iana"
+      },
+      "application/vnd.osgeo.mapguide.package": {
+        source: "iana",
+        extensions: ["mgp"]
+      },
+      "application/vnd.osgi.bundle": {
+        source: "iana"
+      },
+      "application/vnd.osgi.dp": {
+        source: "iana",
+        extensions: ["dp"]
+      },
+      "application/vnd.osgi.subsystem": {
+        source: "iana",
+        extensions: ["esa"]
+      },
+      "application/vnd.otps.ct-kip+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oxli.countgraph": {
+        source: "iana"
+      },
+      "application/vnd.pagerduty+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.palm": {
+        source: "iana",
+        extensions: ["pdb", "pqa", "oprc"]
+      },
+      "application/vnd.panoply": {
+        source: "iana"
+      },
+      "application/vnd.paos.xml": {
+        source: "iana"
+      },
+      "application/vnd.patentdive": {
+        source: "iana"
+      },
+      "application/vnd.patientecommsdoc": {
+        source: "iana"
+      },
+      "application/vnd.pawaafile": {
+        source: "iana",
+        extensions: ["paw"]
+      },
+      "application/vnd.pcos": {
+        source: "iana"
+      },
+      "application/vnd.pg.format": {
+        source: "iana",
+        extensions: ["str"]
+      },
+      "application/vnd.pg.osasli": {
+        source: "iana",
+        extensions: ["ei6"]
+      },
+      "application/vnd.piaccess.application-licence": {
+        source: "iana"
+      },
+      "application/vnd.picsel": {
+        source: "iana",
+        extensions: ["efif"]
+      },
+      "application/vnd.pmi.widget": {
+        source: "iana",
+        extensions: ["wg"]
+      },
+      "application/vnd.poc.group-advertisement+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.pocketlearn": {
+        source: "iana",
+        extensions: ["plf"]
+      },
+      "application/vnd.powerbuilder6": {
+        source: "iana",
+        extensions: ["pbd"]
+      },
+      "application/vnd.powerbuilder6-s": {
+        source: "iana"
+      },
+      "application/vnd.powerbuilder7": {
+        source: "iana"
+      },
+      "application/vnd.powerbuilder7-s": {
+        source: "iana"
+      },
+      "application/vnd.powerbuilder75": {
+        source: "iana"
+      },
+      "application/vnd.powerbuilder75-s": {
+        source: "iana"
+      },
+      "application/vnd.preminet": {
+        source: "iana"
+      },
+      "application/vnd.previewsystems.box": {
+        source: "iana",
+        extensions: ["box"]
+      },
+      "application/vnd.proteus.magazine": {
+        source: "iana",
+        extensions: ["mgz"]
+      },
+      "application/vnd.psfs": {
+        source: "iana"
+      },
+      "application/vnd.publishare-delta-tree": {
+        source: "iana",
+        extensions: ["qps"]
+      },
+      "application/vnd.pvi.ptid1": {
+        source: "iana",
+        extensions: ["ptid"]
+      },
+      "application/vnd.pwg-multiplexed": {
+        source: "iana"
+      },
+      "application/vnd.pwg-xhtml-print+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.qualcomm.brew-app-res": {
+        source: "iana"
+      },
+      "application/vnd.quarantainenet": {
+        source: "iana"
+      },
+      "application/vnd.quark.quarkxpress": {
+        source: "iana",
+        extensions: ["qxd", "qxt", "qwd", "qwt", "qxl", "qxb"]
+      },
+      "application/vnd.quobject-quoxdocument": {
+        source: "iana"
+      },
+      "application/vnd.radisys.moml+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.radisys.msml+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.radisys.msml-audit+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.radisys.msml-audit-conf+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.radisys.msml-audit-conn+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.radisys.msml-audit-dialog+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.radisys.msml-audit-stream+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.radisys.msml-conf+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.radisys.msml-dialog+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.radisys.msml-dialog-base+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.radisys.msml-dialog-fax-detect+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.radisys.msml-dialog-fax-sendrecv+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.radisys.msml-dialog-group+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.radisys.msml-dialog-speech+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.radisys.msml-dialog-transform+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.rainstor.data": {
+        source: "iana"
+      },
+      "application/vnd.rapid": {
+        source: "iana"
+      },
+      "application/vnd.rar": {
+        source: "iana",
+        extensions: ["rar"]
+      },
+      "application/vnd.realvnc.bed": {
+        source: "iana",
+        extensions: ["bed"]
+      },
+      "application/vnd.recordare.musicxml": {
+        source: "iana",
+        extensions: ["mxl"]
+      },
+      "application/vnd.recordare.musicxml+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["musicxml"]
+      },
+      "application/vnd.renlearn.rlprint": {
+        source: "iana"
+      },
+      "application/vnd.resilient.logic": {
+        source: "iana"
+      },
+      "application/vnd.restful+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.rig.cryptonote": {
+        source: "iana",
+        extensions: ["cryptonote"]
+      },
+      "application/vnd.rim.cod": {
+        source: "apache",
+        extensions: ["cod"]
+      },
+      "application/vnd.rn-realmedia": {
+        source: "apache",
+        extensions: ["rm"]
+      },
+      "application/vnd.rn-realmedia-vbr": {
+        source: "apache",
+        extensions: ["rmvb"]
+      },
+      "application/vnd.route66.link66+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["link66"]
+      },
+      "application/vnd.rs-274x": {
+        source: "iana"
+      },
+      "application/vnd.ruckus.download": {
+        source: "iana"
+      },
+      "application/vnd.s3sms": {
+        source: "iana"
+      },
+      "application/vnd.sailingtracker.track": {
+        source: "iana",
+        extensions: ["st"]
+      },
+      "application/vnd.sar": {
+        source: "iana"
+      },
+      "application/vnd.sbm.cid": {
+        source: "iana"
+      },
+      "application/vnd.sbm.mid2": {
+        source: "iana"
+      },
+      "application/vnd.scribus": {
+        source: "iana"
+      },
+      "application/vnd.sealed.3df": {
+        source: "iana"
+      },
+      "application/vnd.sealed.csf": {
+        source: "iana"
+      },
+      "application/vnd.sealed.doc": {
+        source: "iana"
+      },
+      "application/vnd.sealed.eml": {
+        source: "iana"
+      },
+      "application/vnd.sealed.mht": {
+        source: "iana"
+      },
+      "application/vnd.sealed.net": {
+        source: "iana"
+      },
+      "application/vnd.sealed.ppt": {
+        source: "iana"
+      },
+      "application/vnd.sealed.tiff": {
+        source: "iana"
+      },
+      "application/vnd.sealed.xls": {
+        source: "iana"
+      },
+      "application/vnd.sealedmedia.softseal.html": {
+        source: "iana"
+      },
+      "application/vnd.sealedmedia.softseal.pdf": {
+        source: "iana"
+      },
+      "application/vnd.seemail": {
+        source: "iana",
+        extensions: ["see"]
+      },
+      "application/vnd.seis+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.sema": {
+        source: "iana",
+        extensions: ["sema"]
+      },
+      "application/vnd.semd": {
+        source: "iana",
+        extensions: ["semd"]
+      },
+      "application/vnd.semf": {
+        source: "iana",
+        extensions: ["semf"]
+      },
+      "application/vnd.shade-save-file": {
+        source: "iana"
+      },
+      "application/vnd.shana.informed.formdata": {
+        source: "iana",
+        extensions: ["ifm"]
+      },
+      "application/vnd.shana.informed.formtemplate": {
+        source: "iana",
+        extensions: ["itp"]
+      },
+      "application/vnd.shana.informed.interchange": {
+        source: "iana",
+        extensions: ["iif"]
+      },
+      "application/vnd.shana.informed.package": {
+        source: "iana",
+        extensions: ["ipk"]
+      },
+      "application/vnd.shootproof+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.shopkick+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.shp": {
+        source: "iana"
+      },
+      "application/vnd.shx": {
+        source: "iana"
+      },
+      "application/vnd.sigrok.session": {
+        source: "iana"
+      },
+      "application/vnd.simtech-mindmapper": {
+        source: "iana",
+        extensions: ["twd", "twds"]
+      },
+      "application/vnd.siren+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.smaf": {
+        source: "iana",
+        extensions: ["mmf"]
+      },
+      "application/vnd.smart.notebook": {
+        source: "iana"
+      },
+      "application/vnd.smart.teacher": {
+        source: "iana",
+        extensions: ["teacher"]
+      },
+      "application/vnd.snesdev-page-table": {
+        source: "iana"
+      },
+      "application/vnd.software602.filler.form+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["fo"]
+      },
+      "application/vnd.software602.filler.form-xml-zip": {
+        source: "iana"
+      },
+      "application/vnd.solent.sdkm+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["sdkm", "sdkd"]
+      },
+      "application/vnd.spotfire.dxp": {
+        source: "iana",
+        extensions: ["dxp"]
+      },
+      "application/vnd.spotfire.sfs": {
+        source: "iana",
+        extensions: ["sfs"]
+      },
+      "application/vnd.sqlite3": {
+        source: "iana"
+      },
+      "application/vnd.sss-cod": {
+        source: "iana"
+      },
+      "application/vnd.sss-dtf": {
+        source: "iana"
+      },
+      "application/vnd.sss-ntf": {
+        source: "iana"
+      },
+      "application/vnd.stardivision.calc": {
+        source: "apache",
+        extensions: ["sdc"]
+      },
+      "application/vnd.stardivision.draw": {
+        source: "apache",
+        extensions: ["sda"]
+      },
+      "application/vnd.stardivision.impress": {
+        source: "apache",
+        extensions: ["sdd"]
+      },
+      "application/vnd.stardivision.math": {
+        source: "apache",
+        extensions: ["smf"]
+      },
+      "application/vnd.stardivision.writer": {
+        source: "apache",
+        extensions: ["sdw", "vor"]
+      },
+      "application/vnd.stardivision.writer-global": {
+        source: "apache",
+        extensions: ["sgl"]
+      },
+      "application/vnd.stepmania.package": {
+        source: "iana",
+        extensions: ["smzip"]
+      },
+      "application/vnd.stepmania.stepchart": {
+        source: "iana",
+        extensions: ["sm"]
+      },
+      "application/vnd.street-stream": {
+        source: "iana"
+      },
+      "application/vnd.sun.wadl+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["wadl"]
+      },
+      "application/vnd.sun.xml.calc": {
+        source: "apache",
+        extensions: ["sxc"]
+      },
+      "application/vnd.sun.xml.calc.template": {
+        source: "apache",
+        extensions: ["stc"]
+      },
+      "application/vnd.sun.xml.draw": {
+        source: "apache",
+        extensions: ["sxd"]
+      },
+      "application/vnd.sun.xml.draw.template": {
+        source: "apache",
+        extensions: ["std"]
+      },
+      "application/vnd.sun.xml.impress": {
+        source: "apache",
+        extensions: ["sxi"]
+      },
+      "application/vnd.sun.xml.impress.template": {
+        source: "apache",
+        extensions: ["sti"]
+      },
+      "application/vnd.sun.xml.math": {
+        source: "apache",
+        extensions: ["sxm"]
+      },
+      "application/vnd.sun.xml.writer": {
+        source: "apache",
+        extensions: ["sxw"]
+      },
+      "application/vnd.sun.xml.writer.global": {
+        source: "apache",
+        extensions: ["sxg"]
+      },
+      "application/vnd.sun.xml.writer.template": {
+        source: "apache",
+        extensions: ["stw"]
+      },
+      "application/vnd.sus-calendar": {
+        source: "iana",
+        extensions: ["sus", "susp"]
+      },
+      "application/vnd.svd": {
+        source: "iana",
+        extensions: ["svd"]
+      },
+      "application/vnd.swiftview-ics": {
+        source: "iana"
+      },
+      "application/vnd.sycle+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.syft+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.symbian.install": {
+        source: "apache",
+        extensions: ["sis", "sisx"]
+      },
+      "application/vnd.syncml+xml": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true,
+        extensions: ["xsm"]
+      },
+      "application/vnd.syncml.dm+wbxml": {
+        source: "iana",
+        charset: "UTF-8",
+        extensions: ["bdm"]
+      },
+      "application/vnd.syncml.dm+xml": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true,
+        extensions: ["xdm"]
+      },
+      "application/vnd.syncml.dm.notification": {
+        source: "iana"
+      },
+      "application/vnd.syncml.dmddf+wbxml": {
+        source: "iana"
+      },
+      "application/vnd.syncml.dmddf+xml": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true,
+        extensions: ["ddf"]
+      },
+      "application/vnd.syncml.dmtnds+wbxml": {
+        source: "iana"
+      },
+      "application/vnd.syncml.dmtnds+xml": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true
+      },
+      "application/vnd.syncml.ds.notification": {
+        source: "iana"
+      },
+      "application/vnd.tableschema+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.tao.intent-module-archive": {
+        source: "iana",
+        extensions: ["tao"]
+      },
+      "application/vnd.tcpdump.pcap": {
+        source: "iana",
+        extensions: ["pcap", "cap", "dmp"]
+      },
+      "application/vnd.think-cell.ppttc+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.tmd.mediaflex.api+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.tml": {
+        source: "iana"
+      },
+      "application/vnd.tmobile-livetv": {
+        source: "iana",
+        extensions: ["tmo"]
+      },
+      "application/vnd.tri.onesource": {
+        source: "iana"
+      },
+      "application/vnd.trid.tpt": {
+        source: "iana",
+        extensions: ["tpt"]
+      },
+      "application/vnd.triscape.mxs": {
+        source: "iana",
+        extensions: ["mxs"]
+      },
+      "application/vnd.trueapp": {
+        source: "iana",
+        extensions: ["tra"]
+      },
+      "application/vnd.truedoc": {
+        source: "iana"
+      },
+      "application/vnd.ubisoft.webplayer": {
+        source: "iana"
+      },
+      "application/vnd.ufdl": {
+        source: "iana",
+        extensions: ["ufd", "ufdl"]
+      },
+      "application/vnd.uiq.theme": {
+        source: "iana",
+        extensions: ["utz"]
+      },
+      "application/vnd.umajin": {
+        source: "iana",
+        extensions: ["umj"]
+      },
+      "application/vnd.unity": {
+        source: "iana",
+        extensions: ["unityweb"]
+      },
+      "application/vnd.uoml+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["uoml"]
+      },
+      "application/vnd.uplanet.alert": {
+        source: "iana"
+      },
+      "application/vnd.uplanet.alert-wbxml": {
+        source: "iana"
+      },
+      "application/vnd.uplanet.bearer-choice": {
+        source: "iana"
+      },
+      "application/vnd.uplanet.bearer-choice-wbxml": {
+        source: "iana"
+      },
+      "application/vnd.uplanet.cacheop": {
+        source: "iana"
+      },
+      "application/vnd.uplanet.cacheop-wbxml": {
+        source: "iana"
+      },
+      "application/vnd.uplanet.channel": {
+        source: "iana"
+      },
+      "application/vnd.uplanet.channel-wbxml": {
+        source: "iana"
+      },
+      "application/vnd.uplanet.list": {
+        source: "iana"
+      },
+      "application/vnd.uplanet.list-wbxml": {
+        source: "iana"
+      },
+      "application/vnd.uplanet.listcmd": {
+        source: "iana"
+      },
+      "application/vnd.uplanet.listcmd-wbxml": {
+        source: "iana"
+      },
+      "application/vnd.uplanet.signal": {
+        source: "iana"
+      },
+      "application/vnd.uri-map": {
+        source: "iana"
+      },
+      "application/vnd.valve.source.material": {
+        source: "iana"
+      },
+      "application/vnd.vcx": {
+        source: "iana",
+        extensions: ["vcx"]
+      },
+      "application/vnd.vd-study": {
+        source: "iana"
+      },
+      "application/vnd.vectorworks": {
+        source: "iana"
+      },
+      "application/vnd.vel+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.verimatrix.vcas": {
+        source: "iana"
+      },
+      "application/vnd.veritone.aion+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.veryant.thin": {
+        source: "iana"
+      },
+      "application/vnd.ves.encrypted": {
+        source: "iana"
+      },
+      "application/vnd.vidsoft.vidconference": {
+        source: "iana"
+      },
+      "application/vnd.visio": {
+        source: "iana",
+        extensions: ["vsd", "vst", "vss", "vsw"]
+      },
+      "application/vnd.visionary": {
+        source: "iana",
+        extensions: ["vis"]
+      },
+      "application/vnd.vividence.scriptfile": {
+        source: "iana"
+      },
+      "application/vnd.vsf": {
+        source: "iana",
+        extensions: ["vsf"]
+      },
+      "application/vnd.wap.sic": {
+        source: "iana"
+      },
+      "application/vnd.wap.slc": {
+        source: "iana"
+      },
+      "application/vnd.wap.wbxml": {
+        source: "iana",
+        charset: "UTF-8",
+        extensions: ["wbxml"]
+      },
+      "application/vnd.wap.wmlc": {
+        source: "iana",
+        extensions: ["wmlc"]
+      },
+      "application/vnd.wap.wmlscriptc": {
+        source: "iana",
+        extensions: ["wmlsc"]
+      },
+      "application/vnd.webturbo": {
+        source: "iana",
+        extensions: ["wtb"]
+      },
+      "application/vnd.wfa.dpp": {
+        source: "iana"
+      },
+      "application/vnd.wfa.p2p": {
+        source: "iana"
+      },
+      "application/vnd.wfa.wsc": {
+        source: "iana"
+      },
+      "application/vnd.windows.devicepairing": {
+        source: "iana"
+      },
+      "application/vnd.wmc": {
+        source: "iana"
+      },
+      "application/vnd.wmf.bootstrap": {
+        source: "iana"
+      },
+      "application/vnd.wolfram.mathematica": {
+        source: "iana"
+      },
+      "application/vnd.wolfram.mathematica.package": {
+        source: "iana"
+      },
+      "application/vnd.wolfram.player": {
+        source: "iana",
+        extensions: ["nbp"]
+      },
+      "application/vnd.wordperfect": {
+        source: "iana",
+        extensions: ["wpd"]
+      },
+      "application/vnd.wqd": {
+        source: "iana",
+        extensions: ["wqd"]
+      },
+      "application/vnd.wrq-hp3000-labelled": {
+        source: "iana"
+      },
+      "application/vnd.wt.stf": {
+        source: "iana",
+        extensions: ["stf"]
+      },
+      "application/vnd.wv.csp+wbxml": {
+        source: "iana"
+      },
+      "application/vnd.wv.csp+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.wv.ssp+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.xacml+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.xara": {
+        source: "iana",
+        extensions: ["xar"]
+      },
+      "application/vnd.xfdl": {
+        source: "iana",
+        extensions: ["xfdl"]
+      },
+      "application/vnd.xfdl.webform": {
+        source: "iana"
+      },
+      "application/vnd.xmi+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.xmpie.cpkg": {
+        source: "iana"
+      },
+      "application/vnd.xmpie.dpkg": {
+        source: "iana"
+      },
+      "application/vnd.xmpie.plan": {
+        source: "iana"
+      },
+      "application/vnd.xmpie.ppkg": {
+        source: "iana"
+      },
+      "application/vnd.xmpie.xlim": {
+        source: "iana"
+      },
+      "application/vnd.yamaha.hv-dic": {
+        source: "iana",
+        extensions: ["hvd"]
+      },
+      "application/vnd.yamaha.hv-script": {
+        source: "iana",
+        extensions: ["hvs"]
+      },
+      "application/vnd.yamaha.hv-voice": {
+        source: "iana",
+        extensions: ["hvp"]
+      },
+      "application/vnd.yamaha.openscoreformat": {
+        source: "iana",
+        extensions: ["osf"]
+      },
+      "application/vnd.yamaha.openscoreformat.osfpvg+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["osfpvg"]
+      },
+      "application/vnd.yamaha.remote-setup": {
+        source: "iana"
+      },
+      "application/vnd.yamaha.smaf-audio": {
+        source: "iana",
+        extensions: ["saf"]
+      },
+      "application/vnd.yamaha.smaf-phrase": {
+        source: "iana",
+        extensions: ["spf"]
+      },
+      "application/vnd.yamaha.through-ngn": {
+        source: "iana"
+      },
+      "application/vnd.yamaha.tunnel-udpencap": {
+        source: "iana"
+      },
+      "application/vnd.yaoweme": {
+        source: "iana"
+      },
+      "application/vnd.yellowriver-custom-menu": {
+        source: "iana",
+        extensions: ["cmp"]
+      },
+      "application/vnd.youtube.yt": {
+        source: "iana"
+      },
+      "application/vnd.zul": {
+        source: "iana",
+        extensions: ["zir", "zirz"]
+      },
+      "application/vnd.zzazz.deck+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["zaz"]
+      },
+      "application/voicexml+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["vxml"]
+      },
+      "application/voucher-cms+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vq-rtcpxr": {
+        source: "iana"
+      },
+      "application/wasm": {
+        source: "iana",
+        compressible: true,
+        extensions: ["wasm"]
+      },
+      "application/watcherinfo+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["wif"]
+      },
+      "application/webpush-options+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/whoispp-query": {
+        source: "iana"
+      },
+      "application/whoispp-response": {
+        source: "iana"
+      },
+      "application/widget": {
+        source: "iana",
+        extensions: ["wgt"]
+      },
+      "application/winhlp": {
+        source: "apache",
+        extensions: ["hlp"]
+      },
+      "application/wita": {
+        source: "iana"
+      },
+      "application/wordperfect5.1": {
+        source: "iana"
+      },
+      "application/wsdl+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["wsdl"]
+      },
+      "application/wspolicy+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["wspolicy"]
+      },
+      "application/x-7z-compressed": {
+        source: "apache",
+        compressible: false,
+        extensions: ["7z"]
+      },
+      "application/x-abiword": {
+        source: "apache",
+        extensions: ["abw"]
+      },
+      "application/x-ace-compressed": {
+        source: "apache",
+        extensions: ["ace"]
+      },
+      "application/x-amf": {
+        source: "apache"
+      },
+      "application/x-apple-diskimage": {
+        source: "apache",
+        extensions: ["dmg"]
+      },
+      "application/x-arj": {
+        compressible: false,
+        extensions: ["arj"]
+      },
+      "application/x-authorware-bin": {
+        source: "apache",
+        extensions: ["aab", "x32", "u32", "vox"]
+      },
+      "application/x-authorware-map": {
+        source: "apache",
+        extensions: ["aam"]
+      },
+      "application/x-authorware-seg": {
+        source: "apache",
+        extensions: ["aas"]
+      },
+      "application/x-bcpio": {
+        source: "apache",
+        extensions: ["bcpio"]
+      },
+      "application/x-bdoc": {
+        compressible: false,
+        extensions: ["bdoc"]
+      },
+      "application/x-bittorrent": {
+        source: "apache",
+        extensions: ["torrent"]
+      },
+      "application/x-blorb": {
+        source: "apache",
+        extensions: ["blb", "blorb"]
+      },
+      "application/x-bzip": {
+        source: "apache",
+        compressible: false,
+        extensions: ["bz"]
+      },
+      "application/x-bzip2": {
+        source: "apache",
+        compressible: false,
+        extensions: ["bz2", "boz"]
+      },
+      "application/x-cbr": {
+        source: "apache",
+        extensions: ["cbr", "cba", "cbt", "cbz", "cb7"]
+      },
+      "application/x-cdlink": {
+        source: "apache",
+        extensions: ["vcd"]
+      },
+      "application/x-cfs-compressed": {
+        source: "apache",
+        extensions: ["cfs"]
+      },
+      "application/x-chat": {
+        source: "apache",
+        extensions: ["chat"]
+      },
+      "application/x-chess-pgn": {
+        source: "apache",
+        extensions: ["pgn"]
+      },
+      "application/x-chrome-extension": {
+        extensions: ["crx"]
+      },
+      "application/x-cocoa": {
+        source: "nginx",
+        extensions: ["cco"]
+      },
+      "application/x-compress": {
+        source: "apache"
+      },
+      "application/x-conference": {
+        source: "apache",
+        extensions: ["nsc"]
+      },
+      "application/x-cpio": {
+        source: "apache",
+        extensions: ["cpio"]
+      },
+      "application/x-csh": {
+        source: "apache",
+        extensions: ["csh"]
+      },
+      "application/x-deb": {
+        compressible: false
+      },
+      "application/x-debian-package": {
+        source: "apache",
+        extensions: ["deb", "udeb"]
+      },
+      "application/x-dgc-compressed": {
+        source: "apache",
+        extensions: ["dgc"]
+      },
+      "application/x-director": {
+        source: "apache",
+        extensions: ["dir", "dcr", "dxr", "cst", "cct", "cxt", "w3d", "fgd", "swa"]
+      },
+      "application/x-doom": {
+        source: "apache",
+        extensions: ["wad"]
+      },
+      "application/x-dtbncx+xml": {
+        source: "apache",
+        compressible: true,
+        extensions: ["ncx"]
+      },
+      "application/x-dtbook+xml": {
+        source: "apache",
+        compressible: true,
+        extensions: ["dtb"]
+      },
+      "application/x-dtbresource+xml": {
+        source: "apache",
+        compressible: true,
+        extensions: ["res"]
+      },
+      "application/x-dvi": {
+        source: "apache",
+        compressible: false,
+        extensions: ["dvi"]
+      },
+      "application/x-envoy": {
+        source: "apache",
+        extensions: ["evy"]
+      },
+      "application/x-eva": {
+        source: "apache",
+        extensions: ["eva"]
+      },
+      "application/x-font-bdf": {
+        source: "apache",
+        extensions: ["bdf"]
+      },
+      "application/x-font-dos": {
+        source: "apache"
+      },
+      "application/x-font-framemaker": {
+        source: "apache"
+      },
+      "application/x-font-ghostscript": {
+        source: "apache",
+        extensions: ["gsf"]
+      },
+      "application/x-font-libgrx": {
+        source: "apache"
+      },
+      "application/x-font-linux-psf": {
+        source: "apache",
+        extensions: ["psf"]
+      },
+      "application/x-font-pcf": {
+        source: "apache",
+        extensions: ["pcf"]
+      },
+      "application/x-font-snf": {
+        source: "apache",
+        extensions: ["snf"]
+      },
+      "application/x-font-speedo": {
+        source: "apache"
+      },
+      "application/x-font-sunos-news": {
+        source: "apache"
+      },
+      "application/x-font-type1": {
+        source: "apache",
+        extensions: ["pfa", "pfb", "pfm", "afm"]
+      },
+      "application/x-font-vfont": {
+        source: "apache"
+      },
+      "application/x-freearc": {
+        source: "apache",
+        extensions: ["arc"]
+      },
+      "application/x-futuresplash": {
+        source: "apache",
+        extensions: ["spl"]
+      },
+      "application/x-gca-compressed": {
+        source: "apache",
+        extensions: ["gca"]
+      },
+      "application/x-glulx": {
+        source: "apache",
+        extensions: ["ulx"]
+      },
+      "application/x-gnumeric": {
+        source: "apache",
+        extensions: ["gnumeric"]
+      },
+      "application/x-gramps-xml": {
+        source: "apache",
+        extensions: ["gramps"]
+      },
+      "application/x-gtar": {
+        source: "apache",
+        extensions: ["gtar"]
+      },
+      "application/x-gzip": {
+        source: "apache"
+      },
+      "application/x-hdf": {
+        source: "apache",
+        extensions: ["hdf"]
+      },
+      "application/x-httpd-php": {
+        compressible: true,
+        extensions: ["php"]
+      },
+      "application/x-install-instructions": {
+        source: "apache",
+        extensions: ["install"]
+      },
+      "application/x-iso9660-image": {
+        source: "apache",
+        extensions: ["iso"]
+      },
+      "application/x-iwork-keynote-sffkey": {
+        extensions: ["key"]
+      },
+      "application/x-iwork-numbers-sffnumbers": {
+        extensions: ["numbers"]
+      },
+      "application/x-iwork-pages-sffpages": {
+        extensions: ["pages"]
+      },
+      "application/x-java-archive-diff": {
+        source: "nginx",
+        extensions: ["jardiff"]
+      },
+      "application/x-java-jnlp-file": {
+        source: "apache",
+        compressible: false,
+        extensions: ["jnlp"]
+      },
+      "application/x-javascript": {
+        compressible: true
+      },
+      "application/x-keepass2": {
+        extensions: ["kdbx"]
+      },
+      "application/x-latex": {
+        source: "apache",
+        compressible: false,
+        extensions: ["latex"]
+      },
+      "application/x-lua-bytecode": {
+        extensions: ["luac"]
+      },
+      "application/x-lzh-compressed": {
+        source: "apache",
+        extensions: ["lzh", "lha"]
+      },
+      "application/x-makeself": {
+        source: "nginx",
+        extensions: ["run"]
+      },
+      "application/x-mie": {
+        source: "apache",
+        extensions: ["mie"]
+      },
+      "application/x-mobipocket-ebook": {
+        source: "apache",
+        extensions: ["prc", "mobi"]
+      },
+      "application/x-mpegurl": {
+        compressible: false
+      },
+      "application/x-ms-application": {
+        source: "apache",
+        extensions: ["application"]
+      },
+      "application/x-ms-shortcut": {
+        source: "apache",
+        extensions: ["lnk"]
+      },
+      "application/x-ms-wmd": {
+        source: "apache",
+        extensions: ["wmd"]
+      },
+      "application/x-ms-wmz": {
+        source: "apache",
+        extensions: ["wmz"]
+      },
+      "application/x-ms-xbap": {
+        source: "apache",
+        extensions: ["xbap"]
+      },
+      "application/x-msaccess": {
+        source: "apache",
+        extensions: ["mdb"]
+      },
+      "application/x-msbinder": {
+        source: "apache",
+        extensions: ["obd"]
+      },
+      "application/x-mscardfile": {
+        source: "apache",
+        extensions: ["crd"]
+      },
+      "application/x-msclip": {
+        source: "apache",
+        extensions: ["clp"]
+      },
+      "application/x-msdos-program": {
+        extensions: ["exe"]
+      },
+      "application/x-msdownload": {
+        source: "apache",
+        extensions: ["exe", "dll", "com", "bat", "msi"]
+      },
+      "application/x-msmediaview": {
+        source: "apache",
+        extensions: ["mvb", "m13", "m14"]
+      },
+      "application/x-msmetafile": {
+        source: "apache",
+        extensions: ["wmf", "wmz", "emf", "emz"]
+      },
+      "application/x-msmoney": {
+        source: "apache",
+        extensions: ["mny"]
+      },
+      "application/x-mspublisher": {
+        source: "apache",
+        extensions: ["pub"]
+      },
+      "application/x-msschedule": {
+        source: "apache",
+        extensions: ["scd"]
+      },
+      "application/x-msterminal": {
+        source: "apache",
+        extensions: ["trm"]
+      },
+      "application/x-mswrite": {
+        source: "apache",
+        extensions: ["wri"]
+      },
+      "application/x-netcdf": {
+        source: "apache",
+        extensions: ["nc", "cdf"]
+      },
+      "application/x-ns-proxy-autoconfig": {
+        compressible: true,
+        extensions: ["pac"]
+      },
+      "application/x-nzb": {
+        source: "apache",
+        extensions: ["nzb"]
+      },
+      "application/x-perl": {
+        source: "nginx",
+        extensions: ["pl", "pm"]
+      },
+      "application/x-pilot": {
+        source: "nginx",
+        extensions: ["prc", "pdb"]
+      },
+      "application/x-pkcs12": {
+        source: "apache",
+        compressible: false,
+        extensions: ["p12", "pfx"]
+      },
+      "application/x-pkcs7-certificates": {
+        source: "apache",
+        extensions: ["p7b", "spc"]
+      },
+      "application/x-pkcs7-certreqresp": {
+        source: "apache",
+        extensions: ["p7r"]
+      },
+      "application/x-pki-message": {
+        source: "iana"
+      },
+      "application/x-rar-compressed": {
+        source: "apache",
+        compressible: false,
+        extensions: ["rar"]
+      },
+      "application/x-redhat-package-manager": {
+        source: "nginx",
+        extensions: ["rpm"]
+      },
+      "application/x-research-info-systems": {
+        source: "apache",
+        extensions: ["ris"]
+      },
+      "application/x-sea": {
+        source: "nginx",
+        extensions: ["sea"]
+      },
+      "application/x-sh": {
+        source: "apache",
+        compressible: true,
+        extensions: ["sh"]
+      },
+      "application/x-shar": {
+        source: "apache",
+        extensions: ["shar"]
+      },
+      "application/x-shockwave-flash": {
+        source: "apache",
+        compressible: false,
+        extensions: ["swf"]
+      },
+      "application/x-silverlight-app": {
+        source: "apache",
+        extensions: ["xap"]
+      },
+      "application/x-sql": {
+        source: "apache",
+        extensions: ["sql"]
+      },
+      "application/x-stuffit": {
+        source: "apache",
+        compressible: false,
+        extensions: ["sit"]
+      },
+      "application/x-stuffitx": {
+        source: "apache",
+        extensions: ["sitx"]
+      },
+      "application/x-subrip": {
+        source: "apache",
+        extensions: ["srt"]
+      },
+      "application/x-sv4cpio": {
+        source: "apache",
+        extensions: ["sv4cpio"]
+      },
+      "application/x-sv4crc": {
+        source: "apache",
+        extensions: ["sv4crc"]
+      },
+      "application/x-t3vm-image": {
+        source: "apache",
+        extensions: ["t3"]
+      },
+      "application/x-tads": {
+        source: "apache",
+        extensions: ["gam"]
+      },
+      "application/x-tar": {
+        source: "apache",
+        compressible: true,
+        extensions: ["tar"]
+      },
+      "application/x-tcl": {
+        source: "apache",
+        extensions: ["tcl", "tk"]
+      },
+      "application/x-tex": {
+        source: "apache",
+        extensions: ["tex"]
+      },
+      "application/x-tex-tfm": {
+        source: "apache",
+        extensions: ["tfm"]
+      },
+      "application/x-texinfo": {
+        source: "apache",
+        extensions: ["texinfo", "texi"]
+      },
+      "application/x-tgif": {
+        source: "apache",
+        extensions: ["obj"]
+      },
+      "application/x-ustar": {
+        source: "apache",
+        extensions: ["ustar"]
+      },
+      "application/x-virtualbox-hdd": {
+        compressible: true,
+        extensions: ["hdd"]
+      },
+      "application/x-virtualbox-ova": {
+        compressible: true,
+        extensions: ["ova"]
+      },
+      "application/x-virtualbox-ovf": {
+        compressible: true,
+        extensions: ["ovf"]
+      },
+      "application/x-virtualbox-vbox": {
+        compressible: true,
+        extensions: ["vbox"]
+      },
+      "application/x-virtualbox-vbox-extpack": {
+        compressible: false,
+        extensions: ["vbox-extpack"]
+      },
+      "application/x-virtualbox-vdi": {
+        compressible: true,
+        extensions: ["vdi"]
+      },
+      "application/x-virtualbox-vhd": {
+        compressible: true,
+        extensions: ["vhd"]
+      },
+      "application/x-virtualbox-vmdk": {
+        compressible: true,
+        extensions: ["vmdk"]
+      },
+      "application/x-wais-source": {
+        source: "apache",
+        extensions: ["src"]
+      },
+      "application/x-web-app-manifest+json": {
+        compressible: true,
+        extensions: ["webapp"]
+      },
+      "application/x-www-form-urlencoded": {
+        source: "iana",
+        compressible: true
+      },
+      "application/x-x509-ca-cert": {
+        source: "iana",
+        extensions: ["der", "crt", "pem"]
+      },
+      "application/x-x509-ca-ra-cert": {
+        source: "iana"
+      },
+      "application/x-x509-next-ca-cert": {
+        source: "iana"
+      },
+      "application/x-xfig": {
+        source: "apache",
+        extensions: ["fig"]
+      },
+      "application/x-xliff+xml": {
+        source: "apache",
+        compressible: true,
+        extensions: ["xlf"]
+      },
+      "application/x-xpinstall": {
+        source: "apache",
+        compressible: false,
+        extensions: ["xpi"]
+      },
+      "application/x-xz": {
+        source: "apache",
+        extensions: ["xz"]
+      },
+      "application/x-zmachine": {
+        source: "apache",
+        extensions: ["z1", "z2", "z3", "z4", "z5", "z6", "z7", "z8"]
+      },
+      "application/x400-bp": {
+        source: "iana"
+      },
+      "application/xacml+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/xaml+xml": {
+        source: "apache",
+        compressible: true,
+        extensions: ["xaml"]
+      },
+      "application/xcap-att+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["xav"]
+      },
+      "application/xcap-caps+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["xca"]
+      },
+      "application/xcap-diff+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["xdf"]
+      },
+      "application/xcap-el+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["xel"]
+      },
+      "application/xcap-error+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/xcap-ns+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["xns"]
+      },
+      "application/xcon-conference-info+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/xcon-conference-info-diff+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/xenc+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["xenc"]
+      },
+      "application/xhtml+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["xhtml", "xht"]
+      },
+      "application/xhtml-voice+xml": {
+        source: "apache",
+        compressible: true
+      },
+      "application/xliff+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["xlf"]
+      },
+      "application/xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["xml", "xsl", "xsd", "rng"]
+      },
+      "application/xml-dtd": {
+        source: "iana",
+        compressible: true,
+        extensions: ["dtd"]
+      },
+      "application/xml-external-parsed-entity": {
+        source: "iana"
+      },
+      "application/xml-patch+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/xmpp+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/xop+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["xop"]
+      },
+      "application/xproc+xml": {
+        source: "apache",
+        compressible: true,
+        extensions: ["xpl"]
+      },
+      "application/xslt+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["xsl", "xslt"]
+      },
+      "application/xspf+xml": {
+        source: "apache",
+        compressible: true,
+        extensions: ["xspf"]
+      },
+      "application/xv+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["mxml", "xhvml", "xvml", "xvm"]
+      },
+      "application/yang": {
+        source: "iana",
+        extensions: ["yang"]
+      },
+      "application/yang-data+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/yang-data+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/yang-patch+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/yang-patch+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/yin+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["yin"]
+      },
+      "application/zip": {
+        source: "iana",
+        compressible: false,
+        extensions: ["zip"]
+      },
+      "application/zlib": {
+        source: "iana"
+      },
+      "application/zstd": {
+        source: "iana"
+      },
+      "audio/1d-interleaved-parityfec": {
+        source: "iana"
+      },
+      "audio/32kadpcm": {
+        source: "iana"
+      },
+      "audio/3gpp": {
+        source: "iana",
+        compressible: false,
+        extensions: ["3gpp"]
+      },
+      "audio/3gpp2": {
+        source: "iana"
+      },
+      "audio/aac": {
+        source: "iana"
+      },
+      "audio/ac3": {
+        source: "iana"
+      },
+      "audio/adpcm": {
+        source: "apache",
+        extensions: ["adp"]
+      },
+      "audio/amr": {
+        source: "iana",
+        extensions: ["amr"]
+      },
+      "audio/amr-wb": {
+        source: "iana"
+      },
+      "audio/amr-wb+": {
+        source: "iana"
+      },
+      "audio/aptx": {
+        source: "iana"
+      },
+      "audio/asc": {
+        source: "iana"
+      },
+      "audio/atrac-advanced-lossless": {
+        source: "iana"
+      },
+      "audio/atrac-x": {
+        source: "iana"
+      },
+      "audio/atrac3": {
+        source: "iana"
+      },
+      "audio/basic": {
+        source: "iana",
+        compressible: false,
+        extensions: ["au", "snd"]
+      },
+      "audio/bv16": {
+        source: "iana"
+      },
+      "audio/bv32": {
+        source: "iana"
+      },
+      "audio/clearmode": {
+        source: "iana"
+      },
+      "audio/cn": {
+        source: "iana"
+      },
+      "audio/dat12": {
+        source: "iana"
+      },
+      "audio/dls": {
+        source: "iana"
+      },
+      "audio/dsr-es201108": {
+        source: "iana"
+      },
+      "audio/dsr-es202050": {
+        source: "iana"
+      },
+      "audio/dsr-es202211": {
+        source: "iana"
+      },
+      "audio/dsr-es202212": {
+        source: "iana"
+      },
+      "audio/dv": {
+        source: "iana"
+      },
+      "audio/dvi4": {
+        source: "iana"
+      },
+      "audio/eac3": {
+        source: "iana"
+      },
+      "audio/encaprtp": {
+        source: "iana"
+      },
+      "audio/evrc": {
+        source: "iana"
+      },
+      "audio/evrc-qcp": {
+        source: "iana"
+      },
+      "audio/evrc0": {
+        source: "iana"
+      },
+      "audio/evrc1": {
+        source: "iana"
+      },
+      "audio/evrcb": {
+        source: "iana"
+      },
+      "audio/evrcb0": {
+        source: "iana"
+      },
+      "audio/evrcb1": {
+        source: "iana"
+      },
+      "audio/evrcnw": {
+        source: "iana"
+      },
+      "audio/evrcnw0": {
+        source: "iana"
+      },
+      "audio/evrcnw1": {
+        source: "iana"
+      },
+      "audio/evrcwb": {
+        source: "iana"
+      },
+      "audio/evrcwb0": {
+        source: "iana"
+      },
+      "audio/evrcwb1": {
+        source: "iana"
+      },
+      "audio/evs": {
+        source: "iana"
+      },
+      "audio/flexfec": {
+        source: "iana"
+      },
+      "audio/fwdred": {
+        source: "iana"
+      },
+      "audio/g711-0": {
+        source: "iana"
+      },
+      "audio/g719": {
+        source: "iana"
+      },
+      "audio/g722": {
+        source: "iana"
+      },
+      "audio/g7221": {
+        source: "iana"
+      },
+      "audio/g723": {
+        source: "iana"
+      },
+      "audio/g726-16": {
+        source: "iana"
+      },
+      "audio/g726-24": {
+        source: "iana"
+      },
+      "audio/g726-32": {
+        source: "iana"
+      },
+      "audio/g726-40": {
+        source: "iana"
+      },
+      "audio/g728": {
+        source: "iana"
+      },
+      "audio/g729": {
+        source: "iana"
+      },
+      "audio/g7291": {
+        source: "iana"
+      },
+      "audio/g729d": {
+        source: "iana"
+      },
+      "audio/g729e": {
+        source: "iana"
+      },
+      "audio/gsm": {
+        source: "iana"
+      },
+      "audio/gsm-efr": {
+        source: "iana"
+      },
+      "audio/gsm-hr-08": {
+        source: "iana"
+      },
+      "audio/ilbc": {
+        source: "iana"
+      },
+      "audio/ip-mr_v2.5": {
+        source: "iana"
+      },
+      "audio/isac": {
+        source: "apache"
+      },
+      "audio/l16": {
+        source: "iana"
+      },
+      "audio/l20": {
+        source: "iana"
+      },
+      "audio/l24": {
+        source: "iana",
+        compressible: false
+      },
+      "audio/l8": {
+        source: "iana"
+      },
+      "audio/lpc": {
+        source: "iana"
+      },
+      "audio/melp": {
+        source: "iana"
+      },
+      "audio/melp1200": {
+        source: "iana"
+      },
+      "audio/melp2400": {
+        source: "iana"
+      },
+      "audio/melp600": {
+        source: "iana"
+      },
+      "audio/mhas": {
+        source: "iana"
+      },
+      "audio/midi": {
+        source: "apache",
+        extensions: ["mid", "midi", "kar", "rmi"]
+      },
+      "audio/mobile-xmf": {
+        source: "iana",
+        extensions: ["mxmf"]
+      },
+      "audio/mp3": {
+        compressible: false,
+        extensions: ["mp3"]
+      },
+      "audio/mp4": {
+        source: "iana",
+        compressible: false,
+        extensions: ["m4a", "mp4a"]
+      },
+      "audio/mp4a-latm": {
+        source: "iana"
+      },
+      "audio/mpa": {
+        source: "iana"
+      },
+      "audio/mpa-robust": {
+        source: "iana"
+      },
+      "audio/mpeg": {
+        source: "iana",
+        compressible: false,
+        extensions: ["mpga", "mp2", "mp2a", "mp3", "m2a", "m3a"]
+      },
+      "audio/mpeg4-generic": {
+        source: "iana"
+      },
+      "audio/musepack": {
+        source: "apache"
+      },
+      "audio/ogg": {
+        source: "iana",
+        compressible: false,
+        extensions: ["oga", "ogg", "spx", "opus"]
+      },
+      "audio/opus": {
+        source: "iana"
+      },
+      "audio/parityfec": {
+        source: "iana"
+      },
+      "audio/pcma": {
+        source: "iana"
+      },
+      "audio/pcma-wb": {
+        source: "iana"
+      },
+      "audio/pcmu": {
+        source: "iana"
+      },
+      "audio/pcmu-wb": {
+        source: "iana"
+      },
+      "audio/prs.sid": {
+        source: "iana"
+      },
+      "audio/qcelp": {
+        source: "iana"
+      },
+      "audio/raptorfec": {
+        source: "iana"
+      },
+      "audio/red": {
+        source: "iana"
+      },
+      "audio/rtp-enc-aescm128": {
+        source: "iana"
+      },
+      "audio/rtp-midi": {
+        source: "iana"
+      },
+      "audio/rtploopback": {
+        source: "iana"
+      },
+      "audio/rtx": {
+        source: "iana"
+      },
+      "audio/s3m": {
+        source: "apache",
+        extensions: ["s3m"]
+      },
+      "audio/scip": {
+        source: "iana"
+      },
+      "audio/silk": {
+        source: "apache",
+        extensions: ["sil"]
+      },
+      "audio/smv": {
+        source: "iana"
+      },
+      "audio/smv-qcp": {
+        source: "iana"
+      },
+      "audio/smv0": {
+        source: "iana"
+      },
+      "audio/sofa": {
+        source: "iana"
+      },
+      "audio/sp-midi": {
+        source: "iana"
+      },
+      "audio/speex": {
+        source: "iana"
+      },
+      "audio/t140c": {
+        source: "iana"
+      },
+      "audio/t38": {
+        source: "iana"
+      },
+      "audio/telephone-event": {
+        source: "iana"
+      },
+      "audio/tetra_acelp": {
+        source: "iana"
+      },
+      "audio/tetra_acelp_bb": {
+        source: "iana"
+      },
+      "audio/tone": {
+        source: "iana"
+      },
+      "audio/tsvcis": {
+        source: "iana"
+      },
+      "audio/uemclip": {
+        source: "iana"
+      },
+      "audio/ulpfec": {
+        source: "iana"
+      },
+      "audio/usac": {
+        source: "iana"
+      },
+      "audio/vdvi": {
+        source: "iana"
+      },
+      "audio/vmr-wb": {
+        source: "iana"
+      },
+      "audio/vnd.3gpp.iufp": {
+        source: "iana"
+      },
+      "audio/vnd.4sb": {
+        source: "iana"
+      },
+      "audio/vnd.audiokoz": {
+        source: "iana"
+      },
+      "audio/vnd.celp": {
+        source: "iana"
+      },
+      "audio/vnd.cisco.nse": {
+        source: "iana"
+      },
+      "audio/vnd.cmles.radio-events": {
+        source: "iana"
+      },
+      "audio/vnd.cns.anp1": {
+        source: "iana"
+      },
+      "audio/vnd.cns.inf1": {
+        source: "iana"
+      },
+      "audio/vnd.dece.audio": {
+        source: "iana",
+        extensions: ["uva", "uvva"]
+      },
+      "audio/vnd.digital-winds": {
+        source: "iana",
+        extensions: ["eol"]
+      },
+      "audio/vnd.dlna.adts": {
+        source: "iana"
+      },
+      "audio/vnd.dolby.heaac.1": {
+        source: "iana"
+      },
+      "audio/vnd.dolby.heaac.2": {
+        source: "iana"
+      },
+      "audio/vnd.dolby.mlp": {
+        source: "iana"
+      },
+      "audio/vnd.dolby.mps": {
+        source: "iana"
+      },
+      "audio/vnd.dolby.pl2": {
+        source: "iana"
+      },
+      "audio/vnd.dolby.pl2x": {
+        source: "iana"
+      },
+      "audio/vnd.dolby.pl2z": {
+        source: "iana"
+      },
+      "audio/vnd.dolby.pulse.1": {
+        source: "iana"
+      },
+      "audio/vnd.dra": {
+        source: "iana",
+        extensions: ["dra"]
+      },
+      "audio/vnd.dts": {
+        source: "iana",
+        extensions: ["dts"]
+      },
+      "audio/vnd.dts.hd": {
+        source: "iana",
+        extensions: ["dtshd"]
+      },
+      "audio/vnd.dts.uhd": {
+        source: "iana"
+      },
+      "audio/vnd.dvb.file": {
+        source: "iana"
+      },
+      "audio/vnd.everad.plj": {
+        source: "iana"
+      },
+      "audio/vnd.hns.audio": {
+        source: "iana"
+      },
+      "audio/vnd.lucent.voice": {
+        source: "iana",
+        extensions: ["lvp"]
+      },
+      "audio/vnd.ms-playready.media.pya": {
+        source: "iana",
+        extensions: ["pya"]
+      },
+      "audio/vnd.nokia.mobile-xmf": {
+        source: "iana"
+      },
+      "audio/vnd.nortel.vbk": {
+        source: "iana"
+      },
+      "audio/vnd.nuera.ecelp4800": {
+        source: "iana",
+        extensions: ["ecelp4800"]
+      },
+      "audio/vnd.nuera.ecelp7470": {
+        source: "iana",
+        extensions: ["ecelp7470"]
+      },
+      "audio/vnd.nuera.ecelp9600": {
+        source: "iana",
+        extensions: ["ecelp9600"]
+      },
+      "audio/vnd.octel.sbc": {
+        source: "iana"
+      },
+      "audio/vnd.presonus.multitrack": {
+        source: "iana"
+      },
+      "audio/vnd.qcelp": {
+        source: "iana"
+      },
+      "audio/vnd.rhetorex.32kadpcm": {
+        source: "iana"
+      },
+      "audio/vnd.rip": {
+        source: "iana",
+        extensions: ["rip"]
+      },
+      "audio/vnd.rn-realaudio": {
+        compressible: false
+      },
+      "audio/vnd.sealedmedia.softseal.mpeg": {
+        source: "iana"
+      },
+      "audio/vnd.vmx.cvsd": {
+        source: "iana"
+      },
+      "audio/vnd.wave": {
+        compressible: false
+      },
+      "audio/vorbis": {
+        source: "iana",
+        compressible: false
+      },
+      "audio/vorbis-config": {
+        source: "iana"
+      },
+      "audio/wav": {
+        compressible: false,
+        extensions: ["wav"]
+      },
+      "audio/wave": {
+        compressible: false,
+        extensions: ["wav"]
+      },
+      "audio/webm": {
+        source: "apache",
+        compressible: false,
+        extensions: ["weba"]
+      },
+      "audio/x-aac": {
+        source: "apache",
+        compressible: false,
+        extensions: ["aac"]
+      },
+      "audio/x-aiff": {
+        source: "apache",
+        extensions: ["aif", "aiff", "aifc"]
+      },
+      "audio/x-caf": {
+        source: "apache",
+        compressible: false,
+        extensions: ["caf"]
+      },
+      "audio/x-flac": {
+        source: "apache",
+        extensions: ["flac"]
+      },
+      "audio/x-m4a": {
+        source: "nginx",
+        extensions: ["m4a"]
+      },
+      "audio/x-matroska": {
+        source: "apache",
+        extensions: ["mka"]
+      },
+      "audio/x-mpegurl": {
+        source: "apache",
+        extensions: ["m3u"]
+      },
+      "audio/x-ms-wax": {
+        source: "apache",
+        extensions: ["wax"]
+      },
+      "audio/x-ms-wma": {
+        source: "apache",
+        extensions: ["wma"]
+      },
+      "audio/x-pn-realaudio": {
+        source: "apache",
+        extensions: ["ram", "ra"]
+      },
+      "audio/x-pn-realaudio-plugin": {
+        source: "apache",
+        extensions: ["rmp"]
+      },
+      "audio/x-realaudio": {
+        source: "nginx",
+        extensions: ["ra"]
+      },
+      "audio/x-tta": {
+        source: "apache"
+      },
+      "audio/x-wav": {
+        source: "apache",
+        extensions: ["wav"]
+      },
+      "audio/xm": {
+        source: "apache",
+        extensions: ["xm"]
+      },
+      "chemical/x-cdx": {
+        source: "apache",
+        extensions: ["cdx"]
+      },
+      "chemical/x-cif": {
+        source: "apache",
+        extensions: ["cif"]
+      },
+      "chemical/x-cmdf": {
+        source: "apache",
+        extensions: ["cmdf"]
+      },
+      "chemical/x-cml": {
+        source: "apache",
+        extensions: ["cml"]
+      },
+      "chemical/x-csml": {
+        source: "apache",
+        extensions: ["csml"]
+      },
+      "chemical/x-pdb": {
+        source: "apache"
+      },
+      "chemical/x-xyz": {
+        source: "apache",
+        extensions: ["xyz"]
+      },
+      "font/collection": {
+        source: "iana",
+        extensions: ["ttc"]
+      },
+      "font/otf": {
+        source: "iana",
+        compressible: true,
+        extensions: ["otf"]
+      },
+      "font/sfnt": {
+        source: "iana"
+      },
+      "font/ttf": {
+        source: "iana",
+        compressible: true,
+        extensions: ["ttf"]
+      },
+      "font/woff": {
+        source: "iana",
+        extensions: ["woff"]
+      },
+      "font/woff2": {
+        source: "iana",
+        extensions: ["woff2"]
+      },
+      "image/aces": {
+        source: "iana",
+        extensions: ["exr"]
+      },
+      "image/apng": {
+        compressible: false,
+        extensions: ["apng"]
+      },
+      "image/avci": {
+        source: "iana",
+        extensions: ["avci"]
+      },
+      "image/avcs": {
+        source: "iana",
+        extensions: ["avcs"]
+      },
+      "image/avif": {
+        source: "iana",
+        compressible: false,
+        extensions: ["avif"]
+      },
+      "image/bmp": {
+        source: "iana",
+        compressible: true,
+        extensions: ["bmp"]
+      },
+      "image/cgm": {
+        source: "iana",
+        extensions: ["cgm"]
+      },
+      "image/dicom-rle": {
+        source: "iana",
+        extensions: ["drle"]
+      },
+      "image/emf": {
+        source: "iana",
+        extensions: ["emf"]
+      },
+      "image/fits": {
+        source: "iana",
+        extensions: ["fits"]
+      },
+      "image/g3fax": {
+        source: "iana",
+        extensions: ["g3"]
+      },
+      "image/gif": {
+        source: "iana",
+        compressible: false,
+        extensions: ["gif"]
+      },
+      "image/heic": {
+        source: "iana",
+        extensions: ["heic"]
+      },
+      "image/heic-sequence": {
+        source: "iana",
+        extensions: ["heics"]
+      },
+      "image/heif": {
+        source: "iana",
+        extensions: ["heif"]
+      },
+      "image/heif-sequence": {
+        source: "iana",
+        extensions: ["heifs"]
+      },
+      "image/hej2k": {
+        source: "iana",
+        extensions: ["hej2"]
+      },
+      "image/hsj2": {
+        source: "iana",
+        extensions: ["hsj2"]
+      },
+      "image/ief": {
+        source: "iana",
+        extensions: ["ief"]
+      },
+      "image/jls": {
+        source: "iana",
+        extensions: ["jls"]
+      },
+      "image/jp2": {
+        source: "iana",
+        compressible: false,
+        extensions: ["jp2", "jpg2"]
+      },
+      "image/jpeg": {
+        source: "iana",
+        compressible: false,
+        extensions: ["jpeg", "jpg", "jpe"]
+      },
+      "image/jph": {
+        source: "iana",
+        extensions: ["jph"]
+      },
+      "image/jphc": {
+        source: "iana",
+        extensions: ["jhc"]
+      },
+      "image/jpm": {
+        source: "iana",
+        compressible: false,
+        extensions: ["jpm"]
+      },
+      "image/jpx": {
+        source: "iana",
+        compressible: false,
+        extensions: ["jpx", "jpf"]
+      },
+      "image/jxr": {
+        source: "iana",
+        extensions: ["jxr"]
+      },
+      "image/jxra": {
+        source: "iana",
+        extensions: ["jxra"]
+      },
+      "image/jxrs": {
+        source: "iana",
+        extensions: ["jxrs"]
+      },
+      "image/jxs": {
+        source: "iana",
+        extensions: ["jxs"]
+      },
+      "image/jxsc": {
+        source: "iana",
+        extensions: ["jxsc"]
+      },
+      "image/jxsi": {
+        source: "iana",
+        extensions: ["jxsi"]
+      },
+      "image/jxss": {
+        source: "iana",
+        extensions: ["jxss"]
+      },
+      "image/ktx": {
+        source: "iana",
+        extensions: ["ktx"]
+      },
+      "image/ktx2": {
+        source: "iana",
+        extensions: ["ktx2"]
+      },
+      "image/naplps": {
+        source: "iana"
+      },
+      "image/pjpeg": {
+        compressible: false
+      },
+      "image/png": {
+        source: "iana",
+        compressible: false,
+        extensions: ["png"]
+      },
+      "image/prs.btif": {
+        source: "iana",
+        extensions: ["btif"]
+      },
+      "image/prs.pti": {
+        source: "iana",
+        extensions: ["pti"]
+      },
+      "image/pwg-raster": {
+        source: "iana"
+      },
+      "image/sgi": {
+        source: "apache",
+        extensions: ["sgi"]
+      },
+      "image/svg+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["svg", "svgz"]
+      },
+      "image/t38": {
+        source: "iana",
+        extensions: ["t38"]
+      },
+      "image/tiff": {
+        source: "iana",
+        compressible: false,
+        extensions: ["tif", "tiff"]
+      },
+      "image/tiff-fx": {
+        source: "iana",
+        extensions: ["tfx"]
+      },
+      "image/vnd.adobe.photoshop": {
+        source: "iana",
+        compressible: true,
+        extensions: ["psd"]
+      },
+      "image/vnd.airzip.accelerator.azv": {
+        source: "iana",
+        extensions: ["azv"]
+      },
+      "image/vnd.cns.inf2": {
+        source: "iana"
+      },
+      "image/vnd.dece.graphic": {
+        source: "iana",
+        extensions: ["uvi", "uvvi", "uvg", "uvvg"]
+      },
+      "image/vnd.djvu": {
+        source: "iana",
+        extensions: ["djvu", "djv"]
+      },
+      "image/vnd.dvb.subtitle": {
+        source: "iana",
+        extensions: ["sub"]
+      },
+      "image/vnd.dwg": {
+        source: "iana",
+        extensions: ["dwg"]
+      },
+      "image/vnd.dxf": {
+        source: "iana",
+        extensions: ["dxf"]
+      },
+      "image/vnd.fastbidsheet": {
+        source: "iana",
+        extensions: ["fbs"]
+      },
+      "image/vnd.fpx": {
+        source: "iana",
+        extensions: ["fpx"]
+      },
+      "image/vnd.fst": {
+        source: "iana",
+        extensions: ["fst"]
+      },
+      "image/vnd.fujixerox.edmics-mmr": {
+        source: "iana",
+        extensions: ["mmr"]
+      },
+      "image/vnd.fujixerox.edmics-rlc": {
+        source: "iana",
+        extensions: ["rlc"]
+      },
+      "image/vnd.globalgraphics.pgb": {
+        source: "iana"
+      },
+      "image/vnd.microsoft.icon": {
+        source: "iana",
+        compressible: true,
+        extensions: ["ico"]
+      },
+      "image/vnd.mix": {
+        source: "iana"
+      },
+      "image/vnd.mozilla.apng": {
+        source: "iana"
+      },
+      "image/vnd.ms-dds": {
+        compressible: true,
+        extensions: ["dds"]
+      },
+      "image/vnd.ms-modi": {
+        source: "iana",
+        extensions: ["mdi"]
+      },
+      "image/vnd.ms-photo": {
+        source: "apache",
+        extensions: ["wdp"]
+      },
+      "image/vnd.net-fpx": {
+        source: "iana",
+        extensions: ["npx"]
+      },
+      "image/vnd.pco.b16": {
+        source: "iana",
+        extensions: ["b16"]
+      },
+      "image/vnd.radiance": {
+        source: "iana"
+      },
+      "image/vnd.sealed.png": {
+        source: "iana"
+      },
+      "image/vnd.sealedmedia.softseal.gif": {
+        source: "iana"
+      },
+      "image/vnd.sealedmedia.softseal.jpg": {
+        source: "iana"
+      },
+      "image/vnd.svf": {
+        source: "iana"
+      },
+      "image/vnd.tencent.tap": {
+        source: "iana",
+        extensions: ["tap"]
+      },
+      "image/vnd.valve.source.texture": {
+        source: "iana",
+        extensions: ["vtf"]
+      },
+      "image/vnd.wap.wbmp": {
+        source: "iana",
+        extensions: ["wbmp"]
+      },
+      "image/vnd.xiff": {
+        source: "iana",
+        extensions: ["xif"]
+      },
+      "image/vnd.zbrush.pcx": {
+        source: "iana",
+        extensions: ["pcx"]
+      },
+      "image/webp": {
+        source: "apache",
+        extensions: ["webp"]
+      },
+      "image/wmf": {
+        source: "iana",
+        extensions: ["wmf"]
+      },
+      "image/x-3ds": {
+        source: "apache",
+        extensions: ["3ds"]
+      },
+      "image/x-cmu-raster": {
+        source: "apache",
+        extensions: ["ras"]
+      },
+      "image/x-cmx": {
+        source: "apache",
+        extensions: ["cmx"]
+      },
+      "image/x-freehand": {
+        source: "apache",
+        extensions: ["fh", "fhc", "fh4", "fh5", "fh7"]
+      },
+      "image/x-icon": {
+        source: "apache",
+        compressible: true,
+        extensions: ["ico"]
+      },
+      "image/x-jng": {
+        source: "nginx",
+        extensions: ["jng"]
+      },
+      "image/x-mrsid-image": {
+        source: "apache",
+        extensions: ["sid"]
+      },
+      "image/x-ms-bmp": {
+        source: "nginx",
+        compressible: true,
+        extensions: ["bmp"]
+      },
+      "image/x-pcx": {
+        source: "apache",
+        extensions: ["pcx"]
+      },
+      "image/x-pict": {
+        source: "apache",
+        extensions: ["pic", "pct"]
+      },
+      "image/x-portable-anymap": {
+        source: "apache",
+        extensions: ["pnm"]
+      },
+      "image/x-portable-bitmap": {
+        source: "apache",
+        extensions: ["pbm"]
+      },
+      "image/x-portable-graymap": {
+        source: "apache",
+        extensions: ["pgm"]
+      },
+      "image/x-portable-pixmap": {
+        source: "apache",
+        extensions: ["ppm"]
+      },
+      "image/x-rgb": {
+        source: "apache",
+        extensions: ["rgb"]
+      },
+      "image/x-tga": {
+        source: "apache",
+        extensions: ["tga"]
+      },
+      "image/x-xbitmap": {
+        source: "apache",
+        extensions: ["xbm"]
+      },
+      "image/x-xcf": {
+        compressible: false
+      },
+      "image/x-xpixmap": {
+        source: "apache",
+        extensions: ["xpm"]
+      },
+      "image/x-xwindowdump": {
+        source: "apache",
+        extensions: ["xwd"]
+      },
+      "message/cpim": {
+        source: "iana"
+      },
+      "message/delivery-status": {
+        source: "iana"
+      },
+      "message/disposition-notification": {
+        source: "iana",
+        extensions: [
+          "disposition-notification"
+        ]
+      },
+      "message/external-body": {
+        source: "iana"
+      },
+      "message/feedback-report": {
+        source: "iana"
+      },
+      "message/global": {
+        source: "iana",
+        extensions: ["u8msg"]
+      },
+      "message/global-delivery-status": {
+        source: "iana",
+        extensions: ["u8dsn"]
+      },
+      "message/global-disposition-notification": {
+        source: "iana",
+        extensions: ["u8mdn"]
+      },
+      "message/global-headers": {
+        source: "iana",
+        extensions: ["u8hdr"]
+      },
+      "message/http": {
+        source: "iana",
+        compressible: false
+      },
+      "message/imdn+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "message/news": {
+        source: "iana"
+      },
+      "message/partial": {
+        source: "iana",
+        compressible: false
+      },
+      "message/rfc822": {
+        source: "iana",
+        compressible: true,
+        extensions: ["eml", "mime"]
+      },
+      "message/s-http": {
+        source: "iana"
+      },
+      "message/sip": {
+        source: "iana"
+      },
+      "message/sipfrag": {
+        source: "iana"
+      },
+      "message/tracking-status": {
+        source: "iana"
+      },
+      "message/vnd.si.simp": {
+        source: "iana"
+      },
+      "message/vnd.wfa.wsc": {
+        source: "iana",
+        extensions: ["wsc"]
+      },
+      "model/3mf": {
+        source: "iana",
+        extensions: ["3mf"]
+      },
+      "model/e57": {
+        source: "iana"
+      },
+      "model/gltf+json": {
+        source: "iana",
+        compressible: true,
+        extensions: ["gltf"]
+      },
+      "model/gltf-binary": {
+        source: "iana",
+        compressible: true,
+        extensions: ["glb"]
+      },
+      "model/iges": {
+        source: "iana",
+        compressible: false,
+        extensions: ["igs", "iges"]
+      },
+      "model/mesh": {
+        source: "iana",
+        compressible: false,
+        extensions: ["msh", "mesh", "silo"]
+      },
+      "model/mtl": {
+        source: "iana",
+        extensions: ["mtl"]
+      },
+      "model/obj": {
+        source: "iana",
+        extensions: ["obj"]
+      },
+      "model/step": {
+        source: "iana"
+      },
+      "model/step+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["stpx"]
+      },
+      "model/step+zip": {
+        source: "iana",
+        compressible: false,
+        extensions: ["stpz"]
+      },
+      "model/step-xml+zip": {
+        source: "iana",
+        compressible: false,
+        extensions: ["stpxz"]
+      },
+      "model/stl": {
+        source: "iana",
+        extensions: ["stl"]
+      },
+      "model/vnd.collada+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["dae"]
+      },
+      "model/vnd.dwf": {
+        source: "iana",
+        extensions: ["dwf"]
+      },
+      "model/vnd.flatland.3dml": {
+        source: "iana"
+      },
+      "model/vnd.gdl": {
+        source: "iana",
+        extensions: ["gdl"]
+      },
+      "model/vnd.gs-gdl": {
+        source: "apache"
+      },
+      "model/vnd.gs.gdl": {
+        source: "iana"
+      },
+      "model/vnd.gtw": {
+        source: "iana",
+        extensions: ["gtw"]
+      },
+      "model/vnd.moml+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "model/vnd.mts": {
+        source: "iana",
+        extensions: ["mts"]
+      },
+      "model/vnd.opengex": {
+        source: "iana",
+        extensions: ["ogex"]
+      },
+      "model/vnd.parasolid.transmit.binary": {
+        source: "iana",
+        extensions: ["x_b"]
+      },
+      "model/vnd.parasolid.transmit.text": {
+        source: "iana",
+        extensions: ["x_t"]
+      },
+      "model/vnd.pytha.pyox": {
+        source: "iana"
+      },
+      "model/vnd.rosette.annotated-data-model": {
+        source: "iana"
+      },
+      "model/vnd.sap.vds": {
+        source: "iana",
+        extensions: ["vds"]
+      },
+      "model/vnd.usdz+zip": {
+        source: "iana",
+        compressible: false,
+        extensions: ["usdz"]
+      },
+      "model/vnd.valve.source.compiled-map": {
+        source: "iana",
+        extensions: ["bsp"]
+      },
+      "model/vnd.vtu": {
+        source: "iana",
+        extensions: ["vtu"]
+      },
+      "model/vrml": {
+        source: "iana",
+        compressible: false,
+        extensions: ["wrl", "vrml"]
+      },
+      "model/x3d+binary": {
+        source: "apache",
+        compressible: false,
+        extensions: ["x3db", "x3dbz"]
+      },
+      "model/x3d+fastinfoset": {
+        source: "iana",
+        extensions: ["x3db"]
+      },
+      "model/x3d+vrml": {
+        source: "apache",
+        compressible: false,
+        extensions: ["x3dv", "x3dvz"]
+      },
+      "model/x3d+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["x3d", "x3dz"]
+      },
+      "model/x3d-vrml": {
+        source: "iana",
+        extensions: ["x3dv"]
+      },
+      "multipart/alternative": {
+        source: "iana",
+        compressible: false
+      },
+      "multipart/appledouble": {
+        source: "iana"
+      },
+      "multipart/byteranges": {
+        source: "iana"
+      },
+      "multipart/digest": {
+        source: "iana"
+      },
+      "multipart/encrypted": {
+        source: "iana",
+        compressible: false
+      },
+      "multipart/form-data": {
+        source: "iana",
+        compressible: false
+      },
+      "multipart/header-set": {
+        source: "iana"
+      },
+      "multipart/mixed": {
+        source: "iana"
+      },
+      "multipart/multilingual": {
+        source: "iana"
+      },
+      "multipart/parallel": {
+        source: "iana"
+      },
+      "multipart/related": {
+        source: "iana",
+        compressible: false
+      },
+      "multipart/report": {
+        source: "iana"
+      },
+      "multipart/signed": {
+        source: "iana",
+        compressible: false
+      },
+      "multipart/vnd.bint.med-plus": {
+        source: "iana"
+      },
+      "multipart/voice-message": {
+        source: "iana"
+      },
+      "multipart/x-mixed-replace": {
+        source: "iana"
+      },
+      "text/1d-interleaved-parityfec": {
+        source: "iana"
+      },
+      "text/cache-manifest": {
+        source: "iana",
+        compressible: true,
+        extensions: ["appcache", "manifest"]
+      },
+      "text/calendar": {
+        source: "iana",
+        extensions: ["ics", "ifb"]
+      },
+      "text/calender": {
+        compressible: true
+      },
+      "text/cmd": {
+        compressible: true
+      },
+      "text/coffeescript": {
+        extensions: ["coffee", "litcoffee"]
+      },
+      "text/cql": {
+        source: "iana"
+      },
+      "text/cql-expression": {
+        source: "iana"
+      },
+      "text/cql-identifier": {
+        source: "iana"
+      },
+      "text/css": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true,
+        extensions: ["css"]
+      },
+      "text/csv": {
+        source: "iana",
+        compressible: true,
+        extensions: ["csv"]
+      },
+      "text/csv-schema": {
+        source: "iana"
+      },
+      "text/directory": {
+        source: "iana"
+      },
+      "text/dns": {
+        source: "iana"
+      },
+      "text/ecmascript": {
+        source: "iana"
+      },
+      "text/encaprtp": {
+        source: "iana"
+      },
+      "text/enriched": {
+        source: "iana"
+      },
+      "text/fhirpath": {
+        source: "iana"
+      },
+      "text/flexfec": {
+        source: "iana"
+      },
+      "text/fwdred": {
+        source: "iana"
+      },
+      "text/gff3": {
+        source: "iana"
+      },
+      "text/grammar-ref-list": {
+        source: "iana"
+      },
+      "text/html": {
+        source: "iana",
+        compressible: true,
+        extensions: ["html", "htm", "shtml"]
+      },
+      "text/jade": {
+        extensions: ["jade"]
+      },
+      "text/javascript": {
+        source: "iana",
+        compressible: true
+      },
+      "text/jcr-cnd": {
+        source: "iana"
+      },
+      "text/jsx": {
+        compressible: true,
+        extensions: ["jsx"]
+      },
+      "text/less": {
+        compressible: true,
+        extensions: ["less"]
+      },
+      "text/markdown": {
+        source: "iana",
+        compressible: true,
+        extensions: ["markdown", "md"]
+      },
+      "text/mathml": {
+        source: "nginx",
+        extensions: ["mml"]
+      },
+      "text/mdx": {
+        compressible: true,
+        extensions: ["mdx"]
+      },
+      "text/mizar": {
+        source: "iana"
+      },
+      "text/n3": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true,
+        extensions: ["n3"]
+      },
+      "text/parameters": {
+        source: "iana",
+        charset: "UTF-8"
+      },
+      "text/parityfec": {
+        source: "iana"
+      },
+      "text/plain": {
+        source: "iana",
+        compressible: true,
+        extensions: ["txt", "text", "conf", "def", "list", "log", "in", "ini"]
+      },
+      "text/provenance-notation": {
+        source: "iana",
+        charset: "UTF-8"
+      },
+      "text/prs.fallenstein.rst": {
+        source: "iana"
+      },
+      "text/prs.lines.tag": {
+        source: "iana",
+        extensions: ["dsc"]
+      },
+      "text/prs.prop.logic": {
+        source: "iana"
+      },
+      "text/raptorfec": {
+        source: "iana"
+      },
+      "text/red": {
+        source: "iana"
+      },
+      "text/rfc822-headers": {
+        source: "iana"
+      },
+      "text/richtext": {
+        source: "iana",
+        compressible: true,
+        extensions: ["rtx"]
+      },
+      "text/rtf": {
+        source: "iana",
+        compressible: true,
+        extensions: ["rtf"]
+      },
+      "text/rtp-enc-aescm128": {
+        source: "iana"
+      },
+      "text/rtploopback": {
+        source: "iana"
+      },
+      "text/rtx": {
+        source: "iana"
+      },
+      "text/sgml": {
+        source: "iana",
+        extensions: ["sgml", "sgm"]
+      },
+      "text/shaclc": {
+        source: "iana"
+      },
+      "text/shex": {
+        source: "iana",
+        extensions: ["shex"]
+      },
+      "text/slim": {
+        extensions: ["slim", "slm"]
+      },
+      "text/spdx": {
+        source: "iana",
+        extensions: ["spdx"]
+      },
+      "text/strings": {
+        source: "iana"
+      },
+      "text/stylus": {
+        extensions: ["stylus", "styl"]
+      },
+      "text/t140": {
+        source: "iana"
+      },
+      "text/tab-separated-values": {
+        source: "iana",
+        compressible: true,
+        extensions: ["tsv"]
+      },
+      "text/troff": {
+        source: "iana",
+        extensions: ["t", "tr", "roff", "man", "me", "ms"]
+      },
+      "text/turtle": {
+        source: "iana",
+        charset: "UTF-8",
+        extensions: ["ttl"]
+      },
+      "text/ulpfec": {
+        source: "iana"
+      },
+      "text/uri-list": {
+        source: "iana",
+        compressible: true,
+        extensions: ["uri", "uris", "urls"]
+      },
+      "text/vcard": {
+        source: "iana",
+        compressible: true,
+        extensions: ["vcard"]
+      },
+      "text/vnd.a": {
+        source: "iana"
+      },
+      "text/vnd.abc": {
+        source: "iana"
+      },
+      "text/vnd.ascii-art": {
+        source: "iana"
+      },
+      "text/vnd.curl": {
+        source: "iana",
+        extensions: ["curl"]
+      },
+      "text/vnd.curl.dcurl": {
+        source: "apache",
+        extensions: ["dcurl"]
+      },
+      "text/vnd.curl.mcurl": {
+        source: "apache",
+        extensions: ["mcurl"]
+      },
+      "text/vnd.curl.scurl": {
+        source: "apache",
+        extensions: ["scurl"]
+      },
+      "text/vnd.debian.copyright": {
+        source: "iana",
+        charset: "UTF-8"
+      },
+      "text/vnd.dmclientscript": {
+        source: "iana"
+      },
+      "text/vnd.dvb.subtitle": {
+        source: "iana",
+        extensions: ["sub"]
+      },
+      "text/vnd.esmertec.theme-descriptor": {
+        source: "iana",
+        charset: "UTF-8"
+      },
+      "text/vnd.familysearch.gedcom": {
+        source: "iana",
+        extensions: ["ged"]
+      },
+      "text/vnd.ficlab.flt": {
+        source: "iana"
+      },
+      "text/vnd.fly": {
+        source: "iana",
+        extensions: ["fly"]
+      },
+      "text/vnd.fmi.flexstor": {
+        source: "iana",
+        extensions: ["flx"]
+      },
+      "text/vnd.gml": {
+        source: "iana"
+      },
+      "text/vnd.graphviz": {
+        source: "iana",
+        extensions: ["gv"]
+      },
+      "text/vnd.hans": {
+        source: "iana"
+      },
+      "text/vnd.hgl": {
+        source: "iana"
+      },
+      "text/vnd.in3d.3dml": {
+        source: "iana",
+        extensions: ["3dml"]
+      },
+      "text/vnd.in3d.spot": {
+        source: "iana",
+        extensions: ["spot"]
+      },
+      "text/vnd.iptc.newsml": {
+        source: "iana"
+      },
+      "text/vnd.iptc.nitf": {
+        source: "iana"
+      },
+      "text/vnd.latex-z": {
+        source: "iana"
+      },
+      "text/vnd.motorola.reflex": {
+        source: "iana"
+      },
+      "text/vnd.ms-mediapackage": {
+        source: "iana"
+      },
+      "text/vnd.net2phone.commcenter.command": {
+        source: "iana"
+      },
+      "text/vnd.radisys.msml-basic-layout": {
+        source: "iana"
+      },
+      "text/vnd.senx.warpscript": {
+        source: "iana"
+      },
+      "text/vnd.si.uricatalogue": {
+        source: "iana"
+      },
+      "text/vnd.sosi": {
+        source: "iana"
+      },
+      "text/vnd.sun.j2me.app-descriptor": {
+        source: "iana",
+        charset: "UTF-8",
+        extensions: ["jad"]
+      },
+      "text/vnd.trolltech.linguist": {
+        source: "iana",
+        charset: "UTF-8"
+      },
+      "text/vnd.wap.si": {
+        source: "iana"
+      },
+      "text/vnd.wap.sl": {
+        source: "iana"
+      },
+      "text/vnd.wap.wml": {
+        source: "iana",
+        extensions: ["wml"]
+      },
+      "text/vnd.wap.wmlscript": {
+        source: "iana",
+        extensions: ["wmls"]
+      },
+      "text/vtt": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true,
+        extensions: ["vtt"]
+      },
+      "text/x-asm": {
+        source: "apache",
+        extensions: ["s", "asm"]
+      },
+      "text/x-c": {
+        source: "apache",
+        extensions: ["c", "cc", "cxx", "cpp", "h", "hh", "dic"]
+      },
+      "text/x-component": {
+        source: "nginx",
+        extensions: ["htc"]
+      },
+      "text/x-fortran": {
+        source: "apache",
+        extensions: ["f", "for", "f77", "f90"]
+      },
+      "text/x-gwt-rpc": {
+        compressible: true
+      },
+      "text/x-handlebars-template": {
+        extensions: ["hbs"]
+      },
+      "text/x-java-source": {
+        source: "apache",
+        extensions: ["java"]
+      },
+      "text/x-jquery-tmpl": {
+        compressible: true
+      },
+      "text/x-lua": {
+        extensions: ["lua"]
+      },
+      "text/x-markdown": {
+        compressible: true,
+        extensions: ["mkd"]
+      },
+      "text/x-nfo": {
+        source: "apache",
+        extensions: ["nfo"]
+      },
+      "text/x-opml": {
+        source: "apache",
+        extensions: ["opml"]
+      },
+      "text/x-org": {
+        compressible: true,
+        extensions: ["org"]
+      },
+      "text/x-pascal": {
+        source: "apache",
+        extensions: ["p", "pas"]
+      },
+      "text/x-processing": {
+        compressible: true,
+        extensions: ["pde"]
+      },
+      "text/x-sass": {
+        extensions: ["sass"]
+      },
+      "text/x-scss": {
+        extensions: ["scss"]
+      },
+      "text/x-setext": {
+        source: "apache",
+        extensions: ["etx"]
+      },
+      "text/x-sfv": {
+        source: "apache",
+        extensions: ["sfv"]
+      },
+      "text/x-suse-ymp": {
+        compressible: true,
+        extensions: ["ymp"]
+      },
+      "text/x-uuencode": {
+        source: "apache",
+        extensions: ["uu"]
+      },
+      "text/x-vcalendar": {
+        source: "apache",
+        extensions: ["vcs"]
+      },
+      "text/x-vcard": {
+        source: "apache",
+        extensions: ["vcf"]
+      },
+      "text/xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["xml"]
+      },
+      "text/xml-external-parsed-entity": {
+        source: "iana"
+      },
+      "text/yaml": {
+        compressible: true,
+        extensions: ["yaml", "yml"]
+      },
+      "video/1d-interleaved-parityfec": {
+        source: "iana"
+      },
+      "video/3gpp": {
+        source: "iana",
+        extensions: ["3gp", "3gpp"]
+      },
+      "video/3gpp-tt": {
+        source: "iana"
+      },
+      "video/3gpp2": {
+        source: "iana",
+        extensions: ["3g2"]
+      },
+      "video/av1": {
+        source: "iana"
+      },
+      "video/bmpeg": {
+        source: "iana"
+      },
+      "video/bt656": {
+        source: "iana"
+      },
+      "video/celb": {
+        source: "iana"
+      },
+      "video/dv": {
+        source: "iana"
+      },
+      "video/encaprtp": {
+        source: "iana"
+      },
+      "video/ffv1": {
+        source: "iana"
+      },
+      "video/flexfec": {
+        source: "iana"
+      },
+      "video/h261": {
+        source: "iana",
+        extensions: ["h261"]
+      },
+      "video/h263": {
+        source: "iana",
+        extensions: ["h263"]
+      },
+      "video/h263-1998": {
+        source: "iana"
+      },
+      "video/h263-2000": {
+        source: "iana"
+      },
+      "video/h264": {
+        source: "iana",
+        extensions: ["h264"]
+      },
+      "video/h264-rcdo": {
+        source: "iana"
+      },
+      "video/h264-svc": {
+        source: "iana"
+      },
+      "video/h265": {
+        source: "iana"
+      },
+      "video/iso.segment": {
+        source: "iana",
+        extensions: ["m4s"]
+      },
+      "video/jpeg": {
+        source: "iana",
+        extensions: ["jpgv"]
+      },
+      "video/jpeg2000": {
+        source: "iana"
+      },
+      "video/jpm": {
+        source: "apache",
+        extensions: ["jpm", "jpgm"]
+      },
+      "video/jxsv": {
+        source: "iana"
+      },
+      "video/mj2": {
+        source: "iana",
+        extensions: ["mj2", "mjp2"]
+      },
+      "video/mp1s": {
+        source: "iana"
+      },
+      "video/mp2p": {
+        source: "iana"
+      },
+      "video/mp2t": {
+        source: "iana",
+        extensions: ["ts"]
+      },
+      "video/mp4": {
+        source: "iana",
+        compressible: false,
+        extensions: ["mp4", "mp4v", "mpg4"]
+      },
+      "video/mp4v-es": {
+        source: "iana"
+      },
+      "video/mpeg": {
+        source: "iana",
+        compressible: false,
+        extensions: ["mpeg", "mpg", "mpe", "m1v", "m2v"]
+      },
+      "video/mpeg4-generic": {
+        source: "iana"
+      },
+      "video/mpv": {
+        source: "iana"
+      },
+      "video/nv": {
+        source: "iana"
+      },
+      "video/ogg": {
+        source: "iana",
+        compressible: false,
+        extensions: ["ogv"]
+      },
+      "video/parityfec": {
+        source: "iana"
+      },
+      "video/pointer": {
+        source: "iana"
+      },
+      "video/quicktime": {
+        source: "iana",
+        compressible: false,
+        extensions: ["qt", "mov"]
+      },
+      "video/raptorfec": {
+        source: "iana"
+      },
+      "video/raw": {
+        source: "iana"
+      },
+      "video/rtp-enc-aescm128": {
+        source: "iana"
+      },
+      "video/rtploopback": {
+        source: "iana"
+      },
+      "video/rtx": {
+        source: "iana"
+      },
+      "video/scip": {
+        source: "iana"
+      },
+      "video/smpte291": {
+        source: "iana"
+      },
+      "video/smpte292m": {
+        source: "iana"
+      },
+      "video/ulpfec": {
+        source: "iana"
+      },
+      "video/vc1": {
+        source: "iana"
+      },
+      "video/vc2": {
+        source: "iana"
+      },
+      "video/vnd.cctv": {
+        source: "iana"
+      },
+      "video/vnd.dece.hd": {
+        source: "iana",
+        extensions: ["uvh", "uvvh"]
+      },
+      "video/vnd.dece.mobile": {
+        source: "iana",
+        extensions: ["uvm", "uvvm"]
+      },
+      "video/vnd.dece.mp4": {
+        source: "iana"
+      },
+      "video/vnd.dece.pd": {
+        source: "iana",
+        extensions: ["uvp", "uvvp"]
+      },
+      "video/vnd.dece.sd": {
+        source: "iana",
+        extensions: ["uvs", "uvvs"]
+      },
+      "video/vnd.dece.video": {
+        source: "iana",
+        extensions: ["uvv", "uvvv"]
+      },
+      "video/vnd.directv.mpeg": {
+        source: "iana"
+      },
+      "video/vnd.directv.mpeg-tts": {
+        source: "iana"
+      },
+      "video/vnd.dlna.mpeg-tts": {
+        source: "iana"
+      },
+      "video/vnd.dvb.file": {
+        source: "iana",
+        extensions: ["dvb"]
+      },
+      "video/vnd.fvt": {
+        source: "iana",
+        extensions: ["fvt"]
+      },
+      "video/vnd.hns.video": {
+        source: "iana"
+      },
+      "video/vnd.iptvforum.1dparityfec-1010": {
+        source: "iana"
+      },
+      "video/vnd.iptvforum.1dparityfec-2005": {
+        source: "iana"
+      },
+      "video/vnd.iptvforum.2dparityfec-1010": {
+        source: "iana"
+      },
+      "video/vnd.iptvforum.2dparityfec-2005": {
+        source: "iana"
+      },
+      "video/vnd.iptvforum.ttsavc": {
+        source: "iana"
+      },
+      "video/vnd.iptvforum.ttsmpeg2": {
+        source: "iana"
+      },
+      "video/vnd.motorola.video": {
+        source: "iana"
+      },
+      "video/vnd.motorola.videop": {
+        source: "iana"
+      },
+      "video/vnd.mpegurl": {
+        source: "iana",
+        extensions: ["mxu", "m4u"]
+      },
+      "video/vnd.ms-playready.media.pyv": {
+        source: "iana",
+        extensions: ["pyv"]
+      },
+      "video/vnd.nokia.interleaved-multimedia": {
+        source: "iana"
+      },
+      "video/vnd.nokia.mp4vr": {
+        source: "iana"
+      },
+      "video/vnd.nokia.videovoip": {
+        source: "iana"
+      },
+      "video/vnd.objectvideo": {
+        source: "iana"
+      },
+      "video/vnd.radgamettools.bink": {
+        source: "iana"
+      },
+      "video/vnd.radgamettools.smacker": {
+        source: "iana"
+      },
+      "video/vnd.sealed.mpeg1": {
+        source: "iana"
+      },
+      "video/vnd.sealed.mpeg4": {
+        source: "iana"
+      },
+      "video/vnd.sealed.swf": {
+        source: "iana"
+      },
+      "video/vnd.sealedmedia.softseal.mov": {
+        source: "iana"
+      },
+      "video/vnd.uvvu.mp4": {
+        source: "iana",
+        extensions: ["uvu", "uvvu"]
+      },
+      "video/vnd.vivo": {
+        source: "iana",
+        extensions: ["viv"]
+      },
+      "video/vnd.youtube.yt": {
+        source: "iana"
+      },
+      "video/vp8": {
+        source: "iana"
+      },
+      "video/vp9": {
+        source: "iana"
+      },
+      "video/webm": {
+        source: "apache",
+        compressible: false,
+        extensions: ["webm"]
+      },
+      "video/x-f4v": {
+        source: "apache",
+        extensions: ["f4v"]
+      },
+      "video/x-fli": {
+        source: "apache",
+        extensions: ["fli"]
+      },
+      "video/x-flv": {
+        source: "apache",
+        compressible: false,
+        extensions: ["flv"]
+      },
+      "video/x-m4v": {
+        source: "apache",
+        extensions: ["m4v"]
+      },
+      "video/x-matroska": {
+        source: "apache",
+        compressible: false,
+        extensions: ["mkv", "mk3d", "mks"]
+      },
+      "video/x-mng": {
+        source: "apache",
+        extensions: ["mng"]
+      },
+      "video/x-ms-asf": {
+        source: "apache",
+        extensions: ["asf", "asx"]
+      },
+      "video/x-ms-vob": {
+        source: "apache",
+        extensions: ["vob"]
+      },
+      "video/x-ms-wm": {
+        source: "apache",
+        extensions: ["wm"]
+      },
+      "video/x-ms-wmv": {
+        source: "apache",
+        compressible: false,
+        extensions: ["wmv"]
+      },
+      "video/x-ms-wmx": {
+        source: "apache",
+        extensions: ["wmx"]
+      },
+      "video/x-ms-wvx": {
+        source: "apache",
+        extensions: ["wvx"]
+      },
+      "video/x-msvideo": {
+        source: "apache",
+        extensions: ["avi"]
+      },
+      "video/x-sgi-movie": {
+        source: "apache",
+        extensions: ["movie"]
+      },
+      "video/x-smv": {
+        source: "apache",
+        extensions: ["smv"]
+      },
+      "x-conference/x-cooltalk": {
+        source: "apache",
+        extensions: ["ice"]
+      },
+      "x-shader/x-fragment": {
+        compressible: true
+      },
+      "x-shader/x-vertex": {
+        compressible: true
+      }
+    };
+  }
+});
+
+// node_modules/mime-db/index.js
+var require_mime_db = __commonJS({
+  "node_modules/mime-db/index.js"(exports2, module2) {
+    module2.exports = require_db();
+  }
+});
+
+// node_modules/mime-types/index.js
+var require_mime_types = __commonJS({
+  "node_modules/mime-types/index.js"(exports2) {
+    "use strict";
+    var db = require_mime_db();
+    var extname = require("path").extname;
+    var EXTRACT_TYPE_REGEXP = /^\s*([^;\s]*)(?:;|\s|$)/;
+    var TEXT_TYPE_REGEXP = /^text\//i;
+    exports2.charset = charset;
+    exports2.charsets = { lookup: charset };
+    exports2.contentType = contentType;
+    exports2.extension = extension;
+    exports2.extensions = /* @__PURE__ */ Object.create(null);
+    exports2.lookup = lookup;
+    exports2.types = /* @__PURE__ */ Object.create(null);
+    populateMaps(exports2.extensions, exports2.types);
+    function charset(type) {
+      if (!type || typeof type !== "string") {
+        return false;
+      }
+      var match = EXTRACT_TYPE_REGEXP.exec(type);
+      var mime = match && db[match[1].toLowerCase()];
+      if (mime && mime.charset) {
+        return mime.charset;
+      }
+      if (match && TEXT_TYPE_REGEXP.test(match[1])) {
+        return "UTF-8";
+      }
+      return false;
+    }
+    function contentType(str) {
+      if (!str || typeof str !== "string") {
+        return false;
+      }
+      var mime = str.indexOf("/") === -1 ? exports2.lookup(str) : str;
+      if (!mime) {
+        return false;
+      }
+      if (mime.indexOf("charset") === -1) {
+        var charset2 = exports2.charset(mime);
+        if (charset2)
+          mime += "; charset=" + charset2.toLowerCase();
+      }
+      return mime;
+    }
+    function extension(type) {
+      if (!type || typeof type !== "string") {
+        return false;
+      }
+      var match = EXTRACT_TYPE_REGEXP.exec(type);
+      var exts = match && exports2.extensions[match[1].toLowerCase()];
+      if (!exts || !exts.length) {
+        return false;
+      }
+      return exts[0];
+    }
+    function lookup(path) {
+      if (!path || typeof path !== "string") {
+        return false;
+      }
+      var extension2 = extname("x." + path).toLowerCase().substr(1);
+      if (!extension2) {
+        return false;
+      }
+      return exports2.types[extension2] || false;
+    }
+    function populateMaps(extensions, types) {
+      var preference = ["nginx", "apache", void 0, "iana"];
+      Object.keys(db).forEach(function forEachMimeType(type) {
+        var mime = db[type];
+        var exts = mime.extensions;
+        if (!exts || !exts.length) {
+          return;
+        }
+        extensions[type] = exts;
+        for (var i = 0; i < exts.length; i++) {
+          var extension2 = exts[i];
+          if (types[extension2]) {
+            var from = preference.indexOf(db[types[extension2]].source);
+            var to = preference.indexOf(mime.source);
+            if (types[extension2] !== "application/octet-stream" && (from > to || from === to && types[extension2].substr(0, 12) === "application/")) {
+              continue;
+            }
+          }
+          types[extension2] = type;
+        }
+      });
+    }
+  }
+});
+
+// node_modules/asynckit/lib/defer.js
+var require_defer = __commonJS({
+  "node_modules/asynckit/lib/defer.js"(exports2, module2) {
+    module2.exports = defer;
+    function defer(fn) {
+      var nextTick = typeof setImmediate == "function" ? setImmediate : typeof process == "object" && typeof process.nextTick == "function" ? process.nextTick : null;
+      if (nextTick) {
+        nextTick(fn);
+      } else {
+        setTimeout(fn, 0);
+      }
+    }
+  }
+});
+
+// node_modules/asynckit/lib/async.js
+var require_async = __commonJS({
+  "node_modules/asynckit/lib/async.js"(exports2, module2) {
+    var defer = require_defer();
+    module2.exports = async;
+    function async(callback) {
+      var isAsync = false;
+      defer(function() {
+        isAsync = true;
+      });
+      return function async_callback(err, result) {
+        if (isAsync) {
+          callback(err, result);
+        } else {
+          defer(function nextTick_callback() {
+            callback(err, result);
+          });
+        }
+      };
+    }
+  }
+});
+
+// node_modules/asynckit/lib/abort.js
+var require_abort = __commonJS({
+  "node_modules/asynckit/lib/abort.js"(exports2, module2) {
+    module2.exports = abort;
+    function abort(state) {
+      Object.keys(state.jobs).forEach(clean.bind(state));
+      state.jobs = {};
+    }
+    function clean(key) {
+      if (typeof this.jobs[key] == "function") {
+        this.jobs[key]();
+      }
+    }
+  }
+});
+
+// node_modules/asynckit/lib/iterate.js
+var require_iterate = __commonJS({
+  "node_modules/asynckit/lib/iterate.js"(exports2, module2) {
+    var async = require_async();
+    var abort = require_abort();
+    module2.exports = iterate;
+    function iterate(list, iterator2, state, callback) {
+      var key = state["keyedList"] ? state["keyedList"][state.index] : state.index;
+      state.jobs[key] = runJob(iterator2, key, list[key], function(error, output) {
+        if (!(key in state.jobs)) {
+          return;
+        }
+        delete state.jobs[key];
+        if (error) {
+          abort(state);
+        } else {
+          state.results[key] = output;
+        }
+        callback(error, state.results);
+      });
+    }
+    function runJob(iterator2, key, item, callback) {
+      var aborter;
+      if (iterator2.length == 2) {
+        aborter = iterator2(item, async(callback));
+      } else {
+        aborter = iterator2(item, key, async(callback));
+      }
+      return aborter;
+    }
+  }
+});
+
+// node_modules/asynckit/lib/state.js
+var require_state = __commonJS({
+  "node_modules/asynckit/lib/state.js"(exports2, module2) {
+    module2.exports = state;
+    function state(list, sortMethod) {
+      var isNamedList = !Array.isArray(list), initState = {
+        index: 0,
+        keyedList: isNamedList || sortMethod ? Object.keys(list) : null,
+        jobs: {},
+        results: isNamedList ? {} : [],
+        size: isNamedList ? Object.keys(list).length : list.length
+      };
+      if (sortMethod) {
+        initState.keyedList.sort(isNamedList ? sortMethod : function(a, b) {
+          return sortMethod(list[a], list[b]);
+        });
+      }
+      return initState;
+    }
+  }
+});
+
+// node_modules/asynckit/lib/terminator.js
+var require_terminator = __commonJS({
+  "node_modules/asynckit/lib/terminator.js"(exports2, module2) {
+    var abort = require_abort();
+    var async = require_async();
+    module2.exports = terminator;
+    function terminator(callback) {
+      if (!Object.keys(this.jobs).length) {
+        return;
+      }
+      this.index = this.size;
+      abort(this);
+      async(callback)(null, this.results);
+    }
+  }
+});
+
+// node_modules/asynckit/parallel.js
+var require_parallel = __commonJS({
+  "node_modules/asynckit/parallel.js"(exports2, module2) {
+    var iterate = require_iterate();
+    var initState = require_state();
+    var terminator = require_terminator();
+    module2.exports = parallel;
+    function parallel(list, iterator2, callback) {
+      var state = initState(list);
+      while (state.index < (state["keyedList"] || list).length) {
+        iterate(list, iterator2, state, function(error, result) {
+          if (error) {
+            callback(error, result);
+            return;
+          }
+          if (Object.keys(state.jobs).length === 0) {
+            callback(null, state.results);
+            return;
+          }
+        });
+        state.index++;
+      }
+      return terminator.bind(state, callback);
+    }
+  }
+});
+
+// node_modules/asynckit/serialOrdered.js
+var require_serialOrdered = __commonJS({
+  "node_modules/asynckit/serialOrdered.js"(exports2, module2) {
+    var iterate = require_iterate();
+    var initState = require_state();
+    var terminator = require_terminator();
+    module2.exports = serialOrdered;
+    module2.exports.ascending = ascending;
+    module2.exports.descending = descending;
+    function serialOrdered(list, iterator2, sortMethod, callback) {
+      var state = initState(list, sortMethod);
+      iterate(list, iterator2, state, function iteratorHandler(error, result) {
+        if (error) {
+          callback(error, result);
+          return;
+        }
+        state.index++;
+        if (state.index < (state["keyedList"] || list).length) {
+          iterate(list, iterator2, state, iteratorHandler);
+          return;
+        }
+        callback(null, state.results);
+      });
+      return terminator.bind(state, callback);
+    }
+    function ascending(a, b) {
+      return a < b ? -1 : a > b ? 1 : 0;
+    }
+    function descending(a, b) {
+      return -1 * ascending(a, b);
+    }
+  }
+});
+
+// node_modules/asynckit/serial.js
+var require_serial = __commonJS({
+  "node_modules/asynckit/serial.js"(exports2, module2) {
+    var serialOrdered = require_serialOrdered();
+    module2.exports = serial;
+    function serial(list, iterator2, callback) {
+      return serialOrdered(list, iterator2, null, callback);
+    }
+  }
+});
+
+// node_modules/asynckit/index.js
+var require_asynckit = __commonJS({
+  "node_modules/asynckit/index.js"(exports2, module2) {
+    module2.exports = {
+      parallel: require_parallel(),
+      serial: require_serial(),
+      serialOrdered: require_serialOrdered()
+    };
+  }
+});
+
+// node_modules/es-object-atoms/index.js
+var require_es_object_atoms = __commonJS({
+  "node_modules/es-object-atoms/index.js"(exports2, module2) {
+    "use strict";
+    module2.exports = Object;
+  }
+});
+
+// node_modules/es-errors/index.js
+var require_es_errors = __commonJS({
+  "node_modules/es-errors/index.js"(exports2, module2) {
+    "use strict";
+    module2.exports = Error;
+  }
+});
+
+// node_modules/es-errors/eval.js
+var require_eval = __commonJS({
+  "node_modules/es-errors/eval.js"(exports2, module2) {
+    "use strict";
+    module2.exports = EvalError;
+  }
+});
+
+// node_modules/es-errors/range.js
+var require_range = __commonJS({
+  "node_modules/es-errors/range.js"(exports2, module2) {
+    "use strict";
+    module2.exports = RangeError;
+  }
+});
+
+// node_modules/es-errors/ref.js
+var require_ref = __commonJS({
+  "node_modules/es-errors/ref.js"(exports2, module2) {
+    "use strict";
+    module2.exports = ReferenceError;
+  }
+});
+
+// node_modules/es-errors/syntax.js
+var require_syntax = __commonJS({
+  "node_modules/es-errors/syntax.js"(exports2, module2) {
+    "use strict";
+    module2.exports = SyntaxError;
+  }
+});
+
+// node_modules/es-errors/type.js
+var require_type = __commonJS({
+  "node_modules/es-errors/type.js"(exports2, module2) {
+    "use strict";
+    module2.exports = TypeError;
+  }
+});
+
+// node_modules/es-errors/uri.js
+var require_uri = __commonJS({
+  "node_modules/es-errors/uri.js"(exports2, module2) {
+    "use strict";
+    module2.exports = URIError;
+  }
+});
+
+// node_modules/math-intrinsics/abs.js
+var require_abs = __commonJS({
+  "node_modules/math-intrinsics/abs.js"(exports2, module2) {
+    "use strict";
+    module2.exports = Math.abs;
+  }
+});
+
+// node_modules/math-intrinsics/floor.js
+var require_floor = __commonJS({
+  "node_modules/math-intrinsics/floor.js"(exports2, module2) {
+    "use strict";
+    module2.exports = Math.floor;
+  }
+});
+
+// node_modules/math-intrinsics/max.js
+var require_max = __commonJS({
+  "node_modules/math-intrinsics/max.js"(exports2, module2) {
+    "use strict";
+    module2.exports = Math.max;
+  }
+});
+
+// node_modules/math-intrinsics/min.js
+var require_min = __commonJS({
+  "node_modules/math-intrinsics/min.js"(exports2, module2) {
+    "use strict";
+    module2.exports = Math.min;
+  }
+});
+
+// node_modules/math-intrinsics/pow.js
+var require_pow = __commonJS({
+  "node_modules/math-intrinsics/pow.js"(exports2, module2) {
+    "use strict";
+    module2.exports = Math.pow;
+  }
+});
+
+// node_modules/math-intrinsics/round.js
+var require_round = __commonJS({
+  "node_modules/math-intrinsics/round.js"(exports2, module2) {
+    "use strict";
+    module2.exports = Math.round;
+  }
+});
+
+// node_modules/math-intrinsics/isNaN.js
+var require_isNaN = __commonJS({
+  "node_modules/math-intrinsics/isNaN.js"(exports2, module2) {
+    "use strict";
+    module2.exports = Number.isNaN || function isNaN2(a) {
+      return a !== a;
+    };
+  }
+});
+
+// node_modules/math-intrinsics/sign.js
+var require_sign = __commonJS({
+  "node_modules/math-intrinsics/sign.js"(exports2, module2) {
+    "use strict";
+    var $isNaN = require_isNaN();
+    module2.exports = function sign(number) {
+      if ($isNaN(number) || number === 0) {
+        return number;
+      }
+      return number < 0 ? -1 : 1;
+    };
+  }
+});
+
+// node_modules/gopd/gOPD.js
+var require_gOPD = __commonJS({
+  "node_modules/gopd/gOPD.js"(exports2, module2) {
+    "use strict";
+    module2.exports = Object.getOwnPropertyDescriptor;
+  }
+});
+
+// node_modules/gopd/index.js
+var require_gopd = __commonJS({
+  "node_modules/gopd/index.js"(exports2, module2) {
+    "use strict";
+    var $gOPD = require_gOPD();
+    if ($gOPD) {
+      try {
+        $gOPD([], "length");
+      } catch (e) {
+        $gOPD = null;
+      }
+    }
+    module2.exports = $gOPD;
+  }
+});
+
+// node_modules/es-define-property/index.js
+var require_es_define_property = __commonJS({
+  "node_modules/es-define-property/index.js"(exports2, module2) {
+    "use strict";
+    var $defineProperty = Object.defineProperty || false;
+    if ($defineProperty) {
+      try {
+        $defineProperty({}, "a", { value: 1 });
+      } catch (e) {
+        $defineProperty = false;
+      }
+    }
+    module2.exports = $defineProperty;
+  }
+});
+
+// node_modules/has-symbols/shams.js
+var require_shams = __commonJS({
+  "node_modules/has-symbols/shams.js"(exports2, module2) {
+    "use strict";
+    module2.exports = function hasSymbols() {
+      if (typeof Symbol !== "function" || typeof Object.getOwnPropertySymbols !== "function") {
+        return false;
+      }
+      if (typeof Symbol.iterator === "symbol") {
+        return true;
+      }
+      var obj = {};
+      var sym = Symbol("test");
+      var symObj = Object(sym);
+      if (typeof sym === "string") {
+        return false;
+      }
+      if (Object.prototype.toString.call(sym) !== "[object Symbol]") {
+        return false;
+      }
+      if (Object.prototype.toString.call(symObj) !== "[object Symbol]") {
+        return false;
+      }
+      var symVal = 42;
+      obj[sym] = symVal;
+      for (var _ in obj) {
+        return false;
+      }
+      if (typeof Object.keys === "function" && Object.keys(obj).length !== 0) {
+        return false;
+      }
+      if (typeof Object.getOwnPropertyNames === "function" && Object.getOwnPropertyNames(obj).length !== 0) {
+        return false;
+      }
+      var syms = Object.getOwnPropertySymbols(obj);
+      if (syms.length !== 1 || syms[0] !== sym) {
+        return false;
+      }
+      if (!Object.prototype.propertyIsEnumerable.call(obj, sym)) {
+        return false;
+      }
+      if (typeof Object.getOwnPropertyDescriptor === "function") {
+        var descriptor = (
+          /** @type {PropertyDescriptor} */
+          Object.getOwnPropertyDescriptor(obj, sym)
+        );
+        if (descriptor.value !== symVal || descriptor.enumerable !== true) {
+          return false;
+        }
+      }
+      return true;
+    };
+  }
+});
+
+// node_modules/has-symbols/index.js
+var require_has_symbols = __commonJS({
+  "node_modules/has-symbols/index.js"(exports2, module2) {
+    "use strict";
+    var origSymbol = typeof Symbol !== "undefined" && Symbol;
+    var hasSymbolSham = require_shams();
+    module2.exports = function hasNativeSymbols() {
+      if (typeof origSymbol !== "function") {
+        return false;
+      }
+      if (typeof Symbol !== "function") {
+        return false;
+      }
+      if (typeof origSymbol("foo") !== "symbol") {
+        return false;
+      }
+      if (typeof Symbol("bar") !== "symbol") {
+        return false;
+      }
+      return hasSymbolSham();
+    };
+  }
+});
+
+// node_modules/get-proto/Reflect.getPrototypeOf.js
+var require_Reflect_getPrototypeOf = __commonJS({
+  "node_modules/get-proto/Reflect.getPrototypeOf.js"(exports2, module2) {
+    "use strict";
+    module2.exports = typeof Reflect !== "undefined" && Reflect.getPrototypeOf || null;
+  }
+});
+
+// node_modules/get-proto/Object.getPrototypeOf.js
+var require_Object_getPrototypeOf = __commonJS({
+  "node_modules/get-proto/Object.getPrototypeOf.js"(exports2, module2) {
+    "use strict";
+    var $Object = require_es_object_atoms();
+    module2.exports = $Object.getPrototypeOf || null;
+  }
+});
+
+// node_modules/function-bind/implementation.js
+var require_implementation = __commonJS({
+  "node_modules/function-bind/implementation.js"(exports2, module2) {
+    "use strict";
+    var ERROR_MESSAGE = "Function.prototype.bind called on incompatible ";
+    var toStr = Object.prototype.toString;
+    var max = Math.max;
+    var funcType = "[object Function]";
+    var concatty = function concatty2(a, b) {
+      var arr = [];
+      for (var i = 0; i < a.length; i += 1) {
+        arr[i] = a[i];
+      }
+      for (var j = 0; j < b.length; j += 1) {
+        arr[j + a.length] = b[j];
+      }
+      return arr;
+    };
+    var slicy = function slicy2(arrLike, offset) {
+      var arr = [];
+      for (var i = offset || 0, j = 0; i < arrLike.length; i += 1, j += 1) {
+        arr[j] = arrLike[i];
+      }
+      return arr;
+    };
+    var joiny = function(arr, joiner) {
+      var str = "";
+      for (var i = 0; i < arr.length; i += 1) {
+        str += arr[i];
+        if (i + 1 < arr.length) {
+          str += joiner;
+        }
+      }
+      return str;
+    };
+    module2.exports = function bind2(that) {
+      var target = this;
+      if (typeof target !== "function" || toStr.apply(target) !== funcType) {
+        throw new TypeError(ERROR_MESSAGE + target);
+      }
+      var args = slicy(arguments, 1);
+      var bound;
+      var binder = function() {
+        if (this instanceof bound) {
+          var result = target.apply(
+            this,
+            concatty(args, arguments)
+          );
+          if (Object(result) === result) {
+            return result;
+          }
+          return this;
+        }
+        return target.apply(
+          that,
+          concatty(args, arguments)
+        );
+      };
+      var boundLength = max(0, target.length - args.length);
+      var boundArgs = [];
+      for (var i = 0; i < boundLength; i++) {
+        boundArgs[i] = "$" + i;
+      }
+      bound = Function("binder", "return function (" + joiny(boundArgs, ",") + "){ return binder.apply(this,arguments); }")(binder);
+      if (target.prototype) {
+        var Empty = function Empty2() {
+        };
+        Empty.prototype = target.prototype;
+        bound.prototype = new Empty();
+        Empty.prototype = null;
+      }
+      return bound;
+    };
+  }
+});
+
+// node_modules/function-bind/index.js
+var require_function_bind = __commonJS({
+  "node_modules/function-bind/index.js"(exports2, module2) {
+    "use strict";
+    var implementation = require_implementation();
+    module2.exports = Function.prototype.bind || implementation;
+  }
+});
+
+// node_modules/call-bind-apply-helpers/functionCall.js
+var require_functionCall = __commonJS({
+  "node_modules/call-bind-apply-helpers/functionCall.js"(exports2, module2) {
+    "use strict";
+    module2.exports = Function.prototype.call;
+  }
+});
+
+// node_modules/call-bind-apply-helpers/functionApply.js
+var require_functionApply = __commonJS({
+  "node_modules/call-bind-apply-helpers/functionApply.js"(exports2, module2) {
+    "use strict";
+    module2.exports = Function.prototype.apply;
+  }
+});
+
+// node_modules/call-bind-apply-helpers/reflectApply.js
+var require_reflectApply = __commonJS({
+  "node_modules/call-bind-apply-helpers/reflectApply.js"(exports2, module2) {
+    "use strict";
+    module2.exports = typeof Reflect !== "undefined" && Reflect && Reflect.apply;
+  }
+});
+
+// node_modules/call-bind-apply-helpers/actualApply.js
+var require_actualApply = __commonJS({
+  "node_modules/call-bind-apply-helpers/actualApply.js"(exports2, module2) {
+    "use strict";
+    var bind2 = require_function_bind();
+    var $apply = require_functionApply();
+    var $call = require_functionCall();
+    var $reflectApply = require_reflectApply();
+    module2.exports = $reflectApply || bind2.call($call, $apply);
+  }
+});
+
+// node_modules/call-bind-apply-helpers/index.js
+var require_call_bind_apply_helpers = __commonJS({
+  "node_modules/call-bind-apply-helpers/index.js"(exports2, module2) {
+    "use strict";
+    var bind2 = require_function_bind();
+    var $TypeError = require_type();
+    var $call = require_functionCall();
+    var $actualApply = require_actualApply();
+    module2.exports = function callBindBasic(args) {
+      if (args.length < 1 || typeof args[0] !== "function") {
+        throw new $TypeError("a function is required");
+      }
+      return $actualApply(bind2, $call, args);
+    };
+  }
+});
+
+// node_modules/dunder-proto/get.js
+var require_get = __commonJS({
+  "node_modules/dunder-proto/get.js"(exports2, module2) {
+    "use strict";
+    var callBind = require_call_bind_apply_helpers();
+    var gOPD = require_gopd();
+    var hasProtoAccessor;
+    try {
+      hasProtoAccessor = /** @type {{ __proto__?: typeof Array.prototype }} */
+      [].__proto__ === Array.prototype;
+    } catch (e) {
+      if (!e || typeof e !== "object" || !("code" in e) || e.code !== "ERR_PROTO_ACCESS") {
+        throw e;
+      }
+    }
+    var desc = !!hasProtoAccessor && gOPD && gOPD(
+      Object.prototype,
+      /** @type {keyof typeof Object.prototype} */
+      "__proto__"
+    );
+    var $Object = Object;
+    var $getPrototypeOf = $Object.getPrototypeOf;
+    module2.exports = desc && typeof desc.get === "function" ? callBind([desc.get]) : typeof $getPrototypeOf === "function" ? (
+      /** @type {import('./get')} */
+      function getDunder(value) {
+        return $getPrototypeOf(value == null ? value : $Object(value));
+      }
+    ) : false;
+  }
+});
+
+// node_modules/get-proto/index.js
+var require_get_proto = __commonJS({
+  "node_modules/get-proto/index.js"(exports2, module2) {
+    "use strict";
+    var reflectGetProto = require_Reflect_getPrototypeOf();
+    var originalGetProto = require_Object_getPrototypeOf();
+    var getDunderProto = require_get();
+    module2.exports = reflectGetProto ? function getProto(O) {
+      return reflectGetProto(O);
+    } : originalGetProto ? function getProto(O) {
+      if (!O || typeof O !== "object" && typeof O !== "function") {
+        throw new TypeError("getProto: not an object");
+      }
+      return originalGetProto(O);
+    } : getDunderProto ? function getProto(O) {
+      return getDunderProto(O);
+    } : null;
+  }
+});
+
+// node_modules/hasown/index.js
+var require_hasown = __commonJS({
+  "node_modules/hasown/index.js"(exports2, module2) {
+    "use strict";
+    var call = Function.prototype.call;
+    var $hasOwn = Object.prototype.hasOwnProperty;
+    var bind2 = require_function_bind();
+    module2.exports = bind2.call(call, $hasOwn);
+  }
+});
+
+// node_modules/get-intrinsic/index.js
+var require_get_intrinsic = __commonJS({
+  "node_modules/get-intrinsic/index.js"(exports2, module2) {
+    "use strict";
+    var undefined2;
+    var $Object = require_es_object_atoms();
+    var $Error = require_es_errors();
+    var $EvalError = require_eval();
+    var $RangeError = require_range();
+    var $ReferenceError = require_ref();
+    var $SyntaxError = require_syntax();
+    var $TypeError = require_type();
+    var $URIError = require_uri();
+    var abs = require_abs();
+    var floor = require_floor();
+    var max = require_max();
+    var min = require_min();
+    var pow = require_pow();
+    var round = require_round();
+    var sign = require_sign();
+    var $Function = Function;
+    var getEvalledConstructor = function(expressionSyntax) {
+      try {
+        return $Function('"use strict"; return (' + expressionSyntax + ").constructor;")();
+      } catch (e) {
+      }
+    };
+    var $gOPD = require_gopd();
+    var $defineProperty = require_es_define_property();
+    var throwTypeError = function() {
+      throw new $TypeError();
+    };
+    var ThrowTypeError = $gOPD ? function() {
+      try {
+        arguments.callee;
+        return throwTypeError;
+      } catch (calleeThrows) {
+        try {
+          return $gOPD(arguments, "callee").get;
+        } catch (gOPDthrows) {
+          return throwTypeError;
+        }
+      }
+    }() : throwTypeError;
+    var hasSymbols = require_has_symbols()();
+    var getProto = require_get_proto();
+    var $ObjectGPO = require_Object_getPrototypeOf();
+    var $ReflectGPO = require_Reflect_getPrototypeOf();
+    var $apply = require_functionApply();
+    var $call = require_functionCall();
+    var needsEval = {};
+    var TypedArray = typeof Uint8Array === "undefined" || !getProto ? undefined2 : getProto(Uint8Array);
+    var INTRINSICS = {
+      __proto__: null,
+      "%AggregateError%": typeof AggregateError === "undefined" ? undefined2 : AggregateError,
+      "%Array%": Array,
+      "%ArrayBuffer%": typeof ArrayBuffer === "undefined" ? undefined2 : ArrayBuffer,
+      "%ArrayIteratorPrototype%": hasSymbols && getProto ? getProto([][Symbol.iterator]()) : undefined2,
+      "%AsyncFromSyncIteratorPrototype%": undefined2,
+      "%AsyncFunction%": needsEval,
+      "%AsyncGenerator%": needsEval,
+      "%AsyncGeneratorFunction%": needsEval,
+      "%AsyncIteratorPrototype%": needsEval,
+      "%Atomics%": typeof Atomics === "undefined" ? undefined2 : Atomics,
+      "%BigInt%": typeof BigInt === "undefined" ? undefined2 : BigInt,
+      "%BigInt64Array%": typeof BigInt64Array === "undefined" ? undefined2 : BigInt64Array,
+      "%BigUint64Array%": typeof BigUint64Array === "undefined" ? undefined2 : BigUint64Array,
+      "%Boolean%": Boolean,
+      "%DataView%": typeof DataView === "undefined" ? undefined2 : DataView,
+      "%Date%": Date,
+      "%decodeURI%": decodeURI,
+      "%decodeURIComponent%": decodeURIComponent,
+      "%encodeURI%": encodeURI,
+      "%encodeURIComponent%": encodeURIComponent,
+      "%Error%": $Error,
+      "%eval%": eval,
+      // eslint-disable-line no-eval
+      "%EvalError%": $EvalError,
+      "%Float16Array%": typeof Float16Array === "undefined" ? undefined2 : Float16Array,
+      "%Float32Array%": typeof Float32Array === "undefined" ? undefined2 : Float32Array,
+      "%Float64Array%": typeof Float64Array === "undefined" ? undefined2 : Float64Array,
+      "%FinalizationRegistry%": typeof FinalizationRegistry === "undefined" ? undefined2 : FinalizationRegistry,
+      "%Function%": $Function,
+      "%GeneratorFunction%": needsEval,
+      "%Int8Array%": typeof Int8Array === "undefined" ? undefined2 : Int8Array,
+      "%Int16Array%": typeof Int16Array === "undefined" ? undefined2 : Int16Array,
+      "%Int32Array%": typeof Int32Array === "undefined" ? undefined2 : Int32Array,
+      "%isFinite%": isFinite,
+      "%isNaN%": isNaN,
+      "%IteratorPrototype%": hasSymbols && getProto ? getProto(getProto([][Symbol.iterator]())) : undefined2,
+      "%JSON%": typeof JSON === "object" ? JSON : undefined2,
+      "%Map%": typeof Map === "undefined" ? undefined2 : Map,
+      "%MapIteratorPrototype%": typeof Map === "undefined" || !hasSymbols || !getProto ? undefined2 : getProto((/* @__PURE__ */ new Map())[Symbol.iterator]()),
+      "%Math%": Math,
+      "%Number%": Number,
+      "%Object%": $Object,
+      "%Object.getOwnPropertyDescriptor%": $gOPD,
+      "%parseFloat%": parseFloat,
+      "%parseInt%": parseInt,
+      "%Promise%": typeof Promise === "undefined" ? undefined2 : Promise,
+      "%Proxy%": typeof Proxy === "undefined" ? undefined2 : Proxy,
+      "%RangeError%": $RangeError,
+      "%ReferenceError%": $ReferenceError,
+      "%Reflect%": typeof Reflect === "undefined" ? undefined2 : Reflect,
+      "%RegExp%": RegExp,
+      "%Set%": typeof Set === "undefined" ? undefined2 : Set,
+      "%SetIteratorPrototype%": typeof Set === "undefined" || !hasSymbols || !getProto ? undefined2 : getProto((/* @__PURE__ */ new Set())[Symbol.iterator]()),
+      "%SharedArrayBuffer%": typeof SharedArrayBuffer === "undefined" ? undefined2 : SharedArrayBuffer,
+      "%String%": String,
+      "%StringIteratorPrototype%": hasSymbols && getProto ? getProto(""[Symbol.iterator]()) : undefined2,
+      "%Symbol%": hasSymbols ? Symbol : undefined2,
+      "%SyntaxError%": $SyntaxError,
+      "%ThrowTypeError%": ThrowTypeError,
+      "%TypedArray%": TypedArray,
+      "%TypeError%": $TypeError,
+      "%Uint8Array%": typeof Uint8Array === "undefined" ? undefined2 : Uint8Array,
+      "%Uint8ClampedArray%": typeof Uint8ClampedArray === "undefined" ? undefined2 : Uint8ClampedArray,
+      "%Uint16Array%": typeof Uint16Array === "undefined" ? undefined2 : Uint16Array,
+      "%Uint32Array%": typeof Uint32Array === "undefined" ? undefined2 : Uint32Array,
+      "%URIError%": $URIError,
+      "%WeakMap%": typeof WeakMap === "undefined" ? undefined2 : WeakMap,
+      "%WeakRef%": typeof WeakRef === "undefined" ? undefined2 : WeakRef,
+      "%WeakSet%": typeof WeakSet === "undefined" ? undefined2 : WeakSet,
+      "%Function.prototype.call%": $call,
+      "%Function.prototype.apply%": $apply,
+      "%Object.defineProperty%": $defineProperty,
+      "%Object.getPrototypeOf%": $ObjectGPO,
+      "%Math.abs%": abs,
+      "%Math.floor%": floor,
+      "%Math.max%": max,
+      "%Math.min%": min,
+      "%Math.pow%": pow,
+      "%Math.round%": round,
+      "%Math.sign%": sign,
+      "%Reflect.getPrototypeOf%": $ReflectGPO
+    };
+    if (getProto) {
+      try {
+        null.error;
+      } catch (e) {
+        errorProto = getProto(getProto(e));
+        INTRINSICS["%Error.prototype%"] = errorProto;
+      }
+    }
+    var errorProto;
+    var doEval = function doEval2(name) {
+      var value;
+      if (name === "%AsyncFunction%") {
+        value = getEvalledConstructor("async function () {}");
+      } else if (name === "%GeneratorFunction%") {
+        value = getEvalledConstructor("function* () {}");
+      } else if (name === "%AsyncGeneratorFunction%") {
+        value = getEvalledConstructor("async function* () {}");
+      } else if (name === "%AsyncGenerator%") {
+        var fn = doEval2("%AsyncGeneratorFunction%");
+        if (fn) {
+          value = fn.prototype;
+        }
+      } else if (name === "%AsyncIteratorPrototype%") {
+        var gen = doEval2("%AsyncGenerator%");
+        if (gen && getProto) {
+          value = getProto(gen.prototype);
+        }
+      }
+      INTRINSICS[name] = value;
+      return value;
+    };
+    var LEGACY_ALIASES = {
+      __proto__: null,
+      "%ArrayBufferPrototype%": ["ArrayBuffer", "prototype"],
+      "%ArrayPrototype%": ["Array", "prototype"],
+      "%ArrayProto_entries%": ["Array", "prototype", "entries"],
+      "%ArrayProto_forEach%": ["Array", "prototype", "forEach"],
+      "%ArrayProto_keys%": ["Array", "prototype", "keys"],
+      "%ArrayProto_values%": ["Array", "prototype", "values"],
+      "%AsyncFunctionPrototype%": ["AsyncFunction", "prototype"],
+      "%AsyncGenerator%": ["AsyncGeneratorFunction", "prototype"],
+      "%AsyncGeneratorPrototype%": ["AsyncGeneratorFunction", "prototype", "prototype"],
+      "%BooleanPrototype%": ["Boolean", "prototype"],
+      "%DataViewPrototype%": ["DataView", "prototype"],
+      "%DatePrototype%": ["Date", "prototype"],
+      "%ErrorPrototype%": ["Error", "prototype"],
+      "%EvalErrorPrototype%": ["EvalError", "prototype"],
+      "%Float32ArrayPrototype%": ["Float32Array", "prototype"],
+      "%Float64ArrayPrototype%": ["Float64Array", "prototype"],
+      "%FunctionPrototype%": ["Function", "prototype"],
+      "%Generator%": ["GeneratorFunction", "prototype"],
+      "%GeneratorPrototype%": ["GeneratorFunction", "prototype", "prototype"],
+      "%Int8ArrayPrototype%": ["Int8Array", "prototype"],
+      "%Int16ArrayPrototype%": ["Int16Array", "prototype"],
+      "%Int32ArrayPrototype%": ["Int32Array", "prototype"],
+      "%JSONParse%": ["JSON", "parse"],
+      "%JSONStringify%": ["JSON", "stringify"],
+      "%MapPrototype%": ["Map", "prototype"],
+      "%NumberPrototype%": ["Number", "prototype"],
+      "%ObjectPrototype%": ["Object", "prototype"],
+      "%ObjProto_toString%": ["Object", "prototype", "toString"],
+      "%ObjProto_valueOf%": ["Object", "prototype", "valueOf"],
+      "%PromisePrototype%": ["Promise", "prototype"],
+      "%PromiseProto_then%": ["Promise", "prototype", "then"],
+      "%Promise_all%": ["Promise", "all"],
+      "%Promise_reject%": ["Promise", "reject"],
+      "%Promise_resolve%": ["Promise", "resolve"],
+      "%RangeErrorPrototype%": ["RangeError", "prototype"],
+      "%ReferenceErrorPrototype%": ["ReferenceError", "prototype"],
+      "%RegExpPrototype%": ["RegExp", "prototype"],
+      "%SetPrototype%": ["Set", "prototype"],
+      "%SharedArrayBufferPrototype%": ["SharedArrayBuffer", "prototype"],
+      "%StringPrototype%": ["String", "prototype"],
+      "%SymbolPrototype%": ["Symbol", "prototype"],
+      "%SyntaxErrorPrototype%": ["SyntaxError", "prototype"],
+      "%TypedArrayPrototype%": ["TypedArray", "prototype"],
+      "%TypeErrorPrototype%": ["TypeError", "prototype"],
+      "%Uint8ArrayPrototype%": ["Uint8Array", "prototype"],
+      "%Uint8ClampedArrayPrototype%": ["Uint8ClampedArray", "prototype"],
+      "%Uint16ArrayPrototype%": ["Uint16Array", "prototype"],
+      "%Uint32ArrayPrototype%": ["Uint32Array", "prototype"],
+      "%URIErrorPrototype%": ["URIError", "prototype"],
+      "%WeakMapPrototype%": ["WeakMap", "prototype"],
+      "%WeakSetPrototype%": ["WeakSet", "prototype"]
+    };
+    var bind2 = require_function_bind();
+    var hasOwn = require_hasown();
+    var $concat = bind2.call($call, Array.prototype.concat);
+    var $spliceApply = bind2.call($apply, Array.prototype.splice);
+    var $replace = bind2.call($call, String.prototype.replace);
+    var $strSlice = bind2.call($call, String.prototype.slice);
+    var $exec = bind2.call($call, RegExp.prototype.exec);
+    var rePropName = /[^%.[\]]+|\[(?:(-?\d+(?:\.\d+)?)|(["'])((?:(?!\2)[^\\]|\\.)*?)\2)\]|(?=(?:\.|\[\])(?:\.|\[\]|%$))/g;
+    var reEscapeChar = /\\(\\)?/g;
+    var stringToPath = function stringToPath2(string) {
+      var first = $strSlice(string, 0, 1);
+      var last = $strSlice(string, -1);
+      if (first === "%" && last !== "%") {
+        throw new $SyntaxError("invalid intrinsic syntax, expected closing `%`");
+      } else if (last === "%" && first !== "%") {
+        throw new $SyntaxError("invalid intrinsic syntax, expected opening `%`");
+      }
+      var result = [];
+      $replace(string, rePropName, function(match, number, quote, subString) {
+        result[result.length] = quote ? $replace(subString, reEscapeChar, "$1") : number || match;
+      });
+      return result;
+    };
+    var getBaseIntrinsic = function getBaseIntrinsic2(name, allowMissing) {
+      var intrinsicName = name;
+      var alias;
+      if (hasOwn(LEGACY_ALIASES, intrinsicName)) {
+        alias = LEGACY_ALIASES[intrinsicName];
+        intrinsicName = "%" + alias[0] + "%";
+      }
+      if (hasOwn(INTRINSICS, intrinsicName)) {
+        var value = INTRINSICS[intrinsicName];
+        if (value === needsEval) {
+          value = doEval(intrinsicName);
+        }
+        if (typeof value === "undefined" && !allowMissing) {
+          throw new $TypeError("intrinsic " + name + " exists, but is not available. Please file an issue!");
+        }
+        return {
+          alias,
+          name: intrinsicName,
+          value
+        };
+      }
+      throw new $SyntaxError("intrinsic " + name + " does not exist!");
+    };
+    module2.exports = function GetIntrinsic(name, allowMissing) {
+      if (typeof name !== "string" || name.length === 0) {
+        throw new $TypeError("intrinsic name must be a non-empty string");
+      }
+      if (arguments.length > 1 && typeof allowMissing !== "boolean") {
+        throw new $TypeError('"allowMissing" argument must be a boolean');
+      }
+      if ($exec(/^%?[^%]*%?$/, name) === null) {
+        throw new $SyntaxError("`%` may not be present anywhere but at the beginning and end of the intrinsic name");
+      }
+      var parts = stringToPath(name);
+      var intrinsicBaseName = parts.length > 0 ? parts[0] : "";
+      var intrinsic = getBaseIntrinsic("%" + intrinsicBaseName + "%", allowMissing);
+      var intrinsicRealName = intrinsic.name;
+      var value = intrinsic.value;
+      var skipFurtherCaching = false;
+      var alias = intrinsic.alias;
+      if (alias) {
+        intrinsicBaseName = alias[0];
+        $spliceApply(parts, $concat([0, 1], alias));
+      }
+      for (var i = 1, isOwn = true; i < parts.length; i += 1) {
+        var part = parts[i];
+        var first = $strSlice(part, 0, 1);
+        var last = $strSlice(part, -1);
+        if ((first === '"' || first === "'" || first === "`" || (last === '"' || last === "'" || last === "`")) && first !== last) {
+          throw new $SyntaxError("property names with quotes must have matching quotes");
+        }
+        if (part === "constructor" || !isOwn) {
+          skipFurtherCaching = true;
+        }
+        intrinsicBaseName += "." + part;
+        intrinsicRealName = "%" + intrinsicBaseName + "%";
+        if (hasOwn(INTRINSICS, intrinsicRealName)) {
+          value = INTRINSICS[intrinsicRealName];
+        } else if (value != null) {
+          if (!(part in value)) {
+            if (!allowMissing) {
+              throw new $TypeError("base intrinsic for " + name + " exists, but the property is not available.");
+            }
+            return void 0;
+          }
+          if ($gOPD && i + 1 >= parts.length) {
+            var desc = $gOPD(value, part);
+            isOwn = !!desc;
+            if (isOwn && "get" in desc && !("originalValue" in desc.get)) {
+              value = desc.get;
+            } else {
+              value = value[part];
+            }
+          } else {
+            isOwn = hasOwn(value, part);
+            value = value[part];
+          }
+          if (isOwn && !skipFurtherCaching) {
+            INTRINSICS[intrinsicRealName] = value;
+          }
+        }
+      }
+      return value;
+    };
+  }
+});
+
+// node_modules/has-tostringtag/shams.js
+var require_shams2 = __commonJS({
+  "node_modules/has-tostringtag/shams.js"(exports2, module2) {
+    "use strict";
+    var hasSymbols = require_shams();
+    module2.exports = function hasToStringTagShams() {
+      return hasSymbols() && !!Symbol.toStringTag;
+    };
+  }
+});
+
+// node_modules/es-set-tostringtag/index.js
+var require_es_set_tostringtag = __commonJS({
+  "node_modules/es-set-tostringtag/index.js"(exports2, module2) {
+    "use strict";
+    var GetIntrinsic = require_get_intrinsic();
+    var $defineProperty = GetIntrinsic("%Object.defineProperty%", true);
+    var hasToStringTag = require_shams2()();
+    var hasOwn = require_hasown();
+    var $TypeError = require_type();
+    var toStringTag2 = hasToStringTag ? Symbol.toStringTag : null;
+    module2.exports = function setToStringTag(object, value) {
+      var overrideIfSet = arguments.length > 2 && !!arguments[2] && arguments[2].force;
+      var nonConfigurable = arguments.length > 2 && !!arguments[2] && arguments[2].nonConfigurable;
+      if (typeof overrideIfSet !== "undefined" && typeof overrideIfSet !== "boolean" || typeof nonConfigurable !== "undefined" && typeof nonConfigurable !== "boolean") {
+        throw new $TypeError("if provided, the `overrideIfSet` and `nonConfigurable` options must be booleans");
+      }
+      if (toStringTag2 && (overrideIfSet || !hasOwn(object, toStringTag2))) {
+        if ($defineProperty) {
+          $defineProperty(object, toStringTag2, {
+            configurable: !nonConfigurable,
+            enumerable: false,
+            value,
+            writable: false
+          });
+        } else {
+          object[toStringTag2] = value;
+        }
+      }
+    };
+  }
+});
+
+// node_modules/form-data/lib/populate.js
+var require_populate = __commonJS({
+  "node_modules/form-data/lib/populate.js"(exports2, module2) {
+    "use strict";
+    module2.exports = function(dst, src) {
+      Object.keys(src).forEach(function(prop) {
+        dst[prop] = dst[prop] || src[prop];
+      });
+      return dst;
+    };
+  }
+});
+
+// node_modules/form-data/lib/form_data.js
+var require_form_data = __commonJS({
+  "node_modules/form-data/lib/form_data.js"(exports2, module2) {
+    "use strict";
+    var CombinedStream = require_combined_stream();
+    var util3 = require("util");
+    var path = require("path");
+    var http3 = require("http");
+    var https3 = require("https");
+    var parseUrl = require("url").parse;
+    var fs = require("fs");
+    var Stream = require("stream").Stream;
+    var crypto3 = require("crypto");
+    var mime = require_mime_types();
+    var asynckit = require_asynckit();
+    var setToStringTag = require_es_set_tostringtag();
+    var hasOwn = require_hasown();
+    var populate = require_populate();
+    function FormData3(options) {
+      if (!(this instanceof FormData3)) {
+        return new FormData3(options);
+      }
+      this._overheadLength = 0;
+      this._valueLength = 0;
+      this._valuesToMeasure = [];
+      CombinedStream.call(this);
+      options = options || {};
+      for (var option in options) {
+        this[option] = options[option];
+      }
+    }
+    util3.inherits(FormData3, CombinedStream);
+    FormData3.LINE_BREAK = "\r\n";
+    FormData3.DEFAULT_CONTENT_TYPE = "application/octet-stream";
+    FormData3.prototype.append = function(field, value, options) {
+      options = options || {};
+      if (typeof options === "string") {
+        options = { filename: options };
+      }
+      var append2 = CombinedStream.prototype.append.bind(this);
+      if (typeof value === "number" || value == null) {
+        value = String(value);
+      }
+      if (Array.isArray(value)) {
+        this._error(new Error("Arrays are not supported."));
+        return;
+      }
+      var header = this._multiPartHeader(field, value, options);
+      var footer = this._multiPartFooter();
+      append2(header);
+      append2(value);
+      append2(footer);
+      this._trackLength(header, value, options);
+    };
+    FormData3.prototype._trackLength = function(header, value, options) {
+      var valueLength = 0;
+      if (options.knownLength != null) {
+        valueLength += Number(options.knownLength);
+      } else if (Buffer.isBuffer(value)) {
+        valueLength = value.length;
+      } else if (typeof value === "string") {
+        valueLength = Buffer.byteLength(value);
+      }
+      this._valueLength += valueLength;
+      this._overheadLength += Buffer.byteLength(header) + FormData3.LINE_BREAK.length;
+      if (!value || !value.path && !(value.readable && hasOwn(value, "httpVersion")) && !(value instanceof Stream)) {
+        return;
+      }
+      if (!options.knownLength) {
+        this._valuesToMeasure.push(value);
+      }
+    };
+    FormData3.prototype._lengthRetriever = function(value, callback) {
+      if (hasOwn(value, "fd")) {
+        if (value.end != void 0 && value.end != Infinity && value.start != void 0) {
+          callback(null, value.end + 1 - (value.start ? value.start : 0));
+        } else {
+          fs.stat(value.path, function(err, stat) {
+            if (err) {
+              callback(err);
+              return;
+            }
+            var fileSize = stat.size - (value.start ? value.start : 0);
+            callback(null, fileSize);
+          });
+        }
+      } else if (hasOwn(value, "httpVersion")) {
+        callback(null, Number(value.headers["content-length"]));
+      } else if (hasOwn(value, "httpModule")) {
+        value.on("response", function(response) {
+          value.pause();
+          callback(null, Number(response.headers["content-length"]));
+        });
+        value.resume();
+      } else {
+        callback("Unknown stream");
+      }
+    };
+    FormData3.prototype._multiPartHeader = function(field, value, options) {
+      if (typeof options.header === "string") {
+        return options.header;
+      }
+      var contentDisposition = this._getContentDisposition(value, options);
+      var contentType = this._getContentType(value, options);
+      var contents = "";
+      var headers = {
+        // add custom disposition as third element or keep it two elements if not
+        "Content-Disposition": ["form-data", 'name="' + field + '"'].concat(contentDisposition || []),
+        // if no content type. allow it to be empty array
+        "Content-Type": [].concat(contentType || [])
+      };
+      if (typeof options.header === "object") {
+        populate(headers, options.header);
+      }
+      var header;
+      for (var prop in headers) {
+        if (hasOwn(headers, prop)) {
+          header = headers[prop];
+          if (header == null) {
+            continue;
+          }
+          if (!Array.isArray(header)) {
+            header = [header];
+          }
+          if (header.length) {
+            contents += prop + ": " + header.join("; ") + FormData3.LINE_BREAK;
+          }
+        }
+      }
+      return "--" + this.getBoundary() + FormData3.LINE_BREAK + contents + FormData3.LINE_BREAK;
+    };
+    FormData3.prototype._getContentDisposition = function(value, options) {
+      var filename;
+      if (typeof options.filepath === "string") {
+        filename = path.normalize(options.filepath).replace(/\\/g, "/");
+      } else if (options.filename || value && (value.name || value.path)) {
+        filename = path.basename(options.filename || value && (value.name || value.path));
+      } else if (value && value.readable && hasOwn(value, "httpVersion")) {
+        filename = path.basename(value.client._httpMessage.path || "");
+      }
+      if (filename) {
+        return 'filename="' + filename + '"';
+      }
+    };
+    FormData3.prototype._getContentType = function(value, options) {
+      var contentType = options.contentType;
+      if (!contentType && value && value.name) {
+        contentType = mime.lookup(value.name);
+      }
+      if (!contentType && value && value.path) {
+        contentType = mime.lookup(value.path);
+      }
+      if (!contentType && value && value.readable && hasOwn(value, "httpVersion")) {
+        contentType = value.headers["content-type"];
+      }
+      if (!contentType && (options.filepath || options.filename)) {
+        contentType = mime.lookup(options.filepath || options.filename);
+      }
+      if (!contentType && value && typeof value === "object") {
+        contentType = FormData3.DEFAULT_CONTENT_TYPE;
+      }
+      return contentType;
+    };
+    FormData3.prototype._multiPartFooter = function() {
+      return function(next) {
+        var footer = FormData3.LINE_BREAK;
+        var lastPart = this._streams.length === 0;
+        if (lastPart) {
+          footer += this._lastBoundary();
+        }
+        next(footer);
+      }.bind(this);
+    };
+    FormData3.prototype._lastBoundary = function() {
+      return "--" + this.getBoundary() + "--" + FormData3.LINE_BREAK;
+    };
+    FormData3.prototype.getHeaders = function(userHeaders) {
+      var header;
+      var formHeaders = {
+        "content-type": "multipart/form-data; boundary=" + this.getBoundary()
+      };
+      for (header in userHeaders) {
+        if (hasOwn(userHeaders, header)) {
+          formHeaders[header.toLowerCase()] = userHeaders[header];
+        }
+      }
+      return formHeaders;
+    };
+    FormData3.prototype.setBoundary = function(boundary) {
+      if (typeof boundary !== "string") {
+        throw new TypeError("FormData boundary must be a string");
+      }
+      this._boundary = boundary;
+    };
+    FormData3.prototype.getBoundary = function() {
+      if (!this._boundary) {
+        this._generateBoundary();
+      }
+      return this._boundary;
+    };
+    FormData3.prototype.getBuffer = function() {
+      var dataBuffer = new Buffer.alloc(0);
+      var boundary = this.getBoundary();
+      for (var i = 0, len = this._streams.length; i < len; i++) {
+        if (typeof this._streams[i] !== "function") {
+          if (Buffer.isBuffer(this._streams[i])) {
+            dataBuffer = Buffer.concat([dataBuffer, this._streams[i]]);
+          } else {
+            dataBuffer = Buffer.concat([dataBuffer, Buffer.from(this._streams[i])]);
+          }
+          if (typeof this._streams[i] !== "string" || this._streams[i].substring(2, boundary.length + 2) !== boundary) {
+            dataBuffer = Buffer.concat([dataBuffer, Buffer.from(FormData3.LINE_BREAK)]);
+          }
+        }
+      }
+      return Buffer.concat([dataBuffer, Buffer.from(this._lastBoundary())]);
+    };
+    FormData3.prototype._generateBoundary = function() {
+      this._boundary = "--------------------------" + crypto3.randomBytes(12).toString("hex");
+    };
+    FormData3.prototype.getLengthSync = function() {
+      var knownLength = this._overheadLength + this._valueLength;
+      if (this._streams.length) {
+        knownLength += this._lastBoundary().length;
+      }
+      if (!this.hasKnownLength()) {
+        this._error(new Error("Cannot calculate proper length in synchronous way."));
+      }
+      return knownLength;
+    };
+    FormData3.prototype.hasKnownLength = function() {
+      var hasKnownLength = true;
+      if (this._valuesToMeasure.length) {
+        hasKnownLength = false;
+      }
+      return hasKnownLength;
+    };
+    FormData3.prototype.getLength = function(cb) {
+      var knownLength = this._overheadLength + this._valueLength;
+      if (this._streams.length) {
+        knownLength += this._lastBoundary().length;
+      }
+      if (!this._valuesToMeasure.length) {
+        process.nextTick(cb.bind(this, null, knownLength));
+        return;
+      }
+      asynckit.parallel(this._valuesToMeasure, this._lengthRetriever, function(err, values) {
+        if (err) {
+          cb(err);
+          return;
+        }
+        values.forEach(function(length) {
+          knownLength += length;
+        });
+        cb(null, knownLength);
+      });
+    };
+    FormData3.prototype.submit = function(params, cb) {
+      var request;
+      var options;
+      var defaults2 = { method: "post" };
+      if (typeof params === "string") {
+        params = parseUrl(params);
+        options = populate({
+          port: params.port,
+          path: params.pathname,
+          host: params.hostname,
+          protocol: params.protocol
+        }, defaults2);
+      } else {
+        options = populate(params, defaults2);
+        if (!options.port) {
+          options.port = options.protocol === "https:" ? 443 : 80;
+        }
+      }
+      options.headers = this.getHeaders(params.headers);
+      if (options.protocol === "https:") {
+        request = https3.request(options);
+      } else {
+        request = http3.request(options);
+      }
+      this.getLength(function(err, length) {
+        if (err && err !== "Unknown stream") {
+          this._error(err);
+          return;
+        }
+        if (length) {
+          request.setHeader("Content-Length", length);
+        }
+        this.pipe(request);
+        if (cb) {
+          var onResponse;
+          var callback = function(error, responce) {
+            request.removeListener("error", callback);
+            request.removeListener("response", onResponse);
+            return cb.call(this, error, responce);
+          };
+          onResponse = callback.bind(this, null);
+          request.on("error", callback);
+          request.on("response", onResponse);
+        }
+      }.bind(this));
+      return request;
+    };
+    FormData3.prototype._error = function(err) {
+      if (!this.error) {
+        this.error = err;
+        this.pause();
+        this.emit("error", err);
+      }
+    };
+    FormData3.prototype.toString = function() {
+      return "[object FormData]";
+    };
+    setToStringTag(FormData3.prototype, "FormData");
+    module2.exports = FormData3;
+  }
+});
+
+// node_modules/proxy-from-env/index.js
+var require_proxy_from_env = __commonJS({
+  "node_modules/proxy-from-env/index.js"(exports2) {
+    "use strict";
+    var parseUrl = require("url").parse;
+    var DEFAULT_PORTS = {
+      ftp: 21,
+      gopher: 70,
+      http: 80,
+      https: 443,
+      ws: 80,
+      wss: 443
+    };
+    var stringEndsWith = String.prototype.endsWith || function(s) {
+      return s.length <= this.length && this.indexOf(s, this.length - s.length) !== -1;
+    };
+    function getProxyForUrl(url2) {
+      var parsedUrl = typeof url2 === "string" ? parseUrl(url2) : url2 || {};
+      var proto = parsedUrl.protocol;
+      var hostname = parsedUrl.host;
+      var port = parsedUrl.port;
+      if (typeof hostname !== "string" || !hostname || typeof proto !== "string") {
+        return "";
+      }
+      proto = proto.split(":", 1)[0];
+      hostname = hostname.replace(/:\d*$/, "");
+      port = parseInt(port) || DEFAULT_PORTS[proto] || 0;
+      if (!shouldProxy(hostname, port)) {
+        return "";
+      }
+      var proxy = getEnv("npm_config_" + proto + "_proxy") || getEnv(proto + "_proxy") || getEnv("npm_config_proxy") || getEnv("all_proxy");
+      if (proxy && proxy.indexOf("://") === -1) {
+        proxy = proto + "://" + proxy;
+      }
+      return proxy;
+    }
+    function shouldProxy(hostname, port) {
+      var NO_PROXY = (getEnv("npm_config_no_proxy") || getEnv("no_proxy")).toLowerCase();
+      if (!NO_PROXY) {
+        return true;
+      }
+      if (NO_PROXY === "*") {
+        return false;
+      }
+      return NO_PROXY.split(/[,\s]/).every(function(proxy) {
+        if (!proxy) {
+          return true;
+        }
+        var parsedProxy = proxy.match(/^(.+):(\d+)$/);
+        var parsedProxyHostname = parsedProxy ? parsedProxy[1] : proxy;
+        var parsedProxyPort = parsedProxy ? parseInt(parsedProxy[2]) : 0;
+        if (parsedProxyPort && parsedProxyPort !== port) {
+          return true;
+        }
+        if (!/^[.*]/.test(parsedProxyHostname)) {
+          return hostname !== parsedProxyHostname;
+        }
+        if (parsedProxyHostname.charAt(0) === "*") {
+          parsedProxyHostname = parsedProxyHostname.slice(1);
+        }
+        return !stringEndsWith.call(hostname, parsedProxyHostname);
+      });
+    }
+    function getEnv(key) {
+      return process.env[key.toLowerCase()] || process.env[key.toUpperCase()] || "";
+    }
+    exports2.getProxyForUrl = getProxyForUrl;
+  }
+});
+
+// node_modules/ms/index.js
+var require_ms = __commonJS({
+  "node_modules/ms/index.js"(exports2, module2) {
+    var s = 1e3;
+    var m = s * 60;
+    var h = m * 60;
+    var d = h * 24;
+    var w = d * 7;
+    var y = d * 365.25;
+    module2.exports = function(val, options) {
+      options = options || {};
+      var type = typeof val;
+      if (type === "string" && val.length > 0) {
+        return parse(val);
+      } else if (type === "number" && isFinite(val)) {
+        return options.long ? fmtLong(val) : fmtShort(val);
+      }
+      throw new Error(
+        "val is not a non-empty string or a valid number. val=" + JSON.stringify(val)
+      );
+    };
+    function parse(str) {
+      str = String(str);
+      if (str.length > 100) {
+        return;
+      }
+      var match = /^(-?(?:\d+)?\.?\d+) *(milliseconds?|msecs?|ms|seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d|weeks?|w|years?|yrs?|y)?$/i.exec(
+        str
+      );
+      if (!match) {
+        return;
+      }
+      var n = parseFloat(match[1]);
+      var type = (match[2] || "ms").toLowerCase();
+      switch (type) {
+        case "years":
+        case "year":
+        case "yrs":
+        case "yr":
+        case "y":
+          return n * y;
+        case "weeks":
+        case "week":
+        case "w":
+          return n * w;
+        case "days":
+        case "day":
+        case "d":
+          return n * d;
+        case "hours":
+        case "hour":
+        case "hrs":
+        case "hr":
+        case "h":
+          return n * h;
+        case "minutes":
+        case "minute":
+        case "mins":
+        case "min":
+        case "m":
+          return n * m;
+        case "seconds":
+        case "second":
+        case "secs":
+        case "sec":
+        case "s":
+          return n * s;
+        case "milliseconds":
+        case "millisecond":
+        case "msecs":
+        case "msec":
+        case "ms":
+          return n;
+        default:
+          return void 0;
+      }
+    }
+    function fmtShort(ms) {
+      var msAbs = Math.abs(ms);
+      if (msAbs >= d) {
+        return Math.round(ms / d) + "d";
+      }
+      if (msAbs >= h) {
+        return Math.round(ms / h) + "h";
+      }
+      if (msAbs >= m) {
+        return Math.round(ms / m) + "m";
+      }
+      if (msAbs >= s) {
+        return Math.round(ms / s) + "s";
+      }
+      return ms + "ms";
+    }
+    function fmtLong(ms) {
+      var msAbs = Math.abs(ms);
+      if (msAbs >= d) {
+        return plural(ms, msAbs, d, "day");
+      }
+      if (msAbs >= h) {
+        return plural(ms, msAbs, h, "hour");
+      }
+      if (msAbs >= m) {
+        return plural(ms, msAbs, m, "minute");
+      }
+      if (msAbs >= s) {
+        return plural(ms, msAbs, s, "second");
+      }
+      return ms + " ms";
+    }
+    function plural(ms, msAbs, n, name) {
+      var isPlural = msAbs >= n * 1.5;
+      return Math.round(ms / n) + " " + name + (isPlural ? "s" : "");
+    }
+  }
+});
+
+// node_modules/debug/src/common.js
+var require_common = __commonJS({
+  "node_modules/debug/src/common.js"(exports2, module2) {
+    function setup(env) {
+      createDebug.debug = createDebug;
+      createDebug.default = createDebug;
+      createDebug.coerce = coerce;
+      createDebug.disable = disable;
+      createDebug.enable = enable;
+      createDebug.enabled = enabled;
+      createDebug.humanize = require_ms();
+      createDebug.destroy = destroy;
+      Object.keys(env).forEach((key) => {
+        createDebug[key] = env[key];
+      });
+      createDebug.names = [];
+      createDebug.skips = [];
+      createDebug.formatters = {};
+      function selectColor(namespace) {
+        let hash = 0;
+        for (let i = 0; i < namespace.length; i++) {
+          hash = (hash << 5) - hash + namespace.charCodeAt(i);
+          hash |= 0;
+        }
+        return createDebug.colors[Math.abs(hash) % createDebug.colors.length];
+      }
+      createDebug.selectColor = selectColor;
+      function createDebug(namespace) {
+        let prevTime;
+        let enableOverride = null;
+        let namespacesCache;
+        let enabledCache;
+        function debug(...args) {
+          if (!debug.enabled) {
+            return;
+          }
+          const self2 = debug;
+          const curr = Number(/* @__PURE__ */ new Date());
+          const ms = curr - (prevTime || curr);
+          self2.diff = ms;
+          self2.prev = prevTime;
+          self2.curr = curr;
+          prevTime = curr;
+          args[0] = createDebug.coerce(args[0]);
+          if (typeof args[0] !== "string") {
+            args.unshift("%O");
+          }
+          let index = 0;
+          args[0] = args[0].replace(/%([a-zA-Z%])/g, (match, format) => {
+            if (match === "%%") {
+              return "%";
+            }
+            index++;
+            const formatter = createDebug.formatters[format];
+            if (typeof formatter === "function") {
+              const val = args[index];
+              match = formatter.call(self2, val);
+              args.splice(index, 1);
+              index--;
+            }
+            return match;
+          });
+          createDebug.formatArgs.call(self2, args);
+          const logFn = self2.log || createDebug.log;
+          logFn.apply(self2, args);
+        }
+        debug.namespace = namespace;
+        debug.useColors = createDebug.useColors();
+        debug.color = createDebug.selectColor(namespace);
+        debug.extend = extend2;
+        debug.destroy = createDebug.destroy;
+        Object.defineProperty(debug, "enabled", {
+          enumerable: true,
+          configurable: false,
+          get: () => {
+            if (enableOverride !== null) {
+              return enableOverride;
+            }
+            if (namespacesCache !== createDebug.namespaces) {
+              namespacesCache = createDebug.namespaces;
+              enabledCache = createDebug.enabled(namespace);
+            }
+            return enabledCache;
+          },
+          set: (v) => {
+            enableOverride = v;
+          }
+        });
+        if (typeof createDebug.init === "function") {
+          createDebug.init(debug);
+        }
+        return debug;
+      }
+      function extend2(namespace, delimiter) {
+        const newDebug = createDebug(this.namespace + (typeof delimiter === "undefined" ? ":" : delimiter) + namespace);
+        newDebug.log = this.log;
+        return newDebug;
+      }
+      function enable(namespaces) {
+        createDebug.save(namespaces);
+        createDebug.namespaces = namespaces;
+        createDebug.names = [];
+        createDebug.skips = [];
+        const split = (typeof namespaces === "string" ? namespaces : "").trim().replace(/\s+/g, ",").split(",").filter(Boolean);
+        for (const ns of split) {
+          if (ns[0] === "-") {
+            createDebug.skips.push(ns.slice(1));
+          } else {
+            createDebug.names.push(ns);
+          }
+        }
+      }
+      function matchesTemplate(search, template) {
+        let searchIndex = 0;
+        let templateIndex = 0;
+        let starIndex = -1;
+        let matchIndex = 0;
+        while (searchIndex < search.length) {
+          if (templateIndex < template.length && (template[templateIndex] === search[searchIndex] || template[templateIndex] === "*")) {
+            if (template[templateIndex] === "*") {
+              starIndex = templateIndex;
+              matchIndex = searchIndex;
+              templateIndex++;
+            } else {
+              searchIndex++;
+              templateIndex++;
+            }
+          } else if (starIndex !== -1) {
+            templateIndex = starIndex + 1;
+            matchIndex++;
+            searchIndex = matchIndex;
+          } else {
+            return false;
+          }
+        }
+        while (templateIndex < template.length && template[templateIndex] === "*") {
+          templateIndex++;
+        }
+        return templateIndex === template.length;
+      }
+      function disable() {
+        const namespaces = [
+          ...createDebug.names,
+          ...createDebug.skips.map((namespace) => "-" + namespace)
+        ].join(",");
+        createDebug.enable("");
+        return namespaces;
+      }
+      function enabled(name) {
+        for (const skip of createDebug.skips) {
+          if (matchesTemplate(name, skip)) {
+            return false;
+          }
+        }
+        for (const ns of createDebug.names) {
+          if (matchesTemplate(name, ns)) {
+            return true;
+          }
+        }
+        return false;
+      }
+      function coerce(val) {
+        if (val instanceof Error) {
+          return val.stack || val.message;
+        }
+        return val;
+      }
+      function destroy() {
+        console.warn("Instance method `debug.destroy()` is deprecated and no longer does anything. It will be removed in the next major version of `debug`.");
+      }
+      createDebug.enable(createDebug.load());
+      return createDebug;
+    }
+    module2.exports = setup;
+  }
+});
+
+// node_modules/debug/src/browser.js
+var require_browser = __commonJS({
+  "node_modules/debug/src/browser.js"(exports2, module2) {
+    exports2.formatArgs = formatArgs;
+    exports2.save = save;
+    exports2.load = load;
+    exports2.useColors = useColors;
+    exports2.storage = localstorage();
+    exports2.destroy = /* @__PURE__ */ (() => {
+      let warned = false;
+      return () => {
+        if (!warned) {
+          warned = true;
+          console.warn("Instance method `debug.destroy()` is deprecated and no longer does anything. It will be removed in the next major version of `debug`.");
+        }
+      };
+    })();
+    exports2.colors = [
+      "#0000CC",
+      "#0000FF",
+      "#0033CC",
+      "#0033FF",
+      "#0066CC",
+      "#0066FF",
+      "#0099CC",
+      "#0099FF",
+      "#00CC00",
+      "#00CC33",
+      "#00CC66",
+      "#00CC99",
+      "#00CCCC",
+      "#00CCFF",
+      "#3300CC",
+      "#3300FF",
+      "#3333CC",
+      "#3333FF",
+      "#3366CC",
+      "#3366FF",
+      "#3399CC",
+      "#3399FF",
+      "#33CC00",
+      "#33CC33",
+      "#33CC66",
+      "#33CC99",
+      "#33CCCC",
+      "#33CCFF",
+      "#6600CC",
+      "#6600FF",
+      "#6633CC",
+      "#6633FF",
+      "#66CC00",
+      "#66CC33",
+      "#9900CC",
+      "#9900FF",
+      "#9933CC",
+      "#9933FF",
+      "#99CC00",
+      "#99CC33",
+      "#CC0000",
+      "#CC0033",
+      "#CC0066",
+      "#CC0099",
+      "#CC00CC",
+      "#CC00FF",
+      "#CC3300",
+      "#CC3333",
+      "#CC3366",
+      "#CC3399",
+      "#CC33CC",
+      "#CC33FF",
+      "#CC6600",
+      "#CC6633",
+      "#CC9900",
+      "#CC9933",
+      "#CCCC00",
+      "#CCCC33",
+      "#FF0000",
+      "#FF0033",
+      "#FF0066",
+      "#FF0099",
+      "#FF00CC",
+      "#FF00FF",
+      "#FF3300",
+      "#FF3333",
+      "#FF3366",
+      "#FF3399",
+      "#FF33CC",
+      "#FF33FF",
+      "#FF6600",
+      "#FF6633",
+      "#FF9900",
+      "#FF9933",
+      "#FFCC00",
+      "#FFCC33"
+    ];
+    function useColors() {
+      if (typeof window !== "undefined" && window.process && (window.process.type === "renderer" || window.process.__nwjs)) {
+        return true;
+      }
+      if (typeof navigator !== "undefined" && navigator.userAgent && navigator.userAgent.toLowerCase().match(/(edge|trident)\/(\d+)/)) {
+        return false;
+      }
+      let m;
+      return typeof document !== "undefined" && document.documentElement && document.documentElement.style && document.documentElement.style.WebkitAppearance || // Is firebug? http://stackoverflow.com/a/398120/376773
+      typeof window !== "undefined" && window.console && (window.console.firebug || window.console.exception && window.console.table) || // Is firefox >= v31?
+      // https://developer.mozilla.org/en-US/docs/Tools/Web_Console#Styling_messages
+      typeof navigator !== "undefined" && navigator.userAgent && (m = navigator.userAgent.toLowerCase().match(/firefox\/(\d+)/)) && parseInt(m[1], 10) >= 31 || // Double check webkit in userAgent just in case we are in a worker
+      typeof navigator !== "undefined" && navigator.userAgent && navigator.userAgent.toLowerCase().match(/applewebkit\/(\d+)/);
+    }
+    function formatArgs(args) {
+      args[0] = (this.useColors ? "%c" : "") + this.namespace + (this.useColors ? " %c" : " ") + args[0] + (this.useColors ? "%c " : " ") + "+" + module2.exports.humanize(this.diff);
+      if (!this.useColors) {
+        return;
+      }
+      const c = "color: " + this.color;
+      args.splice(1, 0, c, "color: inherit");
+      let index = 0;
+      let lastC = 0;
+      args[0].replace(/%[a-zA-Z%]/g, (match) => {
+        if (match === "%%") {
+          return;
+        }
+        index++;
+        if (match === "%c") {
+          lastC = index;
+        }
+      });
+      args.splice(lastC, 0, c);
+    }
+    exports2.log = console.debug || console.log || (() => {
+    });
+    function save(namespaces) {
+      try {
+        if (namespaces) {
+          exports2.storage.setItem("debug", namespaces);
+        } else {
+          exports2.storage.removeItem("debug");
+        }
+      } catch (error) {
+      }
+    }
+    function load() {
+      let r;
+      try {
+        r = exports2.storage.getItem("debug") || exports2.storage.getItem("DEBUG");
+      } catch (error) {
+      }
+      if (!r && typeof process !== "undefined" && "env" in process) {
+        r = process.env.DEBUG;
+      }
+      return r;
+    }
+    function localstorage() {
+      try {
+        return localStorage;
+      } catch (error) {
+      }
+    }
+    module2.exports = require_common()(exports2);
+    var { formatters } = module2.exports;
+    formatters.j = function(v) {
+      try {
+        return JSON.stringify(v);
+      } catch (error) {
+        return "[UnexpectedJSONParseError]: " + error.message;
+      }
+    };
+  }
+});
+
+// node_modules/has-flag/index.js
+var require_has_flag = __commonJS({
+  "node_modules/has-flag/index.js"(exports2, module2) {
+    "use strict";
+    module2.exports = (flag, argv) => {
+      argv = argv || process.argv;
+      const prefix = flag.startsWith("-") ? "" : flag.length === 1 ? "-" : "--";
+      const pos = argv.indexOf(prefix + flag);
+      const terminatorPos = argv.indexOf("--");
+      return pos !== -1 && (terminatorPos === -1 ? true : pos < terminatorPos);
+    };
+  }
+});
+
+// node_modules/supports-color/index.js
+var require_supports_color = __commonJS({
+  "node_modules/supports-color/index.js"(exports2, module2) {
+    "use strict";
+    var os = require("os");
+    var hasFlag = require_has_flag();
+    var env = process.env;
+    var forceColor;
+    if (hasFlag("no-color") || hasFlag("no-colors") || hasFlag("color=false")) {
+      forceColor = false;
+    } else if (hasFlag("color") || hasFlag("colors") || hasFlag("color=true") || hasFlag("color=always")) {
+      forceColor = true;
+    }
+    if ("FORCE_COLOR" in env) {
+      forceColor = env.FORCE_COLOR.length === 0 || parseInt(env.FORCE_COLOR, 10) !== 0;
+    }
+    function translateLevel(level) {
+      if (level === 0) {
+        return false;
+      }
+      return {
+        level,
+        hasBasic: true,
+        has256: level >= 2,
+        has16m: level >= 3
+      };
+    }
+    function supportsColor(stream4) {
+      if (forceColor === false) {
+        return 0;
+      }
+      if (hasFlag("color=16m") || hasFlag("color=full") || hasFlag("color=truecolor")) {
+        return 3;
+      }
+      if (hasFlag("color=256")) {
+        return 2;
+      }
+      if (stream4 && !stream4.isTTY && forceColor !== true) {
+        return 0;
+      }
+      const min = forceColor ? 1 : 0;
+      if (process.platform === "win32") {
+        const osRelease = os.release().split(".");
+        if (Number(process.versions.node.split(".")[0]) >= 8 && Number(osRelease[0]) >= 10 && Number(osRelease[2]) >= 10586) {
+          return Number(osRelease[2]) >= 14931 ? 3 : 2;
+        }
+        return 1;
+      }
+      if ("CI" in env) {
+        if (["TRAVIS", "CIRCLECI", "APPVEYOR", "GITLAB_CI"].some((sign) => sign in env) || env.CI_NAME === "codeship") {
+          return 1;
+        }
+        return min;
+      }
+      if ("TEAMCITY_VERSION" in env) {
+        return /^(9\.(0*[1-9]\d*)\.|\d{2,}\.)/.test(env.TEAMCITY_VERSION) ? 1 : 0;
+      }
+      if (env.COLORTERM === "truecolor") {
+        return 3;
+      }
+      if ("TERM_PROGRAM" in env) {
+        const version = parseInt((env.TERM_PROGRAM_VERSION || "").split(".")[0], 10);
+        switch (env.TERM_PROGRAM) {
+          case "iTerm.app":
+            return version >= 3 ? 3 : 2;
+          case "Apple_Terminal":
+            return 2;
+        }
+      }
+      if (/-256(color)?$/i.test(env.TERM)) {
+        return 2;
+      }
+      if (/^screen|^xterm|^vt100|^vt220|^rxvt|color|ansi|cygwin|linux/i.test(env.TERM)) {
+        return 1;
+      }
+      if ("COLORTERM" in env) {
+        return 1;
+      }
+      if (env.TERM === "dumb") {
+        return min;
+      }
+      return min;
+    }
+    function getSupportLevel(stream4) {
+      const level = supportsColor(stream4);
+      return translateLevel(level);
+    }
+    module2.exports = {
+      supportsColor: getSupportLevel,
+      stdout: getSupportLevel(process.stdout),
+      stderr: getSupportLevel(process.stderr)
+    };
+  }
+});
+
+// node_modules/debug/src/node.js
+var require_node = __commonJS({
+  "node_modules/debug/src/node.js"(exports2, module2) {
+    var tty = require("tty");
+    var util3 = require("util");
+    exports2.init = init;
+    exports2.log = log;
+    exports2.formatArgs = formatArgs;
+    exports2.save = save;
+    exports2.load = load;
+    exports2.useColors = useColors;
+    exports2.destroy = util3.deprecate(
+      () => {
+      },
+      "Instance method `debug.destroy()` is deprecated and no longer does anything. It will be removed in the next major version of `debug`."
+    );
+    exports2.colors = [6, 2, 3, 4, 5, 1];
+    try {
+      const supportsColor = require_supports_color();
+      if (supportsColor && (supportsColor.stderr || supportsColor).level >= 2) {
+        exports2.colors = [
+          20,
+          21,
+          26,
+          27,
+          32,
+          33,
+          38,
+          39,
+          40,
+          41,
+          42,
+          43,
+          44,
+          45,
+          56,
+          57,
+          62,
+          63,
+          68,
+          69,
+          74,
+          75,
+          76,
+          77,
+          78,
+          79,
+          80,
+          81,
+          92,
+          93,
+          98,
+          99,
+          112,
+          113,
+          128,
+          129,
+          134,
+          135,
+          148,
+          149,
+          160,
+          161,
+          162,
+          163,
+          164,
+          165,
+          166,
+          167,
+          168,
+          169,
+          170,
+          171,
+          172,
+          173,
+          178,
+          179,
+          184,
+          185,
+          196,
+          197,
+          198,
+          199,
+          200,
+          201,
+          202,
+          203,
+          204,
+          205,
+          206,
+          207,
+          208,
+          209,
+          214,
+          215,
+          220,
+          221
+        ];
+      }
+    } catch (error) {
+    }
+    exports2.inspectOpts = Object.keys(process.env).filter((key) => {
+      return /^debug_/i.test(key);
+    }).reduce((obj, key) => {
+      const prop = key.substring(6).toLowerCase().replace(/_([a-z])/g, (_, k) => {
+        return k.toUpperCase();
+      });
+      let val = process.env[key];
+      if (/^(yes|on|true|enabled)$/i.test(val)) {
+        val = true;
+      } else if (/^(no|off|false|disabled)$/i.test(val)) {
+        val = false;
+      } else if (val === "null") {
+        val = null;
+      } else {
+        val = Number(val);
+      }
+      obj[prop] = val;
+      return obj;
+    }, {});
+    function useColors() {
+      return "colors" in exports2.inspectOpts ? Boolean(exports2.inspectOpts.colors) : tty.isatty(process.stderr.fd);
+    }
+    function formatArgs(args) {
+      const { namespace: name, useColors: useColors2 } = this;
+      if (useColors2) {
+        const c = this.color;
+        const colorCode = "\x1B[3" + (c < 8 ? c : "8;5;" + c);
+        const prefix = `  ${colorCode};1m${name} \x1B[0m`;
+        args[0] = prefix + args[0].split("\n").join("\n" + prefix);
+        args.push(colorCode + "m+" + module2.exports.humanize(this.diff) + "\x1B[0m");
+      } else {
+        args[0] = getDate() + name + " " + args[0];
+      }
+    }
+    function getDate() {
+      if (exports2.inspectOpts.hideDate) {
+        return "";
+      }
+      return (/* @__PURE__ */ new Date()).toISOString() + " ";
+    }
+    function log(...args) {
+      return process.stderr.write(util3.formatWithOptions(exports2.inspectOpts, ...args) + "\n");
+    }
+    function save(namespaces) {
+      if (namespaces) {
+        process.env.DEBUG = namespaces;
+      } else {
+        delete process.env.DEBUG;
+      }
+    }
+    function load() {
+      return process.env.DEBUG;
+    }
+    function init(debug) {
+      debug.inspectOpts = {};
+      const keys = Object.keys(exports2.inspectOpts);
+      for (let i = 0; i < keys.length; i++) {
+        debug.inspectOpts[keys[i]] = exports2.inspectOpts[keys[i]];
+      }
+    }
+    module2.exports = require_common()(exports2);
+    var { formatters } = module2.exports;
+    formatters.o = function(v) {
+      this.inspectOpts.colors = this.useColors;
+      return util3.inspect(v, this.inspectOpts).split("\n").map((str) => str.trim()).join(" ");
+    };
+    formatters.O = function(v) {
+      this.inspectOpts.colors = this.useColors;
+      return util3.inspect(v, this.inspectOpts);
+    };
+  }
+});
+
+// node_modules/debug/src/index.js
+var require_src = __commonJS({
+  "node_modules/debug/src/index.js"(exports2, module2) {
+    if (typeof process === "undefined" || process.type === "renderer" || process.browser === true || process.__nwjs) {
+      module2.exports = require_browser();
+    } else {
+      module2.exports = require_node();
+    }
+  }
+});
+
+// node_modules/follow-redirects/debug.js
+var require_debug = __commonJS({
+  "node_modules/follow-redirects/debug.js"(exports2, module2) {
+    var debug;
+    module2.exports = function() {
+      if (!debug) {
+        try {
+          debug = require_src()("follow-redirects");
+        } catch (error) {
+        }
+        if (typeof debug !== "function") {
+          debug = function() {
+          };
+        }
+      }
+      debug.apply(null, arguments);
+    };
+  }
+});
+
+// node_modules/follow-redirects/index.js
+var require_follow_redirects = __commonJS({
+  "node_modules/follow-redirects/index.js"(exports2, module2) {
+    var url2 = require("url");
+    var URL2 = url2.URL;
+    var http3 = require("http");
+    var https3 = require("https");
+    var Writable = require("stream").Writable;
+    var assert = require("assert");
+    var debug = require_debug();
+    (function detectUnsupportedEnvironment() {
+      var looksLikeNode = typeof process !== "undefined";
+      var looksLikeBrowser = typeof window !== "undefined" && typeof document !== "undefined";
+      var looksLikeV8 = isFunction3(Error.captureStackTrace);
+      if (!looksLikeNode && (looksLikeBrowser || !looksLikeV8)) {
+        console.warn("The follow-redirects package should be excluded from browser builds.");
+      }
+    })();
+    var useNativeURL = false;
+    try {
+      assert(new URL2(""));
+    } catch (error) {
+      useNativeURL = error.code === "ERR_INVALID_URL";
+    }
+    var preservedUrlFields = [
+      "auth",
+      "host",
+      "hostname",
+      "href",
+      "path",
+      "pathname",
+      "port",
+      "protocol",
+      "query",
+      "search",
+      "hash"
+    ];
+    var events = ["abort", "aborted", "connect", "error", "socket", "timeout"];
+    var eventHandlers = /* @__PURE__ */ Object.create(null);
+    events.forEach(function(event) {
+      eventHandlers[event] = function(arg1, arg2, arg3) {
+        this._redirectable.emit(event, arg1, arg2, arg3);
+      };
+    });
+    var InvalidUrlError = createErrorType(
+      "ERR_INVALID_URL",
+      "Invalid URL",
+      TypeError
+    );
+    var RedirectionError = createErrorType(
+      "ERR_FR_REDIRECTION_FAILURE",
+      "Redirected request failed"
+    );
+    var TooManyRedirectsError = createErrorType(
+      "ERR_FR_TOO_MANY_REDIRECTS",
+      "Maximum number of redirects exceeded",
+      RedirectionError
+    );
+    var MaxBodyLengthExceededError = createErrorType(
+      "ERR_FR_MAX_BODY_LENGTH_EXCEEDED",
+      "Request body larger than maxBodyLength limit"
+    );
+    var WriteAfterEndError = createErrorType(
+      "ERR_STREAM_WRITE_AFTER_END",
+      "write after end"
+    );
+    var destroy = Writable.prototype.destroy || noop2;
+    function RedirectableRequest(options, responseCallback) {
+      Writable.call(this);
+      this._sanitizeOptions(options);
+      this._options = options;
+      this._ended = false;
+      this._ending = false;
+      this._redirectCount = 0;
+      this._redirects = [];
+      this._requestBodyLength = 0;
+      this._requestBodyBuffers = [];
+      if (responseCallback) {
+        this.on("response", responseCallback);
+      }
+      var self2 = this;
+      this._onNativeResponse = function(response) {
+        try {
+          self2._processResponse(response);
+        } catch (cause) {
+          self2.emit("error", cause instanceof RedirectionError ? cause : new RedirectionError({ cause }));
+        }
+      };
+      this._performRequest();
+    }
+    RedirectableRequest.prototype = Object.create(Writable.prototype);
+    RedirectableRequest.prototype.abort = function() {
+      destroyRequest(this._currentRequest);
+      this._currentRequest.abort();
+      this.emit("abort");
+    };
+    RedirectableRequest.prototype.destroy = function(error) {
+      destroyRequest(this._currentRequest, error);
+      destroy.call(this, error);
+      return this;
+    };
+    RedirectableRequest.prototype.write = function(data, encoding, callback) {
+      if (this._ending) {
+        throw new WriteAfterEndError();
+      }
+      if (!isString2(data) && !isBuffer2(data)) {
+        throw new TypeError("data should be a string, Buffer or Uint8Array");
+      }
+      if (isFunction3(encoding)) {
+        callback = encoding;
+        encoding = null;
+      }
+      if (data.length === 0) {
+        if (callback) {
+          callback();
+        }
+        return;
+      }
+      if (this._requestBodyLength + data.length <= this._options.maxBodyLength) {
+        this._requestBodyLength += data.length;
+        this._requestBodyBuffers.push({ data, encoding });
+        this._currentRequest.write(data, encoding, callback);
+      } else {
+        this.emit("error", new MaxBodyLengthExceededError());
+        this.abort();
+      }
+    };
+    RedirectableRequest.prototype.end = function(data, encoding, callback) {
+      if (isFunction3(data)) {
+        callback = data;
+        data = encoding = null;
+      } else if (isFunction3(encoding)) {
+        callback = encoding;
+        encoding = null;
+      }
+      if (!data) {
+        this._ended = this._ending = true;
+        this._currentRequest.end(null, null, callback);
+      } else {
+        var self2 = this;
+        var currentRequest = this._currentRequest;
+        this.write(data, encoding, function() {
+          self2._ended = true;
+          currentRequest.end(null, null, callback);
+        });
+        this._ending = true;
+      }
+    };
+    RedirectableRequest.prototype.setHeader = function(name, value) {
+      this._options.headers[name] = value;
+      this._currentRequest.setHeader(name, value);
+    };
+    RedirectableRequest.prototype.removeHeader = function(name) {
+      delete this._options.headers[name];
+      this._currentRequest.removeHeader(name);
+    };
+    RedirectableRequest.prototype.setTimeout = function(msecs, callback) {
+      var self2 = this;
+      function destroyOnTimeout(socket) {
+        socket.setTimeout(msecs);
+        socket.removeListener("timeout", socket.destroy);
+        socket.addListener("timeout", socket.destroy);
+      }
+      function startTimer(socket) {
+        if (self2._timeout) {
+          clearTimeout(self2._timeout);
+        }
+        self2._timeout = setTimeout(function() {
+          self2.emit("timeout");
+          clearTimer();
+        }, msecs);
+        destroyOnTimeout(socket);
+      }
+      function clearTimer() {
+        if (self2._timeout) {
+          clearTimeout(self2._timeout);
+          self2._timeout = null;
+        }
+        self2.removeListener("abort", clearTimer);
+        self2.removeListener("error", clearTimer);
+        self2.removeListener("response", clearTimer);
+        self2.removeListener("close", clearTimer);
+        if (callback) {
+          self2.removeListener("timeout", callback);
+        }
+        if (!self2.socket) {
+          self2._currentRequest.removeListener("socket", startTimer);
+        }
+      }
+      if (callback) {
+        this.on("timeout", callback);
+      }
+      if (this.socket) {
+        startTimer(this.socket);
+      } else {
+        this._currentRequest.once("socket", startTimer);
+      }
+      this.on("socket", destroyOnTimeout);
+      this.on("abort", clearTimer);
+      this.on("error", clearTimer);
+      this.on("response", clearTimer);
+      this.on("close", clearTimer);
+      return this;
+    };
+    [
+      "flushHeaders",
+      "getHeader",
+      "setNoDelay",
+      "setSocketKeepAlive"
+    ].forEach(function(method) {
+      RedirectableRequest.prototype[method] = function(a, b) {
+        return this._currentRequest[method](a, b);
+      };
+    });
+    ["aborted", "connection", "socket"].forEach(function(property) {
+      Object.defineProperty(RedirectableRequest.prototype, property, {
+        get: function() {
+          return this._currentRequest[property];
+        }
+      });
+    });
+    RedirectableRequest.prototype._sanitizeOptions = function(options) {
+      if (!options.headers) {
+        options.headers = {};
+      }
+      if (options.host) {
+        if (!options.hostname) {
+          options.hostname = options.host;
+        }
+        delete options.host;
+      }
+      if (!options.pathname && options.path) {
+        var searchPos = options.path.indexOf("?");
+        if (searchPos < 0) {
+          options.pathname = options.path;
+        } else {
+          options.pathname = options.path.substring(0, searchPos);
+          options.search = options.path.substring(searchPos);
+        }
+      }
+    };
+    RedirectableRequest.prototype._performRequest = function() {
+      var protocol = this._options.protocol;
+      var nativeProtocol = this._options.nativeProtocols[protocol];
+      if (!nativeProtocol) {
+        throw new TypeError("Unsupported protocol " + protocol);
+      }
+      if (this._options.agents) {
+        var scheme = protocol.slice(0, -1);
+        this._options.agent = this._options.agents[scheme];
+      }
+      var request = this._currentRequest = nativeProtocol.request(this._options, this._onNativeResponse);
+      request._redirectable = this;
+      for (var event of events) {
+        request.on(event, eventHandlers[event]);
+      }
+      this._currentUrl = /^\//.test(this._options.path) ? url2.format(this._options) : (
+        // When making a request to a proxy, […]
+        // a client MUST send the target URI in absolute-form […].
+        this._options.path
+      );
+      if (this._isRedirect) {
+        var i = 0;
+        var self2 = this;
+        var buffers = this._requestBodyBuffers;
+        (function writeNext(error) {
+          if (request === self2._currentRequest) {
+            if (error) {
+              self2.emit("error", error);
+            } else if (i < buffers.length) {
+              var buffer = buffers[i++];
+              if (!request.finished) {
+                request.write(buffer.data, buffer.encoding, writeNext);
+              }
+            } else if (self2._ended) {
+              request.end();
+            }
+          }
+        })();
+      }
+    };
+    RedirectableRequest.prototype._processResponse = function(response) {
+      var statusCode = response.statusCode;
+      if (this._options.trackRedirects) {
+        this._redirects.push({
+          url: this._currentUrl,
+          headers: response.headers,
+          statusCode
+        });
+      }
+      var location = response.headers.location;
+      if (!location || this._options.followRedirects === false || statusCode < 300 || statusCode >= 400) {
+        response.responseUrl = this._currentUrl;
+        response.redirects = this._redirects;
+        this.emit("response", response);
+        this._requestBodyBuffers = [];
+        return;
+      }
+      destroyRequest(this._currentRequest);
+      response.destroy();
+      if (++this._redirectCount > this._options.maxRedirects) {
+        throw new TooManyRedirectsError();
+      }
+      var requestHeaders;
+      var beforeRedirect = this._options.beforeRedirect;
+      if (beforeRedirect) {
+        requestHeaders = Object.assign({
+          // The Host header was set by nativeProtocol.request
+          Host: response.req.getHeader("host")
+        }, this._options.headers);
+      }
+      var method = this._options.method;
+      if ((statusCode === 301 || statusCode === 302) && this._options.method === "POST" || // RFC7231§6.4.4: The 303 (See Other) status code indicates that
+      // the server is redirecting the user agent to a different resource […]
+      // A user agent can perform a retrieval request targeting that URI
+      // (a GET or HEAD request if using HTTP) […]
+      statusCode === 303 && !/^(?:GET|HEAD)$/.test(this._options.method)) {
+        this._options.method = "GET";
+        this._requestBodyBuffers = [];
+        removeMatchingHeaders(/^content-/i, this._options.headers);
+      }
+      var currentHostHeader = removeMatchingHeaders(/^host$/i, this._options.headers);
+      var currentUrlParts = parseUrl(this._currentUrl);
+      var currentHost = currentHostHeader || currentUrlParts.host;
+      var currentUrl = /^\w+:/.test(location) ? this._currentUrl : url2.format(Object.assign(currentUrlParts, { host: currentHost }));
+      var redirectUrl = resolveUrl(location, currentUrl);
+      debug("redirecting to", redirectUrl.href);
+      this._isRedirect = true;
+      spreadUrlObject(redirectUrl, this._options);
+      if (redirectUrl.protocol !== currentUrlParts.protocol && redirectUrl.protocol !== "https:" || redirectUrl.host !== currentHost && !isSubdomain(redirectUrl.host, currentHost)) {
+        removeMatchingHeaders(/^(?:(?:proxy-)?authorization|cookie)$/i, this._options.headers);
+      }
+      if (isFunction3(beforeRedirect)) {
+        var responseDetails = {
+          headers: response.headers,
+          statusCode
+        };
+        var requestDetails = {
+          url: currentUrl,
+          method,
+          headers: requestHeaders
+        };
+        beforeRedirect(this._options, responseDetails, requestDetails);
+        this._sanitizeOptions(this._options);
+      }
+      this._performRequest();
+    };
+    function wrap(protocols) {
+      var exports3 = {
+        maxRedirects: 21,
+        maxBodyLength: 10 * 1024 * 1024
+      };
+      var nativeProtocols = {};
+      Object.keys(protocols).forEach(function(scheme) {
+        var protocol = scheme + ":";
+        var nativeProtocol = nativeProtocols[protocol] = protocols[scheme];
+        var wrappedProtocol = exports3[scheme] = Object.create(nativeProtocol);
+        function request(input, options, callback) {
+          if (isURL(input)) {
+            input = spreadUrlObject(input);
+          } else if (isString2(input)) {
+            input = spreadUrlObject(parseUrl(input));
+          } else {
+            callback = options;
+            options = validateUrl(input);
+            input = { protocol };
+          }
+          if (isFunction3(options)) {
+            callback = options;
+            options = null;
+          }
+          options = Object.assign({
+            maxRedirects: exports3.maxRedirects,
+            maxBodyLength: exports3.maxBodyLength
+          }, input, options);
+          options.nativeProtocols = nativeProtocols;
+          if (!isString2(options.host) && !isString2(options.hostname)) {
+            options.hostname = "::1";
+          }
+          assert.equal(options.protocol, protocol, "protocol mismatch");
+          debug("options", options);
+          return new RedirectableRequest(options, callback);
+        }
+        function get(input, options, callback) {
+          var wrappedRequest = wrappedProtocol.request(input, options, callback);
+          wrappedRequest.end();
+          return wrappedRequest;
+        }
+        Object.defineProperties(wrappedProtocol, {
+          request: { value: request, configurable: true, enumerable: true, writable: true },
+          get: { value: get, configurable: true, enumerable: true, writable: true }
+        });
+      });
+      return exports3;
+    }
+    function noop2() {
+    }
+    function parseUrl(input) {
+      var parsed;
+      if (useNativeURL) {
+        parsed = new URL2(input);
+      } else {
+        parsed = validateUrl(url2.parse(input));
+        if (!isString2(parsed.protocol)) {
+          throw new InvalidUrlError({ input });
+        }
+      }
+      return parsed;
+    }
+    function resolveUrl(relative, base) {
+      return useNativeURL ? new URL2(relative, base) : parseUrl(url2.resolve(base, relative));
+    }
+    function validateUrl(input) {
+      if (/^\[/.test(input.hostname) && !/^\[[:0-9a-f]+\]$/i.test(input.hostname)) {
+        throw new InvalidUrlError({ input: input.href || input });
+      }
+      if (/^\[/.test(input.host) && !/^\[[:0-9a-f]+\](:\d+)?$/i.test(input.host)) {
+        throw new InvalidUrlError({ input: input.href || input });
+      }
+      return input;
+    }
+    function spreadUrlObject(urlObject, target) {
+      var spread3 = target || {};
+      for (var key of preservedUrlFields) {
+        spread3[key] = urlObject[key];
+      }
+      if (spread3.hostname.startsWith("[")) {
+        spread3.hostname = spread3.hostname.slice(1, -1);
+      }
+      if (spread3.port !== "") {
+        spread3.port = Number(spread3.port);
+      }
+      spread3.path = spread3.search ? spread3.pathname + spread3.search : spread3.pathname;
+      return spread3;
+    }
+    function removeMatchingHeaders(regex, headers) {
+      var lastValue;
+      for (var header in headers) {
+        if (regex.test(header)) {
+          lastValue = headers[header];
+          delete headers[header];
+        }
+      }
+      return lastValue === null || typeof lastValue === "undefined" ? void 0 : String(lastValue).trim();
+    }
+    function createErrorType(code, message, baseClass) {
+      function CustomError(properties) {
+        if (isFunction3(Error.captureStackTrace)) {
+          Error.captureStackTrace(this, this.constructor);
+        }
+        Object.assign(this, properties || {});
+        this.code = code;
+        this.message = this.cause ? message + ": " + this.cause.message : message;
+      }
+      CustomError.prototype = new (baseClass || Error)();
+      Object.defineProperties(CustomError.prototype, {
+        constructor: {
+          value: CustomError,
+          enumerable: false
+        },
+        name: {
+          value: "Error [" + code + "]",
+          enumerable: false
+        }
+      });
+      return CustomError;
+    }
+    function destroyRequest(request, error) {
+      for (var event of events) {
+        request.removeListener(event, eventHandlers[event]);
+      }
+      request.on("error", noop2);
+      request.destroy(error);
+    }
+    function isSubdomain(subdomain, domain) {
+      assert(isString2(subdomain) && isString2(domain));
+      var dot = subdomain.length - domain.length - 1;
+      return dot > 0 && subdomain[dot] === "." && subdomain.endsWith(domain);
+    }
+    function isString2(value) {
+      return typeof value === "string" || value instanceof String;
+    }
+    function isFunction3(value) {
+      return typeof value === "function";
+    }
+    function isBuffer2(value) {
+      return typeof value === "object" && "length" in value;
+    }
+    function isURL(value) {
+      return URL2 && value instanceof URL2;
+    }
+    module2.exports = wrap({ http: http3, https: https3 });
+    module2.exports.wrap = wrap;
+  }
+});
+
+// src/extension.ts
+var extension_exports = {};
+__export(extension_exports, {
+  activate: () => activate,
+  deactivate: () => deactivate
+});
+module.exports = __toCommonJS(extension_exports);
+var vscode7 = __toESM(require("vscode"));
+
+// src/core/EventBus.ts
+var EventBus = class {
+  listeners = /* @__PURE__ */ new Map();
+  on(event, listener) {
+    const set = this.listeners.get(event) ?? /* @__PURE__ */ new Set();
+    set.add(listener);
+    this.listeners.set(event, set);
+    return {
+      dispose: () => this.off(event, listener)
+    };
+  }
+  once(event, listener) {
+    const wrapper = (data) => {
+      this.off(event, wrapper);
+      listener(data);
+    };
+    return this.on(event, wrapper);
+  }
+  off(event, listener) {
+    const set = this.listeners.get(event);
+    if (set) {
+      set.delete(listener);
+      if (set.size === 0) {
+        this.listeners.delete(event);
+      }
+    }
+  }
+  emit(event, data) {
+    const set = this.listeners.get(event);
+    if (set) {
+      for (const listener of [...set]) {
+        listener(data);
+      }
+    }
+  }
+  removeAllListeners() {
+    this.listeners.clear();
+  }
+};
+
+// src/core/ConfigService.ts
+var vscode = __toESM(require("vscode"));
+
+// src/utils/constants.ts
+var CONFIG_SECTION = "enterprise-ai";
+var CONFIG_KEYS = {
+  SERVER_URL: "serverUrl",
+  ALLOW_SELF_SIGNED: "allowSelfSignedCerts",
+  BOT_ICON_STYLE: "botIconStyle",
+  ORCHESTRATOR_POLLING: "orchestrator.pollingInterval",
+  ORCHESTRATOR_SHOW: "orchestrator.showStatusBar"
+};
+var DEFAULTS = {
+  SERVER_URL: "https://plane.lushlolli.com",
+  ALLOW_SELF_SIGNED: false,
+  ORCHESTRATOR_POLLING: 1e4,
+  ORCHESTRATOR_SHOW: true
+};
+var API_PATHS = {
+  LOGIN: "/api/auth/login",
+  MODELS: "/api/chat/models",
+  COMPLETIONS: "/api/chat/completions",
+  CONVERSATIONS: "/api/chat/conversations",
+  DOCUMENTS: "/api/documents",
+  AGENT_SESSIONS: "/api/agents/sessions",
+  AGENT_TEMPLATES: "/api/agents/templates",
+  ORCHESTRATOR_STATUS: "/api/orchestrator/status",
+  ORCHESTRATOR_EVENTS: "/api/orchestrator/events",
+  ORCHESTRATOR_WORKTREES: "/api/orchestrator/worktrees",
+  TOOLS_GENERATE_DOCX: "/api/tools/generate-docx",
+  TOOLS_GENERATE_EXCEL: "/api/tools/generate-excel",
+  TOOLS_GENERATE_PPTX: "/api/tools/generate-pptx",
+  TOOLS_CONVERT_PDF: "/api/tools/convert-to-pdf"
+};
+var OUTPUT_CHANNEL_NAME = "Enterprise AI";
+
+// src/core/ConfigService.ts
+var ConfigService = class {
+  constructor(eventBus) {
+    this.eventBus = eventBus;
+    this.disposable = vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration(CONFIG_SECTION)) {
+        this.eventBus.emit("config:changed", {
+          key: CONFIG_SECTION,
+          value: this.getAll()
+        });
+      }
+    });
+  }
+  disposable;
+  getServerUrl() {
+    return this.get(CONFIG_KEYS.SERVER_URL, DEFAULTS.SERVER_URL);
+  }
+  getAllowSelfSigned() {
+    return this.get(CONFIG_KEYS.ALLOW_SELF_SIGNED, DEFAULTS.ALLOW_SELF_SIGNED);
+  }
+  getBotIconStyle() {
+    return this.get(CONFIG_KEYS.BOT_ICON_STYLE, "default");
+  }
+  getOrchestratorPollingInterval() {
+    return this.get(CONFIG_KEYS.ORCHESTRATOR_POLLING, DEFAULTS.ORCHESTRATOR_POLLING);
+  }
+  getOrchestratorShowStatusBar() {
+    return this.get(CONFIG_KEYS.ORCHESTRATOR_SHOW, DEFAULTS.ORCHESTRATOR_SHOW);
+  }
+  get(key, defaultValue) {
+    return vscode.workspace.getConfiguration(CONFIG_SECTION).get(key, defaultValue);
+  }
+  getAll() {
+    return {
+      serverUrl: this.getServerUrl(),
+      allowSelfSigned: this.getAllowSelfSigned(),
+      botIconStyle: this.getBotIconStyle(),
+      orchestratorPolling: this.getOrchestratorPollingInterval(),
+      orchestratorShow: this.getOrchestratorShowStatusBar()
+    };
+  }
+  dispose() {
+    this.disposable.dispose();
+  }
+};
+
+// node_modules/axios/lib/helpers/bind.js
+function bind(fn, thisArg) {
+  return function wrap() {
+    return fn.apply(thisArg, arguments);
+  };
+}
+
+// node_modules/axios/lib/utils.js
+var { toString } = Object.prototype;
+var { getPrototypeOf } = Object;
+var { iterator, toStringTag } = Symbol;
+var kindOf = /* @__PURE__ */ ((cache) => (thing) => {
+  const str = toString.call(thing);
+  return cache[str] || (cache[str] = str.slice(8, -1).toLowerCase());
+})(/* @__PURE__ */ Object.create(null));
+var kindOfTest = (type) => {
+  type = type.toLowerCase();
+  return (thing) => kindOf(thing) === type;
+};
+var typeOfTest = (type) => (thing) => typeof thing === type;
+var { isArray } = Array;
+var isUndefined = typeOfTest("undefined");
+function isBuffer(val) {
+  return val !== null && !isUndefined(val) && val.constructor !== null && !isUndefined(val.constructor) && isFunction(val.constructor.isBuffer) && val.constructor.isBuffer(val);
+}
+var isArrayBuffer = kindOfTest("ArrayBuffer");
+function isArrayBufferView(val) {
+  let result;
+  if (typeof ArrayBuffer !== "undefined" && ArrayBuffer.isView) {
+    result = ArrayBuffer.isView(val);
+  } else {
+    result = val && val.buffer && isArrayBuffer(val.buffer);
+  }
+  return result;
+}
+var isString = typeOfTest("string");
+var isFunction = typeOfTest("function");
+var isNumber = typeOfTest("number");
+var isObject = (thing) => thing !== null && typeof thing === "object";
+var isBoolean = (thing) => thing === true || thing === false;
+var isPlainObject = (val) => {
+  if (kindOf(val) !== "object") {
+    return false;
+  }
+  const prototype2 = getPrototypeOf(val);
+  return (prototype2 === null || prototype2 === Object.prototype || Object.getPrototypeOf(prototype2) === null) && !(toStringTag in val) && !(iterator in val);
+};
+var isEmptyObject = (val) => {
+  if (!isObject(val) || isBuffer(val)) {
+    return false;
+  }
+  try {
+    return Object.keys(val).length === 0 && Object.getPrototypeOf(val) === Object.prototype;
+  } catch (e) {
+    return false;
+  }
+};
+var isDate = kindOfTest("Date");
+var isFile = kindOfTest("File");
+var isBlob = kindOfTest("Blob");
+var isFileList = kindOfTest("FileList");
+var isStream = (val) => isObject(val) && isFunction(val.pipe);
+var isFormData = (thing) => {
+  let kind;
+  return thing && (typeof FormData === "function" && thing instanceof FormData || isFunction(thing.append) && ((kind = kindOf(thing)) === "formdata" || // detect form-data instance
+  kind === "object" && isFunction(thing.toString) && thing.toString() === "[object FormData]"));
+};
+var isURLSearchParams = kindOfTest("URLSearchParams");
+var [isReadableStream, isRequest, isResponse, isHeaders] = [
+  "ReadableStream",
+  "Request",
+  "Response",
+  "Headers"
+].map(kindOfTest);
+var trim = (str) => str.trim ? str.trim() : str.replace(/^[\s\uFEFF\xA0]+|[\s\uFEFF\xA0]+$/g, "");
+function forEach(obj, fn, { allOwnKeys = false } = {}) {
+  if (obj === null || typeof obj === "undefined") {
+    return;
+  }
+  let i;
+  let l;
+  if (typeof obj !== "object") {
+    obj = [obj];
+  }
+  if (isArray(obj)) {
+    for (i = 0, l = obj.length; i < l; i++) {
+      fn.call(null, obj[i], i, obj);
+    }
+  } else {
+    if (isBuffer(obj)) {
+      return;
+    }
+    const keys = allOwnKeys ? Object.getOwnPropertyNames(obj) : Object.keys(obj);
+    const len = keys.length;
+    let key;
+    for (i = 0; i < len; i++) {
+      key = keys[i];
+      fn.call(null, obj[key], key, obj);
+    }
+  }
+}
+function findKey(obj, key) {
+  if (isBuffer(obj)) {
+    return null;
+  }
+  key = key.toLowerCase();
+  const keys = Object.keys(obj);
+  let i = keys.length;
+  let _key;
+  while (i-- > 0) {
+    _key = keys[i];
+    if (key === _key.toLowerCase()) {
+      return _key;
+    }
+  }
+  return null;
+}
+var _global = (() => {
+  if (typeof globalThis !== "undefined")
+    return globalThis;
+  return typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : global;
+})();
+var isContextDefined = (context) => !isUndefined(context) && context !== _global;
+function merge() {
+  const { caseless, skipUndefined } = isContextDefined(this) && this || {};
+  const result = {};
+  const assignValue = (val, key) => {
+    if (key === "__proto__" || key === "constructor" || key === "prototype") {
+      return;
+    }
+    const targetKey = caseless && findKey(result, key) || key;
+    if (isPlainObject(result[targetKey]) && isPlainObject(val)) {
+      result[targetKey] = merge(result[targetKey], val);
+    } else if (isPlainObject(val)) {
+      result[targetKey] = merge({}, val);
+    } else if (isArray(val)) {
+      result[targetKey] = val.slice();
+    } else if (!skipUndefined || !isUndefined(val)) {
+      result[targetKey] = val;
+    }
+  };
+  for (let i = 0, l = arguments.length; i < l; i++) {
+    arguments[i] && forEach(arguments[i], assignValue);
+  }
+  return result;
+}
+var extend = (a, b, thisArg, { allOwnKeys } = {}) => {
+  forEach(
+    b,
+    (val, key) => {
+      if (thisArg && isFunction(val)) {
+        Object.defineProperty(a, key, {
+          value: bind(val, thisArg),
+          writable: true,
+          enumerable: true,
+          configurable: true
+        });
+      } else {
+        Object.defineProperty(a, key, {
+          value: val,
+          writable: true,
+          enumerable: true,
+          configurable: true
+        });
+      }
+    },
+    { allOwnKeys }
+  );
+  return a;
+};
+var stripBOM = (content) => {
+  if (content.charCodeAt(0) === 65279) {
+    content = content.slice(1);
+  }
+  return content;
+};
+var inherits = (constructor, superConstructor, props, descriptors) => {
+  constructor.prototype = Object.create(
+    superConstructor.prototype,
+    descriptors
+  );
+  Object.defineProperty(constructor.prototype, "constructor", {
+    value: constructor,
+    writable: true,
+    enumerable: false,
+    configurable: true
+  });
+  Object.defineProperty(constructor, "super", {
+    value: superConstructor.prototype
+  });
+  props && Object.assign(constructor.prototype, props);
+};
+var toFlatObject = (sourceObj, destObj, filter2, propFilter) => {
+  let props;
+  let i;
+  let prop;
+  const merged = {};
+  destObj = destObj || {};
+  if (sourceObj == null)
+    return destObj;
+  do {
+    props = Object.getOwnPropertyNames(sourceObj);
+    i = props.length;
+    while (i-- > 0) {
+      prop = props[i];
+      if ((!propFilter || propFilter(prop, sourceObj, destObj)) && !merged[prop]) {
+        destObj[prop] = sourceObj[prop];
+        merged[prop] = true;
+      }
+    }
+    sourceObj = filter2 !== false && getPrototypeOf(sourceObj);
+  } while (sourceObj && (!filter2 || filter2(sourceObj, destObj)) && sourceObj !== Object.prototype);
+  return destObj;
+};
+var endsWith = (str, searchString, position) => {
+  str = String(str);
+  if (position === void 0 || position > str.length) {
+    position = str.length;
+  }
+  position -= searchString.length;
+  const lastIndex = str.indexOf(searchString, position);
+  return lastIndex !== -1 && lastIndex === position;
+};
+var toArray = (thing) => {
+  if (!thing)
+    return null;
+  if (isArray(thing))
+    return thing;
+  let i = thing.length;
+  if (!isNumber(i))
+    return null;
+  const arr = new Array(i);
+  while (i-- > 0) {
+    arr[i] = thing[i];
+  }
+  return arr;
+};
+var isTypedArray = /* @__PURE__ */ ((TypedArray) => {
+  return (thing) => {
+    return TypedArray && thing instanceof TypedArray;
+  };
+})(typeof Uint8Array !== "undefined" && getPrototypeOf(Uint8Array));
+var forEachEntry = (obj, fn) => {
+  const generator = obj && obj[iterator];
+  const _iterator = generator.call(obj);
+  let result;
+  while ((result = _iterator.next()) && !result.done) {
+    const pair = result.value;
+    fn.call(obj, pair[0], pair[1]);
+  }
+};
+var matchAll = (regExp, str) => {
+  let matches;
+  const arr = [];
+  while ((matches = regExp.exec(str)) !== null) {
+    arr.push(matches);
+  }
+  return arr;
+};
+var isHTMLForm = kindOfTest("HTMLFormElement");
+var toCamelCase = (str) => {
+  return str.toLowerCase().replace(/[-_\s]([a-z\d])(\w*)/g, function replacer(m, p1, p2) {
+    return p1.toUpperCase() + p2;
+  });
+};
+var hasOwnProperty = (({ hasOwnProperty: hasOwnProperty2 }) => (obj, prop) => hasOwnProperty2.call(obj, prop))(Object.prototype);
+var isRegExp = kindOfTest("RegExp");
+var reduceDescriptors = (obj, reducer) => {
+  const descriptors = Object.getOwnPropertyDescriptors(obj);
+  const reducedDescriptors = {};
+  forEach(descriptors, (descriptor, name) => {
+    let ret;
+    if ((ret = reducer(descriptor, name, obj)) !== false) {
+      reducedDescriptors[name] = ret || descriptor;
+    }
+  });
+  Object.defineProperties(obj, reducedDescriptors);
+};
+var freezeMethods = (obj) => {
+  reduceDescriptors(obj, (descriptor, name) => {
+    if (isFunction(obj) && ["arguments", "caller", "callee"].indexOf(name) !== -1) {
+      return false;
+    }
+    const value = obj[name];
+    if (!isFunction(value))
+      return;
+    descriptor.enumerable = false;
+    if ("writable" in descriptor) {
+      descriptor.writable = false;
+      return;
+    }
+    if (!descriptor.set) {
+      descriptor.set = () => {
+        throw Error("Can not rewrite read-only method '" + name + "'");
+      };
+    }
+  });
+};
+var toObjectSet = (arrayOrString, delimiter) => {
+  const obj = {};
+  const define = (arr) => {
+    arr.forEach((value) => {
+      obj[value] = true;
+    });
+  };
+  isArray(arrayOrString) ? define(arrayOrString) : define(String(arrayOrString).split(delimiter));
+  return obj;
+};
+var noop = () => {
+};
+var toFiniteNumber = (value, defaultValue) => {
+  return value != null && Number.isFinite(value = +value) ? value : defaultValue;
+};
+function isSpecCompliantForm(thing) {
+  return !!(thing && isFunction(thing.append) && thing[toStringTag] === "FormData" && thing[iterator]);
+}
+var toJSONObject = (obj) => {
+  const stack = new Array(10);
+  const visit = (source, i) => {
+    if (isObject(source)) {
+      if (stack.indexOf(source) >= 0) {
+        return;
+      }
+      if (isBuffer(source)) {
+        return source;
+      }
+      if (!("toJSON" in source)) {
+        stack[i] = source;
+        const target = isArray(source) ? [] : {};
+        forEach(source, (value, key) => {
+          const reducedValue = visit(value, i + 1);
+          !isUndefined(reducedValue) && (target[key] = reducedValue);
+        });
+        stack[i] = void 0;
+        return target;
+      }
+    }
+    return source;
+  };
+  return visit(obj, 0);
+};
+var isAsyncFn = kindOfTest("AsyncFunction");
+var isThenable = (thing) => thing && (isObject(thing) || isFunction(thing)) && isFunction(thing.then) && isFunction(thing.catch);
+var _setImmediate = ((setImmediateSupported, postMessageSupported) => {
+  if (setImmediateSupported) {
+    return setImmediate;
+  }
+  return postMessageSupported ? ((token, callbacks) => {
+    _global.addEventListener(
+      "message",
+      ({ source, data }) => {
+        if (source === _global && data === token) {
+          callbacks.length && callbacks.shift()();
+        }
+      },
+      false
+    );
+    return (cb) => {
+      callbacks.push(cb);
+      _global.postMessage(token, "*");
+    };
+  })(`axios@${Math.random()}`, []) : (cb) => setTimeout(cb);
+})(typeof setImmediate === "function", isFunction(_global.postMessage));
+var asap = typeof queueMicrotask !== "undefined" ? queueMicrotask.bind(_global) : typeof process !== "undefined" && process.nextTick || _setImmediate;
+var isIterable = (thing) => thing != null && isFunction(thing[iterator]);
+var utils_default = {
+  isArray,
+  isArrayBuffer,
+  isBuffer,
+  isFormData,
+  isArrayBufferView,
+  isString,
+  isNumber,
+  isBoolean,
+  isObject,
+  isPlainObject,
+  isEmptyObject,
+  isReadableStream,
+  isRequest,
+  isResponse,
+  isHeaders,
+  isUndefined,
+  isDate,
+  isFile,
+  isBlob,
+  isRegExp,
+  isFunction,
+  isStream,
+  isURLSearchParams,
+  isTypedArray,
+  isFileList,
+  forEach,
+  merge,
+  extend,
+  trim,
+  stripBOM,
+  inherits,
+  toFlatObject,
+  kindOf,
+  kindOfTest,
+  endsWith,
+  toArray,
+  forEachEntry,
+  matchAll,
+  isHTMLForm,
+  hasOwnProperty,
+  hasOwnProp: hasOwnProperty,
+  // an alias to avoid ESLint no-prototype-builtins detection
+  reduceDescriptors,
+  freezeMethods,
+  toObjectSet,
+  toCamelCase,
+  noop,
+  toFiniteNumber,
+  findKey,
+  global: _global,
+  isContextDefined,
+  isSpecCompliantForm,
+  toJSONObject,
+  isAsyncFn,
+  isThenable,
+  setImmediate: _setImmediate,
+  asap,
+  isIterable
+};
+
+// node_modules/axios/lib/core/AxiosError.js
+var AxiosError = class _AxiosError extends Error {
+  static from(error, code, config, request, response, customProps) {
+    const axiosError = new _AxiosError(error.message, code || error.code, config, request, response);
+    axiosError.cause = error;
+    axiosError.name = error.name;
+    customProps && Object.assign(axiosError, customProps);
+    return axiosError;
+  }
+  /**
+   * Create an Error with the specified message, config, error code, request and response.
+   *
+   * @param {string} message The error message.
+   * @param {string} [code] The error code (for example, 'ECONNABORTED').
+   * @param {Object} [config] The config.
+   * @param {Object} [request] The request.
+   * @param {Object} [response] The response.
+   *
+   * @returns {Error} The created error.
+   */
+  constructor(message, code, config, request, response) {
+    super(message);
+    this.name = "AxiosError";
+    this.isAxiosError = true;
+    code && (this.code = code);
+    config && (this.config = config);
+    request && (this.request = request);
+    if (response) {
+      this.response = response;
+      this.status = response.status;
+    }
+  }
+  toJSON() {
+    return {
+      // Standard
+      message: this.message,
+      name: this.name,
+      // Microsoft
+      description: this.description,
+      number: this.number,
+      // Mozilla
+      fileName: this.fileName,
+      lineNumber: this.lineNumber,
+      columnNumber: this.columnNumber,
+      stack: this.stack,
+      // Axios
+      config: utils_default.toJSONObject(this.config),
+      code: this.code,
+      status: this.status
+    };
+  }
+};
+AxiosError.ERR_BAD_OPTION_VALUE = "ERR_BAD_OPTION_VALUE";
+AxiosError.ERR_BAD_OPTION = "ERR_BAD_OPTION";
+AxiosError.ECONNABORTED = "ECONNABORTED";
+AxiosError.ETIMEDOUT = "ETIMEDOUT";
+AxiosError.ERR_NETWORK = "ERR_NETWORK";
+AxiosError.ERR_FR_TOO_MANY_REDIRECTS = "ERR_FR_TOO_MANY_REDIRECTS";
+AxiosError.ERR_DEPRECATED = "ERR_DEPRECATED";
+AxiosError.ERR_BAD_RESPONSE = "ERR_BAD_RESPONSE";
+AxiosError.ERR_BAD_REQUEST = "ERR_BAD_REQUEST";
+AxiosError.ERR_CANCELED = "ERR_CANCELED";
+AxiosError.ERR_NOT_SUPPORT = "ERR_NOT_SUPPORT";
+AxiosError.ERR_INVALID_URL = "ERR_INVALID_URL";
+var AxiosError_default = AxiosError;
+
+// node_modules/axios/lib/platform/node/classes/FormData.js
+var import_form_data = __toESM(require_form_data(), 1);
+var FormData_default = import_form_data.default;
+
+// node_modules/axios/lib/helpers/toFormData.js
+function isVisitable(thing) {
+  return utils_default.isPlainObject(thing) || utils_default.isArray(thing);
+}
+function removeBrackets(key) {
+  return utils_default.endsWith(key, "[]") ? key.slice(0, -2) : key;
+}
+function renderKey(path, key, dots) {
+  if (!path)
+    return key;
+  return path.concat(key).map(function each(token, i) {
+    token = removeBrackets(token);
+    return !dots && i ? "[" + token + "]" : token;
+  }).join(dots ? "." : "");
+}
+function isFlatArray(arr) {
+  return utils_default.isArray(arr) && !arr.some(isVisitable);
+}
+var predicates = utils_default.toFlatObject(utils_default, {}, null, function filter(prop) {
+  return /^is[A-Z]/.test(prop);
+});
+function toFormData(obj, formData, options) {
+  if (!utils_default.isObject(obj)) {
+    throw new TypeError("target must be an object");
+  }
+  formData = formData || new (FormData_default || FormData)();
+  options = utils_default.toFlatObject(options, {
+    metaTokens: true,
+    dots: false,
+    indexes: false
+  }, false, function defined(option, source) {
+    return !utils_default.isUndefined(source[option]);
+  });
+  const metaTokens = options.metaTokens;
+  const visitor = options.visitor || defaultVisitor;
+  const dots = options.dots;
+  const indexes = options.indexes;
+  const _Blob = options.Blob || typeof Blob !== "undefined" && Blob;
+  const useBlob = _Blob && utils_default.isSpecCompliantForm(formData);
+  if (!utils_default.isFunction(visitor)) {
+    throw new TypeError("visitor must be a function");
+  }
+  function convertValue(value) {
+    if (value === null)
+      return "";
+    if (utils_default.isDate(value)) {
+      return value.toISOString();
+    }
+    if (utils_default.isBoolean(value)) {
+      return value.toString();
+    }
+    if (!useBlob && utils_default.isBlob(value)) {
+      throw new AxiosError_default("Blob is not supported. Use a Buffer instead.");
+    }
+    if (utils_default.isArrayBuffer(value) || utils_default.isTypedArray(value)) {
+      return useBlob && typeof Blob === "function" ? new Blob([value]) : Buffer.from(value);
+    }
+    return value;
+  }
+  function defaultVisitor(value, key, path) {
+    let arr = value;
+    if (value && !path && typeof value === "object") {
+      if (utils_default.endsWith(key, "{}")) {
+        key = metaTokens ? key : key.slice(0, -2);
+        value = JSON.stringify(value);
+      } else if (utils_default.isArray(value) && isFlatArray(value) || (utils_default.isFileList(value) || utils_default.endsWith(key, "[]")) && (arr = utils_default.toArray(value))) {
+        key = removeBrackets(key);
+        arr.forEach(function each(el, index) {
+          !(utils_default.isUndefined(el) || el === null) && formData.append(
+            // eslint-disable-next-line no-nested-ternary
+            indexes === true ? renderKey([key], index, dots) : indexes === null ? key : key + "[]",
+            convertValue(el)
+          );
+        });
+        return false;
+      }
+    }
+    if (isVisitable(value)) {
+      return true;
+    }
+    formData.append(renderKey(path, key, dots), convertValue(value));
+    return false;
+  }
+  const stack = [];
+  const exposedHelpers = Object.assign(predicates, {
+    defaultVisitor,
+    convertValue,
+    isVisitable
+  });
+  function build(value, path) {
+    if (utils_default.isUndefined(value))
+      return;
+    if (stack.indexOf(value) !== -1) {
+      throw Error("Circular reference detected in " + path.join("."));
+    }
+    stack.push(value);
+    utils_default.forEach(value, function each(el, key) {
+      const result = !(utils_default.isUndefined(el) || el === null) && visitor.call(
+        formData,
+        el,
+        utils_default.isString(key) ? key.trim() : key,
+        path,
+        exposedHelpers
+      );
+      if (result === true) {
+        build(el, path ? path.concat(key) : [key]);
+      }
+    });
+    stack.pop();
+  }
+  if (!utils_default.isObject(obj)) {
+    throw new TypeError("data must be an object");
+  }
+  build(obj);
+  return formData;
+}
+var toFormData_default = toFormData;
+
+// node_modules/axios/lib/helpers/AxiosURLSearchParams.js
+function encode(str) {
+  const charMap = {
+    "!": "%21",
+    "'": "%27",
+    "(": "%28",
+    ")": "%29",
+    "~": "%7E",
+    "%20": "+",
+    "%00": "\0"
+  };
+  return encodeURIComponent(str).replace(/[!'()~]|%20|%00/g, function replacer(match) {
+    return charMap[match];
+  });
+}
+function AxiosURLSearchParams(params, options) {
+  this._pairs = [];
+  params && toFormData_default(params, this, options);
+}
+var prototype = AxiosURLSearchParams.prototype;
+prototype.append = function append(name, value) {
+  this._pairs.push([name, value]);
+};
+prototype.toString = function toString2(encoder) {
+  const _encode = encoder ? function(value) {
+    return encoder.call(this, value, encode);
+  } : encode;
+  return this._pairs.map(function each(pair) {
+    return _encode(pair[0]) + "=" + _encode(pair[1]);
+  }, "").join("&");
+};
+var AxiosURLSearchParams_default = AxiosURLSearchParams;
+
+// node_modules/axios/lib/helpers/buildURL.js
+function encode2(val) {
+  return encodeURIComponent(val).replace(/%3A/gi, ":").replace(/%24/g, "$").replace(/%2C/gi, ",").replace(/%20/g, "+");
+}
+function buildURL(url2, params, options) {
+  if (!params) {
+    return url2;
+  }
+  const _encode = options && options.encode || encode2;
+  const _options = utils_default.isFunction(options) ? {
+    serialize: options
+  } : options;
+  const serializeFn = _options && _options.serialize;
+  let serializedParams;
+  if (serializeFn) {
+    serializedParams = serializeFn(params, _options);
+  } else {
+    serializedParams = utils_default.isURLSearchParams(params) ? params.toString() : new AxiosURLSearchParams_default(params, _options).toString(_encode);
+  }
+  if (serializedParams) {
+    const hashmarkIndex = url2.indexOf("#");
+    if (hashmarkIndex !== -1) {
+      url2 = url2.slice(0, hashmarkIndex);
+    }
+    url2 += (url2.indexOf("?") === -1 ? "?" : "&") + serializedParams;
+  }
+  return url2;
+}
+
+// node_modules/axios/lib/core/InterceptorManager.js
+var InterceptorManager = class {
+  constructor() {
+    this.handlers = [];
+  }
+  /**
+   * Add a new interceptor to the stack
+   *
+   * @param {Function} fulfilled The function to handle `then` for a `Promise`
+   * @param {Function} rejected The function to handle `reject` for a `Promise`
+   * @param {Object} options The options for the interceptor, synchronous and runWhen
+   *
+   * @return {Number} An ID used to remove interceptor later
+   */
+  use(fulfilled, rejected, options) {
+    this.handlers.push({
+      fulfilled,
+      rejected,
+      synchronous: options ? options.synchronous : false,
+      runWhen: options ? options.runWhen : null
+    });
+    return this.handlers.length - 1;
+  }
+  /**
+   * Remove an interceptor from the stack
+   *
+   * @param {Number} id The ID that was returned by `use`
+   *
+   * @returns {void}
+   */
+  eject(id) {
+    if (this.handlers[id]) {
+      this.handlers[id] = null;
+    }
+  }
+  /**
+   * Clear all interceptors from the stack
+   *
+   * @returns {void}
+   */
+  clear() {
+    if (this.handlers) {
+      this.handlers = [];
+    }
+  }
+  /**
+   * Iterate over all the registered interceptors
+   *
+   * This method is particularly useful for skipping over any
+   * interceptors that may have become `null` calling `eject`.
+   *
+   * @param {Function} fn The function to call for each interceptor
+   *
+   * @returns {void}
+   */
+  forEach(fn) {
+    utils_default.forEach(this.handlers, function forEachHandler(h) {
+      if (h !== null) {
+        fn(h);
+      }
+    });
+  }
+};
+var InterceptorManager_default = InterceptorManager;
+
+// node_modules/axios/lib/defaults/transitional.js
+var transitional_default = {
+  silentJSONParsing: true,
+  forcedJSONParsing: true,
+  clarifyTimeoutError: false,
+  legacyInterceptorReqResOrdering: true
+};
+
+// node_modules/axios/lib/platform/node/index.js
+var import_crypto = __toESM(require("crypto"), 1);
+
+// node_modules/axios/lib/platform/node/classes/URLSearchParams.js
+var import_url = __toESM(require("url"), 1);
+var URLSearchParams_default = import_url.default.URLSearchParams;
+
+// node_modules/axios/lib/platform/node/index.js
+var ALPHA = "abcdefghijklmnopqrstuvwxyz";
+var DIGIT = "0123456789";
+var ALPHABET = {
+  DIGIT,
+  ALPHA,
+  ALPHA_DIGIT: ALPHA + ALPHA.toUpperCase() + DIGIT
+};
+var generateString = (size = 16, alphabet = ALPHABET.ALPHA_DIGIT) => {
+  let str = "";
+  const { length } = alphabet;
+  const randomValues = new Uint32Array(size);
+  import_crypto.default.randomFillSync(randomValues);
+  for (let i = 0; i < size; i++) {
+    str += alphabet[randomValues[i] % length];
+  }
+  return str;
+};
+var node_default = {
+  isNode: true,
+  classes: {
+    URLSearchParams: URLSearchParams_default,
+    FormData: FormData_default,
+    Blob: typeof Blob !== "undefined" && Blob || null
+  },
+  ALPHABET,
+  generateString,
+  protocols: ["http", "https", "file", "data"]
+};
+
+// node_modules/axios/lib/platform/common/utils.js
+var utils_exports = {};
+__export(utils_exports, {
+  hasBrowserEnv: () => hasBrowserEnv,
+  hasStandardBrowserEnv: () => hasStandardBrowserEnv,
+  hasStandardBrowserWebWorkerEnv: () => hasStandardBrowserWebWorkerEnv,
+  navigator: () => _navigator,
+  origin: () => origin
+});
+var hasBrowserEnv = typeof window !== "undefined" && typeof document !== "undefined";
+var _navigator = typeof navigator === "object" && navigator || void 0;
+var hasStandardBrowserEnv = hasBrowserEnv && (!_navigator || ["ReactNative", "NativeScript", "NS"].indexOf(_navigator.product) < 0);
+var hasStandardBrowserWebWorkerEnv = (() => {
+  return typeof WorkerGlobalScope !== "undefined" && // eslint-disable-next-line no-undef
+  self instanceof WorkerGlobalScope && typeof self.importScripts === "function";
+})();
+var origin = hasBrowserEnv && window.location.href || "http://localhost";
+
+// node_modules/axios/lib/platform/index.js
+var platform_default = {
+  ...utils_exports,
+  ...node_default
+};
+
+// node_modules/axios/lib/helpers/toURLEncodedForm.js
+function toURLEncodedForm(data, options) {
+  return toFormData_default(data, new platform_default.classes.URLSearchParams(), {
+    visitor: function(value, key, path, helpers) {
+      if (platform_default.isNode && utils_default.isBuffer(value)) {
+        this.append(key, value.toString("base64"));
+        return false;
+      }
+      return helpers.defaultVisitor.apply(this, arguments);
+    },
+    ...options
+  });
+}
+
+// node_modules/axios/lib/helpers/formDataToJSON.js
+function parsePropPath(name) {
+  return utils_default.matchAll(/\w+|\[(\w*)]/g, name).map((match) => {
+    return match[0] === "[]" ? "" : match[1] || match[0];
+  });
+}
+function arrayToObject(arr) {
+  const obj = {};
+  const keys = Object.keys(arr);
+  let i;
+  const len = keys.length;
+  let key;
+  for (i = 0; i < len; i++) {
+    key = keys[i];
+    obj[key] = arr[key];
+  }
+  return obj;
+}
+function formDataToJSON(formData) {
+  function buildPath(path, value, target, index) {
+    let name = path[index++];
+    if (name === "__proto__")
+      return true;
+    const isNumericKey = Number.isFinite(+name);
+    const isLast = index >= path.length;
+    name = !name && utils_default.isArray(target) ? target.length : name;
+    if (isLast) {
+      if (utils_default.hasOwnProp(target, name)) {
+        target[name] = [target[name], value];
+      } else {
+        target[name] = value;
+      }
+      return !isNumericKey;
+    }
+    if (!target[name] || !utils_default.isObject(target[name])) {
+      target[name] = [];
+    }
+    const result = buildPath(path, value, target[name], index);
+    if (result && utils_default.isArray(target[name])) {
+      target[name] = arrayToObject(target[name]);
+    }
+    return !isNumericKey;
+  }
+  if (utils_default.isFormData(formData) && utils_default.isFunction(formData.entries)) {
+    const obj = {};
+    utils_default.forEachEntry(formData, (name, value) => {
+      buildPath(parsePropPath(name), value, obj, 0);
+    });
+    return obj;
+  }
+  return null;
+}
+var formDataToJSON_default = formDataToJSON;
+
+// node_modules/axios/lib/defaults/index.js
+function stringifySafely(rawValue, parser, encoder) {
+  if (utils_default.isString(rawValue)) {
+    try {
+      (parser || JSON.parse)(rawValue);
+      return utils_default.trim(rawValue);
+    } catch (e) {
+      if (e.name !== "SyntaxError") {
+        throw e;
+      }
+    }
+  }
+  return (encoder || JSON.stringify)(rawValue);
+}
+var defaults = {
+  transitional: transitional_default,
+  adapter: ["xhr", "http", "fetch"],
+  transformRequest: [function transformRequest(data, headers) {
+    const contentType = headers.getContentType() || "";
+    const hasJSONContentType = contentType.indexOf("application/json") > -1;
+    const isObjectPayload = utils_default.isObject(data);
+    if (isObjectPayload && utils_default.isHTMLForm(data)) {
+      data = new FormData(data);
+    }
+    const isFormData2 = utils_default.isFormData(data);
+    if (isFormData2) {
+      return hasJSONContentType ? JSON.stringify(formDataToJSON_default(data)) : data;
+    }
+    if (utils_default.isArrayBuffer(data) || utils_default.isBuffer(data) || utils_default.isStream(data) || utils_default.isFile(data) || utils_default.isBlob(data) || utils_default.isReadableStream(data)) {
+      return data;
+    }
+    if (utils_default.isArrayBufferView(data)) {
+      return data.buffer;
+    }
+    if (utils_default.isURLSearchParams(data)) {
+      headers.setContentType("application/x-www-form-urlencoded;charset=utf-8", false);
+      return data.toString();
+    }
+    let isFileList2;
+    if (isObjectPayload) {
+      if (contentType.indexOf("application/x-www-form-urlencoded") > -1) {
+        return toURLEncodedForm(data, this.formSerializer).toString();
+      }
+      if ((isFileList2 = utils_default.isFileList(data)) || contentType.indexOf("multipart/form-data") > -1) {
+        const _FormData = this.env && this.env.FormData;
+        return toFormData_default(
+          isFileList2 ? { "files[]": data } : data,
+          _FormData && new _FormData(),
+          this.formSerializer
+        );
+      }
+    }
+    if (isObjectPayload || hasJSONContentType) {
+      headers.setContentType("application/json", false);
+      return stringifySafely(data);
+    }
+    return data;
+  }],
+  transformResponse: [function transformResponse(data) {
+    const transitional2 = this.transitional || defaults.transitional;
+    const forcedJSONParsing = transitional2 && transitional2.forcedJSONParsing;
+    const JSONRequested = this.responseType === "json";
+    if (utils_default.isResponse(data) || utils_default.isReadableStream(data)) {
+      return data;
+    }
+    if (data && utils_default.isString(data) && (forcedJSONParsing && !this.responseType || JSONRequested)) {
+      const silentJSONParsing = transitional2 && transitional2.silentJSONParsing;
+      const strictJSONParsing = !silentJSONParsing && JSONRequested;
+      try {
+        return JSON.parse(data, this.parseReviver);
+      } catch (e) {
+        if (strictJSONParsing) {
+          if (e.name === "SyntaxError") {
+            throw AxiosError_default.from(e, AxiosError_default.ERR_BAD_RESPONSE, this, null, this.response);
+          }
+          throw e;
+        }
+      }
+    }
+    return data;
+  }],
+  /**
+   * A timeout in milliseconds to abort a request. If set to 0 (default) a
+   * timeout is not created.
+   */
+  timeout: 0,
+  xsrfCookieName: "XSRF-TOKEN",
+  xsrfHeaderName: "X-XSRF-TOKEN",
+  maxContentLength: -1,
+  maxBodyLength: -1,
+  env: {
+    FormData: platform_default.classes.FormData,
+    Blob: platform_default.classes.Blob
+  },
+  validateStatus: function validateStatus(status) {
+    return status >= 200 && status < 300;
+  },
+  headers: {
+    common: {
+      "Accept": "application/json, text/plain, */*",
+      "Content-Type": void 0
+    }
+  }
+};
+utils_default.forEach(["delete", "get", "head", "post", "put", "patch"], (method) => {
+  defaults.headers[method] = {};
+});
+var defaults_default = defaults;
+
+// node_modules/axios/lib/helpers/parseHeaders.js
+var ignoreDuplicateOf = utils_default.toObjectSet([
+  "age",
+  "authorization",
+  "content-length",
+  "content-type",
+  "etag",
+  "expires",
+  "from",
+  "host",
+  "if-modified-since",
+  "if-unmodified-since",
+  "last-modified",
+  "location",
+  "max-forwards",
+  "proxy-authorization",
+  "referer",
+  "retry-after",
+  "user-agent"
+]);
+var parseHeaders_default = (rawHeaders) => {
+  const parsed = {};
+  let key;
+  let val;
+  let i;
+  rawHeaders && rawHeaders.split("\n").forEach(function parser(line) {
+    i = line.indexOf(":");
+    key = line.substring(0, i).trim().toLowerCase();
+    val = line.substring(i + 1).trim();
+    if (!key || parsed[key] && ignoreDuplicateOf[key]) {
+      return;
+    }
+    if (key === "set-cookie") {
+      if (parsed[key]) {
+        parsed[key].push(val);
+      } else {
+        parsed[key] = [val];
+      }
+    } else {
+      parsed[key] = parsed[key] ? parsed[key] + ", " + val : val;
+    }
+  });
+  return parsed;
+};
+
+// node_modules/axios/lib/core/AxiosHeaders.js
+var $internals = Symbol("internals");
+function normalizeHeader(header) {
+  return header && String(header).trim().toLowerCase();
+}
+function normalizeValue(value) {
+  if (value === false || value == null) {
+    return value;
+  }
+  return utils_default.isArray(value) ? value.map(normalizeValue) : String(value);
+}
+function parseTokens(str) {
+  const tokens = /* @__PURE__ */ Object.create(null);
+  const tokensRE = /([^\s,;=]+)\s*(?:=\s*([^,;]+))?/g;
+  let match;
+  while (match = tokensRE.exec(str)) {
+    tokens[match[1]] = match[2];
+  }
+  return tokens;
+}
+var isValidHeaderName = (str) => /^[-_a-zA-Z0-9^`|~,!#$%&'*+.]+$/.test(str.trim());
+function matchHeaderValue(context, value, header, filter2, isHeaderNameFilter) {
+  if (utils_default.isFunction(filter2)) {
+    return filter2.call(this, value, header);
+  }
+  if (isHeaderNameFilter) {
+    value = header;
+  }
+  if (!utils_default.isString(value))
+    return;
+  if (utils_default.isString(filter2)) {
+    return value.indexOf(filter2) !== -1;
+  }
+  if (utils_default.isRegExp(filter2)) {
+    return filter2.test(value);
+  }
+}
+function formatHeader(header) {
+  return header.trim().toLowerCase().replace(/([a-z\d])(\w*)/g, (w, char, str) => {
+    return char.toUpperCase() + str;
+  });
+}
+function buildAccessors(obj, header) {
+  const accessorName = utils_default.toCamelCase(" " + header);
+  ["get", "set", "has"].forEach((methodName) => {
+    Object.defineProperty(obj, methodName + accessorName, {
+      value: function(arg1, arg2, arg3) {
+        return this[methodName].call(this, header, arg1, arg2, arg3);
+      },
+      configurable: true
+    });
+  });
+}
+var AxiosHeaders = class {
+  constructor(headers) {
+    headers && this.set(headers);
+  }
+  set(header, valueOrRewrite, rewrite) {
+    const self2 = this;
+    function setHeader(_value, _header, _rewrite) {
+      const lHeader = normalizeHeader(_header);
+      if (!lHeader) {
+        throw new Error("header name must be a non-empty string");
+      }
+      const key = utils_default.findKey(self2, lHeader);
+      if (!key || self2[key] === void 0 || _rewrite === true || _rewrite === void 0 && self2[key] !== false) {
+        self2[key || _header] = normalizeValue(_value);
+      }
+    }
+    const setHeaders = (headers, _rewrite) => utils_default.forEach(headers, (_value, _header) => setHeader(_value, _header, _rewrite));
+    if (utils_default.isPlainObject(header) || header instanceof this.constructor) {
+      setHeaders(header, valueOrRewrite);
+    } else if (utils_default.isString(header) && (header = header.trim()) && !isValidHeaderName(header)) {
+      setHeaders(parseHeaders_default(header), valueOrRewrite);
+    } else if (utils_default.isObject(header) && utils_default.isIterable(header)) {
+      let obj = {}, dest, key;
+      for (const entry of header) {
+        if (!utils_default.isArray(entry)) {
+          throw TypeError("Object iterator must return a key-value pair");
+        }
+        obj[key = entry[0]] = (dest = obj[key]) ? utils_default.isArray(dest) ? [...dest, entry[1]] : [dest, entry[1]] : entry[1];
+      }
+      setHeaders(obj, valueOrRewrite);
+    } else {
+      header != null && setHeader(valueOrRewrite, header, rewrite);
+    }
+    return this;
+  }
+  get(header, parser) {
+    header = normalizeHeader(header);
+    if (header) {
+      const key = utils_default.findKey(this, header);
+      if (key) {
+        const value = this[key];
+        if (!parser) {
+          return value;
+        }
+        if (parser === true) {
+          return parseTokens(value);
+        }
+        if (utils_default.isFunction(parser)) {
+          return parser.call(this, value, key);
+        }
+        if (utils_default.isRegExp(parser)) {
+          return parser.exec(value);
+        }
+        throw new TypeError("parser must be boolean|regexp|function");
+      }
+    }
+  }
+  has(header, matcher) {
+    header = normalizeHeader(header);
+    if (header) {
+      const key = utils_default.findKey(this, header);
+      return !!(key && this[key] !== void 0 && (!matcher || matchHeaderValue(this, this[key], key, matcher)));
+    }
+    return false;
+  }
+  delete(header, matcher) {
+    const self2 = this;
+    let deleted = false;
+    function deleteHeader(_header) {
+      _header = normalizeHeader(_header);
+      if (_header) {
+        const key = utils_default.findKey(self2, _header);
+        if (key && (!matcher || matchHeaderValue(self2, self2[key], key, matcher))) {
+          delete self2[key];
+          deleted = true;
+        }
+      }
+    }
+    if (utils_default.isArray(header)) {
+      header.forEach(deleteHeader);
+    } else {
+      deleteHeader(header);
+    }
+    return deleted;
+  }
+  clear(matcher) {
+    const keys = Object.keys(this);
+    let i = keys.length;
+    let deleted = false;
+    while (i--) {
+      const key = keys[i];
+      if (!matcher || matchHeaderValue(this, this[key], key, matcher, true)) {
+        delete this[key];
+        deleted = true;
+      }
+    }
+    return deleted;
+  }
+  normalize(format) {
+    const self2 = this;
+    const headers = {};
+    utils_default.forEach(this, (value, header) => {
+      const key = utils_default.findKey(headers, header);
+      if (key) {
+        self2[key] = normalizeValue(value);
+        delete self2[header];
+        return;
+      }
+      const normalized = format ? formatHeader(header) : String(header).trim();
+      if (normalized !== header) {
+        delete self2[header];
+      }
+      self2[normalized] = normalizeValue(value);
+      headers[normalized] = true;
+    });
+    return this;
+  }
+  concat(...targets) {
+    return this.constructor.concat(this, ...targets);
+  }
+  toJSON(asStrings) {
+    const obj = /* @__PURE__ */ Object.create(null);
+    utils_default.forEach(this, (value, header) => {
+      value != null && value !== false && (obj[header] = asStrings && utils_default.isArray(value) ? value.join(", ") : value);
+    });
+    return obj;
+  }
+  [Symbol.iterator]() {
+    return Object.entries(this.toJSON())[Symbol.iterator]();
+  }
+  toString() {
+    return Object.entries(this.toJSON()).map(([header, value]) => header + ": " + value).join("\n");
+  }
+  getSetCookie() {
+    return this.get("set-cookie") || [];
+  }
+  get [Symbol.toStringTag]() {
+    return "AxiosHeaders";
+  }
+  static from(thing) {
+    return thing instanceof this ? thing : new this(thing);
+  }
+  static concat(first, ...targets) {
+    const computed = new this(first);
+    targets.forEach((target) => computed.set(target));
+    return computed;
+  }
+  static accessor(header) {
+    const internals = this[$internals] = this[$internals] = {
+      accessors: {}
+    };
+    const accessors = internals.accessors;
+    const prototype2 = this.prototype;
+    function defineAccessor(_header) {
+      const lHeader = normalizeHeader(_header);
+      if (!accessors[lHeader]) {
+        buildAccessors(prototype2, _header);
+        accessors[lHeader] = true;
+      }
+    }
+    utils_default.isArray(header) ? header.forEach(defineAccessor) : defineAccessor(header);
+    return this;
+  }
+};
+AxiosHeaders.accessor(["Content-Type", "Content-Length", "Accept", "Accept-Encoding", "User-Agent", "Authorization"]);
+utils_default.reduceDescriptors(AxiosHeaders.prototype, ({ value }, key) => {
+  let mapped = key[0].toUpperCase() + key.slice(1);
+  return {
+    get: () => value,
+    set(headerValue) {
+      this[mapped] = headerValue;
+    }
+  };
+});
+utils_default.freezeMethods(AxiosHeaders);
+var AxiosHeaders_default = AxiosHeaders;
+
+// node_modules/axios/lib/core/transformData.js
+function transformData(fns, response) {
+  const config = this || defaults_default;
+  const context = response || config;
+  const headers = AxiosHeaders_default.from(context.headers);
+  let data = context.data;
+  utils_default.forEach(fns, function transform(fn) {
+    data = fn.call(config, data, headers.normalize(), response ? response.status : void 0);
+  });
+  headers.normalize();
+  return data;
+}
+
+// node_modules/axios/lib/cancel/isCancel.js
+function isCancel(value) {
+  return !!(value && value.__CANCEL__);
+}
+
+// node_modules/axios/lib/cancel/CanceledError.js
+var CanceledError = class extends AxiosError_default {
+  /**
+   * A `CanceledError` is an object that is thrown when an operation is canceled.
+   *
+   * @param {string=} message The message.
+   * @param {Object=} config The config.
+   * @param {Object=} request The request.
+   *
+   * @returns {CanceledError} The created error.
+   */
+  constructor(message, config, request) {
+    super(message == null ? "canceled" : message, AxiosError_default.ERR_CANCELED, config, request);
+    this.name = "CanceledError";
+    this.__CANCEL__ = true;
+  }
+};
+var CanceledError_default = CanceledError;
+
+// node_modules/axios/lib/core/settle.js
+function settle(resolve, reject, response) {
+  const validateStatus2 = response.config.validateStatus;
+  if (!response.status || !validateStatus2 || validateStatus2(response.status)) {
+    resolve(response);
+  } else {
+    reject(new AxiosError_default(
+      "Request failed with status code " + response.status,
+      [AxiosError_default.ERR_BAD_REQUEST, AxiosError_default.ERR_BAD_RESPONSE][Math.floor(response.status / 100) - 4],
+      response.config,
+      response.request,
+      response
+    ));
+  }
+}
+
+// node_modules/axios/lib/helpers/isAbsoluteURL.js
+function isAbsoluteURL(url2) {
+  if (typeof url2 !== "string") {
+    return false;
+  }
+  return /^([a-z][a-z\d+\-.]*:)?\/\//i.test(url2);
+}
+
+// node_modules/axios/lib/helpers/combineURLs.js
+function combineURLs(baseURL, relativeURL) {
+  return relativeURL ? baseURL.replace(/\/?\/$/, "") + "/" + relativeURL.replace(/^\/+/, "") : baseURL;
+}
+
+// node_modules/axios/lib/core/buildFullPath.js
+function buildFullPath(baseURL, requestedURL, allowAbsoluteUrls) {
+  let isRelativeUrl = !isAbsoluteURL(requestedURL);
+  if (baseURL && (isRelativeUrl || allowAbsoluteUrls == false)) {
+    return combineURLs(baseURL, requestedURL);
+  }
+  return requestedURL;
+}
+
+// node_modules/axios/lib/adapters/http.js
+var import_proxy_from_env = __toESM(require_proxy_from_env(), 1);
+var import_http = __toESM(require("http"), 1);
+var import_https = __toESM(require("https"), 1);
+var import_http2 = __toESM(require("http2"), 1);
+var import_util2 = __toESM(require("util"), 1);
+var import_follow_redirects = __toESM(require_follow_redirects(), 1);
+var import_zlib = __toESM(require("zlib"), 1);
+
+// node_modules/axios/lib/env/data.js
+var VERSION = "1.13.5";
+
+// node_modules/axios/lib/helpers/parseProtocol.js
+function parseProtocol(url2) {
+  const match = /^([-+\w]{1,25})(:?\/\/|:)/.exec(url2);
+  return match && match[1] || "";
+}
+
+// node_modules/axios/lib/helpers/fromDataURI.js
+var DATA_URL_PATTERN = /^(?:([^;]+);)?(?:[^;]+;)?(base64|),([\s\S]*)$/;
+function fromDataURI(uri, asBlob, options) {
+  const _Blob = options && options.Blob || platform_default.classes.Blob;
+  const protocol = parseProtocol(uri);
+  if (asBlob === void 0 && _Blob) {
+    asBlob = true;
+  }
+  if (protocol === "data") {
+    uri = protocol.length ? uri.slice(protocol.length + 1) : uri;
+    const match = DATA_URL_PATTERN.exec(uri);
+    if (!match) {
+      throw new AxiosError_default("Invalid URL", AxiosError_default.ERR_INVALID_URL);
+    }
+    const mime = match[1];
+    const isBase64 = match[2];
+    const body = match[3];
+    const buffer = Buffer.from(decodeURIComponent(body), isBase64 ? "base64" : "utf8");
+    if (asBlob) {
+      if (!_Blob) {
+        throw new AxiosError_default("Blob is not supported", AxiosError_default.ERR_NOT_SUPPORT);
+      }
+      return new _Blob([buffer], { type: mime });
+    }
+    return buffer;
+  }
+  throw new AxiosError_default("Unsupported protocol " + protocol, AxiosError_default.ERR_NOT_SUPPORT);
+}
+
+// node_modules/axios/lib/adapters/http.js
+var import_stream4 = __toESM(require("stream"), 1);
+
+// node_modules/axios/lib/helpers/AxiosTransformStream.js
+var import_stream = __toESM(require("stream"), 1);
+var kInternals = Symbol("internals");
+var AxiosTransformStream = class extends import_stream.default.Transform {
+  constructor(options) {
+    options = utils_default.toFlatObject(options, {
+      maxRate: 0,
+      chunkSize: 64 * 1024,
+      minChunkSize: 100,
+      timeWindow: 500,
+      ticksRate: 2,
+      samplesCount: 15
+    }, null, (prop, source) => {
+      return !utils_default.isUndefined(source[prop]);
+    });
+    super({
+      readableHighWaterMark: options.chunkSize
+    });
+    const internals = this[kInternals] = {
+      timeWindow: options.timeWindow,
+      chunkSize: options.chunkSize,
+      maxRate: options.maxRate,
+      minChunkSize: options.minChunkSize,
+      bytesSeen: 0,
+      isCaptured: false,
+      notifiedBytesLoaded: 0,
+      ts: Date.now(),
+      bytes: 0,
+      onReadCallback: null
+    };
+    this.on("newListener", (event) => {
+      if (event === "progress") {
+        if (!internals.isCaptured) {
+          internals.isCaptured = true;
+        }
+      }
+    });
+  }
+  _read(size) {
+    const internals = this[kInternals];
+    if (internals.onReadCallback) {
+      internals.onReadCallback();
+    }
+    return super._read(size);
+  }
+  _transform(chunk, encoding, callback) {
+    const internals = this[kInternals];
+    const maxRate = internals.maxRate;
+    const readableHighWaterMark = this.readableHighWaterMark;
+    const timeWindow = internals.timeWindow;
+    const divider = 1e3 / timeWindow;
+    const bytesThreshold = maxRate / divider;
+    const minChunkSize = internals.minChunkSize !== false ? Math.max(internals.minChunkSize, bytesThreshold * 0.01) : 0;
+    const pushChunk = (_chunk, _callback) => {
+      const bytes = Buffer.byteLength(_chunk);
+      internals.bytesSeen += bytes;
+      internals.bytes += bytes;
+      internals.isCaptured && this.emit("progress", internals.bytesSeen);
+      if (this.push(_chunk)) {
+        process.nextTick(_callback);
+      } else {
+        internals.onReadCallback = () => {
+          internals.onReadCallback = null;
+          process.nextTick(_callback);
+        };
+      }
+    };
+    const transformChunk = (_chunk, _callback) => {
+      const chunkSize = Buffer.byteLength(_chunk);
+      let chunkRemainder = null;
+      let maxChunkSize = readableHighWaterMark;
+      let bytesLeft;
+      let passed = 0;
+      if (maxRate) {
+        const now = Date.now();
+        if (!internals.ts || (passed = now - internals.ts) >= timeWindow) {
+          internals.ts = now;
+          bytesLeft = bytesThreshold - internals.bytes;
+          internals.bytes = bytesLeft < 0 ? -bytesLeft : 0;
+          passed = 0;
+        }
+        bytesLeft = bytesThreshold - internals.bytes;
+      }
+      if (maxRate) {
+        if (bytesLeft <= 0) {
+          return setTimeout(() => {
+            _callback(null, _chunk);
+          }, timeWindow - passed);
+        }
+        if (bytesLeft < maxChunkSize) {
+          maxChunkSize = bytesLeft;
+        }
+      }
+      if (maxChunkSize && chunkSize > maxChunkSize && chunkSize - maxChunkSize > minChunkSize) {
+        chunkRemainder = _chunk.subarray(maxChunkSize);
+        _chunk = _chunk.subarray(0, maxChunkSize);
+      }
+      pushChunk(_chunk, chunkRemainder ? () => {
+        process.nextTick(_callback, null, chunkRemainder);
+      } : _callback);
+    };
+    transformChunk(chunk, function transformNextChunk(err, _chunk) {
+      if (err) {
+        return callback(err);
+      }
+      if (_chunk) {
+        transformChunk(_chunk, transformNextChunk);
+      } else {
+        callback(null);
+      }
+    });
+  }
+};
+var AxiosTransformStream_default = AxiosTransformStream;
+
+// node_modules/axios/lib/adapters/http.js
+var import_events = require("events");
+
+// node_modules/axios/lib/helpers/formDataToStream.js
+var import_util = __toESM(require("util"), 1);
+var import_stream2 = require("stream");
+
+// node_modules/axios/lib/helpers/readBlob.js
+var { asyncIterator } = Symbol;
+var readBlob = async function* (blob) {
+  if (blob.stream) {
+    yield* blob.stream();
+  } else if (blob.arrayBuffer) {
+    yield await blob.arrayBuffer();
+  } else if (blob[asyncIterator]) {
+    yield* blob[asyncIterator]();
+  } else {
+    yield blob;
+  }
+};
+var readBlob_default = readBlob;
+
+// node_modules/axios/lib/helpers/formDataToStream.js
+var BOUNDARY_ALPHABET = platform_default.ALPHABET.ALPHA_DIGIT + "-_";
+var textEncoder = typeof TextEncoder === "function" ? new TextEncoder() : new import_util.default.TextEncoder();
+var CRLF = "\r\n";
+var CRLF_BYTES = textEncoder.encode(CRLF);
+var CRLF_BYTES_COUNT = 2;
+var FormDataPart = class {
+  constructor(name, value) {
+    const { escapeName } = this.constructor;
+    const isStringValue = utils_default.isString(value);
+    let headers = `Content-Disposition: form-data; name="${escapeName(name)}"${!isStringValue && value.name ? `; filename="${escapeName(value.name)}"` : ""}${CRLF}`;
+    if (isStringValue) {
+      value = textEncoder.encode(String(value).replace(/\r?\n|\r\n?/g, CRLF));
+    } else {
+      headers += `Content-Type: ${value.type || "application/octet-stream"}${CRLF}`;
+    }
+    this.headers = textEncoder.encode(headers + CRLF);
+    this.contentLength = isStringValue ? value.byteLength : value.size;
+    this.size = this.headers.byteLength + this.contentLength + CRLF_BYTES_COUNT;
+    this.name = name;
+    this.value = value;
+  }
+  async *encode() {
+    yield this.headers;
+    const { value } = this;
+    if (utils_default.isTypedArray(value)) {
+      yield value;
+    } else {
+      yield* readBlob_default(value);
+    }
+    yield CRLF_BYTES;
+  }
+  static escapeName(name) {
+    return String(name).replace(/[\r\n"]/g, (match) => ({
+      "\r": "%0D",
+      "\n": "%0A",
+      '"': "%22"
+    })[match]);
+  }
+};
+var formDataToStream = (form, headersHandler, options) => {
+  const {
+    tag = "form-data-boundary",
+    size = 25,
+    boundary = tag + "-" + platform_default.generateString(size, BOUNDARY_ALPHABET)
+  } = options || {};
+  if (!utils_default.isFormData(form)) {
+    throw TypeError("FormData instance required");
+  }
+  if (boundary.length < 1 || boundary.length > 70) {
+    throw Error("boundary must be 10-70 characters long");
+  }
+  const boundaryBytes = textEncoder.encode("--" + boundary + CRLF);
+  const footerBytes = textEncoder.encode("--" + boundary + "--" + CRLF);
+  let contentLength = footerBytes.byteLength;
+  const parts = Array.from(form.entries()).map(([name, value]) => {
+    const part = new FormDataPart(name, value);
+    contentLength += part.size;
+    return part;
+  });
+  contentLength += boundaryBytes.byteLength * parts.length;
+  contentLength = utils_default.toFiniteNumber(contentLength);
+  const computedHeaders = {
+    "Content-Type": `multipart/form-data; boundary=${boundary}`
+  };
+  if (Number.isFinite(contentLength)) {
+    computedHeaders["Content-Length"] = contentLength;
+  }
+  headersHandler && headersHandler(computedHeaders);
+  return import_stream2.Readable.from(async function* () {
+    for (const part of parts) {
+      yield boundaryBytes;
+      yield* part.encode();
+    }
+    yield footerBytes;
+  }());
+};
+var formDataToStream_default = formDataToStream;
+
+// node_modules/axios/lib/helpers/ZlibHeaderTransformStream.js
+var import_stream3 = __toESM(require("stream"), 1);
+var ZlibHeaderTransformStream = class extends import_stream3.default.Transform {
+  __transform(chunk, encoding, callback) {
+    this.push(chunk);
+    callback();
+  }
+  _transform(chunk, encoding, callback) {
+    if (chunk.length !== 0) {
+      this._transform = this.__transform;
+      if (chunk[0] !== 120) {
+        const header = Buffer.alloc(2);
+        header[0] = 120;
+        header[1] = 156;
+        this.push(header, encoding);
+      }
+    }
+    this.__transform(chunk, encoding, callback);
+  }
+};
+var ZlibHeaderTransformStream_default = ZlibHeaderTransformStream;
+
+// node_modules/axios/lib/helpers/callbackify.js
+var callbackify = (fn, reducer) => {
+  return utils_default.isAsyncFn(fn) ? function(...args) {
+    const cb = args.pop();
+    fn.apply(this, args).then((value) => {
+      try {
+        reducer ? cb(null, ...reducer(value)) : cb(null, value);
+      } catch (err) {
+        cb(err);
+      }
+    }, cb);
+  } : fn;
+};
+var callbackify_default = callbackify;
+
+// node_modules/axios/lib/helpers/speedometer.js
+function speedometer(samplesCount, min) {
+  samplesCount = samplesCount || 10;
+  const bytes = new Array(samplesCount);
+  const timestamps = new Array(samplesCount);
+  let head = 0;
+  let tail = 0;
+  let firstSampleTS;
+  min = min !== void 0 ? min : 1e3;
+  return function push(chunkLength) {
+    const now = Date.now();
+    const startedAt = timestamps[tail];
+    if (!firstSampleTS) {
+      firstSampleTS = now;
+    }
+    bytes[head] = chunkLength;
+    timestamps[head] = now;
+    let i = tail;
+    let bytesCount = 0;
+    while (i !== head) {
+      bytesCount += bytes[i++];
+      i = i % samplesCount;
+    }
+    head = (head + 1) % samplesCount;
+    if (head === tail) {
+      tail = (tail + 1) % samplesCount;
+    }
+    if (now - firstSampleTS < min) {
+      return;
+    }
+    const passed = startedAt && now - startedAt;
+    return passed ? Math.round(bytesCount * 1e3 / passed) : void 0;
+  };
+}
+var speedometer_default = speedometer;
+
+// node_modules/axios/lib/helpers/throttle.js
+function throttle(fn, freq) {
+  let timestamp = 0;
+  let threshold = 1e3 / freq;
+  let lastArgs;
+  let timer;
+  const invoke = (args, now = Date.now()) => {
+    timestamp = now;
+    lastArgs = null;
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+    fn(...args);
+  };
+  const throttled = (...args) => {
+    const now = Date.now();
+    const passed = now - timestamp;
+    if (passed >= threshold) {
+      invoke(args, now);
+    } else {
+      lastArgs = args;
+      if (!timer) {
+        timer = setTimeout(() => {
+          timer = null;
+          invoke(lastArgs);
+        }, threshold - passed);
+      }
+    }
+  };
+  const flush = () => lastArgs && invoke(lastArgs);
+  return [throttled, flush];
+}
+var throttle_default = throttle;
+
+// node_modules/axios/lib/helpers/progressEventReducer.js
+var progressEventReducer = (listener, isDownloadStream, freq = 3) => {
+  let bytesNotified = 0;
+  const _speedometer = speedometer_default(50, 250);
+  return throttle_default((e) => {
+    const loaded = e.loaded;
+    const total = e.lengthComputable ? e.total : void 0;
+    const progressBytes = loaded - bytesNotified;
+    const rate = _speedometer(progressBytes);
+    const inRange = loaded <= total;
+    bytesNotified = loaded;
+    const data = {
+      loaded,
+      total,
+      progress: total ? loaded / total : void 0,
+      bytes: progressBytes,
+      rate: rate ? rate : void 0,
+      estimated: rate && total && inRange ? (total - loaded) / rate : void 0,
+      event: e,
+      lengthComputable: total != null,
+      [isDownloadStream ? "download" : "upload"]: true
+    };
+    listener(data);
+  }, freq);
+};
+var progressEventDecorator = (total, throttled) => {
+  const lengthComputable = total != null;
+  return [(loaded) => throttled[0]({
+    lengthComputable,
+    total,
+    loaded
+  }), throttled[1]];
+};
+var asyncDecorator = (fn) => (...args) => utils_default.asap(() => fn(...args));
+
+// node_modules/axios/lib/helpers/estimateDataURLDecodedBytes.js
+function estimateDataURLDecodedBytes(url2) {
+  if (!url2 || typeof url2 !== "string")
+    return 0;
+  if (!url2.startsWith("data:"))
+    return 0;
+  const comma = url2.indexOf(",");
+  if (comma < 0)
+    return 0;
+  const meta = url2.slice(5, comma);
+  const body = url2.slice(comma + 1);
+  const isBase64 = /;base64/i.test(meta);
+  if (isBase64) {
+    let effectiveLen = body.length;
+    const len = body.length;
+    for (let i = 0; i < len; i++) {
+      if (body.charCodeAt(i) === 37 && i + 2 < len) {
+        const a = body.charCodeAt(i + 1);
+        const b = body.charCodeAt(i + 2);
+        const isHex = (a >= 48 && a <= 57 || a >= 65 && a <= 70 || a >= 97 && a <= 102) && (b >= 48 && b <= 57 || b >= 65 && b <= 70 || b >= 97 && b <= 102);
+        if (isHex) {
+          effectiveLen -= 2;
+          i += 2;
+        }
+      }
+    }
+    let pad = 0;
+    let idx = len - 1;
+    const tailIsPct3D = (j) => j >= 2 && body.charCodeAt(j - 2) === 37 && // '%'
+    body.charCodeAt(j - 1) === 51 && // '3'
+    (body.charCodeAt(j) === 68 || body.charCodeAt(j) === 100);
+    if (idx >= 0) {
+      if (body.charCodeAt(idx) === 61) {
+        pad++;
+        idx--;
+      } else if (tailIsPct3D(idx)) {
+        pad++;
+        idx -= 3;
+      }
+    }
+    if (pad === 1 && idx >= 0) {
+      if (body.charCodeAt(idx) === 61) {
+        pad++;
+      } else if (tailIsPct3D(idx)) {
+        pad++;
+      }
+    }
+    const groups = Math.floor(effectiveLen / 4);
+    const bytes = groups * 3 - (pad || 0);
+    return bytes > 0 ? bytes : 0;
+  }
+  return Buffer.byteLength(body, "utf8");
+}
+
+// node_modules/axios/lib/adapters/http.js
+var zlibOptions = {
+  flush: import_zlib.default.constants.Z_SYNC_FLUSH,
+  finishFlush: import_zlib.default.constants.Z_SYNC_FLUSH
+};
+var brotliOptions = {
+  flush: import_zlib.default.constants.BROTLI_OPERATION_FLUSH,
+  finishFlush: import_zlib.default.constants.BROTLI_OPERATION_FLUSH
+};
+var isBrotliSupported = utils_default.isFunction(import_zlib.default.createBrotliDecompress);
+var { http: httpFollow, https: httpsFollow } = import_follow_redirects.default;
+var isHttps = /https:?/;
+var supportedProtocols = platform_default.protocols.map((protocol) => {
+  return protocol + ":";
+});
+var flushOnFinish = (stream4, [throttled, flush]) => {
+  stream4.on("end", flush).on("error", flush);
+  return throttled;
+};
+var Http2Sessions = class {
+  constructor() {
+    this.sessions = /* @__PURE__ */ Object.create(null);
+  }
+  getSession(authority, options) {
+    options = Object.assign({
+      sessionTimeout: 1e3
+    }, options);
+    let authoritySessions = this.sessions[authority];
+    if (authoritySessions) {
+      let len = authoritySessions.length;
+      for (let i = 0; i < len; i++) {
+        const [sessionHandle, sessionOptions] = authoritySessions[i];
+        if (!sessionHandle.destroyed && !sessionHandle.closed && import_util2.default.isDeepStrictEqual(sessionOptions, options)) {
+          return sessionHandle;
+        }
+      }
+    }
+    const session = import_http2.default.connect(authority, options);
+    let removed;
+    const removeSession = () => {
+      if (removed) {
+        return;
+      }
+      removed = true;
+      let entries = authoritySessions, len = entries.length, i = len;
+      while (i--) {
+        if (entries[i][0] === session) {
+          if (len === 1) {
+            delete this.sessions[authority];
+          } else {
+            entries.splice(i, 1);
+          }
+          return;
+        }
+      }
+    };
+    const originalRequestFn = session.request;
+    const { sessionTimeout } = options;
+    if (sessionTimeout != null) {
+      let timer;
+      let streamsCount = 0;
+      session.request = function() {
+        const stream4 = originalRequestFn.apply(this, arguments);
+        streamsCount++;
+        if (timer) {
+          clearTimeout(timer);
+          timer = null;
+        }
+        stream4.once("close", () => {
+          if (!--streamsCount) {
+            timer = setTimeout(() => {
+              timer = null;
+              removeSession();
+            }, sessionTimeout);
+          }
+        });
+        return stream4;
+      };
+    }
+    session.once("close", removeSession);
+    let entry = [
+      session,
+      options
+    ];
+    authoritySessions ? authoritySessions.push(entry) : authoritySessions = this.sessions[authority] = [entry];
+    return session;
+  }
+};
+var http2Sessions = new Http2Sessions();
+function dispatchBeforeRedirect(options, responseDetails) {
+  if (options.beforeRedirects.proxy) {
+    options.beforeRedirects.proxy(options);
+  }
+  if (options.beforeRedirects.config) {
+    options.beforeRedirects.config(options, responseDetails);
+  }
+}
+function setProxy(options, configProxy, location) {
+  let proxy = configProxy;
+  if (!proxy && proxy !== false) {
+    const proxyUrl = import_proxy_from_env.default.getProxyForUrl(location);
+    if (proxyUrl) {
+      proxy = new URL(proxyUrl);
+    }
+  }
+  if (proxy) {
+    if (proxy.username) {
+      proxy.auth = (proxy.username || "") + ":" + (proxy.password || "");
+    }
+    if (proxy.auth) {
+      const validProxyAuth = Boolean(proxy.auth.username || proxy.auth.password);
+      if (validProxyAuth) {
+        proxy.auth = (proxy.auth.username || "") + ":" + (proxy.auth.password || "");
+      } else if (typeof proxy.auth === "object") {
+        throw new AxiosError_default("Invalid proxy authorization", AxiosError_default.ERR_BAD_OPTION, { proxy });
+      }
+      const base64 = Buffer.from(proxy.auth, "utf8").toString("base64");
+      options.headers["Proxy-Authorization"] = "Basic " + base64;
+    }
+    options.headers.host = options.hostname + (options.port ? ":" + options.port : "");
+    const proxyHost = proxy.hostname || proxy.host;
+    options.hostname = proxyHost;
+    options.host = proxyHost;
+    options.port = proxy.port;
+    options.path = location;
+    if (proxy.protocol) {
+      options.protocol = proxy.protocol.includes(":") ? proxy.protocol : `${proxy.protocol}:`;
+    }
+  }
+  options.beforeRedirects.proxy = function beforeRedirect(redirectOptions) {
+    setProxy(redirectOptions, configProxy, redirectOptions.href);
+  };
+}
+var isHttpAdapterSupported = typeof process !== "undefined" && utils_default.kindOf(process) === "process";
+var wrapAsync = (asyncExecutor) => {
+  return new Promise((resolve, reject) => {
+    let onDone;
+    let isDone;
+    const done = (value, isRejected) => {
+      if (isDone)
+        return;
+      isDone = true;
+      onDone && onDone(value, isRejected);
+    };
+    const _resolve = (value) => {
+      done(value);
+      resolve(value);
+    };
+    const _reject = (reason) => {
+      done(reason, true);
+      reject(reason);
+    };
+    asyncExecutor(_resolve, _reject, (onDoneHandler) => onDone = onDoneHandler).catch(_reject);
+  });
+};
+var resolveFamily = ({ address, family }) => {
+  if (!utils_default.isString(address)) {
+    throw TypeError("address must be a string");
+  }
+  return {
+    address,
+    family: family || (address.indexOf(".") < 0 ? 6 : 4)
+  };
+};
+var buildAddressEntry = (address, family) => resolveFamily(utils_default.isObject(address) ? address : { address, family });
+var http2Transport = {
+  request(options, cb) {
+    const authority = options.protocol + "//" + options.hostname + ":" + (options.port || (options.protocol === "https:" ? 443 : 80));
+    const { http2Options, headers } = options;
+    const session = http2Sessions.getSession(authority, http2Options);
+    const {
+      HTTP2_HEADER_SCHEME,
+      HTTP2_HEADER_METHOD,
+      HTTP2_HEADER_PATH,
+      HTTP2_HEADER_STATUS
+    } = import_http2.default.constants;
+    const http2Headers = {
+      [HTTP2_HEADER_SCHEME]: options.protocol.replace(":", ""),
+      [HTTP2_HEADER_METHOD]: options.method,
+      [HTTP2_HEADER_PATH]: options.path
+    };
+    utils_default.forEach(headers, (header, name) => {
+      name.charAt(0) !== ":" && (http2Headers[name] = header);
+    });
+    const req = session.request(http2Headers);
+    req.once("response", (responseHeaders) => {
+      const response = req;
+      responseHeaders = Object.assign({}, responseHeaders);
+      const status = responseHeaders[HTTP2_HEADER_STATUS];
+      delete responseHeaders[HTTP2_HEADER_STATUS];
+      response.headers = responseHeaders;
+      response.statusCode = +status;
+      cb(response);
+    });
+    return req;
+  }
+};
+var http_default = isHttpAdapterSupported && function httpAdapter(config) {
+  return wrapAsync(async function dispatchHttpRequest(resolve, reject, onDone) {
+    let { data, lookup, family, httpVersion = 1, http2Options } = config;
+    const { responseType, responseEncoding } = config;
+    const method = config.method.toUpperCase();
+    let isDone;
+    let rejected = false;
+    let req;
+    httpVersion = +httpVersion;
+    if (Number.isNaN(httpVersion)) {
+      throw TypeError(`Invalid protocol version: '${config.httpVersion}' is not a number`);
+    }
+    if (httpVersion !== 1 && httpVersion !== 2) {
+      throw TypeError(`Unsupported protocol version '${httpVersion}'`);
+    }
+    const isHttp2 = httpVersion === 2;
+    if (lookup) {
+      const _lookup = callbackify_default(lookup, (value) => utils_default.isArray(value) ? value : [value]);
+      lookup = (hostname, opt, cb) => {
+        _lookup(hostname, opt, (err, arg0, arg1) => {
+          if (err) {
+            return cb(err);
+          }
+          const addresses = utils_default.isArray(arg0) ? arg0.map((addr) => buildAddressEntry(addr)) : [buildAddressEntry(arg0, arg1)];
+          opt.all ? cb(err, addresses) : cb(err, addresses[0].address, addresses[0].family);
+        });
+      };
+    }
+    const abortEmitter = new import_events.EventEmitter();
+    function abort(reason) {
+      try {
+        abortEmitter.emit("abort", !reason || reason.type ? new CanceledError_default(null, config, req) : reason);
+      } catch (err) {
+        console.warn("emit error", err);
+      }
+    }
+    abortEmitter.once("abort", reject);
+    const onFinished = () => {
+      if (config.cancelToken) {
+        config.cancelToken.unsubscribe(abort);
+      }
+      if (config.signal) {
+        config.signal.removeEventListener("abort", abort);
+      }
+      abortEmitter.removeAllListeners();
+    };
+    if (config.cancelToken || config.signal) {
+      config.cancelToken && config.cancelToken.subscribe(abort);
+      if (config.signal) {
+        config.signal.aborted ? abort() : config.signal.addEventListener("abort", abort);
+      }
+    }
+    onDone((response, isRejected) => {
+      isDone = true;
+      if (isRejected) {
+        rejected = true;
+        onFinished();
+        return;
+      }
+      const { data: data2 } = response;
+      if (data2 instanceof import_stream4.default.Readable || data2 instanceof import_stream4.default.Duplex) {
+        const offListeners = import_stream4.default.finished(data2, () => {
+          offListeners();
+          onFinished();
+        });
+      } else {
+        onFinished();
+      }
+    });
+    const fullPath = buildFullPath(config.baseURL, config.url, config.allowAbsoluteUrls);
+    const parsed = new URL(fullPath, platform_default.hasBrowserEnv ? platform_default.origin : void 0);
+    const protocol = parsed.protocol || supportedProtocols[0];
+    if (protocol === "data:") {
+      if (config.maxContentLength > -1) {
+        const dataUrl = String(config.url || fullPath || "");
+        const estimated = estimateDataURLDecodedBytes(dataUrl);
+        if (estimated > config.maxContentLength) {
+          return reject(new AxiosError_default(
+            "maxContentLength size of " + config.maxContentLength + " exceeded",
+            AxiosError_default.ERR_BAD_RESPONSE,
+            config
+          ));
+        }
+      }
+      let convertedData;
+      if (method !== "GET") {
+        return settle(resolve, reject, {
+          status: 405,
+          statusText: "method not allowed",
+          headers: {},
+          config
+        });
+      }
+      try {
+        convertedData = fromDataURI(config.url, responseType === "blob", {
+          Blob: config.env && config.env.Blob
+        });
+      } catch (err) {
+        throw AxiosError_default.from(err, AxiosError_default.ERR_BAD_REQUEST, config);
+      }
+      if (responseType === "text") {
+        convertedData = convertedData.toString(responseEncoding);
+        if (!responseEncoding || responseEncoding === "utf8") {
+          convertedData = utils_default.stripBOM(convertedData);
+        }
+      } else if (responseType === "stream") {
+        convertedData = import_stream4.default.Readable.from(convertedData);
+      }
+      return settle(resolve, reject, {
+        data: convertedData,
+        status: 200,
+        statusText: "OK",
+        headers: new AxiosHeaders_default(),
+        config
+      });
+    }
+    if (supportedProtocols.indexOf(protocol) === -1) {
+      return reject(new AxiosError_default(
+        "Unsupported protocol " + protocol,
+        AxiosError_default.ERR_BAD_REQUEST,
+        config
+      ));
+    }
+    const headers = AxiosHeaders_default.from(config.headers).normalize();
+    headers.set("User-Agent", "axios/" + VERSION, false);
+    const { onUploadProgress, onDownloadProgress } = config;
+    const maxRate = config.maxRate;
+    let maxUploadRate = void 0;
+    let maxDownloadRate = void 0;
+    if (utils_default.isSpecCompliantForm(data)) {
+      const userBoundary = headers.getContentType(/boundary=([-_\w\d]{10,70})/i);
+      data = formDataToStream_default(data, (formHeaders) => {
+        headers.set(formHeaders);
+      }, {
+        tag: `axios-${VERSION}-boundary`,
+        boundary: userBoundary && userBoundary[1] || void 0
+      });
+    } else if (utils_default.isFormData(data) && utils_default.isFunction(data.getHeaders)) {
+      headers.set(data.getHeaders());
+      if (!headers.hasContentLength()) {
+        try {
+          const knownLength = await import_util2.default.promisify(data.getLength).call(data);
+          Number.isFinite(knownLength) && knownLength >= 0 && headers.setContentLength(knownLength);
+        } catch (e) {
+        }
+      }
+    } else if (utils_default.isBlob(data) || utils_default.isFile(data)) {
+      data.size && headers.setContentType(data.type || "application/octet-stream");
+      headers.setContentLength(data.size || 0);
+      data = import_stream4.default.Readable.from(readBlob_default(data));
+    } else if (data && !utils_default.isStream(data)) {
+      if (Buffer.isBuffer(data)) {
+      } else if (utils_default.isArrayBuffer(data)) {
+        data = Buffer.from(new Uint8Array(data));
+      } else if (utils_default.isString(data)) {
+        data = Buffer.from(data, "utf-8");
+      } else {
+        return reject(new AxiosError_default(
+          "Data after transformation must be a string, an ArrayBuffer, a Buffer, or a Stream",
+          AxiosError_default.ERR_BAD_REQUEST,
+          config
+        ));
+      }
+      headers.setContentLength(data.length, false);
+      if (config.maxBodyLength > -1 && data.length > config.maxBodyLength) {
+        return reject(new AxiosError_default(
+          "Request body larger than maxBodyLength limit",
+          AxiosError_default.ERR_BAD_REQUEST,
+          config
+        ));
+      }
+    }
+    const contentLength = utils_default.toFiniteNumber(headers.getContentLength());
+    if (utils_default.isArray(maxRate)) {
+      maxUploadRate = maxRate[0];
+      maxDownloadRate = maxRate[1];
+    } else {
+      maxUploadRate = maxDownloadRate = maxRate;
+    }
+    if (data && (onUploadProgress || maxUploadRate)) {
+      if (!utils_default.isStream(data)) {
+        data = import_stream4.default.Readable.from(data, { objectMode: false });
+      }
+      data = import_stream4.default.pipeline([data, new AxiosTransformStream_default({
+        maxRate: utils_default.toFiniteNumber(maxUploadRate)
+      })], utils_default.noop);
+      onUploadProgress && data.on("progress", flushOnFinish(
+        data,
+        progressEventDecorator(
+          contentLength,
+          progressEventReducer(asyncDecorator(onUploadProgress), false, 3)
+        )
+      ));
+    }
+    let auth = void 0;
+    if (config.auth) {
+      const username = config.auth.username || "";
+      const password = config.auth.password || "";
+      auth = username + ":" + password;
+    }
+    if (!auth && parsed.username) {
+      const urlUsername = parsed.username;
+      const urlPassword = parsed.password;
+      auth = urlUsername + ":" + urlPassword;
+    }
+    auth && headers.delete("authorization");
+    let path;
+    try {
+      path = buildURL(
+        parsed.pathname + parsed.search,
+        config.params,
+        config.paramsSerializer
+      ).replace(/^\?/, "");
+    } catch (err) {
+      const customErr = new Error(err.message);
+      customErr.config = config;
+      customErr.url = config.url;
+      customErr.exists = true;
+      return reject(customErr);
+    }
+    headers.set(
+      "Accept-Encoding",
+      "gzip, compress, deflate" + (isBrotliSupported ? ", br" : ""),
+      false
+    );
+    const options = {
+      path,
+      method,
+      headers: headers.toJSON(),
+      agents: { http: config.httpAgent, https: config.httpsAgent },
+      auth,
+      protocol,
+      family,
+      beforeRedirect: dispatchBeforeRedirect,
+      beforeRedirects: {},
+      http2Options
+    };
+    !utils_default.isUndefined(lookup) && (options.lookup = lookup);
+    if (config.socketPath) {
+      options.socketPath = config.socketPath;
+    } else {
+      options.hostname = parsed.hostname.startsWith("[") ? parsed.hostname.slice(1, -1) : parsed.hostname;
+      options.port = parsed.port;
+      setProxy(options, config.proxy, protocol + "//" + parsed.hostname + (parsed.port ? ":" + parsed.port : "") + options.path);
+    }
+    let transport;
+    const isHttpsRequest = isHttps.test(options.protocol);
+    options.agent = isHttpsRequest ? config.httpsAgent : config.httpAgent;
+    if (isHttp2) {
+      transport = http2Transport;
+    } else {
+      if (config.transport) {
+        transport = config.transport;
+      } else if (config.maxRedirects === 0) {
+        transport = isHttpsRequest ? import_https.default : import_http.default;
+      } else {
+        if (config.maxRedirects) {
+          options.maxRedirects = config.maxRedirects;
+        }
+        if (config.beforeRedirect) {
+          options.beforeRedirects.config = config.beforeRedirect;
+        }
+        transport = isHttpsRequest ? httpsFollow : httpFollow;
+      }
+    }
+    if (config.maxBodyLength > -1) {
+      options.maxBodyLength = config.maxBodyLength;
+    } else {
+      options.maxBodyLength = Infinity;
+    }
+    if (config.insecureHTTPParser) {
+      options.insecureHTTPParser = config.insecureHTTPParser;
+    }
+    req = transport.request(options, function handleResponse(res) {
+      if (req.destroyed)
+        return;
+      const streams = [res];
+      const responseLength = utils_default.toFiniteNumber(res.headers["content-length"]);
+      if (onDownloadProgress || maxDownloadRate) {
+        const transformStream = new AxiosTransformStream_default({
+          maxRate: utils_default.toFiniteNumber(maxDownloadRate)
+        });
+        onDownloadProgress && transformStream.on("progress", flushOnFinish(
+          transformStream,
+          progressEventDecorator(
+            responseLength,
+            progressEventReducer(asyncDecorator(onDownloadProgress), true, 3)
+          )
+        ));
+        streams.push(transformStream);
+      }
+      let responseStream = res;
+      const lastRequest = res.req || req;
+      if (config.decompress !== false && res.headers["content-encoding"]) {
+        if (method === "HEAD" || res.statusCode === 204) {
+          delete res.headers["content-encoding"];
+        }
+        switch ((res.headers["content-encoding"] || "").toLowerCase()) {
+          case "gzip":
+          case "x-gzip":
+          case "compress":
+          case "x-compress":
+            streams.push(import_zlib.default.createUnzip(zlibOptions));
+            delete res.headers["content-encoding"];
+            break;
+          case "deflate":
+            streams.push(new ZlibHeaderTransformStream_default());
+            streams.push(import_zlib.default.createUnzip(zlibOptions));
+            delete res.headers["content-encoding"];
+            break;
+          case "br":
+            if (isBrotliSupported) {
+              streams.push(import_zlib.default.createBrotliDecompress(brotliOptions));
+              delete res.headers["content-encoding"];
+            }
+        }
+      }
+      responseStream = streams.length > 1 ? import_stream4.default.pipeline(streams, utils_default.noop) : streams[0];
+      const response = {
+        status: res.statusCode,
+        statusText: res.statusMessage,
+        headers: new AxiosHeaders_default(res.headers),
+        config,
+        request: lastRequest
+      };
+      if (responseType === "stream") {
+        response.data = responseStream;
+        settle(resolve, reject, response);
+      } else {
+        const responseBuffer = [];
+        let totalResponseBytes = 0;
+        responseStream.on("data", function handleStreamData(chunk) {
+          responseBuffer.push(chunk);
+          totalResponseBytes += chunk.length;
+          if (config.maxContentLength > -1 && totalResponseBytes > config.maxContentLength) {
+            rejected = true;
+            responseStream.destroy();
+            abort(new AxiosError_default(
+              "maxContentLength size of " + config.maxContentLength + " exceeded",
+              AxiosError_default.ERR_BAD_RESPONSE,
+              config,
+              lastRequest
+            ));
+          }
+        });
+        responseStream.on("aborted", function handlerStreamAborted() {
+          if (rejected) {
+            return;
+          }
+          const err = new AxiosError_default(
+            "stream has been aborted",
+            AxiosError_default.ERR_BAD_RESPONSE,
+            config,
+            lastRequest
+          );
+          responseStream.destroy(err);
+          reject(err);
+        });
+        responseStream.on("error", function handleStreamError(err) {
+          if (req.destroyed)
+            return;
+          reject(AxiosError_default.from(err, null, config, lastRequest));
+        });
+        responseStream.on("end", function handleStreamEnd() {
+          try {
+            let responseData = responseBuffer.length === 1 ? responseBuffer[0] : Buffer.concat(responseBuffer);
+            if (responseType !== "arraybuffer") {
+              responseData = responseData.toString(responseEncoding);
+              if (!responseEncoding || responseEncoding === "utf8") {
+                responseData = utils_default.stripBOM(responseData);
+              }
+            }
+            response.data = responseData;
+          } catch (err) {
+            return reject(AxiosError_default.from(err, null, config, response.request, response));
+          }
+          settle(resolve, reject, response);
+        });
+      }
+      abortEmitter.once("abort", (err) => {
+        if (!responseStream.destroyed) {
+          responseStream.emit("error", err);
+          responseStream.destroy();
+        }
+      });
+    });
+    abortEmitter.once("abort", (err) => {
+      if (req.close) {
+        req.close();
+      } else {
+        req.destroy(err);
+      }
+    });
+    req.on("error", function handleRequestError(err) {
+      reject(AxiosError_default.from(err, null, config, req));
+    });
+    req.on("socket", function handleRequestSocket(socket) {
+      socket.setKeepAlive(true, 1e3 * 60);
+    });
+    if (config.timeout) {
+      const timeout = parseInt(config.timeout, 10);
+      if (Number.isNaN(timeout)) {
+        abort(new AxiosError_default(
+          "error trying to parse `config.timeout` to int",
+          AxiosError_default.ERR_BAD_OPTION_VALUE,
+          config,
+          req
+        ));
+        return;
+      }
+      req.setTimeout(timeout, function handleRequestTimeout() {
+        if (isDone)
+          return;
+        let timeoutErrorMessage = config.timeout ? "timeout of " + config.timeout + "ms exceeded" : "timeout exceeded";
+        const transitional2 = config.transitional || transitional_default;
+        if (config.timeoutErrorMessage) {
+          timeoutErrorMessage = config.timeoutErrorMessage;
+        }
+        abort(new AxiosError_default(
+          timeoutErrorMessage,
+          transitional2.clarifyTimeoutError ? AxiosError_default.ETIMEDOUT : AxiosError_default.ECONNABORTED,
+          config,
+          req
+        ));
+      });
+    } else {
+      req.setTimeout(0);
+    }
+    if (utils_default.isStream(data)) {
+      let ended = false;
+      let errored = false;
+      data.on("end", () => {
+        ended = true;
+      });
+      data.once("error", (err) => {
+        errored = true;
+        req.destroy(err);
+      });
+      data.on("close", () => {
+        if (!ended && !errored) {
+          abort(new CanceledError_default("Request stream has been aborted", config, req));
+        }
+      });
+      data.pipe(req);
+    } else {
+      data && req.write(data);
+      req.end();
+    }
+  });
+};
+
+// node_modules/axios/lib/helpers/isURLSameOrigin.js
+var isURLSameOrigin_default = platform_default.hasStandardBrowserEnv ? /* @__PURE__ */ ((origin2, isMSIE) => (url2) => {
+  url2 = new URL(url2, platform_default.origin);
+  return origin2.protocol === url2.protocol && origin2.host === url2.host && (isMSIE || origin2.port === url2.port);
+})(
+  new URL(platform_default.origin),
+  platform_default.navigator && /(msie|trident)/i.test(platform_default.navigator.userAgent)
+) : () => true;
+
+// node_modules/axios/lib/helpers/cookies.js
+var cookies_default = platform_default.hasStandardBrowserEnv ? (
+  // Standard browser envs support document.cookie
+  {
+    write(name, value, expires, path, domain, secure, sameSite) {
+      if (typeof document === "undefined")
+        return;
+      const cookie = [`${name}=${encodeURIComponent(value)}`];
+      if (utils_default.isNumber(expires)) {
+        cookie.push(`expires=${new Date(expires).toUTCString()}`);
+      }
+      if (utils_default.isString(path)) {
+        cookie.push(`path=${path}`);
+      }
+      if (utils_default.isString(domain)) {
+        cookie.push(`domain=${domain}`);
+      }
+      if (secure === true) {
+        cookie.push("secure");
+      }
+      if (utils_default.isString(sameSite)) {
+        cookie.push(`SameSite=${sameSite}`);
+      }
+      document.cookie = cookie.join("; ");
+    },
+    read(name) {
+      if (typeof document === "undefined")
+        return null;
+      const match = document.cookie.match(new RegExp("(?:^|; )" + name + "=([^;]*)"));
+      return match ? decodeURIComponent(match[1]) : null;
+    },
+    remove(name) {
+      this.write(name, "", Date.now() - 864e5, "/");
+    }
+  }
+) : (
+  // Non-standard browser env (web workers, react-native) lack needed support.
+  {
+    write() {
+    },
+    read() {
+      return null;
+    },
+    remove() {
+    }
+  }
+);
+
+// node_modules/axios/lib/core/mergeConfig.js
+var headersToObject = (thing) => thing instanceof AxiosHeaders_default ? { ...thing } : thing;
+function mergeConfig(config1, config2) {
+  config2 = config2 || {};
+  const config = {};
+  function getMergedValue(target, source, prop, caseless) {
+    if (utils_default.isPlainObject(target) && utils_default.isPlainObject(source)) {
+      return utils_default.merge.call({ caseless }, target, source);
+    } else if (utils_default.isPlainObject(source)) {
+      return utils_default.merge({}, source);
+    } else if (utils_default.isArray(source)) {
+      return source.slice();
+    }
+    return source;
+  }
+  function mergeDeepProperties(a, b, prop, caseless) {
+    if (!utils_default.isUndefined(b)) {
+      return getMergedValue(a, b, prop, caseless);
+    } else if (!utils_default.isUndefined(a)) {
+      return getMergedValue(void 0, a, prop, caseless);
+    }
+  }
+  function valueFromConfig2(a, b) {
+    if (!utils_default.isUndefined(b)) {
+      return getMergedValue(void 0, b);
+    }
+  }
+  function defaultToConfig2(a, b) {
+    if (!utils_default.isUndefined(b)) {
+      return getMergedValue(void 0, b);
+    } else if (!utils_default.isUndefined(a)) {
+      return getMergedValue(void 0, a);
+    }
+  }
+  function mergeDirectKeys(a, b, prop) {
+    if (prop in config2) {
+      return getMergedValue(a, b);
+    } else if (prop in config1) {
+      return getMergedValue(void 0, a);
+    }
+  }
+  const mergeMap = {
+    url: valueFromConfig2,
+    method: valueFromConfig2,
+    data: valueFromConfig2,
+    baseURL: defaultToConfig2,
+    transformRequest: defaultToConfig2,
+    transformResponse: defaultToConfig2,
+    paramsSerializer: defaultToConfig2,
+    timeout: defaultToConfig2,
+    timeoutMessage: defaultToConfig2,
+    withCredentials: defaultToConfig2,
+    withXSRFToken: defaultToConfig2,
+    adapter: defaultToConfig2,
+    responseType: defaultToConfig2,
+    xsrfCookieName: defaultToConfig2,
+    xsrfHeaderName: defaultToConfig2,
+    onUploadProgress: defaultToConfig2,
+    onDownloadProgress: defaultToConfig2,
+    decompress: defaultToConfig2,
+    maxContentLength: defaultToConfig2,
+    maxBodyLength: defaultToConfig2,
+    beforeRedirect: defaultToConfig2,
+    transport: defaultToConfig2,
+    httpAgent: defaultToConfig2,
+    httpsAgent: defaultToConfig2,
+    cancelToken: defaultToConfig2,
+    socketPath: defaultToConfig2,
+    responseEncoding: defaultToConfig2,
+    validateStatus: mergeDirectKeys,
+    headers: (a, b, prop) => mergeDeepProperties(headersToObject(a), headersToObject(b), prop, true)
+  };
+  utils_default.forEach(
+    Object.keys({ ...config1, ...config2 }),
+    function computeConfigValue(prop) {
+      if (prop === "__proto__" || prop === "constructor" || prop === "prototype")
+        return;
+      const merge2 = utils_default.hasOwnProp(mergeMap, prop) ? mergeMap[prop] : mergeDeepProperties;
+      const configValue = merge2(config1[prop], config2[prop], prop);
+      utils_default.isUndefined(configValue) && merge2 !== mergeDirectKeys || (config[prop] = configValue);
+    }
+  );
+  return config;
+}
+
+// node_modules/axios/lib/helpers/resolveConfig.js
+var resolveConfig_default = (config) => {
+  const newConfig = mergeConfig({}, config);
+  let { data, withXSRFToken, xsrfHeaderName, xsrfCookieName, headers, auth } = newConfig;
+  newConfig.headers = headers = AxiosHeaders_default.from(headers);
+  newConfig.url = buildURL(buildFullPath(newConfig.baseURL, newConfig.url, newConfig.allowAbsoluteUrls), config.params, config.paramsSerializer);
+  if (auth) {
+    headers.set(
+      "Authorization",
+      "Basic " + btoa((auth.username || "") + ":" + (auth.password ? unescape(encodeURIComponent(auth.password)) : ""))
+    );
+  }
+  if (utils_default.isFormData(data)) {
+    if (platform_default.hasStandardBrowserEnv || platform_default.hasStandardBrowserWebWorkerEnv) {
+      headers.setContentType(void 0);
+    } else if (utils_default.isFunction(data.getHeaders)) {
+      const formHeaders = data.getHeaders();
+      const allowedHeaders = ["content-type", "content-length"];
+      Object.entries(formHeaders).forEach(([key, val]) => {
+        if (allowedHeaders.includes(key.toLowerCase())) {
+          headers.set(key, val);
+        }
+      });
+    }
+  }
+  if (platform_default.hasStandardBrowserEnv) {
+    withXSRFToken && utils_default.isFunction(withXSRFToken) && (withXSRFToken = withXSRFToken(newConfig));
+    if (withXSRFToken || withXSRFToken !== false && isURLSameOrigin_default(newConfig.url)) {
+      const xsrfValue = xsrfHeaderName && xsrfCookieName && cookies_default.read(xsrfCookieName);
+      if (xsrfValue) {
+        headers.set(xsrfHeaderName, xsrfValue);
+      }
+    }
+  }
+  return newConfig;
+};
+
+// node_modules/axios/lib/adapters/xhr.js
+var isXHRAdapterSupported = typeof XMLHttpRequest !== "undefined";
+var xhr_default = isXHRAdapterSupported && function(config) {
+  return new Promise(function dispatchXhrRequest(resolve, reject) {
+    const _config = resolveConfig_default(config);
+    let requestData = _config.data;
+    const requestHeaders = AxiosHeaders_default.from(_config.headers).normalize();
+    let { responseType, onUploadProgress, onDownloadProgress } = _config;
+    let onCanceled;
+    let uploadThrottled, downloadThrottled;
+    let flushUpload, flushDownload;
+    function done() {
+      flushUpload && flushUpload();
+      flushDownload && flushDownload();
+      _config.cancelToken && _config.cancelToken.unsubscribe(onCanceled);
+      _config.signal && _config.signal.removeEventListener("abort", onCanceled);
+    }
+    let request = new XMLHttpRequest();
+    request.open(_config.method.toUpperCase(), _config.url, true);
+    request.timeout = _config.timeout;
+    function onloadend() {
+      if (!request) {
+        return;
+      }
+      const responseHeaders = AxiosHeaders_default.from(
+        "getAllResponseHeaders" in request && request.getAllResponseHeaders()
+      );
+      const responseData = !responseType || responseType === "text" || responseType === "json" ? request.responseText : request.response;
+      const response = {
+        data: responseData,
+        status: request.status,
+        statusText: request.statusText,
+        headers: responseHeaders,
+        config,
+        request
+      };
+      settle(function _resolve(value) {
+        resolve(value);
+        done();
+      }, function _reject(err) {
+        reject(err);
+        done();
+      }, response);
+      request = null;
+    }
+    if ("onloadend" in request) {
+      request.onloadend = onloadend;
+    } else {
+      request.onreadystatechange = function handleLoad() {
+        if (!request || request.readyState !== 4) {
+          return;
+        }
+        if (request.status === 0 && !(request.responseURL && request.responseURL.indexOf("file:") === 0)) {
+          return;
+        }
+        setTimeout(onloadend);
+      };
+    }
+    request.onabort = function handleAbort() {
+      if (!request) {
+        return;
+      }
+      reject(new AxiosError_default("Request aborted", AxiosError_default.ECONNABORTED, config, request));
+      request = null;
+    };
+    request.onerror = function handleError(event) {
+      const msg = event && event.message ? event.message : "Network Error";
+      const err = new AxiosError_default(msg, AxiosError_default.ERR_NETWORK, config, request);
+      err.event = event || null;
+      reject(err);
+      request = null;
+    };
+    request.ontimeout = function handleTimeout() {
+      let timeoutErrorMessage = _config.timeout ? "timeout of " + _config.timeout + "ms exceeded" : "timeout exceeded";
+      const transitional2 = _config.transitional || transitional_default;
+      if (_config.timeoutErrorMessage) {
+        timeoutErrorMessage = _config.timeoutErrorMessage;
+      }
+      reject(new AxiosError_default(
+        timeoutErrorMessage,
+        transitional2.clarifyTimeoutError ? AxiosError_default.ETIMEDOUT : AxiosError_default.ECONNABORTED,
+        config,
+        request
+      ));
+      request = null;
+    };
+    requestData === void 0 && requestHeaders.setContentType(null);
+    if ("setRequestHeader" in request) {
+      utils_default.forEach(requestHeaders.toJSON(), function setRequestHeader(val, key) {
+        request.setRequestHeader(key, val);
+      });
+    }
+    if (!utils_default.isUndefined(_config.withCredentials)) {
+      request.withCredentials = !!_config.withCredentials;
+    }
+    if (responseType && responseType !== "json") {
+      request.responseType = _config.responseType;
+    }
+    if (onDownloadProgress) {
+      [downloadThrottled, flushDownload] = progressEventReducer(onDownloadProgress, true);
+      request.addEventListener("progress", downloadThrottled);
+    }
+    if (onUploadProgress && request.upload) {
+      [uploadThrottled, flushUpload] = progressEventReducer(onUploadProgress);
+      request.upload.addEventListener("progress", uploadThrottled);
+      request.upload.addEventListener("loadend", flushUpload);
+    }
+    if (_config.cancelToken || _config.signal) {
+      onCanceled = (cancel) => {
+        if (!request) {
+          return;
+        }
+        reject(!cancel || cancel.type ? new CanceledError_default(null, config, request) : cancel);
+        request.abort();
+        request = null;
+      };
+      _config.cancelToken && _config.cancelToken.subscribe(onCanceled);
+      if (_config.signal) {
+        _config.signal.aborted ? onCanceled() : _config.signal.addEventListener("abort", onCanceled);
+      }
+    }
+    const protocol = parseProtocol(_config.url);
+    if (protocol && platform_default.protocols.indexOf(protocol) === -1) {
+      reject(new AxiosError_default("Unsupported protocol " + protocol + ":", AxiosError_default.ERR_BAD_REQUEST, config));
+      return;
+    }
+    request.send(requestData || null);
+  });
+};
+
+// node_modules/axios/lib/helpers/composeSignals.js
+var composeSignals = (signals, timeout) => {
+  const { length } = signals = signals ? signals.filter(Boolean) : [];
+  if (timeout || length) {
+    let controller = new AbortController();
+    let aborted;
+    const onabort = function(reason) {
+      if (!aborted) {
+        aborted = true;
+        unsubscribe();
+        const err = reason instanceof Error ? reason : this.reason;
+        controller.abort(err instanceof AxiosError_default ? err : new CanceledError_default(err instanceof Error ? err.message : err));
+      }
+    };
+    let timer = timeout && setTimeout(() => {
+      timer = null;
+      onabort(new AxiosError_default(`timeout of ${timeout}ms exceeded`, AxiosError_default.ETIMEDOUT));
+    }, timeout);
+    const unsubscribe = () => {
+      if (signals) {
+        timer && clearTimeout(timer);
+        timer = null;
+        signals.forEach((signal2) => {
+          signal2.unsubscribe ? signal2.unsubscribe(onabort) : signal2.removeEventListener("abort", onabort);
+        });
+        signals = null;
+      }
+    };
+    signals.forEach((signal2) => signal2.addEventListener("abort", onabort));
+    const { signal } = controller;
+    signal.unsubscribe = () => utils_default.asap(unsubscribe);
+    return signal;
+  }
+};
+var composeSignals_default = composeSignals;
+
+// node_modules/axios/lib/helpers/trackStream.js
+var streamChunk = function* (chunk, chunkSize) {
+  let len = chunk.byteLength;
+  if (!chunkSize || len < chunkSize) {
+    yield chunk;
+    return;
+  }
+  let pos = 0;
+  let end;
+  while (pos < len) {
+    end = pos + chunkSize;
+    yield chunk.slice(pos, end);
+    pos = end;
+  }
+};
+var readBytes = async function* (iterable, chunkSize) {
+  for await (const chunk of readStream(iterable)) {
+    yield* streamChunk(chunk, chunkSize);
+  }
+};
+var readStream = async function* (stream4) {
+  if (stream4[Symbol.asyncIterator]) {
+    yield* stream4;
+    return;
+  }
+  const reader = stream4.getReader();
+  try {
+    for (; ; ) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      yield value;
+    }
+  } finally {
+    await reader.cancel();
+  }
+};
+var trackStream = (stream4, chunkSize, onProgress, onFinish) => {
+  const iterator2 = readBytes(stream4, chunkSize);
+  let bytes = 0;
+  let done;
+  let _onFinish = (e) => {
+    if (!done) {
+      done = true;
+      onFinish && onFinish(e);
+    }
+  };
+  return new ReadableStream({
+    async pull(controller) {
+      try {
+        const { done: done2, value } = await iterator2.next();
+        if (done2) {
+          _onFinish();
+          controller.close();
+          return;
+        }
+        let len = value.byteLength;
+        if (onProgress) {
+          let loadedBytes = bytes += len;
+          onProgress(loadedBytes);
+        }
+        controller.enqueue(new Uint8Array(value));
+      } catch (err) {
+        _onFinish(err);
+        throw err;
+      }
+    },
+    cancel(reason) {
+      _onFinish(reason);
+      return iterator2.return();
+    }
+  }, {
+    highWaterMark: 2
+  });
+};
+
+// node_modules/axios/lib/adapters/fetch.js
+var DEFAULT_CHUNK_SIZE = 64 * 1024;
+var { isFunction: isFunction2 } = utils_default;
+var globalFetchAPI = (({ Request, Response }) => ({
+  Request,
+  Response
+}))(utils_default.global);
+var {
+  ReadableStream: ReadableStream2,
+  TextEncoder: TextEncoder2
+} = utils_default.global;
+var test = (fn, ...args) => {
+  try {
+    return !!fn(...args);
+  } catch (e) {
+    return false;
+  }
+};
+var factory = (env) => {
+  env = utils_default.merge.call({
+    skipUndefined: true
+  }, globalFetchAPI, env);
+  const { fetch: envFetch, Request, Response } = env;
+  const isFetchSupported = envFetch ? isFunction2(envFetch) : typeof fetch === "function";
+  const isRequestSupported = isFunction2(Request);
+  const isResponseSupported = isFunction2(Response);
+  if (!isFetchSupported) {
+    return false;
+  }
+  const isReadableStreamSupported = isFetchSupported && isFunction2(ReadableStream2);
+  const encodeText = isFetchSupported && (typeof TextEncoder2 === "function" ? /* @__PURE__ */ ((encoder) => (str) => encoder.encode(str))(new TextEncoder2()) : async (str) => new Uint8Array(await new Request(str).arrayBuffer()));
+  const supportsRequestStream = isRequestSupported && isReadableStreamSupported && test(() => {
+    let duplexAccessed = false;
+    const hasContentType = new Request(platform_default.origin, {
+      body: new ReadableStream2(),
+      method: "POST",
+      get duplex() {
+        duplexAccessed = true;
+        return "half";
+      }
+    }).headers.has("Content-Type");
+    return duplexAccessed && !hasContentType;
+  });
+  const supportsResponseStream = isResponseSupported && isReadableStreamSupported && test(() => utils_default.isReadableStream(new Response("").body));
+  const resolvers = {
+    stream: supportsResponseStream && ((res) => res.body)
+  };
+  isFetchSupported && (() => {
+    ["text", "arrayBuffer", "blob", "formData", "stream"].forEach((type) => {
+      !resolvers[type] && (resolvers[type] = (res, config) => {
+        let method = res && res[type];
+        if (method) {
+          return method.call(res);
+        }
+        throw new AxiosError_default(`Response type '${type}' is not supported`, AxiosError_default.ERR_NOT_SUPPORT, config);
+      });
+    });
+  })();
+  const getBodyLength = async (body) => {
+    if (body == null) {
+      return 0;
+    }
+    if (utils_default.isBlob(body)) {
+      return body.size;
+    }
+    if (utils_default.isSpecCompliantForm(body)) {
+      const _request = new Request(platform_default.origin, {
+        method: "POST",
+        body
+      });
+      return (await _request.arrayBuffer()).byteLength;
+    }
+    if (utils_default.isArrayBufferView(body) || utils_default.isArrayBuffer(body)) {
+      return body.byteLength;
+    }
+    if (utils_default.isURLSearchParams(body)) {
+      body = body + "";
+    }
+    if (utils_default.isString(body)) {
+      return (await encodeText(body)).byteLength;
+    }
+  };
+  const resolveBodyLength = async (headers, body) => {
+    const length = utils_default.toFiniteNumber(headers.getContentLength());
+    return length == null ? getBodyLength(body) : length;
+  };
+  return async (config) => {
+    let {
+      url: url2,
+      method,
+      data,
+      signal,
+      cancelToken,
+      timeout,
+      onDownloadProgress,
+      onUploadProgress,
+      responseType,
+      headers,
+      withCredentials = "same-origin",
+      fetchOptions
+    } = resolveConfig_default(config);
+    let _fetch = envFetch || fetch;
+    responseType = responseType ? (responseType + "").toLowerCase() : "text";
+    let composedSignal = composeSignals_default([signal, cancelToken && cancelToken.toAbortSignal()], timeout);
+    let request = null;
+    const unsubscribe = composedSignal && composedSignal.unsubscribe && (() => {
+      composedSignal.unsubscribe();
+    });
+    let requestContentLength;
+    try {
+      if (onUploadProgress && supportsRequestStream && method !== "get" && method !== "head" && (requestContentLength = await resolveBodyLength(headers, data)) !== 0) {
+        let _request = new Request(url2, {
+          method: "POST",
+          body: data,
+          duplex: "half"
+        });
+        let contentTypeHeader;
+        if (utils_default.isFormData(data) && (contentTypeHeader = _request.headers.get("content-type"))) {
+          headers.setContentType(contentTypeHeader);
+        }
+        if (_request.body) {
+          const [onProgress, flush] = progressEventDecorator(
+            requestContentLength,
+            progressEventReducer(asyncDecorator(onUploadProgress))
+          );
+          data = trackStream(_request.body, DEFAULT_CHUNK_SIZE, onProgress, flush);
+        }
+      }
+      if (!utils_default.isString(withCredentials)) {
+        withCredentials = withCredentials ? "include" : "omit";
+      }
+      const isCredentialsSupported = isRequestSupported && "credentials" in Request.prototype;
+      const resolvedOptions = {
+        ...fetchOptions,
+        signal: composedSignal,
+        method: method.toUpperCase(),
+        headers: headers.normalize().toJSON(),
+        body: data,
+        duplex: "half",
+        credentials: isCredentialsSupported ? withCredentials : void 0
+      };
+      request = isRequestSupported && new Request(url2, resolvedOptions);
+      let response = await (isRequestSupported ? _fetch(request, fetchOptions) : _fetch(url2, resolvedOptions));
+      const isStreamResponse = supportsResponseStream && (responseType === "stream" || responseType === "response");
+      if (supportsResponseStream && (onDownloadProgress || isStreamResponse && unsubscribe)) {
+        const options = {};
+        ["status", "statusText", "headers"].forEach((prop) => {
+          options[prop] = response[prop];
+        });
+        const responseContentLength = utils_default.toFiniteNumber(response.headers.get("content-length"));
+        const [onProgress, flush] = onDownloadProgress && progressEventDecorator(
+          responseContentLength,
+          progressEventReducer(asyncDecorator(onDownloadProgress), true)
+        ) || [];
+        response = new Response(
+          trackStream(response.body, DEFAULT_CHUNK_SIZE, onProgress, () => {
+            flush && flush();
+            unsubscribe && unsubscribe();
+          }),
+          options
+        );
+      }
+      responseType = responseType || "text";
+      let responseData = await resolvers[utils_default.findKey(resolvers, responseType) || "text"](response, config);
+      !isStreamResponse && unsubscribe && unsubscribe();
+      return await new Promise((resolve, reject) => {
+        settle(resolve, reject, {
+          data: responseData,
+          headers: AxiosHeaders_default.from(response.headers),
+          status: response.status,
+          statusText: response.statusText,
+          config,
+          request
+        });
+      });
+    } catch (err) {
+      unsubscribe && unsubscribe();
+      if (err && err.name === "TypeError" && /Load failed|fetch/i.test(err.message)) {
+        throw Object.assign(
+          new AxiosError_default("Network Error", AxiosError_default.ERR_NETWORK, config, request, err && err.response),
+          {
+            cause: err.cause || err
+          }
+        );
+      }
+      throw AxiosError_default.from(err, err && err.code, config, request, err && err.response);
+    }
+  };
+};
+var seedCache = /* @__PURE__ */ new Map();
+var getFetch = (config) => {
+  let env = config && config.env || {};
+  const { fetch: fetch2, Request, Response } = env;
+  const seeds = [
+    Request,
+    Response,
+    fetch2
+  ];
+  let len = seeds.length, i = len, seed, target, map = seedCache;
+  while (i--) {
+    seed = seeds[i];
+    target = map.get(seed);
+    target === void 0 && map.set(seed, target = i ? /* @__PURE__ */ new Map() : factory(env));
+    map = target;
+  }
+  return target;
+};
+var adapter = getFetch();
+
+// node_modules/axios/lib/adapters/adapters.js
+var knownAdapters = {
+  http: http_default,
+  xhr: xhr_default,
+  fetch: {
+    get: getFetch
+  }
+};
+utils_default.forEach(knownAdapters, (fn, value) => {
+  if (fn) {
+    try {
+      Object.defineProperty(fn, "name", { value });
+    } catch (e) {
+    }
+    Object.defineProperty(fn, "adapterName", { value });
+  }
+});
+var renderReason = (reason) => `- ${reason}`;
+var isResolvedHandle = (adapter2) => utils_default.isFunction(adapter2) || adapter2 === null || adapter2 === false;
+function getAdapter(adapters, config) {
+  adapters = utils_default.isArray(adapters) ? adapters : [adapters];
+  const { length } = adapters;
+  let nameOrAdapter;
+  let adapter2;
+  const rejectedReasons = {};
+  for (let i = 0; i < length; i++) {
+    nameOrAdapter = adapters[i];
+    let id;
+    adapter2 = nameOrAdapter;
+    if (!isResolvedHandle(nameOrAdapter)) {
+      adapter2 = knownAdapters[(id = String(nameOrAdapter)).toLowerCase()];
+      if (adapter2 === void 0) {
+        throw new AxiosError_default(`Unknown adapter '${id}'`);
+      }
+    }
+    if (adapter2 && (utils_default.isFunction(adapter2) || (adapter2 = adapter2.get(config)))) {
+      break;
+    }
+    rejectedReasons[id || "#" + i] = adapter2;
+  }
+  if (!adapter2) {
+    const reasons = Object.entries(rejectedReasons).map(
+      ([id, state]) => `adapter ${id} ` + (state === false ? "is not supported by the environment" : "is not available in the build")
+    );
+    let s = length ? reasons.length > 1 ? "since :\n" + reasons.map(renderReason).join("\n") : " " + renderReason(reasons[0]) : "as no adapter specified";
+    throw new AxiosError_default(
+      `There is no suitable adapter to dispatch the request ` + s,
+      "ERR_NOT_SUPPORT"
+    );
+  }
+  return adapter2;
+}
+var adapters_default = {
+  /**
+   * Resolve an adapter from a list of adapter names or functions.
+   * @type {Function}
+   */
+  getAdapter,
+  /**
+   * Exposes all known adapters
+   * @type {Object<string, Function|Object>}
+   */
+  adapters: knownAdapters
+};
+
+// node_modules/axios/lib/core/dispatchRequest.js
+function throwIfCancellationRequested(config) {
+  if (config.cancelToken) {
+    config.cancelToken.throwIfRequested();
+  }
+  if (config.signal && config.signal.aborted) {
+    throw new CanceledError_default(null, config);
+  }
+}
+function dispatchRequest(config) {
+  throwIfCancellationRequested(config);
+  config.headers = AxiosHeaders_default.from(config.headers);
+  config.data = transformData.call(
+    config,
+    config.transformRequest
+  );
+  if (["post", "put", "patch"].indexOf(config.method) !== -1) {
+    config.headers.setContentType("application/x-www-form-urlencoded", false);
+  }
+  const adapter2 = adapters_default.getAdapter(config.adapter || defaults_default.adapter, config);
+  return adapter2(config).then(function onAdapterResolution(response) {
+    throwIfCancellationRequested(config);
+    response.data = transformData.call(
+      config,
+      config.transformResponse,
+      response
+    );
+    response.headers = AxiosHeaders_default.from(response.headers);
+    return response;
+  }, function onAdapterRejection(reason) {
+    if (!isCancel(reason)) {
+      throwIfCancellationRequested(config);
+      if (reason && reason.response) {
+        reason.response.data = transformData.call(
+          config,
+          config.transformResponse,
+          reason.response
+        );
+        reason.response.headers = AxiosHeaders_default.from(reason.response.headers);
+      }
+    }
+    return Promise.reject(reason);
+  });
+}
+
+// node_modules/axios/lib/helpers/validator.js
+var validators = {};
+["object", "boolean", "number", "function", "string", "symbol"].forEach((type, i) => {
+  validators[type] = function validator(thing) {
+    return typeof thing === type || "a" + (i < 1 ? "n " : " ") + type;
+  };
+});
+var deprecatedWarnings = {};
+validators.transitional = function transitional(validator, version, message) {
+  function formatMessage(opt, desc) {
+    return "[Axios v" + VERSION + "] Transitional option '" + opt + "'" + desc + (message ? ". " + message : "");
+  }
+  return (value, opt, opts) => {
+    if (validator === false) {
+      throw new AxiosError_default(
+        formatMessage(opt, " has been removed" + (version ? " in " + version : "")),
+        AxiosError_default.ERR_DEPRECATED
+      );
+    }
+    if (version && !deprecatedWarnings[opt]) {
+      deprecatedWarnings[opt] = true;
+      console.warn(
+        formatMessage(
+          opt,
+          " has been deprecated since v" + version + " and will be removed in the near future"
+        )
+      );
+    }
+    return validator ? validator(value, opt, opts) : true;
+  };
+};
+validators.spelling = function spelling(correctSpelling) {
+  return (value, opt) => {
+    console.warn(`${opt} is likely a misspelling of ${correctSpelling}`);
+    return true;
+  };
+};
+function assertOptions(options, schema, allowUnknown) {
+  if (typeof options !== "object") {
+    throw new AxiosError_default("options must be an object", AxiosError_default.ERR_BAD_OPTION_VALUE);
+  }
+  const keys = Object.keys(options);
+  let i = keys.length;
+  while (i-- > 0) {
+    const opt = keys[i];
+    const validator = schema[opt];
+    if (validator) {
+      const value = options[opt];
+      const result = value === void 0 || validator(value, opt, options);
+      if (result !== true) {
+        throw new AxiosError_default("option " + opt + " must be " + result, AxiosError_default.ERR_BAD_OPTION_VALUE);
+      }
+      continue;
+    }
+    if (allowUnknown !== true) {
+      throw new AxiosError_default("Unknown option " + opt, AxiosError_default.ERR_BAD_OPTION);
+    }
+  }
+}
+var validator_default = {
+  assertOptions,
+  validators
+};
+
+// node_modules/axios/lib/core/Axios.js
+var validators2 = validator_default.validators;
+var Axios = class {
+  constructor(instanceConfig) {
+    this.defaults = instanceConfig || {};
+    this.interceptors = {
+      request: new InterceptorManager_default(),
+      response: new InterceptorManager_default()
+    };
+  }
+  /**
+   * Dispatch a request
+   *
+   * @param {String|Object} configOrUrl The config specific for this request (merged with this.defaults)
+   * @param {?Object} config
+   *
+   * @returns {Promise} The Promise to be fulfilled
+   */
+  async request(configOrUrl, config) {
+    try {
+      return await this._request(configOrUrl, config);
+    } catch (err) {
+      if (err instanceof Error) {
+        let dummy = {};
+        Error.captureStackTrace ? Error.captureStackTrace(dummy) : dummy = new Error();
+        const stack = dummy.stack ? dummy.stack.replace(/^.+\n/, "") : "";
+        try {
+          if (!err.stack) {
+            err.stack = stack;
+          } else if (stack && !String(err.stack).endsWith(stack.replace(/^.+\n.+\n/, ""))) {
+            err.stack += "\n" + stack;
+          }
+        } catch (e) {
+        }
+      }
+      throw err;
+    }
+  }
+  _request(configOrUrl, config) {
+    if (typeof configOrUrl === "string") {
+      config = config || {};
+      config.url = configOrUrl;
+    } else {
+      config = configOrUrl || {};
+    }
+    config = mergeConfig(this.defaults, config);
+    const { transitional: transitional2, paramsSerializer, headers } = config;
+    if (transitional2 !== void 0) {
+      validator_default.assertOptions(transitional2, {
+        silentJSONParsing: validators2.transitional(validators2.boolean),
+        forcedJSONParsing: validators2.transitional(validators2.boolean),
+        clarifyTimeoutError: validators2.transitional(validators2.boolean),
+        legacyInterceptorReqResOrdering: validators2.transitional(validators2.boolean)
+      }, false);
+    }
+    if (paramsSerializer != null) {
+      if (utils_default.isFunction(paramsSerializer)) {
+        config.paramsSerializer = {
+          serialize: paramsSerializer
+        };
+      } else {
+        validator_default.assertOptions(paramsSerializer, {
+          encode: validators2.function,
+          serialize: validators2.function
+        }, true);
+      }
+    }
+    if (config.allowAbsoluteUrls !== void 0) {
+    } else if (this.defaults.allowAbsoluteUrls !== void 0) {
+      config.allowAbsoluteUrls = this.defaults.allowAbsoluteUrls;
+    } else {
+      config.allowAbsoluteUrls = true;
+    }
+    validator_default.assertOptions(config, {
+      baseUrl: validators2.spelling("baseURL"),
+      withXsrfToken: validators2.spelling("withXSRFToken")
+    }, true);
+    config.method = (config.method || this.defaults.method || "get").toLowerCase();
+    let contextHeaders = headers && utils_default.merge(
+      headers.common,
+      headers[config.method]
+    );
+    headers && utils_default.forEach(
+      ["delete", "get", "head", "post", "put", "patch", "common"],
+      (method) => {
+        delete headers[method];
+      }
+    );
+    config.headers = AxiosHeaders_default.concat(contextHeaders, headers);
+    const requestInterceptorChain = [];
+    let synchronousRequestInterceptors = true;
+    this.interceptors.request.forEach(function unshiftRequestInterceptors(interceptor) {
+      if (typeof interceptor.runWhen === "function" && interceptor.runWhen(config) === false) {
+        return;
+      }
+      synchronousRequestInterceptors = synchronousRequestInterceptors && interceptor.synchronous;
+      const transitional3 = config.transitional || transitional_default;
+      const legacyInterceptorReqResOrdering = transitional3 && transitional3.legacyInterceptorReqResOrdering;
+      if (legacyInterceptorReqResOrdering) {
+        requestInterceptorChain.unshift(interceptor.fulfilled, interceptor.rejected);
+      } else {
+        requestInterceptorChain.push(interceptor.fulfilled, interceptor.rejected);
+      }
+    });
+    const responseInterceptorChain = [];
+    this.interceptors.response.forEach(function pushResponseInterceptors(interceptor) {
+      responseInterceptorChain.push(interceptor.fulfilled, interceptor.rejected);
+    });
+    let promise;
+    let i = 0;
+    let len;
+    if (!synchronousRequestInterceptors) {
+      const chain = [dispatchRequest.bind(this), void 0];
+      chain.unshift(...requestInterceptorChain);
+      chain.push(...responseInterceptorChain);
+      len = chain.length;
+      promise = Promise.resolve(config);
+      while (i < len) {
+        promise = promise.then(chain[i++], chain[i++]);
+      }
+      return promise;
+    }
+    len = requestInterceptorChain.length;
+    let newConfig = config;
+    while (i < len) {
+      const onFulfilled = requestInterceptorChain[i++];
+      const onRejected = requestInterceptorChain[i++];
+      try {
+        newConfig = onFulfilled(newConfig);
+      } catch (error) {
+        onRejected.call(this, error);
+        break;
+      }
+    }
+    try {
+      promise = dispatchRequest.call(this, newConfig);
+    } catch (error) {
+      return Promise.reject(error);
+    }
+    i = 0;
+    len = responseInterceptorChain.length;
+    while (i < len) {
+      promise = promise.then(responseInterceptorChain[i++], responseInterceptorChain[i++]);
+    }
+    return promise;
+  }
+  getUri(config) {
+    config = mergeConfig(this.defaults, config);
+    const fullPath = buildFullPath(config.baseURL, config.url, config.allowAbsoluteUrls);
+    return buildURL(fullPath, config.params, config.paramsSerializer);
+  }
+};
+utils_default.forEach(["delete", "get", "head", "options"], function forEachMethodNoData(method) {
+  Axios.prototype[method] = function(url2, config) {
+    return this.request(mergeConfig(config || {}, {
+      method,
+      url: url2,
+      data: (config || {}).data
+    }));
+  };
+});
+utils_default.forEach(["post", "put", "patch"], function forEachMethodWithData(method) {
+  function generateHTTPMethod(isForm) {
+    return function httpMethod(url2, data, config) {
+      return this.request(mergeConfig(config || {}, {
+        method,
+        headers: isForm ? {
+          "Content-Type": "multipart/form-data"
+        } : {},
+        url: url2,
+        data
+      }));
+    };
+  }
+  Axios.prototype[method] = generateHTTPMethod();
+  Axios.prototype[method + "Form"] = generateHTTPMethod(true);
+});
+var Axios_default = Axios;
+
+// node_modules/axios/lib/cancel/CancelToken.js
+var CancelToken = class _CancelToken {
+  constructor(executor) {
+    if (typeof executor !== "function") {
+      throw new TypeError("executor must be a function.");
+    }
+    let resolvePromise;
+    this.promise = new Promise(function promiseExecutor(resolve) {
+      resolvePromise = resolve;
+    });
+    const token = this;
+    this.promise.then((cancel) => {
+      if (!token._listeners)
+        return;
+      let i = token._listeners.length;
+      while (i-- > 0) {
+        token._listeners[i](cancel);
+      }
+      token._listeners = null;
+    });
+    this.promise.then = (onfulfilled) => {
+      let _resolve;
+      const promise = new Promise((resolve) => {
+        token.subscribe(resolve);
+        _resolve = resolve;
+      }).then(onfulfilled);
+      promise.cancel = function reject() {
+        token.unsubscribe(_resolve);
+      };
+      return promise;
+    };
+    executor(function cancel(message, config, request) {
+      if (token.reason) {
+        return;
+      }
+      token.reason = new CanceledError_default(message, config, request);
+      resolvePromise(token.reason);
+    });
+  }
+  /**
+   * Throws a `CanceledError` if cancellation has been requested.
+   */
+  throwIfRequested() {
+    if (this.reason) {
+      throw this.reason;
+    }
+  }
+  /**
+   * Subscribe to the cancel signal
+   */
+  subscribe(listener) {
+    if (this.reason) {
+      listener(this.reason);
+      return;
+    }
+    if (this._listeners) {
+      this._listeners.push(listener);
+    } else {
+      this._listeners = [listener];
+    }
+  }
+  /**
+   * Unsubscribe from the cancel signal
+   */
+  unsubscribe(listener) {
+    if (!this._listeners) {
+      return;
+    }
+    const index = this._listeners.indexOf(listener);
+    if (index !== -1) {
+      this._listeners.splice(index, 1);
+    }
+  }
+  toAbortSignal() {
+    const controller = new AbortController();
+    const abort = (err) => {
+      controller.abort(err);
+    };
+    this.subscribe(abort);
+    controller.signal.unsubscribe = () => this.unsubscribe(abort);
+    return controller.signal;
+  }
+  /**
+   * Returns an object that contains a new `CancelToken` and a function that, when called,
+   * cancels the `CancelToken`.
+   */
+  static source() {
+    let cancel;
+    const token = new _CancelToken(function executor(c) {
+      cancel = c;
+    });
+    return {
+      token,
+      cancel
+    };
+  }
+};
+var CancelToken_default = CancelToken;
+
+// node_modules/axios/lib/helpers/spread.js
+function spread(callback) {
+  return function wrap(arr) {
+    return callback.apply(null, arr);
+  };
+}
+
+// node_modules/axios/lib/helpers/isAxiosError.js
+function isAxiosError(payload) {
+  return utils_default.isObject(payload) && payload.isAxiosError === true;
+}
+
+// node_modules/axios/lib/helpers/HttpStatusCode.js
+var HttpStatusCode = {
+  Continue: 100,
+  SwitchingProtocols: 101,
+  Processing: 102,
+  EarlyHints: 103,
+  Ok: 200,
+  Created: 201,
+  Accepted: 202,
+  NonAuthoritativeInformation: 203,
+  NoContent: 204,
+  ResetContent: 205,
+  PartialContent: 206,
+  MultiStatus: 207,
+  AlreadyReported: 208,
+  ImUsed: 226,
+  MultipleChoices: 300,
+  MovedPermanently: 301,
+  Found: 302,
+  SeeOther: 303,
+  NotModified: 304,
+  UseProxy: 305,
+  Unused: 306,
+  TemporaryRedirect: 307,
+  PermanentRedirect: 308,
+  BadRequest: 400,
+  Unauthorized: 401,
+  PaymentRequired: 402,
+  Forbidden: 403,
+  NotFound: 404,
+  MethodNotAllowed: 405,
+  NotAcceptable: 406,
+  ProxyAuthenticationRequired: 407,
+  RequestTimeout: 408,
+  Conflict: 409,
+  Gone: 410,
+  LengthRequired: 411,
+  PreconditionFailed: 412,
+  PayloadTooLarge: 413,
+  UriTooLong: 414,
+  UnsupportedMediaType: 415,
+  RangeNotSatisfiable: 416,
+  ExpectationFailed: 417,
+  ImATeapot: 418,
+  MisdirectedRequest: 421,
+  UnprocessableEntity: 422,
+  Locked: 423,
+  FailedDependency: 424,
+  TooEarly: 425,
+  UpgradeRequired: 426,
+  PreconditionRequired: 428,
+  TooManyRequests: 429,
+  RequestHeaderFieldsTooLarge: 431,
+  UnavailableForLegalReasons: 451,
+  InternalServerError: 500,
+  NotImplemented: 501,
+  BadGateway: 502,
+  ServiceUnavailable: 503,
+  GatewayTimeout: 504,
+  HttpVersionNotSupported: 505,
+  VariantAlsoNegotiates: 506,
+  InsufficientStorage: 507,
+  LoopDetected: 508,
+  NotExtended: 510,
+  NetworkAuthenticationRequired: 511,
+  WebServerIsDown: 521,
+  ConnectionTimedOut: 522,
+  OriginIsUnreachable: 523,
+  TimeoutOccurred: 524,
+  SslHandshakeFailed: 525,
+  InvalidSslCertificate: 526
+};
+Object.entries(HttpStatusCode).forEach(([key, value]) => {
+  HttpStatusCode[value] = key;
+});
+var HttpStatusCode_default = HttpStatusCode;
+
+// node_modules/axios/lib/axios.js
+function createInstance(defaultConfig) {
+  const context = new Axios_default(defaultConfig);
+  const instance = bind(Axios_default.prototype.request, context);
+  utils_default.extend(instance, Axios_default.prototype, context, { allOwnKeys: true });
+  utils_default.extend(instance, context, null, { allOwnKeys: true });
+  instance.create = function create(instanceConfig) {
+    return createInstance(mergeConfig(defaultConfig, instanceConfig));
+  };
+  return instance;
+}
+var axios = createInstance(defaults_default);
+axios.Axios = Axios_default;
+axios.CanceledError = CanceledError_default;
+axios.CancelToken = CancelToken_default;
+axios.isCancel = isCancel;
+axios.VERSION = VERSION;
+axios.toFormData = toFormData_default;
+axios.AxiosError = AxiosError_default;
+axios.Cancel = axios.CanceledError;
+axios.all = function all(promises) {
+  return Promise.all(promises);
+};
+axios.spread = spread;
+axios.isAxiosError = isAxiosError;
+axios.mergeConfig = mergeConfig;
+axios.AxiosHeaders = AxiosHeaders_default;
+axios.formToJSON = (thing) => formDataToJSON_default(utils_default.isHTMLForm(thing) ? new FormData(thing) : thing);
+axios.getAdapter = adapters_default.getAdapter;
+axios.HttpStatusCode = HttpStatusCode_default;
+axios.default = axios;
+var axios_default = axios;
+
+// node_modules/axios/index.js
+var {
+  Axios: Axios2,
+  AxiosError: AxiosError2,
+  CanceledError: CanceledError2,
+  isCancel: isCancel2,
+  CancelToken: CancelToken2,
+  VERSION: VERSION2,
+  all: all2,
+  Cancel,
+  isAxiosError: isAxiosError2,
+  spread: spread2,
+  toFormData: toFormData2,
+  AxiosHeaders: AxiosHeaders2,
+  HttpStatusCode: HttpStatusCode2,
+  formToJSON,
+  getAdapter: getAdapter2,
+  mergeConfig: mergeConfig2
+} = axios_default;
+
+// src/core/ApiClient.ts
+var https2 = __toESM(require("https"));
+var ApiClient = class {
+  constructor(configService, eventBus, outputChannel) {
+    this.configService = configService;
+    this.eventBus = eventBus;
+    this.outputChannel = outputChannel;
+    const baseURL = this.configService.getServerUrl();
+    const allowSelfSigned = this.configService.getAllowSelfSigned();
+    this.client = axios_default.create({
+      baseURL,
+      timeout: 3e4,
+      httpsAgent: allowSelfSigned ? new https2.Agent({ rejectUnauthorized: false }) : void 0
+    });
+    this.client.interceptors.request.use((config) => {
+      if (this.token) {
+        config.headers.Authorization = `Bearer ${this.token}`;
+      }
+      return config;
+    });
+    this.client.interceptors.response.use(
+      (response) => response,
+      async (error) => {
+        if (error.response?.status === 401) {
+          this.outputChannel.appendLine("[ApiClient] 401 \u2014 session expired");
+          this.eventBus.emit("auth:logout", void 0);
+        }
+        throw error;
+      }
+    );
+    this.eventBus.on("config:changed", () => {
+      this.client.defaults.baseURL = this.configService.getServerUrl();
+    });
+  }
+  client;
+  token = null;
+  setToken(token) {
+    this.token = token;
+  }
+  clearToken() {
+    this.token = null;
+  }
+  hasToken() {
+    return this.token !== null;
+  }
+  async get(path, params) {
+    const response = await this.withRetry(
+      () => this.client.get(path, { params })
+    );
+    return response.data.data;
+  }
+  async post(path, body) {
+    const response = await this.withRetry(
+      () => this.client.post(path, body)
+    );
+    return response.data.data;
+  }
+  async delete(path) {
+    const response = await this.withRetry(
+      () => this.client.delete(path)
+    );
+    return response.data.data;
+  }
+  stream(path, body, onChunk, onError) {
+    const controller = new AbortController();
+    this.doStream(path, body, onChunk, onError, controller);
+    return controller;
+  }
+  async doStream(path, body, onChunk, onError, controller, attempt = 0) {
+    const maxRetries = 5;
+    const baseURL = this.configService.getServerUrl();
+    const url2 = `${baseURL}${path}`;
+    try {
+      const response = await fetch(url2, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...this.token ? { Authorization: `Bearer ${this.token}` } : {}
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal
+      });
+      if (!response.ok) {
+        if (response.status === 401) {
+          this.eventBus.emit("auth:logout", void 0);
+        }
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error("No response body");
+      }
+      const decoder = new TextDecoder();
+      let buffer = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          break;
+        }
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            try {
+              const chunk = JSON.parse(line.slice(6));
+              onChunk(chunk);
+            } catch {
+            }
+          }
+        }
+      }
+    } catch (error) {
+      if (controller.signal.aborted) {
+        return;
+      }
+      if (attempt < maxRetries) {
+        const delay = Math.min(1e3 * Math.pow(2, attempt), 3e4);
+        this.outputChannel.appendLine(
+          `[ApiClient] SSE reconnect attempt ${attempt + 1}/${maxRetries} in ${delay}ms`
+        );
+        await new Promise((r) => setTimeout(r, delay));
+        return this.doStream(path, body, onChunk, onError, controller, attempt + 1);
+      }
+      this.outputChannel.appendLine(
+        `[ApiClient] SSE failed after ${maxRetries} retries`
+      );
+      onError?.(error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+  async withRetry(fn, retries = 3) {
+    for (let i = 0; i < retries; i++) {
+      try {
+        return await fn();
+      } catch (error) {
+        if (i === retries - 1) {
+          throw error;
+        }
+        const axiosErr = error;
+        if (axiosErr.response?.status === 401 || axiosErr.response?.status === 403) {
+          throw error;
+        }
+        const delay = Math.min(1e3 * Math.pow(2, i), 1e4);
+        await new Promise((r) => setTimeout(r, delay));
+      }
+    }
+    throw new Error("Unreachable");
+  }
+};
+
+// src/core/AuthService.ts
+var vscode2 = __toESM(require("vscode"));
+var TOKEN_KEY = "enterprise-ai.token";
+var USER_KEY = "enterprise-ai.user";
+var AuthService = class {
+  constructor(apiClient, eventBus, context, outputChannel) {
+    this.apiClient = apiClient;
+    this.eventBus = eventBus;
+    this.context = context;
+    this.outputChannel = outputChannel;
+    this.eventBus.on("auth:logout", () => this.handleLogout());
+  }
+  currentUser = null;
+  async login(email, password, totp) {
+    try {
+      const response = await this.apiClient.post(API_PATHS.LOGIN, {
+        email,
+        password,
+        ...totp ? { totp } : {}
+      });
+      this.apiClient.setToken(response.token);
+      this.currentUser = response.user;
+      await this.context.globalState.update(TOKEN_KEY, response.token);
+      await this.context.globalState.update(USER_KEY, JSON.stringify(response.user));
+      this.eventBus.emit("auth:login", {
+        userId: String(response.user.id),
+        email: response.user.email
+      });
+      this.outputChannel.appendLine(`[Auth] Login successful: ${response.user.email}`);
+      return true;
+    } catch (error) {
+      this.outputChannel.appendLine(`[Auth] Login failed: ${error}`);
+      vscode2.window.showErrorMessage("Login failed. Check credentials.");
+      return false;
+    }
+  }
+  logout() {
+    this.eventBus.emit("auth:logout", void 0);
+    this.outputChannel.appendLine("[Auth] Logged out");
+  }
+  tryRestoreSession() {
+    const token = this.context.globalState.get(TOKEN_KEY);
+    const userJson = this.context.globalState.get(USER_KEY);
+    if (token && userJson) {
+      try {
+        this.currentUser = JSON.parse(userJson);
+        this.apiClient.setToken(token);
+        this.eventBus.emit("auth:login", {
+          userId: String(this.currentUser.id),
+          email: this.currentUser.email
+        });
+        this.outputChannel.appendLine(`[Auth] Session restored: ${this.currentUser.email}`);
+        return true;
+      } catch {
+        this.outputChannel.appendLine("[Auth] Failed to restore session");
+      }
+    }
+    return false;
+  }
+  getUser() {
+    return this.currentUser ? { ...this.currentUser } : null;
+  }
+  isAuthenticated() {
+    return this.currentUser !== null && this.apiClient.hasToken();
+  }
+  handleLogout() {
+    this.currentUser = null;
+    this.apiClient.clearToken();
+    this.context.globalState.update(TOKEN_KEY, void 0).then(void 0, (err) => {
+      this.outputChannel.appendLine(`[Auth] Failed to clear token: ${err}`);
+    });
+    this.context.globalState.update(USER_KEY, void 0).then(void 0, (err) => {
+      this.outputChannel.appendLine(`[Auth] Failed to clear user: ${err}`);
+    });
+  }
+};
+
+// src/modules/chat/ChatPanel.ts
+var vscode3 = __toESM(require("vscode"));
+
+// src/modules/chat/ChatService.ts
+var ChatService = class {
+  constructor(apiClient, eventBus, outputChannel) {
+    this.apiClient = apiClient;
+    this.eventBus = eventBus;
+    this.outputChannel = outputChannel;
+  }
+  currentController = null;
+  async loadModels() {
+    const models = await this.apiClient.get(API_PATHS.MODELS);
+    this.eventBus.emit("models:loaded", { models });
+    this.outputChannel.appendLine(`[Chat] Loaded ${models.length} models`);
+    return models;
+  }
+  async loadConversations() {
+    return this.apiClient.get(API_PATHS.CONVERSATIONS);
+  }
+  async deleteConversation(id) {
+    await this.apiClient.delete(`${API_PATHS.CONVERSATIONS}/${id}`);
+  }
+  sendMessage(message, modelId, onChunk, onError, conversationId) {
+    this.abortCurrentRequest();
+    this.currentController = this.apiClient.stream(
+      API_PATHS.COMPLETIONS,
+      {
+        message,
+        model: modelId,
+        ...conversationId ? { conversationId } : {},
+        stream: true
+      },
+      onChunk,
+      onError
+    );
+  }
+  abortCurrentRequest() {
+    if (this.currentController) {
+      this.currentController.abort();
+      this.currentController = null;
+    }
+  }
+};
+
+// src/modules/chat/ChatPanel.ts
+var ChatPanel = class {
+  constructor(context) {
+    this.context = context;
+    this.chatService = new ChatService(
+      context.apiClient,
+      context.eventBus,
+      context.outputChannel
+    );
+    context.eventBus.on("auth:login", async () => {
+      const models = await this.chatService.loadModels();
+      const user = context.authService.getUser();
+      if (user && this.panel) {
+        this.postMessage({ type: "setAuthenticated", payload: { user, models } });
+      }
+    });
+    context.eventBus.on("auth:logout", () => {
+      this.postMessage({ type: "setUnauthenticated" });
+    });
+  }
+  panel = null;
+  chatService;
+  show() {
+    if (this.panel) {
+      this.panel.reveal();
+      return;
+    }
+    this.panel = vscode3.window.createWebviewPanel(
+      "enterprise-ai.chat",
+      "Enterprise AI Chat",
+      vscode3.ViewColumn.Beside,
+      {
+        enableScripts: true,
+        retainContextWhenHidden: true,
+        localResourceRoots: [
+          vscode3.Uri.joinPath(this.context.extensionContext.extensionUri, "out")
+        ]
+      }
+    );
+    this.panel.webview.html = this.getHtml();
+    this.panel.webview.onDidReceiveMessage(
+      (msg) => this.handleMessage(msg),
+      void 0,
+      this.context.extensionContext.subscriptions
+    );
+    this.panel.onDidDispose(() => {
+      this.panel = null;
+    });
+  }
+  postMessage(message) {
+    this.panel?.webview.postMessage(message);
+  }
+  async handleMessage(message) {
+    try {
+      switch (message.type) {
+        case "ready": {
+          if (this.context.authService.isAuthenticated()) {
+            const models = await this.chatService.loadModels();
+            const user = this.context.authService.getUser();
+            if (user) {
+              this.postMessage({ type: "setAuthenticated", payload: { user, models } });
+            }
+          }
+          break;
+        }
+        case "sendMessage": {
+          const { message: text, modelId, conversationId } = message.payload;
+          this.chatService.sendMessage(
+            text,
+            modelId,
+            (chunk) => {
+              this.postMessage({ type: "streamChunk", payload: chunk });
+              if (chunk.done) {
+                this.postMessage({ type: "streamEnd" });
+              }
+            },
+            (error) => this.postMessage({ type: "streamError", payload: { message: error.message } }),
+            conversationId
+          );
+          break;
+        }
+        case "abortRequest":
+          this.chatService.abortCurrentRequest();
+          break;
+        case "newChat":
+          break;
+        case "loadConversations": {
+          const conversations = await this.chatService.loadConversations();
+          this.postMessage({ type: "setConversations", payload: { conversations } });
+          break;
+        }
+        case "deleteConversation":
+          await this.chatService.deleteConversation(message.payload.id);
+          break;
+        case "login": {
+          const { email, password, totp } = message.payload;
+          await this.context.authService.login(email, password, totp);
+          break;
+        }
+        case "logout":
+          this.context.authService.logout();
+          break;
+      }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.context.outputChannel.appendLine(`[ChatPanel] Error handling ${message.type}: ${msg}`);
+      this.postMessage({ type: "streamError", payload: { message: msg } });
+    }
+  }
+  getHtml() {
+    const webview = this.panel.webview;
+    const scriptUri = webview.asWebviewUri(
+      vscode3.Uri.joinPath(this.context.extensionContext.extensionUri, "out", "chatWebview.js")
+    );
+    const styleUri = webview.asWebviewUri(
+      vscode3.Uri.joinPath(this.context.extensionContext.extensionUri, "out", "theme.css")
+    );
+    const nonce = getNonce();
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="${styleUri}" rel="stylesheet">
+  <title>Enterprise AI Chat</title>
+</head>
+<body>
+  <div id="root"></div>
+  <script nonce="${nonce}" src="${scriptUri}"></script>
+</body>
+</html>`;
+  }
+};
+function getNonce() {
+  const array = new Uint8Array(16);
+  crypto.getRandomValues(array);
+  return Array.from(array, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+// src/modules/chat/ChatCommands.ts
+var vscode4 = __toESM(require("vscode"));
+function registerChatCommands(context, getPanel) {
+  return [
+    vscode4.commands.registerCommand("enterprise-ai.openChat", () => {
+      getPanel().show();
+    }),
+    vscode4.commands.registerCommand("enterprise-ai.newChat", () => {
+      getPanel().postMessage({ type: "newChat" });
+    }),
+    vscode4.commands.registerCommand("enterprise-ai.abortRequest", () => {
+      getPanel().postMessage({ type: "abortRequest" });
+    }),
+    vscode4.commands.registerCommand("enterprise-ai.addToChat", () => {
+      const editor = vscode4.window.activeTextEditor;
+      if (!editor) {
+        return;
+      }
+      const selection = editor.document.getText(editor.selection);
+      if (!selection) {
+        return;
+      }
+      const fileName = editor.document.fileName;
+      const panel = getPanel();
+      panel.show();
+      panel.postMessage({
+        type: "addContext",
+        payload: { text: selection, fileName }
+      });
+    }),
+    vscode4.commands.registerCommand("enterprise-ai.addFileToContext", (uri) => {
+      if (!uri) {
+        return;
+      }
+      const panel = getPanel();
+      panel.show();
+      panel.postMessage({
+        type: "addFileContext",
+        payload: { filePath: uri.fsPath }
+      });
+    }),
+    vscode4.commands.registerCommand("enterprise-ai.chatWithContext", () => {
+      const editor = vscode4.window.activeTextEditor;
+      if (!editor) {
+        return;
+      }
+      const selection = editor.document.getText(editor.selection);
+      const fileName = editor.document.fileName;
+      const panel = getPanel();
+      panel.show();
+      panel.postMessage({
+        type: "addContext",
+        payload: { text: selection || editor.document.getText(), fileName }
+      });
+    }),
+    vscode4.commands.registerCommand("enterprise-ai.login", async () => {
+      const email = await vscode4.window.showInputBox({ prompt: "Email", placeHolder: "admin@enterprise.local" });
+      if (!email) {
+        return;
+      }
+      const password = await vscode4.window.showInputBox({ prompt: "Password", password: true });
+      if (!password) {
+        return;
+      }
+      const totp = await vscode4.window.showInputBox({ prompt: "TOTP code (leave empty if not enabled)", placeHolder: "000000" });
+      await context.authService.login(email, password, totp || void 0);
+    }),
+    vscode4.commands.registerCommand("enterprise-ai.logout", () => {
+      context.authService.logout();
+      vscode4.window.showInformationMessage("Logged out from Enterprise AI");
+    }),
+    vscode4.commands.registerCommand("enterprise-ai.configure", () => {
+      vscode4.commands.executeCommand("workbench.action.openSettings", "enterprise-ai");
+    }),
+    vscode4.commands.registerCommand("enterprise-ai.showLogs", () => {
+      context.outputChannel.show();
+    })
+  ];
+}
+
+// src/modules/code-actions/CodeActionCommands.ts
+var vscode5 = __toESM(require("vscode"));
+function registerCodeActionCommands(getPanel) {
+  const codeActionCommands = [
+    { id: "enterprise-ai.explainCode", prompt: "Explain the following code:\n\n" },
+    { id: "enterprise-ai.fixCode", prompt: "Fix any issues in the following code:\n\n" },
+    { id: "enterprise-ai.improveCode", prompt: "Improve the following code:\n\n" },
+    { id: "enterprise-ai.generateTests", prompt: "Generate tests for the following code:\n\n" }
+  ];
+  return codeActionCommands.map(
+    ({ id, prompt }) => vscode5.commands.registerCommand(id, () => {
+      const editor = vscode5.window.activeTextEditor;
+      if (!editor) {
+        return;
+      }
+      const selection = editor.document.getText(editor.selection);
+      if (!selection) {
+        vscode5.window.showWarningMessage("Select code first");
+        return;
+      }
+      const lang = editor.document.languageId;
+      const fileName = editor.document.fileName;
+      const panel = getPanel();
+      panel.show();
+      panel.postMessage({
+        type: "prefillMessage",
+        payload: { text: `${prompt}\`\`\`${lang}
+${selection}
+\`\`\`
+
+File: ${fileName}` }
+      });
+    })
+  );
+}
+
+// src/modules/code-actions/CodeActionProvider.ts
+var vscode6 = __toESM(require("vscode"));
+var EnterpriseAICodeActionProvider = class {
+  static providedCodeActionKinds = [vscode6.CodeActionKind.QuickFix];
+  provideCodeActions(document2, range) {
+    if (range.isEmpty) {
+      return [];
+    }
+    const actions = [];
+    const commands3 = [
+      { title: "Explain Code", command: "enterprise-ai.explainCode" },
+      { title: "Fix Code", command: "enterprise-ai.fixCode" },
+      { title: "Improve Code", command: "enterprise-ai.improveCode" },
+      { title: "Generate Tests", command: "enterprise-ai.generateTests" }
+    ];
+    for (const { title, command } of commands3) {
+      const action = new vscode6.CodeAction(`Enterprise AI: ${title}`, vscode6.CodeActionKind.QuickFix);
+      action.command = { command, title };
+      actions.push(action);
+    }
+    return actions;
+  }
+};
+
+// src/extension.ts
+function activate(context) {
+  const outputChannel = vscode7.window.createOutputChannel(OUTPUT_CHANNEL_NAME);
+  outputChannel.appendLine("[Extension] Activating Enterprise AI...");
+  const eventBus = new EventBus();
+  const configService = new ConfigService(eventBus);
+  const apiClient = new ApiClient(configService, eventBus, outputChannel);
+  const authService = new AuthService(apiClient, eventBus, context, outputChannel);
+  const moduleContext = {
+    extensionContext: context,
+    apiClient,
+    authService,
+    configService,
+    eventBus,
+    outputChannel
+  };
+  let chatPanel = null;
+  const getPanel = () => {
+    if (!chatPanel) {
+      chatPanel = new ChatPanel(moduleContext);
+    }
+    return chatPanel;
+  };
+  const disposables = [
+    ...registerChatCommands(moduleContext, getPanel),
+    ...registerCodeActionCommands(getPanel),
+    vscode7.languages.registerCodeActionsProvider(
+      { scheme: "file" },
+      new EnterpriseAICodeActionProvider(),
+      { providedCodeActionKinds: EnterpriseAICodeActionProvider.providedCodeActionKinds }
+    )
+  ];
+  context.subscriptions.push(...disposables, outputChannel);
+  authService.tryRestoreSession();
+  outputChannel.appendLine("[Extension] Activated");
+}
+function deactivate() {
+}
+// Annotate the CommonJS export names for ESM import in node:
+0 && (module.exports = {
+  activate,
+  deactivate
+});
+/*! Bundled license information:
+
+mime-db/index.js:
+  (*!
+   * mime-db
+   * Copyright(c) 2014 Jonathan Ong
+   * Copyright(c) 2015-2022 Douglas Christopher Wilson
+   * MIT Licensed
+   *)
+
+mime-types/index.js:
+  (*!
+   * mime-types
+   * Copyright(c) 2014 Jonathan Ong
+   * Copyright(c) 2015 Douglas Christopher Wilson
+   * MIT Licensed
+   *)
+*/

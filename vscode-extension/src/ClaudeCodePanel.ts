@@ -180,7 +180,8 @@ export class ClaudeCodePanel {
                 // Handle send message - emit event for extension to handle
                 vscode.commands.executeCommand(
                     'enterprise-ai-chat.sendMessage',
-                    message.message
+                    message.message,
+                    message.chatMode
                 );
                 break;
 

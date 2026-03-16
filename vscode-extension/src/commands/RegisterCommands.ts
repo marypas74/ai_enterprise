@@ -138,8 +138,8 @@ export function registerAllCommands(deps: RegisterCommandsDeps): vscode.Disposab
         }),
 
         // Handle send message from panel
-        vscode.commands.registerCommand('enterprise-ai-chat.sendMessage', async (message: string) => {
-            await handleSendMessage(message, msgDeps());
+        vscode.commands.registerCommand('enterprise-ai-chat.sendMessage', async (message: string, chatMode?: string) => {
+            await handleSendMessage(message, msgDeps(), chatMode);
         }),
 
         // Handle agentic message
