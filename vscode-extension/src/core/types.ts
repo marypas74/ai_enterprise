@@ -59,10 +59,12 @@ export type ExtensionToWebview =
   | { type: 'setUnauthenticated' }
   | { type: 'setModels'; payload: { models: AIModel[] } }
   | { type: 'setConversations'; payload: { conversations: Conversation[] } }
-  | { type: 'restoreState'; payload: Record<string, unknown> };
+  | { type: 'restoreState'; payload: Record<string, unknown> }
+  | { type: 'setDocuments'; payload: { documents: Document[] } }
+  | { type: 'documentGenerated'; payload: { fileName: string; filePath: string } };
 
 export type WebviewToExtension =
-  | { type: 'sendMessage'; payload: { message: string; modelId: string; conversationId?: number } }
+  | { type: 'sendMessage'; payload: { message: string; modelId: string; conversationId?: number; documentIds?: number[] } }
   | { type: 'abortRequest' }
   | { type: 'newChat' }
   | { type: 'loadConversations' }
@@ -70,7 +72,10 @@ export type WebviewToExtension =
   | { type: 'renameConversation'; payload: { id: number; title: string } }
   | { type: 'login'; payload: LoginRequest }
   | { type: 'logout' }
-  | { type: 'ready' };
+  | { type: 'ready' }
+  | { type: 'loadDocuments' }
+  | { type: 'searchDocuments'; payload: { query: string } }
+  | { type: 'generateDocumentFromChat'; payload: DocumentGenerateRequest };
 
 // Extension internal messages (not in protocol, used by ChatCommands -> ChatPanel)
 export type InternalToWebview =
@@ -176,3 +181,45 @@ export type OrchestratorWebviewToExtension =
   | { type: 'ready' }
   | { type: 'releaseSlot'; payload: { slotId: number } }
   | { type: 'terminateSession'; payload: { sessionId: string } };
+
+// ---- Documents ----
+export interface Document {
+  id: number;
+  name: string;
+  type: string;
+  size: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DocumentGenerateRequest {
+  format: 'docx' | 'excel' | 'pptx' | 'pdf';
+  content: string;
+  fileName?: string;
+}
+
+// ---- Worktree ----
+export interface WorktreeInfo {
+  id: string;
+  sessionId: string;
+  path: string;
+  branch: string;
+  targetBranch: string;
+  modifiedFiles: WorktreeFile[];
+  conflicts: WorktreeFile[];
+  status: 'active' | 'ready' | 'merging' | 'merged' | 'discarded';
+  agentName?: string;
+  createdAt: string;
+}
+
+export interface WorktreeFile {
+  path: string;
+  status: 'added' | 'modified' | 'deleted' | 'conflicted';
+}
+
+export interface WorktreeMergeResult {
+  success: boolean;
+  mergedBranch: string;
+  conflicts?: string[];
+  error?: string;
+}
