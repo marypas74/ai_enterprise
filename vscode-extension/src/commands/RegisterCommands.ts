@@ -163,7 +163,7 @@ export function registerAllCommands(deps: RegisterCommandsDeps): vscode.Disposab
 
         // Get version info
         vscode.commands.registerCommand('enterprise-ai-chat.getVersionInfo', async () => {
-            const extensionVersion = '1.8.10';
+            const extensionVersion = '3.0.0';
             let backendVersion = null;
 
             try {
