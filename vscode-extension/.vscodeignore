@@ -10,7 +10,7 @@ vsc-extension-quickstart.md
 **/*.ts
 **/*.tsx
 node_modules/**
-webview-ui/src/**
+webview-ui/**
 scripts/**
 
 # Test and coverage artifacts
