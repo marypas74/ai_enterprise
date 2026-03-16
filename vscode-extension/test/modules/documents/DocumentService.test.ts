@@ -123,4 +123,27 @@ describe('DocumentService', () => {
     });
     expect(result).toEqual(blob);
   });
+
+  it('should handle API error on loadDocuments and return empty array', async () => {
+    (apiClient.get as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Network error'));
+
+    const result = await documentService.loadDocuments();
+    expect(result).toEqual([]);
+  });
+
+  it('should not cache documents after API error', async () => {
+    (apiClient.get as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('Network error'));
+    await documentService.loadDocuments();
+
+    const docs = [{ id: 1, name: 'Report.pdf', type: 'pdf', size: 1024, createdAt: '', updatedAt: '' }];
+    (apiClient.get as ReturnType<typeof vi.fn>).mockResolvedValue(docs);
+    const result = await documentService.loadDocuments();
+    expect(result).toEqual(docs);
+    expect(apiClient.get).toHaveBeenCalledTimes(2);
+  });
+
+  it('should return empty array when searching without loaded documents', () => {
+    const results = documentService.searchDocuments('test');
+    expect(results).toEqual([]);
+  });
 });
