@@ -94,4 +94,25 @@ describe('AgentService', () => {
     agentService.stopLogStream();
     expect(abortFn).toHaveBeenCalled();
   });
+
+  it('should handle error when creating session', async () => {
+    (apiClient.post as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Server error'));
+    await expect(agentService.createSession('t1', 'Test')).rejects.toThrow('Server error');
+  });
+
+  it('should not emit agent:started when creation fails', async () => {
+    const listener = vi.fn();
+    eventBus.on('agent:started', listener);
+    (apiClient.post as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Server error'));
+    await expect(agentService.createSession('t1', 'Test')).rejects.toThrow();
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it('should dispose and stop log stream', () => {
+    const abortFn = vi.fn();
+    (apiClient.stream as ReturnType<typeof vi.fn>).mockReturnValue({ abort: abortFn });
+    agentService.streamSessionLogs('s1', vi.fn(), vi.fn());
+    agentService.dispose();
+    expect(abortFn).toHaveBeenCalled();
+  });
 });
