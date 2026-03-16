@@ -110,4 +110,21 @@ describe('OrchestratorStatusBar', () => {
     statusBar.onPanelClosed();
     expect(orchestratorService.startPolling).toHaveBeenCalled();
   });
+
+  it('should dispose status bar item and event listeners', () => {
+    statusBar.dispose();
+    expect(mockStatusBarItem.dispose).toHaveBeenCalled();
+  });
+
+  it('should hide status bar when config changes with show=false', () => {
+    (configService.getOrchestratorShowStatusBar as ReturnType<typeof vi.fn>).mockReturnValue(false);
+    eventBus.emit('config:changed', undefined as never);
+    expect(mockStatusBarItem.hide).toHaveBeenCalled();
+  });
+
+  it('should show status bar when config changes with show=true', () => {
+    (configService.getOrchestratorShowStatusBar as ReturnType<typeof vi.fn>).mockReturnValue(true);
+    eventBus.emit('config:changed', undefined as never);
+    expect(mockStatusBarItem.show).toHaveBeenCalled();
+  });
 });
