@@ -13,6 +13,12 @@ import { registerAgentCommands } from './modules/agents/AgentCommands';
 import { OrchestratorService } from './modules/orchestrator/OrchestratorService';
 import { OrchestratorStatusBar } from './modules/orchestrator/OrchestratorStatusBar';
 import { OrchestratorPanel } from './modules/orchestrator/OrchestratorPanel';
+import { DocumentService } from './modules/documents/DocumentService';
+import { DocumentProvider } from './modules/documents/DocumentProvider';
+import { registerDocumentCommands } from './modules/documents/DocumentCommands';
+import { WorktreeService } from './modules/worktree/WorktreeService';
+import { WorktreeScmProvider, WorktreeContentProvider } from './modules/worktree/WorktreeScmProvider';
+import { registerWorktreeCommands } from './modules/worktree/WorktreeCommands';
 import { OUTPUT_CHANNEL_NAME } from './utils/constants';
 import type { ModuleContext } from './core/types';
 
@@ -35,14 +41,24 @@ export function activate(context: vscode.ExtensionContext): void {
     outputChannel,
   };
 
+  // Documents module
+  const documentService = new DocumentService(apiClient, eventBus, outputChannel);
+
   // Chat panel (lazy)
   let chatPanel: ChatPanel | null = null;
   const getChatPanel = (): ChatPanel => {
     if (!chatPanel) {
       chatPanel = new ChatPanel(moduleContext);
+      // Wire up document provider
+      if (documentProvider) {
+        chatPanel.setDocumentProvider(documentProvider);
+      }
     }
     return chatPanel;
   };
+
+  // DocumentProvider bridges webview <-> DocumentService
+  const documentProvider = new DocumentProvider(moduleContext, documentService, getChatPanel);
 
   // Agents module
   const agentService = new AgentService(apiClient, eventBus, outputChannel);
@@ -65,11 +81,25 @@ export function activate(context: vscode.ExtensionContext): void {
     return orchestratorPanel;
   };
 
+  // Worktree module
+  const worktreeService = new WorktreeService(apiClient, eventBus, outputChannel);
+  let worktreeScmProvider: WorktreeScmProvider | null = null;
+  const getScmProvider = (): WorktreeScmProvider => {
+    if (!worktreeScmProvider) {
+      worktreeScmProvider = new WorktreeScmProvider(worktreeService, eventBus, outputChannel);
+      worktreeScmProvider.startPolling(configService.getWorktreePollingInterval());
+      worktreeScmProvider.refresh();
+    }
+    return worktreeScmProvider;
+  };
+
   // Register commands
   const disposables = [
     ...registerChatCommands(moduleContext, getChatPanel),
     ...registerCodeActionCommands(getChatPanel),
     ...registerAgentCommands(moduleContext, agentService, getAgentPanel),
+    ...registerDocumentCommands(documentService),
+    ...registerWorktreeCommands(getScmProvider),
     vscode.commands.registerCommand('enterprise-ai.openOrchestrator', () => {
       if (!authService.isAuthenticated()) {
         vscode.window.showWarningMessage('Login required to open orchestrator.');
@@ -82,6 +112,11 @@ export function activate(context: vscode.ExtensionContext): void {
       new EnterpriseAICodeActionProvider(),
       { providedCodeActionKinds: EnterpriseAICodeActionProvider.providedCodeActionKinds },
     ),
+    // Register worktree content provider for diff URIs
+    vscode.workspace.registerTextDocumentContentProvider(
+      'enterprise-ai-worktree',
+      new WorktreeContentProvider(),
+    ),
   ];
 
   context.subscriptions.push(
@@ -89,12 +124,32 @@ export function activate(context: vscode.ExtensionContext): void {
     orchestratorStatusBar,
     { dispose: () => orchestratorService.dispose() },
     { dispose: () => agentService.dispose() },
+    { dispose: () => worktreeService.dispose() },
+    { dispose: () => documentService.dispose() },
+    { dispose: () => documentProvider.dispose() },
     outputChannel,
   );
 
   // Restore session
   authService.tryRestoreSession();
-  outputChannel.appendLine('[Extension] Activated');
+
+  // Initialize worktree SCM if already authenticated
+  if (authService.isAuthenticated()) {
+    getScmProvider();
+  }
+
+  // Start worktree SCM on login, stop on logout
+  eventBus.on('auth:login', () => {
+    getScmProvider();
+  });
+
+  eventBus.on('auth:logout', () => {
+    if (worktreeScmProvider) {
+      worktreeScmProvider.stopPolling();
+    }
+  });
+
+  outputChannel.appendLine('[Extension] Activated (Phase 3: Documents + Worktree)');
 }
 
 export function deactivate(): void {

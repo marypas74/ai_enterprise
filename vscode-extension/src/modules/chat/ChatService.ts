@@ -34,6 +34,7 @@ export class ChatService {
     onChunk: (chunk: StreamChunk) => void,
     onError: (error: Error) => void,
     conversationId?: number,
+    documentIds?: number[],
   ): void {
     this.abortCurrentRequest();
 
@@ -43,6 +44,7 @@ export class ChatService {
         message,
         model: modelId,
         ...(conversationId ? { conversationId } : {}),
+        ...(documentIds && documentIds.length > 0 ? { documentIds } : {}),
         stream: true,
       },
       onChunk,

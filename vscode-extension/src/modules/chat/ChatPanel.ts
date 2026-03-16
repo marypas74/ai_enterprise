@@ -6,6 +6,7 @@ import { ChatService } from './ChatService';
 export class ChatPanel {
   private panel: vscode.WebviewPanel | null = null;
   private readonly chatService: ChatService;
+  private documentProvider: import('../documents/DocumentProvider').DocumentProvider | null = null;
 
   constructor(private readonly context: ModuleContext) {
     this.chatService = new ChatService(
@@ -57,6 +58,10 @@ export class ChatPanel {
     });
   }
 
+  setDocumentProvider(provider: import('../documents/DocumentProvider').DocumentProvider): void {
+    this.documentProvider = provider;
+  }
+
   postMessage(message: ExtensionToWebview | Record<string, unknown>): void {
     this.panel?.webview.postMessage(message);
   }
@@ -75,7 +80,7 @@ export class ChatPanel {
           break;
         }
         case 'sendMessage': {
-          const { message: text, modelId, conversationId } = message.payload;
+          const { message: text, modelId, conversationId, documentIds } = message.payload;
           this.chatService.sendMessage(
             text,
             modelId,
@@ -87,6 +92,7 @@ export class ChatPanel {
             },
             (error) => this.postMessage({ type: 'streamError', payload: { message: error.message } }),
             conversationId,
+            documentIds,
           );
           break;
         }
@@ -111,6 +117,25 @@ export class ChatPanel {
         case 'logout':
           this.context.authService.logout();
           break;
+        case 'loadDocuments': {
+          if (this.documentProvider) {
+            await this.documentProvider.handleLoadDocuments();
+          }
+          break;
+        }
+        case 'searchDocuments': {
+          if (this.documentProvider) {
+            this.documentProvider.handleSearchDocuments(message.payload.query);
+          }
+          break;
+        }
+        case 'generateDocumentFromChat': {
+          if (this.documentProvider) {
+            const { format, content, fileName } = message.payload;
+            await this.documentProvider.handleGenerateFromChat(format, content, fileName);
+          }
+          break;
+        }
       }
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
