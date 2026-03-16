@@ -309,6 +309,7 @@
     "lint": "eslint src/ webview-ui/",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "test:e2e": "tsc -p test/e2e/tsconfig.json && node out/test/e2e/runTests.js",
     "package": "npm run build:all && vsce package",
     "release": "npm version patch && npm run package"
@@ -319,6 +320,7 @@
     "@types/vscode": "^1.85.0",
     "@typescript-eslint/eslint-plugin": "^8.56.0",
     "@typescript-eslint/parser": "^8.56.0",
+    "@vitest/coverage-v8": "^4.1.0",
     "@vscode/test-electron": "^2.5.2",
     "@vscode/vsce": "^2.24.0",
     "esbuild": "^0.20.0",

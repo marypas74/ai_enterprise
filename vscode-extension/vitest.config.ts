@@ -14,7 +14,23 @@ export default defineConfig({
     exclude: ['test/e2e/**', 'node_modules/**'],
     coverage: {
       provider: 'v8',
-      include: ['src/core/**', 'src/modules/**', 'src/utils/**'],
+      reporter: ['text', 'text-summary', 'lcov', 'html'],
+      include: ['src/core/**/*.ts', 'src/modules/**/*.ts'],
+      exclude: ['**/*.d.ts', 'src/core/types.ts'],
+      thresholds: {
+        'src/core/**': {
+          statements: 80,
+          branches: 80,
+          functions: 80,
+          lines: 80,
+        },
+        'src/modules/**': {
+          statements: 60,
+          branches: 60,
+          functions: 60,
+          lines: 60,
+        },
+      },
     },
   },
 });
