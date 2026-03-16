@@ -36,6 +36,10 @@ export class ConfigService {
     return this.get<boolean>(CONFIG_KEYS.ORCHESTRATOR_SHOW, DEFAULTS.ORCHESTRATOR_SHOW);
   }
 
+  getWorktreePollingInterval(): number {
+    return this.get<number>(CONFIG_KEYS.WORKTREE_POLLING, DEFAULTS.WORKTREE_POLLING);
+  }
+
   private get<T>(key: string, defaultValue: T): T {
     return vscode.workspace.getConfiguration(CONFIG_SECTION).get<T>(key, defaultValue);
   }
@@ -47,6 +51,7 @@ export class ConfigService {
       botIconStyle: this.getBotIconStyle(),
       orchestratorPolling: this.getOrchestratorPollingInterval(),
       orchestratorShow: this.getOrchestratorShowStatusBar(),
+      worktreePolling: this.getWorktreePollingInterval(),
     };
   }
 
