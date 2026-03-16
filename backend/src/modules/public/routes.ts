@@ -27,7 +27,9 @@ export async function publicRoutes(fastify: FastifyInstance) {
     }, async (_request: FastifyRequest, reply: FastifyReply) => {
         try {
             const metrics = await MetricsService.getExhaustiveMetrics(fastify.db);
-            return metrics;
+            // Strip heavy process list from public endpoint, keep activeUsers for dashboard
+            const { processes, ...safeMetrics } = metrics as Record<string, unknown>;
+            return safeMetrics;
         } catch (error: any) {
             fastify.log.error(`[PublicMetrics] Error: ${error.message}`);
             return reply.status(500).send({ error: 'Failed to fetch metrics' });

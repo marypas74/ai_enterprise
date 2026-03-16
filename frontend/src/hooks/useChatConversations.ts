@@ -7,7 +7,7 @@ export interface Conversation {
   model: string;
   is_archived: boolean;
   updated_at: string;
-  chat_mode?: 'free' | 'rag' | null;
+  chat_mode?: 'free' | 'rag' | 'brainstorm' | null;
 }
 
 interface ConfirmAction {

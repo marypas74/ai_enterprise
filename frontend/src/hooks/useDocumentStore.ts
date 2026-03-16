@@ -12,7 +12,7 @@ export interface UserDocument {
     createdAt: string;
 }
 
-export type ChatMode = 'free' | 'rag';
+export type ChatMode = 'free' | 'rag' | 'brainstorm';
 
 interface DocumentStore {
     documents: UserDocument[];

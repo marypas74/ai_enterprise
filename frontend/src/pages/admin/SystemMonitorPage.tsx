@@ -12,8 +12,6 @@ import {
   Clock,
   Gauge,
   Zap,
-  Box,
-  ImagePlus,
 } from 'lucide-react';
 
 interface SystemData {
@@ -77,20 +75,6 @@ interface SystemData {
     temperature: number;
     powerDraw: number;
   }>;
-  ollama?: {
-    activeModels: Array<{
-      name: string;
-      model: string;
-      size: number;
-      digest: string;
-      details: any;
-      expires_at: string;
-      size_vram: number;
-    }>;
-  };
-  diffuser?: {
-    status: 'ok' | 'unavailable';
-  };
 }
 
 function formatBytes(bytes: number | undefined | null): string {
@@ -379,7 +363,7 @@ export default function SystemMonitorPage() {
           </div>
         </div>
 
-        {/* GPU & Ollama Section */}
+        {/* GPU Section */}
         <div className="col-span-4 space-y-4">
           {/* GPU Monitoring */}
           <div className="bg-surface-900 rounded-lg p-3 border border-surface-700">
@@ -419,46 +403,6 @@ export default function SystemMonitorPage() {
             )}
           </div>
 
-          {/* Ollama Models */}
-          <div className="bg-surface-900 rounded-lg p-3 border border-surface-700">
-            <div className="flex items-center gap-2 mb-3">
-              <Box className="w-4 h-4 text-orange-400" />
-              <span className="text-orange-400 font-semibold">OLLAMA (Active Models)</span>
-            </div>
-            <div className="space-y-3">
-              {data?.ollama?.activeModels && data.ollama.activeModels.length > 0 ? (
-                data.ollama.activeModels.map((model, i) => (
-                  <div key={i} className="bg-surface-800 rounded p-2 border border-surface-700">
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="text-cyan-300 font-medium truncate max-w-[150px]">{model.name}</span>
-                      <span className="text-[10px] text-surface-500">{formatBytes(model.size)}</span>
-                    </div>
-                    <div className="flex justify-between text-[10px]">
-                      <span className="text-purple-400">{model.details?.parameter_size} | {model.details?.quantization_level}</span>
-                      <span className="text-green-400">VRAM: {formatBytes(model.size_vram)}</span>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-4 text-surface-500 text-xs">No models currently loaded</div>
-              )}
-            </div>
-          </div>
-
-          {/* OllamaDiffuser Status */}
-          <div className="bg-surface-900 rounded-lg p-3 border border-surface-700">
-            <div className="flex items-center gap-2 mb-3">
-              <ImagePlus className="w-4 h-4 text-pink-400" />
-              <span className="text-pink-400 font-semibold">OLLAMADIFFUSER (Image Gen)</span>
-            </div>
-            <div className="flex items-center gap-2 p-2 bg-surface-800 rounded border border-surface-700">
-              <div className={`w-2.5 h-2.5 rounded-full ${data?.diffuser?.status === 'ok' ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
-              <span className={`text-sm font-medium ${data?.diffuser?.status === 'ok' ? 'text-green-400' : 'text-red-400'}`}>
-                {data?.diffuser?.status === 'ok' ? 'Online' : 'Offline'}
-              </span>
-              <span className="text-[10px] text-surface-500 ml-auto">stable-diffusion-1.5</span>
-            </div>
-          </div>
         </div>
 
         {/* Containers & Pods */}

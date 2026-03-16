@@ -406,6 +406,8 @@ export function useChatMessages(currentConversationId: number | null): UseChatMe
         useDocumentStore.getState().chatMode === 'rag' && useDocumentStore.getState().selectedDocumentIds.length > 0
           ? useDocumentStore.getState().selectedDocumentIds
           : undefined,
+        // Chat mode (brainstorm, rag, free)
+        useDocumentStore.getState().chatMode !== 'free' ? useDocumentStore.getState().chatMode : undefined,
       );
     } catch (err) {
       setIsStreaming(false);

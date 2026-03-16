@@ -2,7 +2,6 @@ import { FastifyInstance } from 'fastify';
 import { findAll, findOne } from '../database/index.js';
 import { AIProviderFactory, ProviderType } from '../modules/ai/providers.js';
 import { fetchAllModels } from './ModelFetcher.js';
-import { getOllamaModelSyncService } from './OllamaModelSyncService.js';
 import { decrypt as decryptSecret } from '../utils/crypto.js';
 import { inferModelCapabilities } from '../utils/model-capabilities.js';
 
@@ -129,126 +128,12 @@ export class LLMSyncWorker {
         }
     }
 
-    // Alias model_ids in DB → actual Ollama model names
-    // These are virtual names used in the DB that map to real installed models
-    private static readonly OLLAMA_MODEL_ALIASES: Record<string, string> = {
-        'qwen-fast': 'qwen3:30b-a3b',       // MoE ultra-fast
-        'qwen-thinking': 'qwen3:32b',       // Qwen3 32B with native thinking
-        'gemma-fast': 'gemma3:12b',          // Gemma 3 12B
-        'phi-fast': 'phi4:latest',           // Phi-4
-        'glm-4.7-flash': 'glm-4.7-flash:latest',
-        'deepseek-think': 'deepseek-r1:32b', // DeepSeek R1 32B reasoning
-        'qwq-think': 'qwq:32b',             // QwQ 32B reasoning
-        'coder': 'qwen2.5-coder:32b',       // Best local coding model
-        'gpt-oss': 'gpt-oss:latest',        // OpenAI open-source
-        'llama4': 'llama4:scout',           // Llama 4 Scout MoE
-        'doc-vision': 'granite3.2-vision:latest', // Document understanding
-    };
-
     /**
-     * Resolve a DB model_id to the actual Ollama model name
-     */
-    private resolveOllamaModelName(modelId: string): string {
-        return LLMSyncWorker.OLLAMA_MODEL_ALIASES[modelId] || modelId;
-    }
-
-    /**
-     * Sync Ollama models: check installed models, update DB availability, auto-pull missing
+     * Ollama model sync is no longer needed — Ollama is only used for vision/embedding
+     * models which are managed manually. This method is a no-op.
      */
     private async syncOllamaModels() {
-        const ollamaProvider = await findOne<any>(
-            this.fastify.db,
-            "SELECT id FROM ai_providers WHERE provider_type = 'ollama' AND is_enabled = TRUE"
-        );
-        if (!ollamaProvider) return;
-
-        const baseUrlSetting = await findOne<any>(
-            this.fastify.db,
-            "SELECT setting_value FROM ai_provider_settings WHERE provider_id = ? AND setting_key = 'base_url'",
-            [ollamaProvider.id]
-        );
-        const baseUrl = baseUrlSetting?.setting_value || process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
-
-        const ollamaService = getOllamaModelSyncService(baseUrl);
-        const isRunning = await ollamaService.isOllamaRunning();
-        if (!isRunning) {
-            this.fastify.log.warn('[LLMSyncWorker] Ollama is not reachable, skipping Ollama sync');
-            return;
-        }
-
-        // Get installed models from Ollama
-        const installedModels = await ollamaService.getInstalledModels();
-        const installedNames = new Set<string>();
-        for (const m of installedModels) {
-            installedNames.add(m.name);
-            installedNames.add(m.name.replace(/:latest$/, ''));
-            installedNames.add(m.name.split(':')[0]);
-        }
-
-        this.fastify.log.info(`[LLMSyncWorker] Ollama has ${installedModels.length} installed models: ${installedModels.map(m => m.name).join(', ')}`);
-
-        // Get all Ollama models from DB
-        const dbModels = await findAll<any>(
-            this.fastify.db,
-            "SELECT id, model_id, display_name, is_enabled FROM ai_models WHERE provider_id = ?",
-            [ollamaProvider.id]
-        );
-
-        // Check which enabled DB models are actually installed
-        for (const dbModel of dbModels) {
-            const modelId = dbModel.model_id;
-            // Resolve aliases: e.g. 'glm-4.7-flash' → 'glm4:latest'
-            const resolvedName = this.resolveOllamaModelName(modelId);
-
-            const isInstalled = installedNames.has(resolvedName)
-                || installedNames.has(resolvedName.replace(/:latest$/, ''))
-                || installedNames.has(resolvedName.split(':')[0])
-                || installedNames.has(modelId)
-                || installedNames.has(modelId.replace(/:latest$/, ''))
-                || installedNames.has(modelId.split(':')[0]);
-
-            if (dbModel.is_enabled && !isInstalled) {
-                // Try to pull the resolved (actual) model name
-                this.fastify.log.warn(`[LLMSyncWorker] Model "${modelId}" (resolved: "${resolvedName}") not installed, attempting pull...`);
-                const result = await ollamaService.pullModel(resolvedName);
-                if (!result.success) {
-                    this.fastify.log.error(`[LLMSyncWorker] Failed to pull "${resolvedName}": ${result.message}. Disabling model.`);
-                    await this.fastify.db.execute(
-                        "UPDATE ai_models SET is_enabled = FALSE, description = CONCAT(COALESCE(description, ''), ' [AUTO-DISABLED: not available on Ollama]') WHERE id = ?",
-                        [dbModel.id]
-                    );
-                } else {
-                    this.fastify.log.info(`[LLMSyncWorker] Successfully pulled "${resolvedName}" for model "${modelId}"`);
-                }
-            }
-        }
-
-        // Add newly discovered Ollama models that aren't in DB yet
-        for (const installed of installedModels) {
-            const normalizedName = installed.name.replace(/:latest$/, '');
-            const exists = await findOne<any>(
-                this.fastify.db,
-                "SELECT id FROM ai_models WHERE provider_id = ? AND (model_id = ? OR model_id = ? OR model_id = ?)",
-                [ollamaProvider.id, installed.name, normalizedName, installed.name.split(':')[0]]
-            );
-
-            if (!exists) {
-                const displayName = installed.name.split(':')[0].charAt(0).toUpperCase() + installed.name.split(':')[0].slice(1);
-                const desc = installed.details
-                    ? `${installed.details.parameter_size || ''} ${installed.details.quantization_level || ''}`.trim()
-                    : `Discovered from Ollama`;
-
-                const caps = inferModelCapabilities(installed.name);
-                await this.fastify.db.execute(
-                    `INSERT INTO ai_models (provider_id, model_id, display_name, description, model_type,
-                     supports_streaming, supports_functions, supports_vision, supports_thinking, is_enabled, sort_order)
-                     VALUES (?, ?, ?, ?, 'chat', ?, ?, ?, ?, FALSE, 999)`,
-                    [ollamaProvider.id, installed.name, displayName, desc,
-                     caps.supports_streaming, caps.supports_functions, caps.supports_vision, caps.supports_thinking]
-                );
-                this.fastify.log.info(`[LLMSyncWorker] Discovered new Ollama model: ${installed.name} (tools=${caps.supports_functions}, vision=${caps.supports_vision}, thinking=${caps.supports_thinking})`);
-            }
-        }
+        // Ollama retained only for vision/embedding — no automatic model sync needed
     }
 
     /**

@@ -131,7 +131,8 @@ async function makeStreamRequest(
   systemPrompt?: string,
   attachmentIds?: number[],
   useRag?: boolean,
-  documentIds?: number[]
+  documentIds?: number[],
+  chatMode?: string
 ): Promise<Response> {
   return fetch(`${API_BASE_URL}/chat/completions`, {
     method: 'POST',
@@ -148,6 +149,7 @@ async function makeStreamRequest(
       attachmentIds,
       use_rag: useRag,
       document_ids: documentIds,
+      chat_mode: chatMode,
     })
   });
 }
@@ -192,6 +194,7 @@ async function streamChatNative(
   onRouting?: (routing: { tier: string; model: string; reason: string; confidence: number; effort: string }) => void,
   useRag?: boolean,
   documentIds?: number[],
+  chatMode?: string,
 ): Promise<void> {
   const token = useAuthStore.getState().accessToken || '';
   const { StreamHttp } = await import('capacitor-stream-http');
@@ -234,7 +237,7 @@ async function streamChatNative(
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
       },
-      body: JSON.stringify({ model, message, conversationId, systemPrompt, attachmentIds, use_rag: useRag, document_ids: documentIds }),
+      body: JSON.stringify({ model, message, conversationId, systemPrompt, attachmentIds, use_rag: useRag, document_ids: documentIds, chat_mode: chatMode }),
     }).catch((err: any) => {
       onError(err?.message || 'Failed to start stream');
       done();
@@ -257,15 +260,16 @@ export async function streamChat(
   onRouting?: (routing: { tier: string; model: string; reason: string; confidence: number; effort: string }) => void,
   useRag?: boolean,
   documentIds?: number[],
+  chatMode?: string,
 ): Promise<void> {
   // On native platforms, use capacitor-stream-http for real native streaming
   if (isNativePlatform()) {
-    return streamChatNative(model, message, onChunk, onDone, onError, conversationId, systemPrompt, attachmentIds, onThinking, onVectorMemories, onRouting, useRag, documentIds);
+    return streamChatNative(model, message, onChunk, onDone, onError, conversationId, systemPrompt, attachmentIds, onThinking, onVectorMemories, onRouting, useRag, documentIds, chatMode);
   }
 
   // Desktop: standard fetch + ReadableStream
   let token = useAuthStore.getState().accessToken || '';
-  let response = await makeStreamRequest(token, model, message, conversationId, systemPrompt, attachmentIds, useRag, documentIds);
+  let response = await makeStreamRequest(token, model, message, conversationId, systemPrompt, attachmentIds, useRag, documentIds, chatMode);
 
   // Handle 401 - try to refresh token first before logging out
   if (response.status === 401) {
@@ -274,7 +278,7 @@ export async function streamChat(
       const { accessToken } = refreshResponse.data;
       useAuthStore.setState({ accessToken });
       token = accessToken;
-      response = await makeStreamRequest(token, model, message, conversationId, systemPrompt, attachmentIds, useRag, documentIds);
+      response = await makeStreamRequest(token, model, message, conversationId, systemPrompt, attachmentIds, useRag, documentIds, chatMode);
       if (response.status === 401) { forceLogout(); onError('Session expired. Please login again.'); return; }
     } catch {
       forceLogout(); onError('Session expired. Please login again.'); return;

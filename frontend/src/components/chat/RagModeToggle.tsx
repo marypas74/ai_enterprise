@@ -1,9 +1,9 @@
 import React from 'react';
-import { MessageSquare, Library } from 'lucide-react';
+import { MessageSquare, Library, Lightbulb } from 'lucide-react';
 import { useDocumentStore, ChatMode } from '../../hooks/useDocumentStore';
 
 /**
- * Chat mode toggle: "Chat Libera" ↔ "Chiedi ai Documenti"
+ * Chat mode toggle: "Chat Libera" ↔ "Documenti" ↔ "Brainstorming"
  * Renders as a segmented pill control.
  */
 interface RagModeToggleProps {
@@ -15,8 +15,17 @@ export function RagModeToggle({ onModeChange }: RagModeToggleProps) {
 
     const modes: { value: ChatMode; label: string; Icon: React.FC<any> }[] = [
         { value: 'free', label: 'Chat Libera', Icon: MessageSquare },
-        { value: 'rag', label: 'Chiedi ai Documenti', Icon: Library },
+        { value: 'rag', label: 'Documenti', Icon: Library },
+        { value: 'brainstorm', label: 'Brainstorming', Icon: Lightbulb },
     ];
+
+    const getActiveStyle = (value: ChatMode): string => {
+        switch (value) {
+            case 'rag': return 'bg-indigo-600 text-white shadow-sm';
+            case 'brainstorm': return 'bg-amber-500 text-white shadow-sm';
+            default: return 'bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 shadow-sm';
+        }
+    };
 
     return (
         <div
@@ -27,7 +36,7 @@ export function RagModeToggle({ onModeChange }: RagModeToggleProps) {
             {modes.map(({ value, label, Icon }) => (
                 <button
                     key={value}
-                    id={`rag-mode-${value}`}
+                    id={`chat-mode-${value}`}
                     onClick={() => {
                         setChatMode(value);
                         if (onModeChange) onModeChange(value);
@@ -36,9 +45,7 @@ export function RagModeToggle({ onModeChange }: RagModeToggleProps) {
             inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium
             transition-all duration-150 select-none whitespace-nowrap
             ${chatMode === value
-                            ? value === 'rag'
-                                ? 'bg-indigo-600 text-white shadow-sm'
-                                : 'bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 shadow-sm'
+                            ? getActiveStyle(value)
                             : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
                         }
           `}

@@ -34,9 +34,13 @@ data:
   OLLAMA_BASE_URL: "http://10.0.1.1:8086/ollama"
   OLLAMA_AUTH_KEY: "mTLS-k8s-backend-2026"
 
-  # OllamaDiffuser (image generation, Docker container on host via proxy)
-  DIFFUSER_BASE_URL: "http://10.0.1.1:8086/diffuser"
-  DIFFUSER_AUTH_KEY: "mTLS-k8s-backend-2026"
+  # vLLM (external Docker container on host, OpenAI-compatible API)
+  VLLM_BASE_URL: "http://10.0.1.1:8087/vllm"
+  VLLM_AUTH_KEY: "mTLS-k8s-backend-2026"
+  VLLM_API_KEY: "vllm-local-2026"
+
+  # Inference mode: vllm (primary provider, Ollama retained for vision/embedding only)
+  INFERENCE_MODE: "vllm"
 
   # Public metrics — allowed IPs (comma-separated)
   METRICS_ALLOWED_IPS: "217.198.133.248"

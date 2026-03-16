@@ -339,8 +339,8 @@ export async function documentRoutes(fastify: FastifyInstance): Promise<void> {
                     body: JSON.stringify({
                         filter: {
                             must: [
-                                { key: 'payload.source', match: { value: doc.qdrant_source } },
-                                { key: 'payload.user_id', match: { value: userId } },
+                                { key: 'source', match: { value: doc.qdrant_source } },
+                                { key: 'user_id', match: { value: userId } },
                             ],
                         },
                     }),

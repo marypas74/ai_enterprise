@@ -22,7 +22,7 @@ import {
 import {
   prepareToolContext, loadOrCreateConversation, injectFormContext,
   processAttachments, injectSystemPrompts, ensureItalianSystemPrompt,
-  FALLBACK_MAP, isRetriableError, injectRAGSystemPrompt
+  FALLBACK_MAP, isRetriableError, injectRAGSystemPrompt, injectBrainstormSystemPrompt
 } from './context-builder.js';
 import { getModelRouter, type RoutingDecision } from '../../services/ModelRouter.js';
 
@@ -55,108 +55,6 @@ export async function completionRoutes(fastify: FastifyInstance) {
       const parsedBody = completionSchema.parse(request.body);
 
       fastify.log.debug({ model: parsedBody.model, messageLength: parsedBody.message?.length || 0, userId: user.id, attachmentIds: parsedBody.attachmentIds || [] }, '[Chat] Request start');
-
-      // ── Image generation check ──
-      // Triggers for: model='auto' with image keywords, OR model='stable-diffusion-*' (direct diffuser model)
-      const isDiffuserModel = parsedBody.model.startsWith('stable-diffusion');
-      const IMAGE_PATTERN = /\b(genera|crea|creami|disegna|disegnami|fai|fammi|produci|illustra|generate|create|draw|make|paint|render)\b.*\b(immagine|immagini|foto|fotografia|disegno|illustrazione|image|picture|photo|drawing|illustration|portrait|artwork)\b/i;
-      const IMAGE_KW = ['genera immagine', 'crea immagine', 'disegna', 'disegnami', 'genera foto', 'crea foto', 'crea un disegno', 'generate image', 'create image', 'draw me', 'make a picture'];
-      const queryLc = parsedBody.message.toLowerCase();
-      const isImageRequest = isDiffuserModel || (parsedBody.model === 'auto' && (IMAGE_PATTERN.test(parsedBody.message) || IMAGE_KW.some(kw => queryLc.includes(kw))));
-
-      if (isImageRequest) {
-        fastify.log.info(`[Router] Image generation detected for: "${parsedBody.message.substring(0, 80)}"`);
-        const { generateImage } = await import('../../services/DiffuserProvider.js');
-        const raw = reply.raw;
-        raw.writeHead(200, {
-          'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache',
-          'Connection': 'keep-alive', 'X-Accel-Buffering': 'no',
-        });
-        const writeSse = (data: Record<string, unknown>) => {
-          if (!raw.writableEnded) raw.write(`data: ${JSON.stringify(data)}\n\n`);
-        };
-        try {
-          // Ownership check
-          let imgConvId = parsedBody.conversationId;
-          if (imgConvId) {
-            const conv = await findOne<{ user_id: number }>(fastify.db,
-              'SELECT user_id FROM conversations WHERE id = ?', [imgConvId]);
-            if (!conv || conv.user_id !== user.id) {
-              writeSse({ content: 'Conversazione non trovata o accesso negato.', done: false });
-              writeSse({ done: true }); raw.end(); return;
-            }
-          }
-          if (!imgConvId) {
-            const title = parsedBody.message.length > 50 ? parsedBody.message.substring(0, 50) + '...' : parsedBody.message;
-            imgConvId = await insertOne(fastify.db,
-              'INSERT INTO conversations (user_id, title, model) VALUES (?, ?, ?)',
-              [user.id, `[Image] ${title}`, 'stable-diffusion-1.5']);
-          }
-          await insertOne(fastify.db,
-            'INSERT INTO messages (conversation_id, role, content, content_type) VALUES (?, ?, ?, ?)',
-            [imgConvId, 'user', parsedBody.message, 'text']);
-
-          writeSse({ routing: { tier: 'image', model: 'stable-diffusion-1.5', reason: 'Image generation request detected', confidence: 0.9, effort: 'medium' } });
-
-          // Step 1: Use LLM to generate an optimized English prompt for Stable Diffusion
-          writeSse({ content: 'Sto analizzando la tua richiesta e preparando il prompt per la generazione...\n\n', done: false });
-
-          let sdPrompt = parsedBody.message; // fallback: use original prompt
-          try {
-            // Use a fast Ollama model to create an optimized SD prompt
-            const promptGenMessages = [
-              { role: 'system', content: 'You are an expert at creating Stable Diffusion image prompts. Given a user request (in any language), output ONLY a detailed English prompt optimized for Stable Diffusion 1.5. Include style keywords, lighting, composition details. Output ONLY the prompt text, nothing else.' },
-              { role: 'user', content: parsedBody.message }
-            ];
-            const ollamaUrl = process.env.OLLAMA_BASE_URL || 'http://10.0.1.1:8086/ollama';
-            const ollamaKey = process.env.OLLAMA_AUTH_KEY || '';
-            const promptResponse = await fetch(`${ollamaUrl}/api/chat`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'X-Ollama-Key': ollamaKey },
-              body: JSON.stringify({ model: 'qwen3:30b-a3b', messages: promptGenMessages, stream: false, options: { num_predict: 200 } }),
-              signal: AbortSignal.timeout(15000),
-            });
-            if (promptResponse.ok) {
-              const promptResult = await promptResponse.json() as { message?: { content?: string } };
-              const generatedPrompt = promptResult?.message?.content?.trim();
-              if (generatedPrompt && generatedPrompt.length > 10) {
-                sdPrompt = generatedPrompt;
-                writeSse({ content: `**Prompt ottimizzato:** *${sdPrompt}*\n\nSto generando l'immagine...\n\n`, done: false });
-              }
-            }
-          } catch {
-            // LLM prompt generation failed, use original prompt
-            writeSse({ content: 'Sto generando l\'immagine...\n\n', done: false });
-          }
-
-          // Step 2: Generate the image with the optimized prompt
-          const result = await generateImage({ prompt: sdPrompt });
-
-          // Step 3: Build response with image and description
-          const imageMarkdown = `![Generated Image](${result.url})\n\n*Modello: ${result.model} | Risoluzione: ${result.width}x${result.height} | Seed: ${result.seed} | Tempo: ${(result.generationTimeMs / 1000).toFixed(1)}s*`;
-
-          writeSse({ content: imageMarkdown, done: false });
-
-          await insertOne(fastify.db,
-            'INSERT INTO messages (conversation_id, role, content, content_type, ai_model, is_ai_generated) VALUES (?, ?, ?, ?, ?, 1)',
-            [imgConvId, 'assistant',
-              `Sto analizzando la tua richiesta e preparando il prompt per la generazione...\n\n**Prompt ottimizzato:** *${sdPrompt}*\n\nSto generando l'immagine...\n\n${imageMarkdown}`,
-              'image', result.model]);
-
-          writeSse({ done: true, conversationId: imgConvId });
-
-          // Store in vector memory (episodic)
-          storeEpisodic(fastify.db, user.id, imgConvId, parsedBody.message,
-            `[Image generated] Prompt: ${sdPrompt} | Model: ${result.model} | ${result.width}x${result.height}`
-          ).catch(err => fastify.log.warn(`[VectorMemory] Image episodic store failed: ${err.message}`));
-        } catch (err: any) {
-          fastify.log.error(`[ImageGen] Error: ${err.message}`);
-          writeSse({ content: '\n\nNon sono riuscito a generare l\'immagine. Riprova piu\' tardi.', done: false });
-          writeSse({ done: true });
-        }
-        raw.end();
-        return;
-      }
 
       // ── Model Orchestrator: auto-routing ──────────────────────────
       let routingDecision: RoutingDecision | null = null;
@@ -198,65 +96,6 @@ export async function completionRoutes(fastify: FastifyInstance) {
           }
         }
       }
-      // ── Image generation redirect ───────────────────────────────────
-      if (routingDecision?.isImageGeneration) {
-        fastify.log.info(`[Router] Image generation detected, redirecting to DiffuserProvider`);
-        const { generateImage } = await import('../../services/DiffuserProvider.js');
-        const raw = reply.raw;
-        raw.writeHead(200, {
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          'Connection': 'keep-alive',
-          'X-Accel-Buffering': 'no',
-        });
-        const writeSse = (data: Record<string, unknown>) => {
-          if (!raw.writableEnded) raw.write(`data: ${JSON.stringify(data)}\n\n`);
-        };
-        try {
-          // Get or create conversation (with ownership check)
-          let imgConvId = parsedBody.conversationId;
-          if (imgConvId) {
-            const conv = await findOne<{ user_id: number }>(fastify.db,
-              'SELECT user_id FROM conversations WHERE id = ?', [imgConvId]);
-            if (!conv || conv.user_id !== user.id) {
-              writeSse({ content: 'Conversazione non trovata o accesso negato.', done: false });
-              writeSse({ done: true });
-              raw.end();
-              return;
-            }
-          }
-          if (!imgConvId) {
-            const title = parsedBody.message.length > 50 ? parsedBody.message.substring(0, 50) + '...' : parsedBody.message;
-            imgConvId = await insertOne(fastify.db,
-              'INSERT INTO conversations (user_id, title, model) VALUES (?, ?, ?)',
-              [user.id, `[Image] ${title}`, 'stable-diffusion-1.5']);
-          }
-          // Save user message
-          await insertOne(fastify.db,
-            'INSERT INTO messages (conversation_id, role, content, content_type) VALUES (?, ?, ?, ?)',
-            [imgConvId, 'user', parsedBody.message, 'text']);
-
-          writeSse({ type: 'image_generating', model: 'stable-diffusion-1.5', prompt: parsedBody.message, conversationId: imgConvId });
-
-          const result = await generateImage({ prompt: parsedBody.message });
-
-          const imageMarkdown = `![Generated Image](${result.url})\n\n*Model: ${result.model} | ${result.width}x${result.height} | Seed: ${result.seed} | ${(result.generationTimeMs / 1000).toFixed(1)}s*`;
-          await insertOne(fastify.db,
-            'INSERT INTO messages (conversation_id, role, content, content_type, ai_model, is_ai_generated) VALUES (?, ?, ?, ?, ?, 1)',
-            [imgConvId, 'assistant', imageMarkdown, 'image', result.model]);
-
-          writeSse({ type: 'image_ready', url: result.url, filename: result.filename, width: result.width, height: result.height, model: result.model, seed: result.seed, generationTimeMs: result.generationTimeMs, conversationId: imgConvId });
-          writeSse({ content: imageMarkdown, done: false });
-          writeSse({ done: true });
-        } catch (err: any) {
-          fastify.log.error(`[ImageGen] Error: ${err.message}`);
-          writeSse({ content: 'Non sono riuscito a generare l\'immagine. Riprova più tardi.', done: false });
-          writeSse({ done: true });
-        }
-        raw.end();
-        return;
-      }
-
       const body = { ...parsedBody, model: routedModel };
 
       fastify.log.info(`[Chat] Request for model: ${body.model}`);
@@ -318,7 +157,7 @@ export async function completionRoutes(fastify: FastifyInstance) {
         result = await loadOrCreateConversation(fastify, {
           userId: user.id, conversationId: body.conversationId,
           model: body.model, providerName, systemPrompt: body.systemPrompt, messageText: body.message,
-          chatMode: body.use_rag ? 'rag' : 'free',
+          chatMode: body.chat_mode || (body.use_rag ? 'rag' : 'free'),
           documentIds: body.document_ids
         });
       } catch (err: any) {
@@ -418,7 +257,15 @@ export async function completionRoutes(fastify: FastifyInstance) {
       let webSearchPerformed = false;
       let autoGenerateDoc: false | 'docx' | 'pptx' | 'xlsx' | 'pdf' = false;
 
-      if (body.use_rag) {
+      const effectiveChatMode = body.chat_mode
+        || (body.use_rag ? 'rag' : undefined)
+        || conversation?.chat_mode
+        || 'free';
+
+      if (effectiveChatMode === 'brainstorm') {
+        fastify.log.info(`[Chat] Brainstorm mode active for user ${user.id}`);
+        await injectBrainstormSystemPrompt(fastify, messages, user.id);
+      } else if (effectiveChatMode === 'rag') {
         fastify.log.info(`[Chat] RAG mode active for user ${user.id}`);
         const ragMemories = await injectRAGSystemPrompt(fastify, messages, {
           userMessage: body.message,
@@ -537,7 +384,6 @@ export async function completionRoutes(fastify: FastifyInstance) {
         let toolRound = 0;
 
         const isAnthropic = providerName === 'anthropic';
-        const isOllama = providerName === 'ollama';
         const completionExtras: Record<string, any> = {};
 
         if (modelConfig.supportsThinking) {
@@ -549,38 +395,8 @@ export async function completionRoutes(fastify: FastifyInstance) {
               const budgetTokens = Math.min(16000, maxOut - 1024);
               if (budgetTokens >= 1024) completionExtras.thinking = { type: 'enabled' as const, budgetTokens };
             }
-          } else if (isOllama) {
-            // Ollama bug workaround (ollama/ollama#10976 + #11381):
-            // qwen3 + tools + thinking = empty content or filtered tool calls.
-            // Instead of stripping tools (which disables sandbox/code execution),
-            // escalate to a tool-compatible Ollama model that doesn't have this bug.
-            const isQwen3 = /qwen3/i.test(body.model);
-            if (isQwen3 && toolDefs && toolDefs.length > 0) {
-              const toolModel = await findOne<{ model_id: string }>(fastify.db,
-                `SELECT m.model_id FROM ai_models m
-                 JOIN ai_providers p ON m.provider_id = p.id
-                 WHERE p.name = 'ollama' AND m.is_enabled = TRUE
-                   AND m.model_id NOT LIKE '%qwen3%'
-                   AND m.model_type IN ('chat', 'completion')
-                 ORDER BY m.context_window DESC, m.sort_order ASC LIMIT 1`
-              );
-              if (toolModel && isProviderHealthy(toolModel.model_id)) {
-                fastify.log.info(`[Chat] Ollama qwen3 tool-escalation: ${body.model} → ${toolModel.model_id} (qwen3 cannot use tools+thinking — ollama#10976/#11381)`);
-                costModel = toolModel.model_id;
-                provider = AIProviderFactory.getProvider(toolModel.model_id);
-                providerName = AIProviderFactory.getProviderName(toolModel.model_id);
-                sseWrite(`data: ${JSON.stringify({ content: `> Modello escalato a **${toolModel.model_id}** per eseguire strumenti (qwen3 non supporta tools+thinking)\n\n`, done: false })}\n\n`);
-              } else {
-                fastify.log.warn(`[Chat] Ollama qwen3: no tool-compatible model found, stripping tools as last resort`);
-                toolDefs = undefined;
-                completionExtras.thinking = { type: 'enabled' as const };
-              }
-            } else if (toolDefs && toolDefs.length > 0) {
-              fastify.log.info(`[Chat] Ollama thinking disabled: tools present (ollama#10976 workaround)`);
-            } else {
-              completionExtras.thinking = { type: 'enabled' as const };
-            }
           }
+          // vLLM handles thinking natively via reasoning_content — no workarounds needed
         }
 
         if (isAnthropic) {
@@ -595,7 +411,6 @@ export async function completionRoutes(fastify: FastifyInstance) {
         }
 
         let continueLoop = true;
-        let hadThinkingContent = false;
         while (continueLoop && toolRound < MAX_TOOL_ROUNDS && !clientDisconnected) {
           toolRound++;
           continueLoop = false;
@@ -618,12 +433,14 @@ export async function completionRoutes(fastify: FastifyInstance) {
               break;
             }
             if (chunk.thinking) {
-              hadThinkingContent = true;
               sseWrite(`data: ${JSON.stringify({ thinking: chunk.thinking, done: false })}\n\n`);
             }
             if (chunk.thinkingDone) sseWrite(`data: ${JSON.stringify({ thinkingDone: true, done: false })}\n\n`);
             if (chunk.citations?.length) sseWrite(`data: ${JSON.stringify({ citations: chunk.citations, done: false })}\n\n`);
             if (chunk.usage) {
+              // Capture real token counts from provider (vLLM, Anthropic, etc.)
+              if (chunk.usage.inputTokens) tokensInput = chunk.usage.inputTokens;
+              if (chunk.usage.outputTokens) tokensOutput = chunk.usage.outputTokens;
               if (chunk.usage.cacheCreationTokens) cacheCreationTokens = chunk.usage.cacheCreationTokens;
               if (chunk.usage.cacheReadTokens) cacheReadTokens = chunk.usage.cacheReadTokens;
               if (chunk.usage.thinkingTokens) thinkingTokens = chunk.usage.thinkingTokens;
@@ -678,86 +495,65 @@ export async function completionRoutes(fastify: FastifyInstance) {
 
         if (toolRound >= MAX_TOOL_ROUNDS) fastify.log.warn(`[Chat] Tool call loop hit max rounds (${MAX_TOOL_ROUNDS})`);
 
-        // Empty response recovery — known Ollama issue (think+tools=empty, or model produced no content)
-        if (fullResponse.trim().length === 0 && isOllama) {
-          // Phase 1: If thinking was produced but no content, retry same model WITHOUT thinking (ollama#10976/#11381)
-          if (hadThinkingContent) {
-            fastify.log.warn(`[Chat] Thinking produced but no content from ${body.model}, retrying without thinking mode (ollama#10976/#11381)`);
+        // Empty response recovery — escalate to balanced tier if model produced no content
+        if (fullResponse.trim().length === 0) {
+          fastify.log.warn(`[Chat] Empty response from ${body.model}, attempting escalation to balanced tier`);
+          recordProviderError(body.model);
+          const escalatedModel = await findOne<{ model_id: string }>(fastify.db,
+            `SELECT rt.model_id FROM model_routing_tiers rt
+             INNER JOIN ai_models m ON rt.model_id = m.model_id
+             INNER JOIN ai_providers p ON m.provider_id = p.id
+             WHERE rt.tier_name = 'balanced' AND rt.is_enabled = TRUE AND m.is_enabled = TRUE AND p.is_enabled = TRUE
+               AND rt.model_id != ?
+             ORDER BY rt.priority ASC LIMIT 1`, [body.model]);
+
+          if (escalatedModel && isProviderHealthy(escalatedModel.model_id)) {
+            reply.raw.write(`data: ${JSON.stringify({ content: `> Il modello ${body.model} non ha generato contenuto. Sto riprovando con ${escalatedModel.model_id}...\n\n`, done: false })}\n\n`);
             try {
-              const retryStream = provider.streamComplete({
-                model: costModel, messages, maxTokens: modelConfig.maxOutputTokens,
-                temperature: modelConfig.temperature, stream: true, tools: toolDefs,
-                // No thinking option — intentionally omitted to disable think mode
+              const escProvider = AIProviderFactory.getProvider(escalatedModel.model_id);
+              const escConfig = await ModelConfigService.getConfig(fastify.db, escalatedModel.model_id);
+              const escStream = escProvider.streamComplete({
+                model: escalatedModel.model_id, messages, maxTokens: escConfig.maxOutputTokens,
+                temperature: escConfig.temperature, stream: true, tools: toolDefs,
+                signal: abortController.signal,
               });
-              for await (const chunk of retryStream) {
+              for await (const chunk of escStream) {
+                if (chunk.thinking) sseWrite(`data: ${JSON.stringify({ thinking: chunk.thinking, done: false })}\n\n`);
+                if (chunk.thinkingDone) sseWrite(`data: ${JSON.stringify({ thinkingDone: true, done: false })}\n\n`);
                 if (chunk.content) {
                   fullResponse += chunk.content;
                   reply.raw.write(`data: ${JSON.stringify({ content: chunk.content, done: false })}\n\n`);
                 }
               }
-              if (fullResponse.trim().length > 0) {
-                fastify.log.info(`[Chat] Retry without thinking succeeded: ${fullResponse.length} chars from ${body.model}`);
-              }
-            } catch (retryErr: any) {
-              fastify.log.error(`[Chat] Retry without thinking failed: ${retryErr.message}`);
+              recordProviderSuccess(escalatedModel.model_id);
+              costModel = escalatedModel.model_id;
+              providerName = AIProviderFactory.getProviderName(escalatedModel.model_id);
+              fastify.log.info(`[Chat] Escalation to ${escalatedModel.model_id} produced ${fullResponse.length} chars`);
+            } catch (escErr: any) {
+              recordProviderError(escalatedModel.model_id);
+              fastify.log.error(`[Chat] Escalation stream failed: ${escErr.message}`);
             }
           }
 
-          // Phase 2: If still empty, escalate to a different model
           if (fullResponse.trim().length === 0) {
-            fastify.log.warn(`[Chat] Empty response from ${body.model}, attempting escalation to balanced tier`);
-            recordProviderError(body.model);
-            const escalatedModel = await findOne<{ model_id: string }>(fastify.db,
-              `SELECT rt.model_id FROM model_routing_tiers rt
-               INNER JOIN ai_models m ON rt.model_id = m.model_id
-               INNER JOIN ai_providers p ON m.provider_id = p.id
-               WHERE rt.tier_name = 'balanced' AND rt.is_enabled = TRUE AND m.is_enabled = TRUE AND p.is_enabled = TRUE
-                 AND rt.model_id != ?
-               ORDER BY rt.priority ASC LIMIT 1`, [body.model]);
-
-            if (escalatedModel && isProviderHealthy(escalatedModel.model_id)) {
-              reply.raw.write(`data: ${JSON.stringify({ content: `> Il modello ${body.model} non ha generato contenuto. Sto riprovando con ${escalatedModel.model_id}...\n\n`, done: false })}\n\n`);
-              try {
-                const escProvider = AIProviderFactory.getProvider(escalatedModel.model_id);
-                const escConfig = await ModelConfigService.getConfig(fastify.db, escalatedModel.model_id);
-                const escStream = escProvider.streamComplete({
-                  model: escalatedModel.model_id, messages, maxTokens: escConfig.maxOutputTokens,
-                  temperature: escConfig.temperature, stream: true, tools: toolDefs,
-                });
-                for await (const chunk of escStream) {
-                  if (chunk.thinking) sseWrite(`data: ${JSON.stringify({ thinking: chunk.thinking, done: false })}\n\n`);
-                  if (chunk.thinkingDone) sseWrite(`data: ${JSON.stringify({ thinkingDone: true, done: false })}\n\n`);
-                  if (chunk.content) {
-                    fullResponse += chunk.content;
-                    reply.raw.write(`data: ${JSON.stringify({ content: chunk.content, done: false })}\n\n`);
-                  }
-                }
-                recordProviderSuccess(escalatedModel.model_id);
-                costModel = escalatedModel.model_id;
-                providerName = AIProviderFactory.getProviderName(escalatedModel.model_id);
-                fastify.log.info(`[Chat] Escalation to ${escalatedModel.model_id} produced ${fullResponse.length} chars`);
-              } catch (escErr: any) {
-                recordProviderError(escalatedModel.model_id);
-                fastify.log.error(`[Chat] Escalation stream failed: ${escErr.message}`);
-              }
-            }
-
-            // Phase 3: If still empty after all retries, show error message
-            if (fullResponse.trim().length === 0) {
-              const emptyMsg = 'Il modello non ha generato una risposta. Riprova o seleziona un modello diverso.';
-              reply.raw.write(`data: ${JSON.stringify({ content: emptyMsg, done: false })}\n\n`);
-              fullResponse = emptyMsg;
-            }
+            const emptyMsg = 'Il modello non ha generato una risposta. Riprova o seleziona un modello diverso.';
+            reply.raw.write(`data: ${JSON.stringify({ content: emptyMsg, done: false })}\n\n`);
+            fullResponse = emptyMsg;
           }
         } else {
           recordProviderSuccess(body.model);
         }
-        tokensInput = Math.ceil(messages.reduce((acc, m) => {
-          const contentLen = typeof m.content === 'string' ? m.content.length : 0;
-          const toolCallsLen = (m as any).tool_calls ? JSON.stringify((m as any).tool_calls).length : 0;
-          return acc + (contentLen + toolCallsLen) / 4;
-        }, 0));
-        tokensOutput = Math.ceil(fullResponse.length / 4);
+        // Only estimate tokens if real usage wasn't provided by the stream
+        if (tokensInput === 0) {
+          tokensInput = Math.ceil(messages.reduce((acc, m) => {
+            const contentLen = typeof m.content === 'string' ? m.content.length : 0;
+            const toolCallsLen = (m as any).tool_calls ? JSON.stringify((m as any).tool_calls).length : 0;
+            return acc + (contentLen + toolCallsLen) / 4;
+          }, 0));
+        }
+        if (tokensOutput === 0) {
+          tokensOutput = Math.ceil(fullResponse.length / 4);
+        }
 
         // B2: Fallback — detect tool calls embedded as plain text in the response
         if (autoGenerateDoc && toolContext && fullResponse.length > 0) {
@@ -766,6 +562,9 @@ export async function completionRoutes(fastify: FastifyInstance) {
           ) || fullResponse.match(
             /<tool_use>\s*<name>(generate_word_document|generate_excel_document|generate_powerpoint_document)<\/name>\s*<input>([\s\S]*?)<\/input>\s*<\/tool_use>/
           );
+
+          // SECURITY: Only allow document generation tools in B2 fallback (prevent arbitrary tool execution)
+          const B2_ALLOWED_TOOLS = new Set(['generate_word_document', 'generate_excel_document', 'generate_powerpoint_document']);
 
           if (toolCallMatch) {
             fastify.log.warn(`[Chat] Detected embedded tool call in text response — executing fallback`);
@@ -784,6 +583,12 @@ export async function completionRoutes(fastify: FastifyInstance) {
                 toolArgs = parsed.input || parsed.arguments || parsed;
                 delete toolArgs.name;
                 delete toolArgs.tool_name;
+              }
+
+              // SECURITY: Validate tool name against allowlist before execution
+              if (!B2_ALLOWED_TOOLS.has(toolName)) {
+                fastify.log.warn(`[Chat] B2 fallback blocked: tool "${toolName}" not in allowlist`);
+                throw new Error(`Tool "${toolName}" not allowed in B2 fallback`);
               }
 
               const result = await executeTool(toolName, toolArgs, toolContext);
@@ -832,15 +637,7 @@ export async function completionRoutes(fastify: FastifyInstance) {
         recordProviderError(body.model);
 
         if (isRetriableError(errorMessage) && !isParlantAgent && !(request as any)._fallbackAttempted) {
-          const isOllamaModel = AIProviderFactory.getProviderName(body.model) === 'ollama';
-          let ollamaFallback: string | null = null;
-          if (isOllamaModel && !FALLBACK_MAP[body.model]) {
-            try {
-              const lightRow = await findOne<any>(fastify.db, `SELECT m.model_id FROM ai_models m JOIN ai_providers p ON m.provider_id = p.id WHERE p.name = 'ollama' AND m.is_enabled = TRUE AND m.model_id != ? ORDER BY m.context_window ASC, m.sort_order ASC LIMIT 1`, [body.model]);
-              ollamaFallback = lightRow?.model_id || null;
-            } catch { /* no fallback */ }
-          }
-          const fallbackChain = FALLBACK_MAP[body.model] || (ollamaFallback ? [ollamaFallback] : []);
+          const fallbackChain = FALLBACK_MAP[body.model] || [];
           const fallbackModel = fallbackChain.find(m => m !== body.model && isProviderHealthy(m)) || null;
 
           if (fallbackModel) {
@@ -850,12 +647,12 @@ export async function completionRoutes(fastify: FastifyInstance) {
               (request as any)._fallbackAttempted = true;
               const fbProvider = AIProviderFactory.getProvider(fallbackModel);
               const fbConfig = await ModelConfigService.getConfig(fastify.db, fallbackModel);
-              const fbStream = fbProvider.streamComplete({ model: fallbackModel, messages, maxTokens: fbConfig.maxOutputTokens, temperature: fbConfig.temperature, stream: true });
+              const fbStream = fbProvider.streamComplete({ model: fallbackModel, messages, maxTokens: fbConfig.maxOutputTokens, temperature: fbConfig.temperature, stream: true, signal: abortController.signal });
               for await (const chunk of fbStream) {
                 if (chunk.content) { fullResponse += chunk.content; reply.raw.write(`data: ${JSON.stringify({ content: chunk.content, done: false })}\n\n`); }
               }
               recordProviderSuccess(fallbackModel);
-              tokensInput = Math.ceil(messages.reduce((acc, m) => acc + m.content.length / 4, 0));
+              tokensInput = Math.ceil(messages.reduce((acc, m) => acc + (typeof m.content === 'string' ? m.content.length : 0) / 4, 0));
               tokensOutput = Math.ceil(fullResponse.length / 4);
               providerName = AIProviderFactory.getProviderName(fallbackModel);
             } catch (fbError: any) {
@@ -875,7 +672,7 @@ export async function completionRoutes(fastify: FastifyInstance) {
           }
         } else {
           let userMsg = 'An error occurred while processing your request.';
-          if (errorMessage.includes('Parlant')) userMsg = 'Parlant AI Agent service error: ' + errorMessage;
+          if (errorMessage.includes('Parlant')) userMsg = 'Parlant AI Agent service is temporarily unavailable. Please try again later.';
           else if (errorMessage.includes('timeout')) userMsg = 'Request timed out. The AI service took too long to respond.';
           else if (errorMessage.includes('ECONNREFUSED') || errorMessage.includes('fetch failed')) userMsg = 'Could not connect to the AI service. Please try again later.';
           reply.raw.write(`data: ${JSON.stringify({ error: userMsg, done: true })}\n\n`);

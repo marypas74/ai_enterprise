@@ -1,5 +1,5 @@
 // Types
-export type ProviderType = 'openai' | 'anthropic' | 'google' | 'ollama' | 'custom';
+export type ProviderType = 'openai' | 'anthropic' | 'google' | 'ollama' | 'vllm' | 'custom';
 
 export interface Message {
   role: 'system' | 'user' | 'assistant' | 'tool';

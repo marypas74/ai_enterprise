@@ -11652,7 +11652,7 @@ __export(extension_exports, {
   deactivate: () => deactivate
 });
 module.exports = __toCommonJS(extension_exports);
-var vscode11 = __toESM(require("vscode"));
+var vscode15 = __toESM(require("vscode"));
 
 // src/core/EventBus.ts
 var EventBus = class {
@@ -11704,13 +11704,15 @@ var CONFIG_KEYS = {
   ALLOW_SELF_SIGNED: "allowSelfSignedCerts",
   BOT_ICON_STYLE: "botIconStyle",
   ORCHESTRATOR_POLLING: "orchestrator.pollingInterval",
-  ORCHESTRATOR_SHOW: "orchestrator.showStatusBar"
+  ORCHESTRATOR_SHOW: "orchestrator.showStatusBar",
+  WORKTREE_POLLING: "worktree.pollingInterval"
 };
 var DEFAULTS = {
   SERVER_URL: "https://plane.lushlolli.com",
   ALLOW_SELF_SIGNED: false,
   ORCHESTRATOR_POLLING: 1e4,
-  ORCHESTRATOR_SHOW: true
+  ORCHESTRATOR_SHOW: true,
+  WORKTREE_POLLING: 15e3
 };
 var API_PATHS = {
   LOGIN: "/api/auth/login",
@@ -11730,6 +11732,8 @@ var API_PATHS = {
   TOOLS_CONVERT_PDF: "/api/tools/convert-to-pdf"
 };
 var OUTPUT_CHANNEL_NAME = "Enterprise AI";
+var WORKTREE_SCM_ID = "enterprise-ai-worktrees";
+var WORKTREE_SCM_LABEL = "Enterprise AI Worktrees";
 
 // src/core/ConfigService.ts
 var ConfigService = class {
@@ -11760,6 +11764,9 @@ var ConfigService = class {
   getOrchestratorShowStatusBar() {
     return this.get(CONFIG_KEYS.ORCHESTRATOR_SHOW, DEFAULTS.ORCHESTRATOR_SHOW);
   }
+  getWorktreePollingInterval() {
+    return this.get(CONFIG_KEYS.WORKTREE_POLLING, DEFAULTS.WORKTREE_POLLING);
+  }
   get(key, defaultValue) {
     return vscode.workspace.getConfiguration(CONFIG_SECTION).get(key, defaultValue);
   }
@@ -11769,7 +11776,8 @@ var ConfigService = class {
       allowSelfSigned: this.getAllowSelfSigned(),
       botIconStyle: this.getBotIconStyle(),
       orchestratorPolling: this.getOrchestratorPollingInterval(),
-      orchestratorShow: this.getOrchestratorShowStatusBar()
+      orchestratorShow: this.getOrchestratorShowStatusBar(),
+      worktreePolling: this.getWorktreePollingInterval()
     };
   }
   dispose() {
@@ -15707,7 +15715,7 @@ var ChatService = class {
   async deleteConversation(id) {
     await this.apiClient.delete(`${API_PATHS.CONVERSATIONS}/${id}`);
   }
-  sendMessage(message, modelId, onChunk, onError, conversationId) {
+  sendMessage(message, modelId, onChunk, onError, conversationId, documentIds) {
     this.abortCurrentRequest();
     this.currentController = this.apiClient.stream(
       API_PATHS.COMPLETIONS,
@@ -15715,6 +15723,7 @@ var ChatService = class {
         message,
         model: modelId,
         ...conversationId ? { conversationId } : {},
+        ...documentIds && documentIds.length > 0 ? { documentIds } : {},
         stream: true
       },
       onChunk,
@@ -15751,6 +15760,7 @@ var ChatPanel = class {
   }
   panel = null;
   chatService;
+  documentProvider = null;
   show() {
     if (this.panel) {
       this.panel.reveal();
@@ -15778,6 +15788,9 @@ var ChatPanel = class {
       this.panel = null;
     });
   }
+  setDocumentProvider(provider) {
+    this.documentProvider = provider;
+  }
   postMessage(message) {
     this.panel?.webview.postMessage(message);
   }
@@ -15795,7 +15808,7 @@ var ChatPanel = class {
           break;
         }
         case "sendMessage": {
-          const { message: text, modelId, conversationId } = message.payload;
+          const { message: text, modelId, conversationId, documentIds } = message.payload;
           this.chatService.sendMessage(
             text,
             modelId,
@@ -15806,7 +15819,8 @@ var ChatPanel = class {
               }
             },
             (error) => this.postMessage({ type: "streamError", payload: { message: error.message } }),
-            conversationId
+            conversationId,
+            documentIds
           );
           break;
         }
@@ -15831,6 +15845,25 @@ var ChatPanel = class {
         case "logout":
           this.context.authService.logout();
           break;
+        case "loadDocuments": {
+          if (this.documentProvider) {
+            await this.documentProvider.handleLoadDocuments();
+          }
+          break;
+        }
+        case "searchDocuments": {
+          if (this.documentProvider) {
+            this.documentProvider.handleSearchDocuments(message.payload.query);
+          }
+          break;
+        }
+        case "generateDocumentFromChat": {
+          if (this.documentProvider) {
+            const { format, content, fileName } = message.payload;
+            await this.documentProvider.handleGenerateFromChat(format, content, fileName);
+          }
+          break;
+        }
       }
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
@@ -15990,13 +16023,13 @@ var EnterpriseAICodeActionProvider = class {
       return [];
     }
     const actions = [];
-    const commands5 = [
+    const commands8 = [
       { title: "Explain Code", command: "enterprise-ai.explainCode" },
       { title: "Fix Code", command: "enterprise-ai.fixCode" },
       { title: "Improve Code", command: "enterprise-ai.improveCode" },
       { title: "Generate Tests", command: "enterprise-ai.generateTests" }
     ];
-    for (const { title, command } of commands5) {
+    for (const { title, command } of commands8) {
       const action = new vscode6.CodeAction(`Enterprise AI: ${title}`, vscode6.CodeActionKind.QuickFix);
       action.command = { command, title };
       actions.push(action);
@@ -16543,9 +16576,619 @@ var OrchestratorPanel = class {
   }
 };
 
+// src/modules/documents/DocumentService.ts
+var FORMAT_TO_PATH = {
+  docx: API_PATHS.TOOLS_GENERATE_DOCX,
+  excel: API_PATHS.TOOLS_GENERATE_EXCEL,
+  pptx: API_PATHS.TOOLS_GENERATE_PPTX,
+  pdf: API_PATHS.TOOLS_CONVERT_PDF
+};
+var DocumentService = class {
+  constructor(apiClient, eventBus, outputChannel) {
+    this.apiClient = apiClient;
+    this.eventBus = eventBus;
+    this.outputChannel = outputChannel;
+  }
+  cachedDocuments = null;
+  async loadDocuments() {
+    if (this.cachedDocuments !== null) {
+      return this.cachedDocuments;
+    }
+    try {
+      const documents = await this.apiClient.get(API_PATHS.DOCUMENTS);
+      this.cachedDocuments = documents;
+      this.outputChannel.appendLine(`[Documents] Loaded ${documents.length} documents`);
+      return documents;
+    } catch (error) {
+      this.outputChannel.appendLine(`[Documents] Failed to load documents: ${error}`);
+      return [];
+    }
+  }
+  invalidateCache() {
+    this.cachedDocuments = null;
+    this.outputChannel.appendLine("[Documents] Cache invalidated");
+  }
+  searchDocuments(query) {
+    if (!this.cachedDocuments) {
+      return [];
+    }
+    const lowerQuery = query.toLowerCase();
+    return this.cachedDocuments.filter((doc) => {
+      const lowerName = doc.name.toLowerCase();
+      let queryIndex = 0;
+      for (let i = 0; i < lowerName.length && queryIndex < lowerQuery.length; i++) {
+        if (lowerName[i] === lowerQuery[queryIndex]) {
+          queryIndex++;
+        }
+      }
+      return queryIndex === lowerQuery.length;
+    }).sort((a, b) => {
+      const aStartsWith = a.name.toLowerCase().startsWith(lowerQuery) ? 0 : 1;
+      const bStartsWith = b.name.toLowerCase().startsWith(lowerQuery) ? 0 : 1;
+      if (aStartsWith !== bStartsWith) {
+        return aStartsWith - bStartsWith;
+      }
+      const aIncludes = a.name.toLowerCase().includes(lowerQuery) ? 0 : 1;
+      const bIncludes = b.name.toLowerCase().includes(lowerQuery) ? 0 : 1;
+      return aIncludes - bIncludes;
+    });
+  }
+  async generateDocument(request) {
+    const path = FORMAT_TO_PATH[request.format];
+    const body = { content: request.content };
+    if (request.fileName) {
+      body.fileName = request.fileName;
+    }
+    this.outputChannel.appendLine(`[Documents] Generating ${request.format}: ${request.fileName ?? "unnamed"}`);
+    const result = await this.apiClient.post(path, body);
+    this.outputChannel.appendLine(`[Documents] Generated ${request.format} successfully`);
+    return result;
+  }
+  dispose() {
+    this.cachedDocuments = null;
+  }
+};
+
+// src/modules/documents/DocumentProvider.ts
+var vscode11 = __toESM(require("vscode"));
+var DocumentProvider = class {
+  constructor(context, documentService, getPanel) {
+    this.context = context;
+    this.documentService = documentService;
+    this.getPanel = getPanel;
+    this.disposables.push(
+      this.context.eventBus.on("auth:login", () => {
+        this.documentService.invalidateCache();
+      })
+    );
+    this.disposables.push(
+      this.context.eventBus.on("auth:logout", () => {
+        this.documentService.invalidateCache();
+      })
+    );
+  }
+  disposables = [];
+  async handleLoadDocuments() {
+    const documents = await this.documentService.loadDocuments();
+    this.getPanel().postMessage({
+      type: "setDocuments",
+      payload: { documents }
+    });
+  }
+  handleSearchDocuments(query) {
+    const results = this.documentService.searchDocuments(query);
+    this.getPanel().postMessage({
+      type: "setDocuments",
+      payload: { documents: results }
+    });
+  }
+  async handleGenerateFromChat(format, content, fileName) {
+    try {
+      const validFormat = format;
+      const data = await this.documentService.generateDocument({
+        format: validFormat,
+        content,
+        fileName
+      });
+      const extensionMap = {
+        docx: "docx",
+        excel: "xlsx",
+        pptx: "pptx",
+        pdf: "pdf"
+      };
+      const ext = extensionMap[validFormat] ?? validFormat;
+      const finalName = fileName ? `${fileName}.${ext}` : `document.${ext}`;
+      const saveUri = await vscode11.window.showSaveDialog({
+        defaultUri: vscode11.Uri.file(finalName),
+        title: "Save Generated Document"
+      });
+      if (saveUri) {
+        await vscode11.workspace.fs.writeFile(saveUri, data);
+        this.getPanel().postMessage({
+          type: "documentGenerated",
+          payload: { fileName: finalName, filePath: saveUri.fsPath }
+        });
+      }
+    } catch (error) {
+      this.context.outputChannel.appendLine(
+        `[DocumentProvider] Generation failed: ${error}`
+      );
+    }
+  }
+  dispose() {
+    for (const d of this.disposables) {
+      d.dispose();
+    }
+  }
+};
+
+// src/modules/documents/DocumentCommands.ts
+var vscode12 = __toESM(require("vscode"));
+var FORMAT_OPTIONS = [
+  { label: "DOCX", description: "Microsoft Word document", format: "docx", extension: "docx" },
+  { label: "Excel", description: "Microsoft Excel spreadsheet", format: "excel", extension: "xlsx" },
+  { label: "PowerPoint", description: "Microsoft PowerPoint presentation", format: "pptx", extension: "pptx" },
+  { label: "PDF", description: "PDF document", format: "pdf", extension: "pdf" }
+];
+var FILTER_MAP = {
+  docx: { "Word Documents": ["docx"] },
+  xlsx: { "Excel Spreadsheets": ["xlsx"] },
+  pptx: { "PowerPoint Presentations": ["pptx"] },
+  pdf: { "PDF Documents": ["pdf"] }
+};
+function registerDocumentCommands(documentService) {
+  return [
+    vscode12.commands.registerCommand("enterprise-ai.generateDocument", async () => {
+      const formatChoice = await vscode12.window.showQuickPick(FORMAT_OPTIONS, {
+        placeHolder: "Select document format to generate",
+        title: "Enterprise AI: Generate Document"
+      });
+      if (!formatChoice) {
+        return;
+      }
+      const content = await vscode12.window.showInputBox({
+        prompt: `Describe the ${formatChoice.label} document to generate`,
+        placeHolder: "e.g., Monthly sales report for March 2026 with charts",
+        ignoreFocusOut: true
+      });
+      if (!content) {
+        return;
+      }
+      const saveUri = await vscode12.window.showSaveDialog({
+        filters: FILTER_MAP[formatChoice.extension],
+        defaultUri: vscode12.Uri.file(`document.${formatChoice.extension}`),
+        title: `Save ${formatChoice.label} Document`
+      });
+      if (!saveUri) {
+        return;
+      }
+      try {
+        await vscode12.window.withProgress(
+          {
+            location: vscode12.ProgressLocation.Notification,
+            title: `Generating ${formatChoice.label} document...`,
+            cancellable: false
+          },
+          async () => {
+            const data = await documentService.generateDocument({
+              format: formatChoice.format,
+              content,
+              fileName: saveUri.fsPath.split("/").pop()?.replace(`.${formatChoice.extension}`, "")
+            });
+            await vscode12.workspace.fs.writeFile(saveUri, data);
+          }
+        );
+        const openAction = await vscode12.window.showInformationMessage(
+          `Document saved: ${saveUri.fsPath}`,
+          "Open File"
+        );
+        if (openAction === "Open File") {
+          await vscode12.commands.executeCommand("vscode.open", saveUri);
+        }
+      } catch (error) {
+        vscode12.window.showErrorMessage(
+          `Failed to generate document: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+    })
+  ];
+}
+
+// src/modules/worktree/WorktreeService.ts
+var WorktreeService = class {
+  constructor(apiClient, eventBus, outputChannel) {
+    this.apiClient = apiClient;
+    this.eventBus = eventBus;
+    this.outputChannel = outputChannel;
+  }
+  async listWorktrees() {
+    try {
+      const worktrees = await this.apiClient.get(
+        API_PATHS.ORCHESTRATOR_WORKTREES
+      );
+      this.outputChannel.appendLine(`[Worktree] Listed ${worktrees.length} worktrees`);
+      return worktrees;
+    } catch (error) {
+      this.outputChannel.appendLine(`[Worktree] Failed to list worktrees: ${error}`);
+      return [];
+    }
+  }
+  async getWorktree(sessionId) {
+    try {
+      const worktree = await this.apiClient.get(
+        `${API_PATHS.AGENT_SESSIONS}/${sessionId}/worktree`
+      );
+      return worktree;
+    } catch (error) {
+      this.outputChannel.appendLine(
+        `[Worktree] Failed to get worktree for session ${sessionId}: ${error}`
+      );
+      return null;
+    }
+  }
+  async mergeWorktree(sessionId) {
+    try {
+      const result = await this.apiClient.post(
+        `${API_PATHS.AGENT_SESSIONS}/${sessionId}/worktree/merge`
+      );
+      if (result.success) {
+        this.outputChannel.appendLine(
+          `[Worktree] Merged branch ${result.mergedBranch} for session ${sessionId}`
+        );
+      } else {
+        this.outputChannel.appendLine(
+          `[Worktree] Merge failed for session ${sessionId}: ${result.error}`
+        );
+      }
+      return result;
+    } catch (error) {
+      this.outputChannel.appendLine(`[Worktree] Merge error: ${error}`);
+      return {
+        success: false,
+        mergedBranch: "",
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  }
+  async discardWorktree(sessionId) {
+    try {
+      await this.apiClient.post(
+        `${API_PATHS.AGENT_SESSIONS}/${sessionId}/worktree/discard`
+      );
+      this.outputChannel.appendLine(`[Worktree] Discarded worktree for session ${sessionId}`);
+    } catch (error) {
+      this.outputChannel.appendLine(`[Worktree] Discard error: ${error}`);
+      throw error;
+    }
+  }
+  notifyWorktreeReady(sessionId, branch) {
+    this.eventBus.emit("worktree:ready", { sessionId, branch });
+  }
+  dispose() {
+  }
+};
+
+// src/modules/worktree/WorktreeScmProvider.ts
+var vscode13 = __toESM(require("vscode"));
+var WorktreeScmProvider = class {
+  constructor(worktreeService, eventBus, outputChannel) {
+    this.worktreeService = worktreeService;
+    this.eventBus = eventBus;
+    this.outputChannel = outputChannel;
+    this.scm = vscode13.scm.createSourceControl(WORKTREE_SCM_ID, WORKTREE_SCM_LABEL);
+    this.scm.inputBox.placeholder = "Enterprise AI Worktrees";
+    this.disposables.push(
+      this.eventBus.on("worktree:ready", (data) => {
+        this.handleWorktreeReady(data.sessionId, data.branch);
+      })
+    );
+  }
+  scm;
+  resourceGroups = [];
+  pollingTimer = null;
+  disposables = [];
+  async refresh() {
+    try {
+      const worktrees = await this.worktreeService.listWorktrees();
+      this.updateResourceGroups(worktrees);
+      this.scm.count = worktrees.length;
+    } catch (error) {
+      this.outputChannel.appendLine(`[WorktreeSCM] Refresh failed: ${error}`);
+    }
+  }
+  startPolling(intervalMs) {
+    this.stopPolling();
+    this.pollingTimer = setInterval(() => {
+      this.refresh();
+    }, intervalMs);
+  }
+  stopPolling() {
+    if (this.pollingTimer !== null) {
+      clearInterval(this.pollingTimer);
+      this.pollingTimer = null;
+    }
+  }
+  updateResourceGroups(worktrees) {
+    for (const { group } of this.resourceGroups) {
+      group.dispose();
+    }
+    this.resourceGroups = [];
+    for (const worktree of worktrees) {
+      const label = worktree.agentName ? `${worktree.branch} (${worktree.agentName})` : worktree.branch;
+      const group = this.scm.createResourceGroup(worktree.id, label);
+      group.hideWhenEmpty = false;
+      const allFiles = [
+        ...worktree.modifiedFiles,
+        ...worktree.conflicts
+      ];
+      group.resourceStates = allFiles.map(
+        (file) => this.createResourceState(worktree, file)
+      );
+      this.resourceGroups.push({ group, worktree });
+    }
+  }
+  createResourceState(worktree, file) {
+    const resourceUri = vscode13.Uri.file(`${worktree.path}/${file.path}`);
+    const decorations = this.getDecorations(file.status);
+    const leftUri = vscode13.Uri.from({
+      scheme: "enterprise-ai-worktree",
+      path: file.path,
+      query: JSON.stringify({
+        worktreePath: worktree.path,
+        branch: worktree.targetBranch
+      })
+    });
+    const state = {
+      resourceUri,
+      decorations,
+      command: {
+        title: "Open Diff",
+        command: "vscode.diff",
+        arguments: [
+          leftUri,
+          resourceUri,
+          `${file.path} (${worktree.targetBranch} vs ${worktree.branch})`
+        ]
+      }
+    };
+    return state;
+  }
+  getDecorations(status) {
+    switch (status) {
+      case "added":
+        return {
+          iconPath: new vscode13.ThemeIcon("diff-added"),
+          tooltip: "Added",
+          faded: false,
+          strikeThrough: false
+        };
+      case "modified":
+        return {
+          iconPath: new vscode13.ThemeIcon("diff-modified"),
+          tooltip: "Modified",
+          faded: false,
+          strikeThrough: false
+        };
+      case "deleted":
+        return {
+          iconPath: new vscode13.ThemeIcon("diff-removed"),
+          tooltip: "Deleted",
+          faded: false,
+          strikeThrough: true
+        };
+      case "conflicted":
+        return {
+          iconPath: new vscode13.ThemeIcon("warning"),
+          tooltip: "Conflict",
+          faded: false,
+          strikeThrough: false
+        };
+      default:
+        return {};
+    }
+  }
+  handleWorktreeReady(sessionId, branch) {
+    this.refresh();
+    this.showWorktreeReadyNotification(sessionId, branch);
+  }
+  async showWorktreeReadyNotification(sessionId, branch) {
+    const action = await vscode13.window.showInformationMessage(
+      `Worktree ready: ${branch}`,
+      "Merge",
+      "Review",
+      "Dismiss"
+    );
+    switch (action) {
+      case "Merge":
+        await this.mergeWorktree(sessionId);
+        break;
+      case "Review":
+        await vscode13.commands.executeCommand("workbench.view.scm");
+        break;
+      case "Dismiss":
+      default:
+        break;
+    }
+  }
+  async mergeWorktree(sessionId) {
+    const worktree = this.resourceGroups.find(
+      (rg) => rg.worktree.sessionId === sessionId
+    )?.worktree;
+    if (!worktree) {
+      vscode13.window.showWarningMessage(`Worktree for session ${sessionId} not found`);
+      return;
+    }
+    const confirm = await vscode13.window.showWarningMessage(
+      `Merge branch "${worktree.branch}" into "${worktree.targetBranch}"?`,
+      { modal: true },
+      "Merge"
+    );
+    if (confirm !== "Merge") {
+      return;
+    }
+    const result = await this.worktreeService.mergeWorktree(sessionId);
+    if (result.success) {
+      vscode13.window.showInformationMessage(
+        `Successfully merged ${worktree.branch} into ${worktree.targetBranch}`
+      );
+      await this.refresh();
+    } else if (result.conflicts && result.conflicts.length > 0) {
+      const openConflicts = await vscode13.window.showWarningMessage(
+        `Merge conflicts in ${result.conflicts.length} file(s). Resolve manually.`,
+        "Open Conflicts"
+      );
+      if (openConflicts === "Open Conflicts") {
+        for (const conflictPath of result.conflicts) {
+          const uri = vscode13.Uri.file(`${worktree.path}/${conflictPath}`);
+          await vscode13.commands.executeCommand("merge-conflict.accept.both", uri);
+        }
+      }
+    } else {
+      vscode13.window.showErrorMessage(
+        `Merge failed: ${result.error ?? "Unknown error"}`
+      );
+    }
+  }
+  async discardWorktree(sessionId) {
+    const worktree = this.resourceGroups.find(
+      (rg) => rg.worktree.sessionId === sessionId
+    )?.worktree;
+    if (!worktree) {
+      return;
+    }
+    const confirm = await vscode13.window.showWarningMessage(
+      `Discard worktree "${worktree.branch}"? This cannot be undone.`,
+      { modal: true },
+      "Discard"
+    );
+    if (confirm !== "Discard") {
+      return;
+    }
+    try {
+      await this.worktreeService.discardWorktree(sessionId);
+      vscode13.window.showInformationMessage(`Worktree ${worktree.branch} discarded`);
+      await this.refresh();
+    } catch (error) {
+      vscode13.window.showErrorMessage(
+        `Failed to discard worktree: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+  getWorktrees() {
+    return this.resourceGroups.map((rg) => rg.worktree);
+  }
+  dispose() {
+    this.stopPolling();
+    for (const { group } of this.resourceGroups) {
+      group.dispose();
+    }
+    this.resourceGroups = [];
+    this.scm.dispose();
+    for (const d of this.disposables) {
+      d.dispose();
+    }
+  }
+};
+var WorktreeContentProvider = class {
+  async provideTextDocumentContent(uri) {
+    const { worktreePath, branch } = JSON.parse(uri.query);
+    const filePath = uri.path;
+    const { exec } = await import("child_process");
+    const { promisify } = await import("util");
+    const execAsync = promisify(exec);
+    try {
+      const { stdout } = await execAsync(
+        `git show ${branch}:${filePath}`,
+        { cwd: worktreePath }
+      );
+      return stdout;
+    } catch {
+      return "";
+    }
+  }
+};
+
+// src/modules/worktree/WorktreeCommands.ts
+var vscode14 = __toESM(require("vscode"));
+function registerWorktreeCommands(getScmProvider) {
+  return [
+    vscode14.commands.registerCommand("enterprise-ai.manageWorktrees", async () => {
+      const provider = getScmProvider();
+      await provider.refresh();
+      const worktrees = provider.getWorktrees();
+      if (worktrees.length === 0) {
+        vscode14.window.showInformationMessage("No active worktrees");
+        return;
+      }
+      const items = worktrees.map((wt) => ({
+        label: wt.branch,
+        description: `${wt.status} \u2014 ${wt.modifiedFiles.length} file(s)`,
+        detail: wt.agentName ? `Agent: ${wt.agentName} | Target: ${wt.targetBranch}` : `Target: ${wt.targetBranch}`,
+        worktree: wt
+      }));
+      const selected = await vscode14.window.showQuickPick(items, {
+        placeHolder: "Select a worktree to manage",
+        title: "Enterprise AI Worktrees"
+      });
+      if (!selected) {
+        return;
+      }
+      const action = await vscode14.window.showQuickPick(
+        [
+          { label: "Merge", description: `Merge into ${selected.worktree.targetBranch}` },
+          { label: "Review", description: "Open in Source Control view" },
+          { label: "Discard", description: "Delete worktree (cannot be undone)" }
+        ],
+        {
+          placeHolder: `Action for ${selected.worktree.branch}`
+        }
+      );
+      if (!action) {
+        return;
+      }
+      switch (action.label) {
+        case "Merge":
+          await provider.mergeWorktree(selected.worktree.sessionId);
+          break;
+        case "Review":
+          await vscode14.commands.executeCommand("workbench.view.scm");
+          break;
+        case "Discard":
+          await provider.discardWorktree(selected.worktree.sessionId);
+          break;
+      }
+    }),
+    vscode14.commands.registerCommand(
+      "enterprise-ai.worktree.merge",
+      async (sessionId) => {
+        await getScmProvider().mergeWorktree(sessionId);
+      }
+    ),
+    vscode14.commands.registerCommand(
+      "enterprise-ai.worktree.discard",
+      async (sessionId) => {
+        await getScmProvider().discardWorktree(sessionId);
+      }
+    ),
+    vscode14.commands.registerCommand(
+      "enterprise-ai.worktree.openDiff",
+      async (leftUri, rightUri, title) => {
+        await vscode14.commands.executeCommand("vscode.diff", leftUri, rightUri, title);
+      }
+    ),
+    vscode14.commands.registerCommand(
+      "enterprise-ai.worktree.resolveConflict",
+      async (fileUri) => {
+        await vscode14.commands.executeCommand("merge-conflict.accept.both", fileUri);
+      }
+    )
+  ];
+}
+
 // src/extension.ts
 function activate(context) {
-  const outputChannel = vscode11.window.createOutputChannel(OUTPUT_CHANNEL_NAME);
+  const startTime = Date.now();
+  const outputChannel = vscode15.window.createOutputChannel(OUTPUT_CHANNEL_NAME);
   outputChannel.appendLine("[Extension] Activating Enterprise AI...");
   const eventBus = new EventBus();
   const configService = new ConfigService(eventBus);
@@ -16559,13 +17202,18 @@ function activate(context) {
     eventBus,
     outputChannel
   };
+  const documentService = new DocumentService(apiClient, eventBus, outputChannel);
   let chatPanel = null;
   const getChatPanel = () => {
     if (!chatPanel) {
       chatPanel = new ChatPanel(moduleContext);
+      if (documentProvider) {
+        chatPanel.setDocumentProvider(documentProvider);
+      }
     }
     return chatPanel;
   };
+  const documentProvider = new DocumentProvider(moduleContext, documentService, getChatPanel);
   const agentService = new AgentService(apiClient, eventBus, outputChannel);
   let agentPanel = null;
   const getAgentPanel = () => {
@@ -16583,21 +17231,38 @@ function activate(context) {
     }
     return orchestratorPanel;
   };
+  const worktreeService = new WorktreeService(apiClient, eventBus, outputChannel);
+  let worktreeScmProvider = null;
+  const getScmProvider = () => {
+    if (!worktreeScmProvider) {
+      worktreeScmProvider = new WorktreeScmProvider(worktreeService, eventBus, outputChannel);
+      worktreeScmProvider.startPolling(configService.getWorktreePollingInterval());
+      worktreeScmProvider.refresh();
+    }
+    return worktreeScmProvider;
+  };
   const disposables = [
     ...registerChatCommands(moduleContext, getChatPanel),
     ...registerCodeActionCommands(getChatPanel),
     ...registerAgentCommands(moduleContext, agentService, getAgentPanel),
-    vscode11.commands.registerCommand("enterprise-ai.openOrchestrator", () => {
+    ...registerDocumentCommands(documentService),
+    ...registerWorktreeCommands(getScmProvider),
+    vscode15.commands.registerCommand("enterprise-ai.openOrchestrator", () => {
       if (!authService.isAuthenticated()) {
-        vscode11.window.showWarningMessage("Login required to open orchestrator.");
+        vscode15.window.showWarningMessage("Login required to open orchestrator.");
         return;
       }
       getOrchestratorPanel().show();
     }),
-    vscode11.languages.registerCodeActionsProvider(
+    vscode15.languages.registerCodeActionsProvider(
       { scheme: "file" },
       new EnterpriseAICodeActionProvider(),
       { providedCodeActionKinds: EnterpriseAICodeActionProvider.providedCodeActionKinds }
+    ),
+    // Register worktree content provider for diff URIs
+    vscode15.workspace.registerTextDocumentContentProvider(
+      "enterprise-ai-worktree",
+      new WorktreeContentProvider()
     )
   ];
   context.subscriptions.push(
@@ -16605,10 +17270,28 @@ function activate(context) {
     orchestratorStatusBar,
     { dispose: () => orchestratorService.dispose() },
     { dispose: () => agentService.dispose() },
+    { dispose: () => worktreeService.dispose() },
+    { dispose: () => documentService.dispose() },
+    { dispose: () => documentProvider.dispose() },
     outputChannel
   );
   authService.tryRestoreSession();
-  outputChannel.appendLine("[Extension] Activated");
+  if (authService.isAuthenticated()) {
+    getScmProvider();
+  }
+  eventBus.on("auth:login", () => {
+    getScmProvider();
+  });
+  eventBus.on("auth:logout", () => {
+    if (worktreeScmProvider) {
+      worktreeScmProvider.stopPolling();
+    }
+  });
+  const elapsedMs = Date.now() - startTime;
+  outputChannel.appendLine(`[Extension] Activated in ${elapsedMs}ms`);
+  if (elapsedMs > 500) {
+    outputChannel.appendLine(`[Extension] WARNING: Activation took ${elapsedMs}ms (threshold: 500ms)`);
+  }
 }
 function deactivate() {
 }

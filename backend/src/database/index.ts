@@ -645,6 +645,8 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
     { name: 'ai_models_add_documentation_url', sql: `ALTER TABLE ai_models ADD COLUMN documentation_url VARCHAR(500) NULL` },
     { name: 'conversations_add_chat_mode', sql: `ALTER TABLE conversations ADD COLUMN chat_mode ENUM('free', 'rag') DEFAULT 'free'` },
     { name: 'conversations_add_document_ids', sql: `ALTER TABLE conversations ADD COLUMN document_ids JSON NULL` },
+    // v4.1: Brainstorming mode
+    { name: 'conversations_chat_mode_add_brainstorm', sql: `ALTER TABLE conversations MODIFY COLUMN chat_mode ENUM('free', 'rag', 'brainstorm') DEFAULT 'free'` },
   ];
 
   for (const migration of alterMigrations) {
