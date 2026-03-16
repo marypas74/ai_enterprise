@@ -10,8 +10,19 @@ vsc-extension-quickstart.md
 **/*.ts
 **/*.tsx
 node_modules/**
-webview-ui/**
+webview-ui/src/**
 scripts/**
+
+# Test and coverage artifacts
+test/**
+coverage/**
+.nyc_output/**
+*.cpuprofile
+
+# Config files not needed in VSIX
+vitest.config.ts
+tsconfig.test.json
+test/e2e/tsconfig.json
 
 # Include output files (these are NOT ignored)
 !out/**
