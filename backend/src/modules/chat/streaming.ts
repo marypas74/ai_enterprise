@@ -337,13 +337,29 @@ export async function directConvertAttachment(
       }
       ext = 'pdf';
       icon = '📕';
-    } else if (isPdf && attachment.file_path) {
-      // PDF→DOCX: use pdf2docx for format-preserving conversion
-      const pdfBuffer = await fs.readFile(attachment.file_path);
-      buffer = await convertPdfToDocx(pdfBuffer, generatedDir, attachment.original_name);
+    } else if (isPdf) {
+      // PDF→DOCX: extract text (OCR if needed) then generate editable DOCX
+      let textContent = attachment.processed_content;
+
+      // If processed_content is too sparse, re-extract with OCR pipeline
+      if (!textContent || textContent.trim().length < 30) {
+        if (attachment.file_path) {
+          const pdfBuffer = await fs.readFile(attachment.file_path);
+          const { processDocument } = await import('../../services/DocumentProcessorService.js');
+          const result = await processDocument(pdfBuffer, 'application/pdf', attachment.original_name);
+          textContent = result.text;
+          log.info(`[Chat] PDF text re-extracted via ${result.method}: ${result.charCount} chars`);
+        }
+      }
+
+      if (!textContent || textContent.trim().length < 10) {
+        return null; // Not enough content, fall through to LLM
+      }
+
+      buffer = await generateDocxBuffer(textContent, docTitle);
       ext = 'docx';
       icon = '📄';
-      log.info(`[Chat] PDF→DOCX format-preserving conversion: ${attachment.original_name}`);
+      log.info(`[Chat] PDF→DOCX editable conversion: ${attachment.original_name}`);
     } else {
       // Non-PDF source: generate DOCX from extracted text
       const content = attachment.processed_content;
