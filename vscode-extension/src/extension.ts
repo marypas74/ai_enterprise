@@ -7,6 +7,12 @@ import { ChatPanel } from './modules/chat/ChatPanel';
 import { registerChatCommands } from './modules/chat/ChatCommands';
 import { registerCodeActionCommands } from './modules/code-actions/CodeActionCommands';
 import { EnterpriseAICodeActionProvider } from './modules/code-actions/CodeActionProvider';
+import { AgentService } from './modules/agents/AgentService';
+import { AgentPanel } from './modules/agents/AgentPanel';
+import { registerAgentCommands } from './modules/agents/AgentCommands';
+import { OrchestratorService } from './modules/orchestrator/OrchestratorService';
+import { OrchestratorStatusBar } from './modules/orchestrator/OrchestratorStatusBar';
+import { OrchestratorPanel } from './modules/orchestrator/OrchestratorPanel';
 import { OUTPUT_CHANNEL_NAME } from './utils/constants';
 import type { ModuleContext } from './core/types';
 
@@ -31,17 +37,46 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // Chat panel (lazy)
   let chatPanel: ChatPanel | null = null;
-  const getPanel = (): ChatPanel => {
+  const getChatPanel = (): ChatPanel => {
     if (!chatPanel) {
       chatPanel = new ChatPanel(moduleContext);
     }
     return chatPanel;
   };
 
+  // Agents module
+  const agentService = new AgentService(apiClient, eventBus, outputChannel);
+  let agentPanel: AgentPanel | null = null;
+  const getAgentPanel = (): AgentPanel => {
+    if (!agentPanel) {
+      agentPanel = new AgentPanel(moduleContext, agentService);
+    }
+    return agentPanel;
+  };
+
+  // Orchestrator module
+  const orchestratorService = new OrchestratorService(apiClient, eventBus, configService, outputChannel);
+  const orchestratorStatusBar = new OrchestratorStatusBar(eventBus, orchestratorService, configService);
+  let orchestratorPanel: OrchestratorPanel | null = null;
+  const getOrchestratorPanel = (): OrchestratorPanel => {
+    if (!orchestratorPanel) {
+      orchestratorPanel = new OrchestratorPanel(moduleContext, orchestratorService, orchestratorStatusBar);
+    }
+    return orchestratorPanel;
+  };
+
   // Register commands
   const disposables = [
-    ...registerChatCommands(moduleContext, getPanel),
-    ...registerCodeActionCommands(getPanel),
+    ...registerChatCommands(moduleContext, getChatPanel),
+    ...registerCodeActionCommands(getChatPanel),
+    ...registerAgentCommands(moduleContext, agentService, getAgentPanel),
+    vscode.commands.registerCommand('enterprise-ai.openOrchestrator', () => {
+      if (!authService.isAuthenticated()) {
+        vscode.window.showWarningMessage('Login required to open orchestrator.');
+        return;
+      }
+      getOrchestratorPanel().show();
+    }),
     vscode.languages.registerCodeActionsProvider(
       { scheme: 'file' },
       new EnterpriseAICodeActionProvider(),
@@ -49,7 +84,13 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
   ];
 
-  context.subscriptions.push(...disposables, outputChannel);
+  context.subscriptions.push(
+    ...disposables,
+    orchestratorStatusBar,
+    { dispose: () => orchestratorService.dispose() },
+    { dispose: () => agentService.dispose() },
+    outputChannel,
+  );
 
   // Restore session
   authService.tryRestoreSession();

@@ -11652,7 +11652,7 @@ __export(extension_exports, {
   deactivate: () => deactivate
 });
 module.exports = __toCommonJS(extension_exports);
-var vscode7 = __toESM(require("vscode"));
+var vscode11 = __toESM(require("vscode"));
 
 // src/core/EventBus.ts
 var EventBus = class {
@@ -11723,6 +11723,7 @@ var API_PATHS = {
   ORCHESTRATOR_STATUS: "/api/orchestrator/status",
   ORCHESTRATOR_EVENTS: "/api/orchestrator/events",
   ORCHESTRATOR_WORKTREES: "/api/orchestrator/worktrees",
+  ORCHESTRATOR_SLOT_RELEASE: "/api/orchestrator/slots/release",
   TOOLS_GENERATE_DOCX: "/api/tools/generate-docx",
   TOOLS_GENERATE_EXCEL: "/api/tools/generate-excel",
   TOOLS_GENERATE_PPTX: "/api/tools/generate-pptx",
@@ -15679,6 +15680,13 @@ var AuthService = class {
 // src/modules/chat/ChatPanel.ts
 var vscode3 = __toESM(require("vscode"));
 
+// src/utils/helpers.ts
+function getNonce() {
+  const array = new Uint8Array(16);
+  crypto.getRandomValues(array);
+  return Array.from(array, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 // src/modules/chat/ChatService.ts
 var ChatService = class {
   constructor(apiClient, eventBus, outputChannel) {
@@ -15856,11 +15864,6 @@ var ChatPanel = class {
 </html>`;
   }
 };
-function getNonce() {
-  const array = new Uint8Array(16);
-  crypto.getRandomValues(array);
-  return Array.from(array, (b) => b.toString(16).padStart(2, "0")).join("");
-}
 
 // src/modules/chat/ChatCommands.ts
 var vscode4 = __toESM(require("vscode"));
@@ -15987,13 +15990,13 @@ var EnterpriseAICodeActionProvider = class {
       return [];
     }
     const actions = [];
-    const commands3 = [
+    const commands5 = [
       { title: "Explain Code", command: "enterprise-ai.explainCode" },
       { title: "Fix Code", command: "enterprise-ai.fixCode" },
       { title: "Improve Code", command: "enterprise-ai.improveCode" },
       { title: "Generate Tests", command: "enterprise-ai.generateTests" }
     ];
-    for (const { title, command } of commands3) {
+    for (const { title, command } of commands5) {
       const action = new vscode6.CodeAction(`Enterprise AI: ${title}`, vscode6.CodeActionKind.QuickFix);
       action.command = { command, title };
       actions.push(action);
@@ -16002,9 +16005,547 @@ var EnterpriseAICodeActionProvider = class {
   }
 };
 
+// src/modules/agents/AgentService.ts
+var AgentService = class {
+  constructor(apiClient, eventBus, outputChannel) {
+    this.apiClient = apiClient;
+    this.eventBus = eventBus;
+    this.outputChannel = outputChannel;
+  }
+  logController = null;
+  async getTemplates() {
+    const templates = await this.apiClient.get(API_PATHS.AGENT_TEMPLATES);
+    this.outputChannel.appendLine(`[Agents] Loaded ${templates.length} templates`);
+    return templates;
+  }
+  async getSessions() {
+    return this.apiClient.get(API_PATHS.AGENT_SESSIONS);
+  }
+  async createSession(templateId, prompt) {
+    const session = await this.apiClient.post(API_PATHS.AGENT_SESSIONS, { templateId, prompt });
+    this.eventBus.emit("agent:started", { sessionId: session.id });
+    this.outputChannel.appendLine(`[Agents] Session created: ${session.id}`);
+    return session;
+  }
+  async pauseSession(sessionId) {
+    await this.apiClient.post(`${API_PATHS.AGENT_SESSIONS}/${sessionId}/pause`);
+    this.outputChannel.appendLine(`[Agents] Session paused: ${sessionId}`);
+  }
+  async resumeSession(sessionId) {
+    await this.apiClient.post(`${API_PATHS.AGENT_SESSIONS}/${sessionId}/resume`);
+    this.outputChannel.appendLine(`[Agents] Session resumed: ${sessionId}`);
+  }
+  async cancelSession(sessionId) {
+    await this.apiClient.post(`${API_PATHS.AGENT_SESSIONS}/${sessionId}/cancel`);
+    this.eventBus.emit("agent:completed", { sessionId, status: "cancelled" });
+    this.outputChannel.appendLine(`[Agents] Session cancelled: ${sessionId}`);
+  }
+  streamSessionLogs(sessionId, onEntry, onError) {
+    this.stopLogStream();
+    this.logController = this.apiClient.stream(
+      `${API_PATHS.AGENT_SESSIONS}/${sessionId}/logs`,
+      { stream: true },
+      (chunk) => {
+        if (chunk.content) {
+          try {
+            const entry = JSON.parse(chunk.content);
+            onEntry(entry);
+          } catch {
+            onEntry({ timestamp: (/* @__PURE__ */ new Date()).toISOString(), level: "info", message: chunk.content, sessionId });
+          }
+        }
+        if (chunk.done) {
+          this.outputChannel.appendLine(`[Agents] Log stream ended for: ${sessionId}`);
+        }
+      },
+      onError
+    );
+  }
+  stopLogStream() {
+    if (this.logController) {
+      this.logController.abort();
+      this.logController = null;
+    }
+  }
+  dispose() {
+    this.stopLogStream();
+  }
+};
+
+// src/modules/agents/AgentPanel.ts
+var vscode7 = __toESM(require("vscode"));
+var AgentPanel = class {
+  constructor(context, agentService) {
+    this.context = context;
+    this.agentService = agentService;
+    context.eventBus.on("auth:login", () => {
+      const user = context.authService.getUser();
+      if (user && this.panel) {
+        this.postMessage({ type: "setAuthenticated", payload: { user } });
+      }
+    });
+    context.eventBus.on("auth:logout", () => {
+      this.postMessage({ type: "setUnauthenticated" });
+      this.agentService.stopLogStream();
+    });
+  }
+  panel = null;
+  agentService;
+  activeSessionId = null;
+  show() {
+    if (this.panel) {
+      this.panel.reveal();
+      return;
+    }
+    this.panel = vscode7.window.createWebviewPanel(
+      "enterprise-ai.agents",
+      "Enterprise AI Agents",
+      vscode7.ViewColumn.Beside,
+      {
+        enableScripts: true,
+        retainContextWhenHidden: true,
+        localResourceRoots: [
+          vscode7.Uri.joinPath(this.context.extensionContext.extensionUri, "out")
+        ]
+      }
+    );
+    this.panel.webview.html = this.getHtml();
+    this.panel.webview.onDidReceiveMessage(
+      (msg) => this.handleMessage(msg),
+      void 0,
+      this.context.extensionContext.subscriptions
+    );
+    this.panel.onDidDispose(() => {
+      this.panel = null;
+      this.activeSessionId = null;
+      this.agentService.stopLogStream();
+    });
+  }
+  selectSession(sessionId) {
+    this.handleMessage({ type: "selectSession", payload: { sessionId } });
+  }
+  postMessage(message) {
+    this.panel?.webview.postMessage(message);
+  }
+  async handleMessage(message) {
+    try {
+      switch (message.type) {
+        case "ready": {
+          if (this.context.authService.isAuthenticated()) {
+            const user = this.context.authService.getUser();
+            if (user) {
+              this.postMessage({ type: "setAuthenticated", payload: { user } });
+            }
+          }
+          await this.refreshSessions();
+          break;
+        }
+        case "loadSessions":
+          await this.refreshSessions();
+          break;
+        case "selectSession": {
+          const { sessionId } = message.payload;
+          this.activeSessionId = sessionId;
+          this.agentService.stopLogStream();
+          this.agentService.streamSessionLogs(
+            sessionId,
+            (entry) => {
+              this.postMessage({ type: "logEntry", payload: entry });
+            },
+            (error) => {
+              this.postMessage({
+                type: "sseStatus",
+                payload: { connected: false, message: `Connection lost \u2014 reconnecting... (${error.message})` }
+              });
+            }
+          );
+          this.postMessage({ type: "sseStatus", payload: { connected: true } });
+          break;
+        }
+        case "pauseSession":
+          await this.agentService.pauseSession(message.payload.sessionId);
+          await this.refreshSessions();
+          break;
+        case "resumeSession":
+          await this.agentService.resumeSession(message.payload.sessionId);
+          await this.refreshSessions();
+          break;
+        case "cancelSession":
+          await this.agentService.cancelSession(message.payload.sessionId);
+          await this.refreshSessions();
+          break;
+      }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.context.outputChannel.appendLine(`[AgentPanel] Error: ${msg}`);
+    }
+  }
+  async refreshSessions() {
+    try {
+      const sessions = await this.agentService.getSessions();
+      this.postMessage({ type: "setSessions", payload: { sessions } });
+    } catch (error) {
+      this.context.outputChannel.appendLine(`[AgentPanel] Failed to refresh sessions: ${error}`);
+    }
+  }
+  getHtml() {
+    const webview = this.panel.webview;
+    const scriptUri = webview.asWebviewUri(
+      vscode7.Uri.joinPath(this.context.extensionContext.extensionUri, "out", "agentsWebview.js")
+    );
+    const styleUri = webview.asWebviewUri(
+      vscode7.Uri.joinPath(this.context.extensionContext.extensionUri, "out", "theme.css")
+    );
+    const nonce = getNonce();
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="${styleUri}" rel="stylesheet">
+  <title>Enterprise AI Agents</title>
+</head>
+<body>
+  <div id="root"></div>
+  <script nonce="${nonce}" src="${scriptUri}"></script>
+</body>
+</html>`;
+  }
+};
+
+// src/modules/agents/AgentCommands.ts
+var vscode8 = __toESM(require("vscode"));
+function registerAgentCommands(context, agentService, getPanel) {
+  return [
+    vscode8.commands.registerCommand("enterprise-ai.newAgentSession", async () => {
+      if (!context.authService.isAuthenticated()) {
+        vscode8.window.showWarningMessage("Login required to create agent sessions.");
+        return;
+      }
+      try {
+        const templates = await agentService.getTemplates();
+        if (templates.length === 0) {
+          vscode8.window.showInformationMessage("No agent templates available.");
+          return;
+        }
+        const items = templates.map((t) => ({
+          label: t.name,
+          description: t.category,
+          detail: t.description,
+          templateId: t.id
+        }));
+        const selected = await vscode8.window.showQuickPick(items, {
+          placeHolder: "Select an agent template",
+          matchOnDescription: true,
+          matchOnDetail: true
+        });
+        if (!selected) {
+          return;
+        }
+        const prompt = await vscode8.window.showInputBox({
+          prompt: "Enter the task prompt for the agent",
+          placeHolder: "e.g., Review the authentication module for security issues"
+        });
+        if (!prompt) {
+          return;
+        }
+        const session = await agentService.createSession(selected.templateId, prompt);
+        vscode8.window.showInformationMessage(`Agent session started: ${session.id}`);
+        const panel = getPanel();
+        panel.show();
+        panel.selectSession(session.id);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        vscode8.window.showErrorMessage(`Failed to create agent session: ${message}`);
+      }
+    }),
+    vscode8.commands.registerCommand("enterprise-ai.viewAgentSessions", () => {
+      if (!context.authService.isAuthenticated()) {
+        vscode8.window.showWarningMessage("Login required to view agent sessions.");
+        return;
+      }
+      getPanel().show();
+    })
+  ];
+}
+
+// src/modules/orchestrator/OrchestratorService.ts
+var OrchestratorService = class {
+  constructor(apiClient, configService, eventBus, outputChannel) {
+    this.apiClient = apiClient;
+    this.configService = configService;
+    this.eventBus = eventBus;
+    this.outputChannel = outputChannel;
+  }
+  pollingTimer = null;
+  sseController = null;
+  async getStatus() {
+    const status = await this.apiClient.get(API_PATHS.ORCHESTRATOR_STATUS);
+    this.eventBus.emit("orchestrator:update", {
+      activeSlots: status.activeSlots,
+      totalSlots: status.totalSlots
+    });
+    this.outputChannel.appendLine(
+      `[Orchestrator] Status: ${status.activeSlots}/${status.totalSlots} slots`
+    );
+    return status;
+  }
+  startPolling() {
+    this.stopPolling();
+    const interval = this.configService.getOrchestratorPollingInterval();
+    this.fetchStatusSafe();
+    this.pollingTimer = setInterval(() => {
+      this.fetchStatusSafe();
+    }, interval);
+  }
+  stopPolling() {
+    if (this.pollingTimer !== null) {
+      clearInterval(this.pollingTimer);
+      this.pollingTimer = null;
+    }
+  }
+  startEventStream(onUpdate, onError) {
+    this.stopEventStream();
+    this.sseController = this.apiClient.stream(
+      API_PATHS.ORCHESTRATOR_EVENTS,
+      { stream: true },
+      (chunk) => {
+        if (chunk.content) {
+          try {
+            const status = JSON.parse(chunk.content);
+            this.eventBus.emit("orchestrator:update", {
+              activeSlots: status.activeSlots,
+              totalSlots: status.totalSlots
+            });
+            onUpdate(status);
+          } catch {
+            this.outputChannel.appendLine("[Orchestrator] Malformed SSE chunk");
+          }
+        }
+      },
+      onError
+    );
+    this.outputChannel.appendLine("[Orchestrator] SSE stream started");
+  }
+  stopEventStream() {
+    if (this.sseController) {
+      this.sseController.abort();
+      this.sseController = null;
+      this.outputChannel.appendLine("[Orchestrator] SSE stream stopped");
+    }
+  }
+  async releaseSlot(slotId) {
+    await this.apiClient.post(`${API_PATHS.ORCHESTRATOR_SLOT_RELEASE}/${slotId}/release`);
+    this.outputChannel.appendLine(`[Orchestrator] Slot ${slotId} released`);
+  }
+  async terminateSession(sessionId) {
+    await this.apiClient.post(`${API_PATHS.AGENT_SESSIONS}/${sessionId}/cancel`);
+    this.outputChannel.appendLine(`[Orchestrator] Session ${sessionId} terminated`);
+  }
+  dispose() {
+    this.stopPolling();
+    this.stopEventStream();
+  }
+  fetchStatusSafe() {
+    this.getStatus().catch((error) => {
+      this.outputChannel.appendLine(
+        `[Orchestrator] Polling error: ${error instanceof Error ? error.message : String(error)}`
+      );
+    });
+  }
+};
+
+// src/modules/orchestrator/OrchestratorStatusBar.ts
+var vscode9 = __toESM(require("vscode"));
+var OrchestratorStatusBar = class {
+  constructor(orchestratorService, configService, eventBus) {
+    this.orchestratorService = orchestratorService;
+    this.configService = configService;
+    this.eventBus = eventBus;
+    this.statusBarItem = vscode9.window.createStatusBarItem(
+      vscode9.StatusBarAlignment.Left,
+      50
+    );
+    this.statusBarItem.command = "enterprise-ai.openOrchestrator";
+    this.statusBarItem.tooltip = "Orchestrator Status";
+    this.disposables.push(
+      this.eventBus.on("auth:login", () => {
+        if (this.configService.getOrchestratorShowStatusBar()) {
+          this.statusBarItem.show();
+          this.orchestratorService.startPolling();
+        }
+      })
+    );
+    this.disposables.push(
+      this.eventBus.on("auth:logout", () => {
+        this.statusBarItem.hide();
+        this.orchestratorService.stopPolling();
+      })
+    );
+    this.disposables.push(
+      this.eventBus.on("orchestrator:update", ({ activeSlots, totalSlots }) => {
+        this.updateDisplay(activeSlots, totalSlots);
+      })
+    );
+    this.disposables.push(
+      this.eventBus.on("config:changed", () => {
+        const show = this.configService.getOrchestratorShowStatusBar();
+        if (show) {
+          this.statusBarItem.show();
+        } else {
+          this.statusBarItem.hide();
+        }
+      })
+    );
+  }
+  statusBarItem;
+  disposables = [];
+  onPanelOpened() {
+    this.orchestratorService.stopPolling();
+  }
+  onPanelClosed() {
+    this.orchestratorService.startPolling();
+  }
+  dispose() {
+    for (const d of this.disposables) {
+      d.dispose();
+    }
+    this.disposables.length = 0;
+    this.statusBarItem.dispose();
+  }
+  updateDisplay(activeSlots, totalSlots) {
+    this.statusBarItem.text = `$(pulse) ${activeSlots}/${totalSlots} slots`;
+    const usage = totalSlots > 0 ? activeSlots / totalSlots : 0;
+    if (usage > 0.8) {
+      this.statusBarItem.color = new vscode9.ThemeColor("statusBarItem.errorBackground");
+    } else if (usage >= 0.5) {
+      this.statusBarItem.color = new vscode9.ThemeColor("statusBarItem.warningBackground");
+    } else {
+      this.statusBarItem.color = void 0;
+    }
+  }
+};
+
+// src/modules/orchestrator/OrchestratorPanel.ts
+var vscode10 = __toESM(require("vscode"));
+var OrchestratorPanel = class {
+  constructor(context, orchestratorService, statusBar) {
+    this.context = context;
+    this.orchestratorService = orchestratorService;
+    this.statusBar = statusBar;
+    context.eventBus.on("auth:login", () => {
+      const user = context.authService.getUser();
+      if (user && this.panel) {
+        this.postMessage({ type: "setAuthenticated", payload: { user } });
+      }
+    });
+    context.eventBus.on("auth:logout", () => {
+      this.postMessage({ type: "setUnauthenticated" });
+      this.orchestratorService.stopEventStream();
+    });
+  }
+  panel = null;
+  show() {
+    if (this.panel) {
+      this.panel.reveal();
+      return;
+    }
+    this.panel = vscode10.window.createWebviewPanel(
+      "enterprise-ai.orchestrator",
+      "Enterprise AI Orchestrator",
+      vscode10.ViewColumn.Beside,
+      {
+        enableScripts: true,
+        retainContextWhenHidden: true,
+        localResourceRoots: [
+          vscode10.Uri.joinPath(this.context.extensionContext.extensionUri, "out")
+        ]
+      }
+    );
+    this.panel.webview.html = this.getHtml();
+    this.panel.webview.onDidReceiveMessage(
+      (msg) => this.handleMessage(msg),
+      void 0,
+      this.context.extensionContext.subscriptions
+    );
+    this.panel.onDidDispose(() => {
+      this.panel = null;
+      this.orchestratorService.stopEventStream();
+      this.statusBar.onPanelClosed();
+    });
+    this.statusBar.onPanelOpened();
+  }
+  postMessage(message) {
+    this.panel?.webview.postMessage(message);
+  }
+  async handleMessage(message) {
+    try {
+      switch (message.type) {
+        case "ready": {
+          if (this.context.authService.isAuthenticated()) {
+            const user = this.context.authService.getUser();
+            if (user) {
+              this.postMessage({ type: "setAuthenticated", payload: { user } });
+            }
+          }
+          const status = await this.orchestratorService.getStatus();
+          this.postMessage({ type: "setStatus", payload: status });
+          this.orchestratorService.startEventStream(
+            (updatedStatus) => {
+              this.postMessage({ type: "setStatus", payload: updatedStatus });
+            },
+            (error) => {
+              this.postMessage({
+                type: "sseStatus",
+                payload: { connected: false, message: `Connection lost: ${error.message}` }
+              });
+            }
+          );
+          this.postMessage({ type: "sseStatus", payload: { connected: true } });
+          break;
+        }
+        case "releaseSlot":
+          await this.orchestratorService.releaseSlot(message.payload.slotId);
+          break;
+        case "terminateSession":
+          await this.orchestratorService.terminateSession(message.payload.sessionId);
+          break;
+      }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.context.outputChannel.appendLine(`[OrchestratorPanel] Error: ${msg}`);
+    }
+  }
+  getHtml() {
+    const webview = this.panel.webview;
+    const scriptUri = webview.asWebviewUri(
+      vscode10.Uri.joinPath(this.context.extensionContext.extensionUri, "out", "orchestratorWebview.js")
+    );
+    const styleUri = webview.asWebviewUri(
+      vscode10.Uri.joinPath(this.context.extensionContext.extensionUri, "out", "theme.css")
+    );
+    const nonce = getNonce();
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="${styleUri}" rel="stylesheet">
+  <title>Enterprise AI Orchestrator</title>
+</head>
+<body>
+  <div id="root"></div>
+  <script nonce="${nonce}" src="${scriptUri}"></script>
+</body>
+</html>`;
+  }
+};
+
 // src/extension.ts
 function activate(context) {
-  const outputChannel = vscode7.window.createOutputChannel(OUTPUT_CHANNEL_NAME);
+  const outputChannel = vscode11.window.createOutputChannel(OUTPUT_CHANNEL_NAME);
   outputChannel.appendLine("[Extension] Activating Enterprise AI...");
   const eventBus = new EventBus();
   const configService = new ConfigService(eventBus);
@@ -16019,22 +16560,53 @@ function activate(context) {
     outputChannel
   };
   let chatPanel = null;
-  const getPanel = () => {
+  const getChatPanel = () => {
     if (!chatPanel) {
       chatPanel = new ChatPanel(moduleContext);
     }
     return chatPanel;
   };
+  const agentService = new AgentService(apiClient, eventBus, outputChannel);
+  let agentPanel = null;
+  const getAgentPanel = () => {
+    if (!agentPanel) {
+      agentPanel = new AgentPanel(moduleContext, agentService);
+    }
+    return agentPanel;
+  };
+  const orchestratorService = new OrchestratorService(apiClient, eventBus, configService, outputChannel);
+  const orchestratorStatusBar = new OrchestratorStatusBar(eventBus, orchestratorService, configService);
+  let orchestratorPanel = null;
+  const getOrchestratorPanel = () => {
+    if (!orchestratorPanel) {
+      orchestratorPanel = new OrchestratorPanel(moduleContext, orchestratorService, orchestratorStatusBar);
+    }
+    return orchestratorPanel;
+  };
   const disposables = [
-    ...registerChatCommands(moduleContext, getPanel),
-    ...registerCodeActionCommands(getPanel),
-    vscode7.languages.registerCodeActionsProvider(
+    ...registerChatCommands(moduleContext, getChatPanel),
+    ...registerCodeActionCommands(getChatPanel),
+    ...registerAgentCommands(moduleContext, agentService, getAgentPanel),
+    vscode11.commands.registerCommand("enterprise-ai.openOrchestrator", () => {
+      if (!authService.isAuthenticated()) {
+        vscode11.window.showWarningMessage("Login required to open orchestrator.");
+        return;
+      }
+      getOrchestratorPanel().show();
+    }),
+    vscode11.languages.registerCodeActionsProvider(
       { scheme: "file" },
       new EnterpriseAICodeActionProvider(),
       { providedCodeActionKinds: EnterpriseAICodeActionProvider.providedCodeActionKinds }
     )
   ];
-  context.subscriptions.push(...disposables, outputChannel);
+  context.subscriptions.push(
+    ...disposables,
+    orchestratorStatusBar,
+    { dispose: () => orchestratorService.dispose() },
+    { dispose: () => agentService.dispose() },
+    outputChannel
+  );
   authService.tryRestoreSession();
   outputChannel.appendLine("[Extension] Activated");
 }
