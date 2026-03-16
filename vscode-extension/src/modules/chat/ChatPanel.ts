@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import type { ModuleContext, ExtensionToWebview, WebviewToExtension } from '../../core/types';
+import { getNonce } from '../../utils/helpers';
 import { ChatService } from './ChatService';
 
 export class ChatPanel {
@@ -144,10 +145,4 @@ export class ChatPanel {
 </body>
 </html>`;
   }
-}
-
-function getNonce(): string {
-  const array = new Uint8Array(16);
-  crypto.getRandomValues(array);
-  return Array.from(array, (b) => b.toString(16).padStart(2, '0')).join('');
 }
