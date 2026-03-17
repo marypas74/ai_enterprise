@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import {
   Brain,
   Paperclip,
@@ -12,6 +12,8 @@ import {
   FileCheck,
   Loader2,
 } from 'lucide-react';
+
+const PDFEditorWidget = React.lazy(() => import('./PDFEditorWidget/PDFEditorWidget'));
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -101,6 +103,18 @@ const MarkdownLink = ({ href, children, ...props }: any) => {
 };
 
 const markdownComponents = { code: MarkdownCode, img: MarkdownImg, a: MarkdownLink };
+
+/** Detect PDF editor widget markers in message content */
+const PDF_EDITOR_PATTERN = /<!-- pdf_editor:attachmentId=(\d+)(?:,filename=([^ ]+))? -->/;
+
+function extractPdfEditorData(content: string): { attachmentId: number; filename?: string } | null {
+  const match = PDF_EDITOR_PATTERN.exec(content);
+  if (!match) return null;
+  return {
+    attachmentId: parseInt(match[1], 10),
+    filename: match[2] || undefined,
+  };
+}
 
 interface ChatMessageListProps {
   messages: Message[];
@@ -292,6 +306,25 @@ export default function ChatMessageList({
                   </ReactMarkdown>
                 )}
               </div>
+
+              {/* Inline PDF Editor Widget */}
+              {message.role === 'assistant' && (() => {
+                const pdfData = extractPdfEditorData(message.content);
+                if (!pdfData) return null;
+                return (
+                  <Suspense fallback={
+                    <div className="flex items-center gap-2 p-4 text-sm text-gray-500">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Caricamento editor PDF...
+                    </div>
+                  }>
+                    <PDFEditorWidget
+                      attachmentId={pdfData.attachmentId}
+                      filename={pdfData.filename}
+                    />
+                  </Suspense>
+                );
+              })()}
 
               {/* Vector Memory / Web Sources display (GAP-RAG) */}
               {message.role === 'assistant' && message.vectorMemories && (message.vectorMemories.declarative.length > 0 || message.vectorMemories.episodic.length > 0) && (() => {
