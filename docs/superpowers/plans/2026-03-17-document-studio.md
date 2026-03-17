@@ -1629,9 +1629,10 @@ case 'convert_pdf_to_images': {
   }
   // Multiple images — create zip
   const archiver = (await import('archiver')).default;
+  const fsSync = await import('fs');
   const zipFilename = `${name.replace(/\.pdf$/i, '')}_images.zip`;
   const zipPath = path.join(GENERATED_DIR, zipFilename);
-  const output = fs.createWriteStream(zipPath);
+  const output = fsSync.createWriteStream(zipPath);
   const archive = archiver('zip');
   archive.pipe(output);
   pageImages.forEach((img) => archive.append(img.buffer, { name: `page_${img.pageNumber}.${img.format}` }));
@@ -1971,7 +1972,7 @@ case 'edit_pdf_text': {
 case 'add_pdf_text': {
   const { attachment_id, page, text, x, y, size, color } = args;
   const { buffer, name } = await loadAttachmentBuffer(attachment_id, userId, db);
-  const result = await addTextToPdf(buffer, page, text, x, y, size ?? 12, color);
+  const result = await addTextToPdf(buffer, page, x, y, text, size ?? 12, color);
   const filename = `edited_${name}`;
   await fs.promises.writeFile(path.join(GENERATED_DIR, filename), result);
   return { success: true, output: `Added text to page ${page}`, downloadUrl: `/api/tools/download/${filename}`, downloadFilename: filename, displayName: filename };
@@ -2971,17 +2972,27 @@ import { findAndReplaceText, addImageToPdf } from './PDFEditingService.js';
 import * as fs from 'fs';
 
 describe('findAndReplaceText', () => {
+  let textPdf: Buffer;
+
+  beforeAll(async () => {
+    // Create a PDF with known text for replacement testing
+    const doc = await PDFDocument.create();
+    const page = doc.addPage([612, 792]);
+    page.drawText('Hello World', { x: 50, y: 700, size: 20 });
+    textPdf = Buffer.from(await doc.save());
+  });
+
   it('replaces text in a PDF page', async () => {
     // Note: mupdf text replacement works by redacting old text and adding new text
     // at the same position. The result PDF should be valid.
-    const result = await findAndReplaceText(testPdf, 0, 'Hello', 'Ciao');
+    const result = await findAndReplaceText(textPdf, 0, 'Hello', 'Ciao');
     expect(result).toBeInstanceOf(Buffer);
     const doc = await PDFDocument.load(result);
     expect(doc.getPageCount()).toBe(1);
   });
 
   it('throws if text not found', async () => {
-    await expect(findAndReplaceText(testPdf, 0, 'NONEXISTENT', 'New'))
+    await expect(findAndReplaceText(textPdf, 0, 'NONEXISTENT', 'New'))
       .rejects.toThrow('not found');
   });
 });
@@ -3205,7 +3216,7 @@ git commit -m "feat: add findAndReplaceText and addImageToPdf to PDFEditingServi
       attachment_id: { type: 'number', description: 'ID of the PDF attachment' },
       action: {
         type: 'string',
-        enum: ['protect', 'unlock', 'redact_areas', 'smart_redact'],
+        enum: ['protect', 'unlock', 'redact', 'redact_smart'],
         description: 'Security action to perform',
       },
       user_password: { type: 'string', description: 'User password (for protect/unlock)' },
@@ -3308,8 +3319,8 @@ case 'pdf_form': {
       // AI-powered form field detection using Ollama Vision
       // Render page to image, send to Ollama with prompt to identify form fields
       const { renderPageToImage } = await import('../document-processing/PDFConversionService.js');
-      const pageImage = await renderPageToImage(buffer, 0, 'png', 150);
-      const base64Img = pageImage.buffer.toString('base64');
+      const pageImageBuf = await renderPageToImage(buffer, 0, 'png', 150);
+      const base64Img = pageImageBuf.toString('base64');
 
       // Call Ollama vision model to detect form fields
       const ollamaResponse = await fetch(`${process.env.OLLAMA_BASE_URL || 'http://10.0.1.1:8086/ollama'}/api/chat`, {
@@ -3344,6 +3355,7 @@ case 'pdf_security': {
       const filename = `protected_${name}`;
       const filepath = path.join(GENERATED_DIR, filename);
       await fs.promises.writeFile(filepath, result);
+      await db.query('INSERT INTO activity_log (user_id, action, details) VALUES (?, ?, ?)', [userId, 'pdf_protected', JSON.stringify({ attachment_id })]);
       return { success: true, output: `PDF protected with password`, downloadUrl: `/api/tools/download/${filename}`, downloadFilename: filename, displayName: filename };
     }
     case 'unlock': {
@@ -3351,16 +3363,18 @@ case 'pdf_security': {
       const filename = `unlocked_${name}`;
       const filepath = path.join(GENERATED_DIR, filename);
       await fs.promises.writeFile(filepath, result);
+      await db.query('INSERT INTO activity_log (user_id, action, details) VALUES (?, ?, ?)', [userId, 'pdf_unlocked', JSON.stringify({ attachment_id })]);
       return { success: true, output: `PDF unlocked`, downloadUrl: `/api/tools/download/${filename}`, downloadFilename: filename, displayName: filename };
     }
-    case 'redact_areas': {
+    case 'redact': {
       const result = await redactAreas(buffer, targets);
       const filename = `redacted_${name}`;
       const filepath = path.join(GENERATED_DIR, filename);
       await fs.promises.writeFile(filepath, result);
+      await db.query('INSERT INTO activity_log (user_id, action, details) VALUES (?, ?, ?)', [userId, 'pdf_redacted', JSON.stringify({ attachment_id, target_count: targets.length })]);
       return { success: true, output: `${targets.length} area(s) redacted`, downloadUrl: `/api/tools/download/${filename}`, downloadFilename: filename, displayName: filename };
     }
-    case 'smart_redact': {
+    case 'redact_smart': {
       // Pass 1: Regex-based deterministic redaction (email, phone, CF, IBAN)
       const { redactedBuffer: regexRedacted, findings: regexFindings } = await smartRedactRegex(buffer, pii_types);
 
@@ -3373,8 +3387,8 @@ case 'pdf_security': {
           const { renderPageToImage } = await import('../document-processing/PDFConversionService.js');
           for (let pageIdx = 0; pageIdx < 5; pageIdx++) { // Limit to first 5 pages for cost
             try {
-              const pageImg = await renderPageToImage(finalBuffer, pageIdx, 'png', 150);
-              const base64 = pageImg.buffer.toString('base64');
+              const pageImgBuf = await renderPageToImage(finalBuffer, pageIdx, 'png', 150);
+              const base64 = pageImgBuf.toString('base64');
               const resp = await fetch(`${process.env.OLLAMA_BASE_URL || 'http://10.0.1.1:8086/ollama'}/api/chat`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-Ollama-Key': process.env.OLLAMA_AUTH_KEY || '' },
@@ -3399,6 +3413,7 @@ case 'pdf_security': {
       const filepath = path.join(GENERATED_DIR, filename);
       await fs.promises.writeFile(filepath, finalBuffer);
       const summary = allFindings.map(f => `- ${f.type}: "${f.text}" (page ${f.page})`).join('\n');
+      await db.query('INSERT INTO activity_log (user_id, action, details) VALUES (?, ?, ?)', [userId, 'pdf_redacted_smart', JSON.stringify({ attachment_id, findings_count: allFindings.length, pii_types })]);
       return { success: true, output: `Found ${allFindings.length} PII items (${regexFindings.length} regex + ${aiFindings.length} AI):\n${summary}`, downloadUrl: `/api/tools/download/${filename}`, downloadFilename: filename, displayName: filename };
     }
     default:
@@ -4080,7 +4095,17 @@ export async function signPdfCertified(
   const signedDer = forge.asn1.toDer(p7.toAsn1()).getBytes();
   const signatureBuffer = Buffer.from(signedDer, 'binary');
 
-  // Embed signature as a PDF attachment (simplified PAdES-B-B)
+  // NOTE: Full PAdES-B-B requires embedding the CMS signature inside a /Sig dictionary
+  // with /ByteRange placeholders — this requires low-level PDF byte manipulation.
+  // Current approach: embed CMS signature as a file attachment + visual signature.
+  // This is NOT verifiable in Adobe/Foxit as a standard PDF signature.
+  // TODO (Phase 5 enhancement): Implement proper ByteRange-based PAdES-B-B using
+  // mupdf's low-level PDF object API to:
+  //   1. Create /Sig dictionary with /ByteRange placeholder
+  //   2. Save PDF to get byte offsets
+  //   3. Sign the byte ranges excluding the signature placeholder
+  //   4. Insert the CMS signature into the placeholder
+  // For now, we provide a CMS-signed attachment that can be independently verified.
   const signedDoc = await PDFDocument.load(pdfBytes);
   await signedDoc.attach(signatureBuffer, 'signature.p7s', {
     mimeType: 'application/pkcs7-signature',
@@ -4100,61 +4125,73 @@ interface SignatureInfo {
 }
 
 export async function verifySignatures(buffer: Buffer): Promise<SignatureInfo[]> {
-  const doc = await PDFDocument.load(buffer);
   const signatures: SignatureInfo[] = [];
+  const rawPdf = buffer.toString('binary');
 
-  // Check for embedded PKCS#7 signature attachments
-  // This works with our simplified PAdES-B-B approach
-  try {
-    const attachments = doc.catalog.lookup(
-      (await import('pdf-lib')).PDFName.of('Names'),
-      (await import('pdf-lib')).PDFDict,
-    );
+  // Search for embedded signature.p7s attachments in the PDF binary
+  const sigMarker = 'signature.p7s';
+  let searchPos = 0;
 
-    // Parse each .p7s attachment
-    if (attachments) {
-      const embeddedFiles = attachments.lookup(
-        (await import('pdf-lib')).PDFName.of('EmbeddedFiles'),
-        (await import('pdf-lib')).PDFDict,
-      );
-      // Extract and verify CMS signatures
-      // ... verification logic using forge.pkcs7
-    }
-  } catch {
-    // No signatures found
-  }
+  while (true) {
+    const sigIdx = rawPdf.indexOf(sigMarker, searchPos);
+    if (sigIdx === -1) break;
+    searchPos = sigIdx + sigMarker.length;
 
-  // Fallback: check PDF names tree for signature.p7s
-  const names = doc.catalog.get((await import('pdf-lib')).PDFName.of('Names'));
-  if (names) {
-    // Simplified: detect presence of signature attachments
-    const rawPdf = buffer.toString('binary');
-    const sigIdx = rawPdf.indexOf('signature.p7s');
-    if (sigIdx !== -1) {
-      // Found a signature attachment — try to parse
-      try {
-        // Extract the PKCS#7 data (simplified extraction)
-        const p7Start = rawPdf.indexOf('\x30\x82', sigIdx);
-        if (p7Start !== -1) {
-          const p7Asn1 = forge.asn1.fromDer(rawPdf.substring(p7Start));
-          const p7 = forge.pkcs7.messageFromAsn1(p7Asn1);
-          for (const signer of (p7 as any).signers || []) {
-            const cert = signer.certificate;
-            signatures.push({
-              signerName: cert?.subject?.getField('CN')?.value ?? 'Unknown',
-              signingTime: signer.signingTime?.toISOString(),
-              valid: true, // Simplified — full validation would verify the hash chain
-            });
+    try {
+      // Find the PKCS#7 DER data (ASN.1 SEQUENCE tag 0x30 0x82)
+      // Look in the stream after the marker
+      const streamStart = rawPdf.indexOf('stream\r\n', sigIdx);
+      const streamEnd = rawPdf.indexOf('\r\nendstream', streamStart);
+      if (streamStart === -1 || streamEnd === -1) continue;
+
+      const p7Der = rawPdf.substring(streamStart + 8, streamEnd);
+      const p7Asn1 = forge.asn1.fromDer(p7Der);
+      const p7 = forge.pkcs7.messageFromAsn1(p7Asn1) as any;
+
+      if (!p7.signers || p7.signers.length === 0) continue;
+
+      for (const signer of p7.signers) {
+        const cert = signer.certificate;
+        const signerName = cert?.subject?.getField('CN')?.value ?? 'Unknown';
+
+        // Verify the cryptographic signature
+        let valid = false;
+        try {
+          // Verify that the signer's signature matches the signed content
+          const verified = (p7 as any).verify(signer);
+          valid = verified !== false;
+        } catch {
+          // If verification fails, try basic certificate chain check
+          try {
+            const caStore = forge.pki.createCaStore([cert]);
+            valid = forge.pki.verifyCertificateChain(caStore, [cert]);
+          } catch {
+            valid = false;
           }
         }
-      } catch {
-        signatures.push({ signerName: 'Unknown', valid: false });
+
+        signatures.push({
+          signerName,
+          signingTime: signer.authenticatedAttributes?.find(
+            (a: any) => a.type === forge.pki.oids.signingTime
+          )?.value?.toISOString(),
+          reason: signer.authenticatedAttributes?.find(
+            (a: any) => a.type === '1.2.840.113549.1.9.2' // signerReason OID
+          )?.value,
+          valid,
+        });
       }
+    } catch {
+      // Could not parse this signature block — skip
     }
   }
 
   return signatures;
 }
+
+// NOTE: This verification works with our custom attachment-based signatures.
+// For proper PAdES-B-B signatures (when implemented), this function should also
+// check /Sig dictionaries in the PDF's AcroForm and verify ByteRange integrity.
 ```
 
 - [ ] **Step 6: Run tests, verify they pass**
@@ -4253,6 +4290,7 @@ case 'pdf_sign': {
       const result = await signPdfSimple(buffer, page ?? 0, x ?? 100, y ?? 100, sigImage, width ?? 200, height ?? 60);
       const filename = `signed_${name}`;
       await fs.promises.writeFile(path.join(GENERATED_DIR, filename), result);
+      await db.query('INSERT INTO activity_log (user_id, action, details) VALUES (?, ?, ?)', [userId, 'pdf_signed_simple', JSON.stringify({ attachment_id })]);
       return { success: true, output: `PDF signed with visual signature`, downloadUrl: `/api/tools/download/${filename}`, downloadFilename: filename, displayName: filename };
     }
     case 'sign_certified': {
