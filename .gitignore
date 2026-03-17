@@ -55,3 +55,4 @@ frontend/android/captures/
 frontend/android/local.properties
 *.apk
 *.aab
+.worktrees/
