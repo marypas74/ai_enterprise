@@ -48,6 +48,18 @@ export {
   parsePagesSpec,
 } from './document-processing/PDFManipulationService.js';
 
+export {
+  renderPageToImage,
+  convertPdfToImages,
+  extractStructuredText,
+  convertPdfToDocxSmart,
+  convertPdfToDocxOcr,
+  convertPdfToDocxLayout,
+  convertPdfToXlsx,
+  convertPdfToPptx,
+  convertImagesToPdf,
+} from './document-processing/PDFConversionService.js';
+
 // Import what processDocument needs
 import { extractWithOCR, extractPdfWithOCR } from './document-processing/OCRService.js';
 import { extractOfficeContent } from './document-processing/OfficeExtractionService.js';

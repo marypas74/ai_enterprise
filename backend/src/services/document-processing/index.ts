@@ -42,3 +42,18 @@ export {
   type PdfInfo,
   type PdfPageInfo,
 } from './PDFManipulationService.js';
+
+export {
+  renderPageToImage,
+  convertPdfToImages,
+  extractStructuredText,
+  convertPdfToDocxSmart,
+  convertPdfToDocxOcr,
+  convertPdfToDocxLayout,
+  convertPdfToXlsx,
+  convertPdfToPptx,
+  convertImagesToPdf,
+  type PageImage,
+  type TextBlock,
+  type ImageInput,
+} from './PDFConversionService.js';

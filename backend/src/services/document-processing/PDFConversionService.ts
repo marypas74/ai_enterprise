@@ -209,7 +209,7 @@ export async function convertPdfToDocxLayout(pdfBuffer: Buffer, title?: string):
   const totalPages = mupdfDoc.countPages();
   mupdfDoc.destroy();
 
-  const sections: Paragraph[] = [];
+  const sections: InstanceType<typeof Paragraph>[] = [];
 
   if (title) {
     sections.push(new Paragraph({ text: title, heading: HeadingLevel.HEADING_1 }));
@@ -308,7 +308,8 @@ export async function convertPdfToXlsx(
  * Convert PDF to PPTX. Each page becomes a slide with the page rendered as background image.
  */
 export async function convertPdfToPptx(pdfBuffer: Buffer, title?: string): Promise<Buffer> {
-  const PptxGenJS = (await import('pptxgenjs')).default;
+  const pptxMod = await import('pptxgenjs');
+  const PptxGenJS = pptxMod.default as any;
 
   const doc = mupdf.Document.openDocument(pdfBuffer, 'application/pdf');
   const totalPages = doc.countPages();

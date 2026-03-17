@@ -191,6 +191,70 @@ IMPORTANT: This tool converts the ORIGINAL uploaded file to PDF using LibreOffic
       },
     },
     {
+      name: 'convert_pdf_to_docx',
+      description: 'Convert a PDF to a Word (.docx) document. Supports 3 methods: "smart" (structure-aware text extraction, default), "ocr" (Vision/Tesseract OCR for scanned PDFs), "layout" (page images with hidden text for exact layout preservation).',
+      input_schema: {
+        type: 'object' as const,
+        properties: {
+          attachment_id: { type: 'number', description: 'Attachment ID of the PDF to convert' },
+          method: { type: 'string', enum: ['smart', 'ocr', 'layout'], description: 'Conversion method (default: smart)' },
+        },
+        required: ['attachment_id'],
+      },
+    },
+    {
+      name: 'convert_pdf_to_xlsx',
+      description: 'Convert a PDF to an Excel (.xlsx) spreadsheet. Extracts text in a grid-like structure using coordinate-based clustering to detect table rows and columns.',
+      input_schema: {
+        type: 'object' as const,
+        properties: {
+          attachment_id: { type: 'number', description: 'Attachment ID of the PDF to convert' },
+          pages: { type: 'string', description: 'Optional page specification like "1,3-5" (1-based)' },
+        },
+        required: ['attachment_id'],
+      },
+    },
+    {
+      name: 'convert_pdf_to_pptx',
+      description: 'Convert a PDF to a PowerPoint (.pptx) presentation. Each PDF page becomes a slide with the page rendered as background image and text in speaker notes.',
+      input_schema: {
+        type: 'object' as const,
+        properties: {
+          attachment_id: { type: 'number', description: 'Attachment ID of the PDF to convert' },
+        },
+        required: ['attachment_id'],
+      },
+    },
+    {
+      name: 'convert_pdf_to_images',
+      description: 'Convert PDF pages to images (PNG or JPG). Returns a single image for one page, or a ZIP archive for multiple pages.',
+      input_schema: {
+        type: 'object' as const,
+        properties: {
+          attachment_id: { type: 'number', description: 'Attachment ID of the PDF to convert' },
+          format: { type: 'string', enum: ['png', 'jpg'], description: 'Image format (default: png)' },
+          dpi: { type: 'number', description: 'Resolution in DPI (default: 150)' },
+          pages: { type: 'string', description: 'Optional page specification like "1,3-5" (1-based). Omit for all pages.' },
+        },
+        required: ['attachment_id'],
+      },
+    },
+    {
+      name: 'convert_images_to_pdf',
+      description: 'Convert one or more uploaded images to a single PDF. Each image becomes one page.',
+      input_schema: {
+        type: 'object' as const,
+        properties: {
+          attachment_ids: {
+            type: 'array',
+            items: { type: 'number' },
+            description: 'Array of image attachment IDs to combine into a PDF',
+          },
+        },
+        required: ['attachment_ids'],
+      },
+    },
+    {
       name: 'get_attachment_text',
       description: 'Get the full processed text content of an attachment (PDF, Word, etc.). Use this if the initial context was truncated or if you need to read the full content of a file.',
       input_schema: {
@@ -515,6 +579,170 @@ export async function executeDocumentTool(
           downloadUrl,
           downloadFilename,
           displayName: resultName,
+        },
+      };
+    }
+
+    case 'convert_pdf_to_docx': {
+      const { attachment_id, method } = toolInput;
+      if (!attachment_id) return { success: false, error: 'Missing attachment_id' };
+      const { convertPdfToDocxSmart, convertPdfToDocxOcr, convertPdfToDocxLayout } = await import('../DocumentProcessorService.js');
+      const { buffer, name } = await loadAttachmentBuffer(attachment_id, context.userId, context.db);
+      const baseName = name.replace(/\.pdf$/i, '');
+
+      let resultBuf: Buffer;
+      if (method === 'ocr') {
+        resultBuf = await convertPdfToDocxOcr(buffer, baseName);
+      } else if (method === 'layout') {
+        resultBuf = await convertPdfToDocxLayout(buffer, baseName);
+      } else {
+        resultBuf = await convertPdfToDocxSmart(buffer, baseName);
+      }
+
+      const fs = await import('fs/promises');
+      const generatedDir = path.join(process.env.STORAGE_ROOT || process.cwd(), 'generated');
+      await fs.mkdir(generatedDir, { recursive: true });
+      const filename = `${Date.now()}_${baseName}.docx`;
+      await fs.writeFile(path.join(generatedDir, filename), resultBuf);
+      return {
+        success: true,
+        output: {
+          message: `Converted to DOCX (${method ?? 'smart'})\nDownload: /api/tools/download/${filename}`,
+          downloadUrl: `/api/tools/download/${filename}`,
+          downloadFilename: filename,
+          displayName: `${baseName}.docx`,
+        },
+      };
+    }
+
+    case 'convert_pdf_to_xlsx': {
+      const { attachment_id, pages } = toolInput;
+      if (!attachment_id) return { success: false, error: 'Missing attachment_id' };
+      const { convertPdfToXlsx } = await import('../DocumentProcessorService.js');
+      const { buffer, name } = await loadAttachmentBuffer(attachment_id, context.userId, context.db);
+      const baseName = name.replace(/\.pdf$/i, '');
+      const resultBuf = await convertPdfToXlsx(buffer, pages);
+
+      const fs = await import('fs/promises');
+      const generatedDir = path.join(process.env.STORAGE_ROOT || process.cwd(), 'generated');
+      await fs.mkdir(generatedDir, { recursive: true });
+      const filename = `${Date.now()}_${baseName}.xlsx`;
+      await fs.writeFile(path.join(generatedDir, filename), resultBuf);
+      return {
+        success: true,
+        output: {
+          message: `Converted to XLSX\nDownload: /api/tools/download/${filename}`,
+          downloadUrl: `/api/tools/download/${filename}`,
+          downloadFilename: filename,
+          displayName: `${baseName}.xlsx`,
+        },
+      };
+    }
+
+    case 'convert_pdf_to_pptx': {
+      const { attachment_id } = toolInput;
+      if (!attachment_id) return { success: false, error: 'Missing attachment_id' };
+      const { convertPdfToPptx } = await import('../DocumentProcessorService.js');
+      const { buffer, name } = await loadAttachmentBuffer(attachment_id, context.userId, context.db);
+      const baseName = name.replace(/\.pdf$/i, '');
+      const resultBuf = await convertPdfToPptx(buffer, baseName);
+
+      const fs = await import('fs/promises');
+      const generatedDir = path.join(process.env.STORAGE_ROOT || process.cwd(), 'generated');
+      await fs.mkdir(generatedDir, { recursive: true });
+      const filename = `${Date.now()}_${baseName}.pptx`;
+      await fs.writeFile(path.join(generatedDir, filename), resultBuf);
+      return {
+        success: true,
+        output: {
+          message: `Converted to PPTX\nDownload: /api/tools/download/${filename}`,
+          downloadUrl: `/api/tools/download/${filename}`,
+          downloadFilename: filename,
+          displayName: `${baseName}.pptx`,
+        },
+      };
+    }
+
+    case 'convert_pdf_to_images': {
+      const { attachment_id, format, dpi, pages } = toolInput;
+      if (!attachment_id) return { success: false, error: 'Missing attachment_id' };
+      const { convertPdfToImages } = await import('../DocumentProcessorService.js');
+      const { buffer, name } = await loadAttachmentBuffer(attachment_id, context.userId, context.db);
+      const pageImages = await convertPdfToImages(buffer, format ?? 'png', dpi ?? 150, pages);
+
+      const fs = await import('fs/promises');
+      const generatedDir = path.join(process.env.STORAGE_ROOT || process.cwd(), 'generated');
+      await fs.mkdir(generatedDir, { recursive: true });
+      const baseName = name.replace(/\.pdf$/i, '');
+
+      if (pageImages.length === 1) {
+        const filename = `${Date.now()}_${baseName}.${format ?? 'png'}`;
+        await fs.writeFile(path.join(generatedDir, filename), pageImages[0].buffer);
+        return {
+          success: true,
+          output: {
+            message: `Converted page to ${format ?? 'png'}\nDownload: /api/tools/download/${filename}`,
+            downloadUrl: `/api/tools/download/${filename}`,
+            downloadFilename: filename,
+            displayName: `${baseName}.${format ?? 'png'}`,
+          },
+        };
+      }
+
+      // Multiple images — create zip
+      const archiver = (await import('archiver')).default;
+      const fsSync = await import('fs');
+      const zipFilename = `${Date.now()}_${baseName}_images.zip`;
+      const zipPath = path.join(generatedDir, zipFilename);
+
+      await new Promise<void>((resolve, reject) => {
+        const output = fsSync.createWriteStream(zipPath);
+        const archive = archiver('zip');
+        output.on('close', () => resolve());
+        archive.on('error', (err: Error) => reject(err));
+        archive.pipe(output);
+        for (const img of pageImages) {
+          archive.append(img.buffer, { name: `page_${img.pageNumber}.${img.format}` });
+        }
+        archive.finalize();
+      });
+
+      return {
+        success: true,
+        output: {
+          message: `Converted ${pageImages.length} pages to ${format ?? 'png'}\nDownload: /api/tools/download/${zipFilename}`,
+          downloadUrl: `/api/tools/download/${zipFilename}`,
+          downloadFilename: zipFilename,
+          displayName: `${baseName}_images.zip`,
+        },
+      };
+    }
+
+    case 'convert_images_to_pdf': {
+      const { attachment_ids } = toolInput;
+      if (!attachment_ids || attachment_ids.length === 0) {
+        return { success: false, error: 'Missing attachment_ids' };
+      }
+      const { convertImagesToPdf } = await import('../DocumentProcessorService.js');
+      const imageInputs: Array<{ buffer: Buffer; mimeType: string }> = [];
+      for (const id of attachment_ids) {
+        const { buffer, mime_type } = await loadAttachmentBuffer(id, context.userId, context.db);
+        imageInputs.push({ buffer, mimeType: mime_type });
+      }
+      const resultBuf = await convertImagesToPdf(imageInputs);
+
+      const fs = await import('fs/promises');
+      const generatedDir = path.join(process.env.STORAGE_ROOT || process.cwd(), 'generated');
+      await fs.mkdir(generatedDir, { recursive: true });
+      const filename = `${Date.now()}_images_combined.pdf`;
+      await fs.writeFile(path.join(generatedDir, filename), resultBuf);
+      return {
+        success: true,
+        output: {
+          message: `${imageInputs.length} images converted to PDF\nDownload: /api/tools/download/${filename}`,
+          downloadUrl: `/api/tools/download/${filename}`,
+          downloadFilename: filename,
+          displayName: 'images_combined.pdf',
         },
       };
     }
