@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { PDFDocument } from 'pdf-lib';
-import { mergePdfs, splitPdf, parsePagesSpec } from './PDFManipulationService.js';
+import { mergePdfs, splitPdf, parsePagesSpec, rotatePdfPages, reorderPdfPages, getPdfInfo } from './PDFManipulationService.js';
 
 // Helper: create a minimal valid PDF buffer
 async function createTestPdf(pageCount = 1): Promise<Buffer> {
@@ -80,6 +80,56 @@ describe('PDFManipulationService', () => {
 
     it('throws on invalid page', async () => {
       await expect(splitPdf(threePagePdf, '5')).rejects.toThrow('out of range');
+    });
+  });
+
+  describe('rotatePdfPages', () => {
+    it('rotates specified pages by 90 degrees', async () => {
+      const result = await rotatePdfPages(threePagePdf, '1', 90);
+      const doc = await PDFDocument.load(result);
+      const page = doc.getPage(0);
+      expect(page.getRotation().angle).toBe(90);
+    });
+
+    it('does not rotate unspecified pages', async () => {
+      const result = await rotatePdfPages(threePagePdf, '1', 90);
+      const doc = await PDFDocument.load(result);
+      expect(doc.getPage(1).getRotation().angle).toBe(0);
+    });
+
+    it('throws on invalid degrees', async () => {
+      await expect(rotatePdfPages(threePagePdf, '1', 45 as any)).rejects.toThrow('degrees');
+    });
+  });
+
+  describe('reorderPdfPages', () => {
+    it('reorders pages in specified order', async () => {
+      const result = await reorderPdfPages(threePagePdf, [3, 1, 2]);
+      const doc = await PDFDocument.load(result);
+      expect(doc.getPageCount()).toBe(3);
+    });
+
+    it('throws on invalid page numbers', async () => {
+      await expect(reorderPdfPages(threePagePdf, [1, 2, 5])).rejects.toThrow('out of range');
+    });
+
+    it('throws on duplicate pages', async () => {
+      await expect(reorderPdfPages(threePagePdf, [1, 1, 2])).rejects.toThrow('duplicate');
+    });
+  });
+
+  describe('getPdfInfo', () => {
+    it('returns page count and dimensions', async () => {
+      const info = await getPdfInfo(threePagePdf);
+      expect(info.pageCount).toBe(3);
+      expect(info.pages).toHaveLength(3);
+      expect(info.pages[0]).toHaveProperty('width');
+      expect(info.pages[0]).toHaveProperty('height');
+    });
+
+    it('returns file size', async () => {
+      const info = await getPdfInfo(threePagePdf);
+      expect(info.fileSizeBytes).toBe(threePagePdf.length);
     });
   });
 });
