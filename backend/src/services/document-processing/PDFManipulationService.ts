@@ -183,3 +183,33 @@ export async function getPdfInfo(buffer: Buffer): Promise<PdfInfo> {
     pages,
   };
 }
+
+type CompressionQuality = 'low' | 'medium' | 'high';
+
+/**
+ * Compress a PDF by stripping metadata and unused objects.
+ * Phase 1: metadata/annotation cleanup only. Image re-encoding deferred to Phase 2 (requires mupdf).
+ */
+export async function compressPdf(buffer: Buffer, quality: CompressionQuality): Promise<Buffer> {
+  const validQualities: CompressionQuality[] = ['low', 'medium', 'high'];
+  if (!validQualities.includes(quality)) {
+    throw new Error(`Invalid quality: ${quality}. Must be low, medium, or high`);
+  }
+
+  const doc = await PDFDocument.load(buffer, { updateMetadata: false });
+
+  if (quality === 'medium' || quality === 'low') {
+    doc.setTitle('');
+    doc.setAuthor('');
+    doc.setSubject('');
+    doc.setKeywords([]);
+    doc.setCreator('');
+    doc.setProducer('');
+  }
+
+  return Buffer.from(await doc.save({
+    useObjectStreams: true,
+    addDefaultPage: false,
+    objectsPerTick: 100,
+  }));
+}

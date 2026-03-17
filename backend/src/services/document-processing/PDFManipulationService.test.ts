@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { PDFDocument } from 'pdf-lib';
-import { mergePdfs, splitPdf, parsePagesSpec, rotatePdfPages, reorderPdfPages, getPdfInfo } from './PDFManipulationService.js';
+import { mergePdfs, splitPdf, parsePagesSpec, rotatePdfPages, reorderPdfPages, getPdfInfo, compressPdf } from './PDFManipulationService.js';
 
 // Helper: create a minimal valid PDF buffer
 async function createTestPdf(pageCount = 1): Promise<Buffer> {
@@ -130,6 +130,30 @@ describe('PDFManipulationService', () => {
     it('returns file size', async () => {
       const info = await getPdfInfo(threePagePdf);
       expect(info.fileSizeBytes).toBe(threePagePdf.length);
+    });
+  });
+
+  describe('compressPdf', () => {
+    it('returns a valid PDF for high quality', async () => {
+      const result = await compressPdf(threePagePdf, 'high');
+      const doc = await PDFDocument.load(result);
+      expect(doc.getPageCount()).toBe(3);
+    });
+
+    it('returns a valid PDF for medium quality', async () => {
+      const result = await compressPdf(threePagePdf, 'medium');
+      const doc = await PDFDocument.load(result);
+      expect(doc.getPageCount()).toBe(3);
+    });
+
+    it('returns a valid PDF for low quality', async () => {
+      const result = await compressPdf(threePagePdf, 'low');
+      const doc = await PDFDocument.load(result);
+      expect(doc.getPageCount()).toBe(3);
+    });
+
+    it('throws on invalid quality', async () => {
+      await expect(compressPdf(threePagePdf, 'ultra' as any)).rejects.toThrow('quality');
     });
   });
 });
