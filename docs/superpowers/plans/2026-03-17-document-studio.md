@@ -668,23 +668,25 @@ First, add a module-level helper function at the top of `DocumentTools.ts` (befo
 
 ```typescript
 // Module-level helper — reused by all document tool handlers
+// NOTE: context.db is a mysql2 Promise Pool (from ToolContext interface in types/tool-context.ts).
+// Do NOT use context.fastify.mysql — it doesn't exist on ToolContext.
 async function loadAttachmentBuffer(
   attachmentId: number,
   userId: number,
-  db: any,
+  db: any, // mysql2 Pool — context.db
 ): Promise<{ buffer: Buffer; name: string; mime_type: string }> {
-  const [att] = await db.query(
+  const [rows] = await db.query(
     'SELECT file_path, original_name, mime_type FROM chat_attachments WHERE id = ? AND user_id = ?',
     [attachmentId, userId]
-  ) as any[];
-  if (!att?.length || !att[0]) throw new Error(`Attachment ${attachmentId} not found or access denied`);
-  const row = att[0];
+  );
+  const att = (rows as any[])?.[0];
+  if (!att) throw new Error(`Attachment ${attachmentId} not found or access denied`);
   const fsPromises = await import('fs/promises');
-  return { buffer: await fsPromises.readFile(row.file_path), name: row.original_name, mime_type: row.mime_type };
+  return { buffer: await fsPromises.readFile(att.file_path), name: att.original_name, mime_type: att.mime_type };
 }
 ```
 
-Then add the execution handler to `executeDocumentTool()` (extracting `userId` and `db` from context):
+Then add the execution handler to `executeDocumentTool()` (extracting `userId` and `db` from context — use `context.db`, NOT `context.fastify.mysql`):
 
 ```typescript
 if (toolName === 'pdf_manipulate') {
@@ -692,7 +694,7 @@ if (toolName === 'pdf_manipulate') {
   const { mergePdfs, splitPdf, rotatePdfPages, reorderPdfPages, compressPdf, getPdfInfo } = await import('../DocumentProcessorService.js');
 
   const userId = context.userId;
-  const db = context.fastify.mysql;
+  const db = context.db; // mysql2 Pool from ToolContext — NOT context.fastify.mysql
 
   let resultBuffer: Buffer;
   let resultName: string;
@@ -861,14 +863,16 @@ git commit -m "test: add integration tests for pdf_manipulate tool"
 **Files:**
 - Modify: `backend/package.json`
 
-- [ ] **Step 1: Install mupdf and sharp**
+- [ ] **Step 1: Install mupdf, sharp, and archiver**
 
 ```bash
 cd enterprise-ai-chat/backend
-npm install mupdf sharp
+npm install mupdf sharp archiver
+npm install -D @types/archiver
 ```
 
 Note: `sharp` may already be present. If so, `npm install` will just verify it.
+`archiver` is needed for Task 2.7 (multi-page PDF→images exports as ZIP).
 
 - [ ] **Step 2: Verify mupdf loads**
 
@@ -882,7 +886,7 @@ Expected: `mupdf OK`
 
 ```bash
 git add backend/package.json backend/package-lock.json
-git commit -m "chore: add mupdf and sharp dependencies for PDF conversion"
+git commit -m "chore: add mupdf, sharp, archiver dependencies for PDF conversion"
 ```
 
 ---
