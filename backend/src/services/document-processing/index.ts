@@ -87,3 +87,12 @@ export {
   redactAreas,
   smartRedactRegex,
 } from './PDFSecurityService.js';
+
+export {
+  generateSelfSignedCertificate,
+  encryptPrivateKey,
+  decryptPrivateKey,
+  signPdfSimple,
+  signPdfCertified,
+  verifySignatures,
+} from './PDFSignatureService.js';

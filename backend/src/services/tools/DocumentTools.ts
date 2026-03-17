@@ -365,6 +365,44 @@ IMPORTANT: This tool converts the ORIGINAL uploaded file to PDF using LibreOffic
       },
     },
     {
+      name: 'pdf_sign',
+      description: 'Sign a PDF: simple visual signature (image overlay) or certified digital signature (PAdES-B-B with X.509 certificate). Use action parameter.',
+      input_schema: {
+        type: 'object' as const,
+        properties: {
+          action: { type: 'string', enum: ['sign_simple', 'sign_certified', 'verify'], description: 'Signature action' },
+          attachment_id: { type: 'number', description: 'Attachment ID of the PDF' },
+          page: { type: 'number', description: 'Zero-based page index for signature placement' },
+          x: { type: 'number', description: 'X position of signature' },
+          y: { type: 'number', description: 'Y position of signature' },
+          width: { type: 'number', description: 'Signature width (default: 200)' },
+          height: { type: 'number', description: 'Signature height (default: 60)' },
+          signature_image_base64: { type: 'string', description: 'Base64-encoded PNG of signature image (for sign_simple)' },
+          certificate_id: { type: 'number', description: 'ID from user_certificates table (for sign_certified)' },
+          passphrase: { type: 'string', description: 'Passphrase to decrypt private key (for sign_certified)' },
+          reason: { type: 'string', description: 'Reason for signing' },
+          location: { type: 'string', description: 'Signing location' },
+        },
+        required: ['action', 'attachment_id'],
+      },
+    },
+    {
+      name: 'manage_certificates',
+      description: 'Manage digital certificates: generate self-signed, import PKCS#12, list, or delete certificates for PDF signing.',
+      input_schema: {
+        type: 'object' as const,
+        properties: {
+          action: { type: 'string', enum: ['generate', 'import_p12', 'list', 'delete'], description: 'Certificate management action' },
+          common_name: { type: 'string', description: 'Common Name for self-signed certificate (for generate)' },
+          p12_base64: { type: 'string', description: 'Base64-encoded PKCS#12 file (for import_p12)' },
+          p12_password: { type: 'string', description: 'PKCS#12 file password (for import_p12)' },
+          passphrase: { type: 'string', description: 'Passphrase to encrypt stored private key' },
+          certificate_id: { type: 'number', description: 'Certificate ID (for delete)' },
+        },
+        required: ['action'],
+      },
+    },
+    {
       name: 'get_attachment_text',
       description: 'Get the full processed text content of an attachment (PDF, Word, etc.). Use this if the initial context was truncated or if you need to read the full content of a file.',
       input_schema: {
@@ -1019,6 +1057,125 @@ export async function executeDocumentTool(
       const filename = `${Date.now()}_secured_${name}`;
       await fs.writeFile(path.join(generatedDir, filename), resultBuf);
       return { success: true, output: { message: `${msg}\nDownload: /api/tools/download/${filename}`, downloadUrl: `/api/tools/download/${filename}`, downloadFilename: filename, displayName: name } };
+    }
+
+    case 'pdf_sign': {
+      const { action, attachment_id, page, x, y, width, height,
+        signature_image_base64, certificate_id, passphrase, reason, location } = toolInput;
+      if (!attachment_id) return { success: false, error: 'Missing attachment_id' };
+      if (!context.db) return { success: false, error: 'Database not available' };
+      const db = context.db;
+      const { signPdfSimple, signPdfCertified, verifySignatures, decryptPrivateKey } = await import('../DocumentProcessorService.js');
+
+      switch (action) {
+        case 'sign_simple': {
+          if (!signature_image_base64) return { success: false, error: 'Missing signature_image_base64' };
+          const { buffer, name } = await loadAttachmentBuffer(attachment_id, context.userId, db);
+          const sigImage = Buffer.from(signature_image_base64, 'base64');
+          const result = await signPdfSimple(buffer, page ?? 0, x ?? 100, y ?? 100, sigImage, width ?? 200, height ?? 60);
+          const fs = await import('fs/promises');
+          const generatedDir = path.join(process.env.STORAGE_ROOT || process.cwd(), 'generated');
+          await fs.mkdir(generatedDir, { recursive: true });
+          const filename = `${Date.now()}_signed_${name}`;
+          await fs.writeFile(path.join(generatedDir, filename), result);
+          return { success: true, output: { message: `PDF signed with visual signature\nDownload: /api/tools/download/${filename}`, downloadUrl: `/api/tools/download/${filename}`, downloadFilename: filename, displayName: name } };
+        }
+        case 'sign_certified': {
+          if (!certificate_id || !passphrase) return { success: false, error: 'Missing certificate_id or passphrase' };
+          const { buffer, name } = await loadAttachmentBuffer(attachment_id, context.userId, db);
+          const [rows] = await db.query(
+            'SELECT certificate_pem, private_key_encrypted, key_encryption_iv, key_encryption_salt FROM user_certificates WHERE id = ? AND user_id = ?',
+            [certificate_id, context.userId],
+          );
+          if (!Array.isArray(rows) || rows.length === 0) return { success: false, error: 'Certificate not found' };
+          const certRow = (rows as any[])[0];
+          const privateKeyPem = decryptPrivateKey(certRow.private_key_encrypted, passphrase, certRow.key_encryption_iv, certRow.key_encryption_salt);
+          const result = await signPdfCertified(buffer, {
+            certificatePem: certRow.certificate_pem, privateKeyPem,
+            reason: reason ?? 'Digital Approval', location: location ?? '',
+            page: page ?? 0, x: x ?? 100, y: y ?? 100, width: width ?? 200, height: height ?? 60,
+          });
+          const fs = await import('fs/promises');
+          const generatedDir = path.join(process.env.STORAGE_ROOT || process.cwd(), 'generated');
+          await fs.mkdir(generatedDir, { recursive: true });
+          const filename = `${Date.now()}_certified_${name}`;
+          await fs.writeFile(path.join(generatedDir, filename), result);
+          return { success: true, output: { message: `PDF signed with certified digital signature (PAdES-B-B)\nDownload: /api/tools/download/${filename}`, downloadUrl: `/api/tools/download/${filename}`, downloadFilename: filename, displayName: name } };
+        }
+        case 'verify': {
+          const { buffer } = await loadAttachmentBuffer(attachment_id, context.userId, db);
+          const sigs = await verifySignatures(buffer);
+          if (sigs.length === 0) return { success: true, output: 'No digital signatures found in this PDF.' };
+          const summary = sigs.map((s: any, i: number) => `${i + 1}. Signer: ${s.signerName}, Valid: ${s.valid ? 'Yes' : 'No'}`).join('\n');
+          return { success: true, output: `Found ${sigs.length} signature(s):\n${summary}` };
+        }
+        default:
+          return { success: false, error: `Unknown sign action: ${action}` };
+      }
+    }
+
+    case 'manage_certificates': {
+      const { action, common_name, p12_base64, p12_password, passphrase, certificate_id } = toolInput;
+      if (!context.db) return { success: false, error: 'Database not available' };
+      const certDb = context.db;
+      const { generateSelfSignedCertificate, encryptPrivateKey } = await import('../DocumentProcessorService.js');
+      const forge = (await import('node-forge')).default;
+
+      switch (action) {
+        case 'generate': {
+          if (!common_name || !passphrase) return { success: false, error: 'Missing common_name or passphrase' };
+          const { certificate, privateKey } = generateSelfSignedCertificate(common_name);
+          const { encrypted, iv, salt } = encryptPrivateKey(privateKey, passphrase);
+          const cert = forge.pki.certificateFromPem(certificate);
+          const fingerprint = forge.md.sha256.create().update(forge.asn1.toDer(forge.pki.certificateToAsn1(cert)).getBytes()).digest().toHex();
+          await certDb.query(
+            'INSERT INTO user_certificates (user_id, name, subject_cn, issuer_cn, serial_number, valid_from, valid_to, certificate_pem, private_key_encrypted, key_encryption_iv, key_encryption_salt, fingerprint_sha256, is_self_signed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [context.userId, common_name, common_name, common_name, cert.serialNumber, cert.validity.notBefore, cert.validity.notAfter, certificate, encrypted, iv, salt, fingerprint, true],
+          );
+          return { success: true, output: `Self-signed certificate generated for "${common_name}". Valid for 2 years.` };
+        }
+        case 'import_p12': {
+          if (!p12_base64 || !p12_password || !passphrase) return { success: false, error: 'Missing p12_base64, p12_password, or passphrase' };
+          const p12Buffer = Buffer.from(p12_base64, 'base64');
+          const p12Asn1 = forge.asn1.fromDer(p12Buffer.toString('binary'));
+          const p12 = forge.pkcs12.pkcs12FromAsn1(p12Asn1, p12_password);
+          const certBags = p12.getBags({ bagType: forge.pki.oids.certBag });
+          const keyBags = p12.getBags({ bagType: forge.pki.oids.pkcs8ShroudedKeyBag });
+          const certBag = (certBags[forge.pki.oids.certBag] || [])[0];
+          const keyBag = (keyBags[forge.pki.oids.pkcs8ShroudedKeyBag] || [])[0];
+          if (!certBag?.cert || !keyBag?.key) return { success: false, error: 'PKCS#12 file missing certificate or private key' };
+          const cert = certBag.cert;
+          const certificatePem = forge.pki.certificateToPem(cert);
+          const privateKeyPem = forge.pki.privateKeyToPem(keyBag.key);
+          const { encrypted, iv, salt } = encryptPrivateKey(privateKeyPem, passphrase);
+          const cn = cert.subject.getField('CN')?.value ?? 'Imported';
+          const issuerCn = cert.issuer.getField('CN')?.value ?? 'Unknown';
+          const fingerprint = forge.md.sha256.create().update(forge.asn1.toDer(forge.pki.certificateToAsn1(cert)).getBytes()).digest().toHex();
+          await certDb.query(
+            'INSERT INTO user_certificates (user_id, name, subject_cn, issuer_cn, serial_number, valid_from, valid_to, certificate_pem, private_key_encrypted, key_encryption_iv, key_encryption_salt, fingerprint_sha256, is_self_signed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [context.userId, cn, cn, issuerCn, cert.serialNumber, cert.validity.notBefore, cert.validity.notAfter, certificatePem, encrypted, iv, salt, fingerprint, cn === issuerCn],
+          );
+          return { success: true, output: `PKCS#12 certificate imported for "${cn}" (issuer: ${issuerCn})` };
+        }
+        case 'list': {
+          const [rows] = await certDb.query(
+            'SELECT id, name, subject_cn, issuer_cn, valid_from, valid_to, is_self_signed, created_at FROM user_certificates WHERE user_id = ? ORDER BY created_at DESC',
+            [context.userId],
+          );
+          const certs = rows as any[];
+          if (certs.length === 0) return { success: true, output: 'No certificates found. Use "generate" to create a self-signed certificate.' };
+          const list = certs.map((c: any) => `- ID ${c.id}: ${c.name} (CN: ${c.subject_cn}, valid ${c.valid_from} to ${c.valid_to}, self-signed: ${c.is_self_signed ? 'yes' : 'no'})`).join('\n');
+          return { success: true, output: `Your certificates:\n${list}` };
+        }
+        case 'delete': {
+          if (!certificate_id) return { success: false, error: 'Missing certificate_id' };
+          const [result] = await certDb.query('DELETE FROM user_certificates WHERE id = ? AND user_id = ?', [certificate_id, context.userId]);
+          if ((result as any).affectedRows === 0) return { success: false, error: 'Certificate not found' };
+          return { success: true, output: `Certificate ${certificate_id} deleted.` };
+        }
+        default:
+          return { success: false, error: `Unknown certificate action: ${action}` };
+      }
     }
 
     case 'get_attachment_text': {

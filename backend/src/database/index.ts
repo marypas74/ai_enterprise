@@ -601,6 +601,29 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
         ('semantic_routing_enabled', 'false'),
         ('escalation_threshold', '0.5'),
         ('max_escalation_rate', '0.25')`
+    },
+    {
+      name: 'user_certificates',
+      sql: `CREATE TABLE IF NOT EXISTS user_certificates (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        subject_cn VARCHAR(255),
+        issuer_cn VARCHAR(255),
+        serial_number VARCHAR(255),
+        valid_from DATETIME,
+        valid_to DATETIME,
+        certificate_pem TEXT NOT NULL,
+        private_key_encrypted TEXT NOT NULL,
+        key_encryption_iv VARCHAR(64) NOT NULL,
+        key_encryption_salt VARCHAR(64) NOT NULL,
+        fingerprint_sha256 VARCHAR(128),
+        is_self_signed BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        UNIQUE KEY idx_user_fingerprint (user_id, fingerprint_sha256),
+        INDEX idx_user_certs (user_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`
     }
   ];
 

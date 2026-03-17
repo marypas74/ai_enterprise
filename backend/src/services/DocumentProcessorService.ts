@@ -90,6 +90,15 @@ export {
   smartRedactRegex,
 } from './document-processing/PDFSecurityService.js';
 
+export {
+  generateSelfSignedCertificate,
+  encryptPrivateKey,
+  decryptPrivateKey,
+  signPdfSimple,
+  signPdfCertified,
+  verifySignatures,
+} from './document-processing/PDFSignatureService.js';
+
 // Import what processDocument needs
 import { extractWithOCR, extractPdfWithOCR } from './document-processing/OCRService.js';
 import { extractOfficeContent } from './document-processing/OfficeExtractionService.js';
