@@ -433,21 +433,18 @@ export async function registerUploadRoutes(fastify: FastifyInstance): Promise<vo
       let docxBuffer: Buffer;
 
       if (isPdf) {
-        // PDF→DOCX: extract text (OCR if needed) then generate editable DOCX
-        let textContent = attachment.processed_content;
+        // PDF→DOCX: smart conversion with structure preservation
+        const { convertPdfToDocxSmart, convertPdfToDocxOcr } = await import('../../services/document-processing/PDFConversionService.js');
+        const pdfBuffer = await fs.readFile(attachment.file_path);
 
-        // If processed_content is too sparse, re-extract with OCR pipeline
-        if (!textContent || textContent.trim().length < 30) {
-          const pdfBuffer = await fs.readFile(attachment.file_path);
-          const { processDocument } = await import('../../services/DocumentProcessorService.js');
-          const result = await processDocument(pdfBuffer, 'application/pdf', attachment.original_name);
-          textContent = result.text;
-          fastify.log.info(`[Attachments] PDF text re-extracted via ${result.method}: ${result.charCount} chars`);
+        try {
+          docxBuffer = await convertPdfToDocxSmart(pdfBuffer, baseName);
+          fastify.log.info(`[Attachments] PDF→DOCX smart: ${attachment.original_name}`);
+        } catch (smartErr) {
+          fastify.log.warn(`[Attachments] Smart conversion failed, falling back to OCR: ${smartErr}`);
+          docxBuffer = await convertPdfToDocxOcr(pdfBuffer, baseName);
+          fastify.log.info(`[Attachments] PDF→DOCX OCR fallback: ${attachment.original_name}`);
         }
-
-        const { generateDocxBuffer } = await import('../../services/DocumentProcessorService.js');
-        docxBuffer = await generateDocxBuffer(textContent, baseName);
-        fastify.log.info(`[Attachments] PDF→DOCX editable: ${attachment.original_name}`);
       } else {
         // Non-PDF: generate DOCX from extracted text
         const docxPath = path.join(outputDir, `${baseName}_converted.docx`);

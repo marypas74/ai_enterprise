@@ -338,28 +338,22 @@ export async function directConvertAttachment(
       ext = 'pdf';
       icon = '📕';
     } else if (isPdf) {
-      // PDF→DOCX: extract text (OCR if needed) then generate editable DOCX
-      let textContent = attachment.processed_content;
+      // PDF→DOCX: smart conversion with structure preservation
+      const { convertPdfToDocxSmart, convertPdfToDocxOcr } = await import('../../services/document-processing/PDFConversionService.js');
 
-      // If processed_content is too sparse, re-extract with OCR pipeline
-      if (!textContent || textContent.trim().length < 30) {
-        if (attachment.file_path) {
-          const pdfBuffer = await fs.readFile(attachment.file_path);
-          const { processDocument } = await import('../../services/DocumentProcessorService.js');
-          const result = await processDocument(pdfBuffer, 'application/pdf', attachment.original_name);
-          textContent = result.text;
-          log.info(`[Chat] PDF text re-extracted via ${result.method}: ${result.charCount} chars`);
-        }
+      if (!attachment.file_path) return null;
+      const pdfBuffer = await fs.readFile(attachment.file_path);
+
+      try {
+        buffer = await convertPdfToDocxSmart(pdfBuffer, docTitle);
+        log.info(`[Chat] PDF→DOCX smart conversion: ${attachment.original_name}`);
+      } catch (smartErr) {
+        log.warn(`[Chat] Smart conversion failed, falling back to OCR: ${smartErr}`);
+        buffer = await convertPdfToDocxOcr(pdfBuffer, docTitle);
+        log.info(`[Chat] PDF→DOCX OCR fallback: ${attachment.original_name}`);
       }
-
-      if (!textContent || textContent.trim().length < 10) {
-        return null; // Not enough content, fall through to LLM
-      }
-
-      buffer = await generateDocxBuffer(textContent, docTitle);
       ext = 'docx';
       icon = '📄';
-      log.info(`[Chat] PDF→DOCX editable conversion: ${attachment.original_name}`);
     } else {
       // Non-PDF source: generate DOCX from extracted text
       const content = attachment.processed_content;
