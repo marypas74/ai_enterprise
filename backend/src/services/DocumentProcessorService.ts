@@ -60,6 +60,36 @@ export {
   convertImagesToPdf,
 } from './document-processing/PDFConversionService.js';
 
+export {
+  addTextToPdf,
+  addImageToPdf,
+  addWatermark,
+  removePdfPages,
+  findAndReplaceText,
+} from './document-processing/PDFEditingService.js';
+
+export {
+  highlightText,
+  addStickyNote,
+  addStamp,
+  underlineText,
+  strikethroughText,
+  removeAnnotations,
+} from './document-processing/PDFAnnotationService.js';
+
+export {
+  addFormField,
+  fillFormFields,
+  extractFormData,
+} from './document-processing/PDFFormService.js';
+
+export {
+  protectPdf,
+  unlockPdf,
+  redactAreas,
+  smartRedactRegex,
+} from './document-processing/PDFSecurityService.js';
+
 // Import what processDocument needs
 import { extractWithOCR, extractPdfWithOCR } from './document-processing/OCRService.js';
 import { extractOfficeContent } from './document-processing/OfficeExtractionService.js';

@@ -255,6 +255,116 @@ IMPORTANT: This tool converts the ORIGINAL uploaded file to PDF using LibreOffic
       },
     },
     {
+      name: 'add_pdf_text',
+      description: 'Add text at a specific position on a PDF page.',
+      input_schema: {
+        type: 'object' as const,
+        properties: {
+          attachment_id: { type: 'number', description: 'Attachment ID of the PDF' },
+          page: { type: 'number', description: 'Page number (1-based)' },
+          text: { type: 'string', description: 'Text to add' },
+          x: { type: 'number', description: 'X position in points' },
+          y: { type: 'number', description: 'Y position in points' },
+          size: { type: 'number', description: 'Font size (default: 12)' },
+          color: { type: 'object', properties: { r: { type: 'number' }, g: { type: 'number' }, b: { type: 'number' } }, description: 'RGB color (0-1 range)' },
+        },
+        required: ['attachment_id', 'page', 'text', 'x', 'y'],
+      },
+    },
+    {
+      name: 'add_pdf_image',
+      description: 'Add an uploaded image to a specific position on a PDF page.',
+      input_schema: {
+        type: 'object' as const,
+        properties: {
+          attachment_id: { type: 'number', description: 'Attachment ID of the PDF' },
+          image_attachment_id: { type: 'number', description: 'Attachment ID of the image to embed' },
+          page: { type: 'number', description: 'Page number (1-based)' },
+          x: { type: 'number', description: 'X position' },
+          y: { type: 'number', description: 'Y position' },
+          width: { type: 'number', description: 'Image width' },
+          height: { type: 'number', description: 'Image height' },
+        },
+        required: ['attachment_id', 'image_attachment_id', 'page', 'x', 'y', 'width', 'height'],
+      },
+    },
+    {
+      name: 'add_pdf_watermark',
+      description: 'Add a text watermark to PDF pages.',
+      input_schema: {
+        type: 'object' as const,
+        properties: {
+          attachment_id: { type: 'number', description: 'Attachment ID of the PDF' },
+          text: { type: 'string', description: 'Watermark text' },
+          opacity: { type: 'number', description: 'Opacity 0-1 (default: 0.3)' },
+          rotation: { type: 'number', description: 'Rotation degrees (default: 45)' },
+          pages: { type: 'string', description: 'Page specification (omit for all pages)' },
+        },
+        required: ['attachment_id', 'text'],
+      },
+    },
+    {
+      name: 'remove_pdf_pages',
+      description: 'Remove specified pages from a PDF.',
+      input_schema: {
+        type: 'object' as const,
+        properties: {
+          attachment_id: { type: 'number', description: 'Attachment ID of the PDF' },
+          pages: { type: 'string', description: 'Pages to remove, e.g. "2,4-5"' },
+        },
+        required: ['attachment_id', 'pages'],
+      },
+    },
+    {
+      name: 'pdf_annotate',
+      description: 'Add annotations to a PDF: highlight, underline, strikethrough text, add sticky notes, or stamps. Use action parameter to select.',
+      input_schema: {
+        type: 'object' as const,
+        properties: {
+          action: { type: 'string', enum: ['highlight', 'underline', 'strikethrough', 'sticky_note', 'stamp', 'remove_annotations'], description: 'Annotation action' },
+          attachment_id: { type: 'number', description: 'Attachment ID of the PDF' },
+          page: { type: 'number', description: 'Page index (0-based)' },
+          search_text: { type: 'string', description: 'Text to annotate (for highlight/underline/strikethrough)' },
+          color: { type: 'array', items: { type: 'number' }, description: 'RGB color [r,g,b] 0-1 range' },
+          x: { type: 'number', description: 'X position (for sticky note/stamp)' },
+          y: { type: 'number', description: 'Y position (for sticky note/stamp)' },
+          text: { type: 'string', description: 'Note text (for sticky note) or stamp type (for stamp)' },
+        },
+        required: ['action', 'attachment_id', 'page'],
+      },
+    },
+    {
+      name: 'pdf_form',
+      description: 'Work with PDF forms: add fields, fill fields, or extract form data. Use action parameter to select.',
+      input_schema: {
+        type: 'object' as const,
+        properties: {
+          action: { type: 'string', enum: ['add_field', 'fill', 'extract'], description: 'Form action' },
+          attachment_id: { type: 'number', description: 'Attachment ID of the PDF' },
+          field: { type: 'object', description: 'Field definition for add_field (type, name, x, y, width, height)' },
+          values: { type: 'object', description: 'Field name/value pairs for fill action' },
+        },
+        required: ['action', 'attachment_id'],
+      },
+    },
+    {
+      name: 'pdf_security',
+      description: 'PDF security operations: encrypt/protect, unlock, redact areas, or smart redaction of PII. Use action parameter to select.',
+      input_schema: {
+        type: 'object' as const,
+        properties: {
+          action: { type: 'string', enum: ['protect', 'unlock', 'redact', 'smart_redact'], description: 'Security action' },
+          attachment_id: { type: 'number', description: 'Attachment ID of the PDF' },
+          user_password: { type: 'string', description: 'User password (for protect/unlock)' },
+          owner_password: { type: 'string', description: 'Owner password (for protect)' },
+          permissions: { type: 'object', properties: { printing: { type: 'boolean' }, copying: { type: 'boolean' }, modifying: { type: 'boolean' } }, description: 'PDF permissions (for protect)' },
+          areas: { type: 'array', items: { type: 'object' }, description: 'Redaction areas [{page, x, y, width, height}]' },
+          patterns: { type: 'array', items: { type: 'string' }, description: 'Custom regex patterns for smart_redact' },
+        },
+        required: ['action', 'attachment_id'],
+      },
+    },
+    {
       name: 'get_attachment_text',
       description: 'Get the full processed text content of an attachment (PDF, Word, etc.). Use this if the initial context was truncated or if you need to read the full content of a file.',
       input_schema: {
@@ -745,6 +855,170 @@ export async function executeDocumentTool(
           displayName: 'images_combined.pdf',
         },
       };
+    }
+
+    case 'add_pdf_text': {
+      const { attachment_id, page, text, x, y, size, color } = toolInput;
+      if (!attachment_id || !page || !text) return { success: false, error: 'Missing required params' };
+      const { addTextToPdf } = await import('../DocumentProcessorService.js');
+      const { buffer, name } = await loadAttachmentBuffer(attachment_id, context.userId, context.db);
+      const resultBuf = await addTextToPdf(buffer, page, x, y, text, size ?? 12, color);
+      const fs = await import('fs/promises');
+      const generatedDir = path.join(process.env.STORAGE_ROOT || process.cwd(), 'generated');
+      await fs.mkdir(generatedDir, { recursive: true });
+      const filename = `${Date.now()}_edited_${name}`;
+      await fs.writeFile(path.join(generatedDir, filename), resultBuf);
+      return { success: true, output: { message: `Added text to page ${page}\nDownload: /api/tools/download/${filename}`, downloadUrl: `/api/tools/download/${filename}`, downloadFilename: filename, displayName: name } };
+    }
+
+    case 'add_pdf_image': {
+      const { attachment_id, page, image_attachment_id, x, y, width, height } = toolInput;
+      if (!attachment_id || !image_attachment_id || !page) return { success: false, error: 'Missing required params' };
+      const { addImageToPdf } = await import('../DocumentProcessorService.js');
+      const { buffer, name } = await loadAttachmentBuffer(attachment_id, context.userId, context.db);
+      const { buffer: imgBuffer, mime_type } = await loadAttachmentBuffer(image_attachment_id, context.userId, context.db);
+      const resultBuf = await addImageToPdf(buffer, page, imgBuffer, mime_type, x, y, width, height);
+      const fs = await import('fs/promises');
+      const generatedDir = path.join(process.env.STORAGE_ROOT || process.cwd(), 'generated');
+      await fs.mkdir(generatedDir, { recursive: true });
+      const filename = `${Date.now()}_edited_${name}`;
+      await fs.writeFile(path.join(generatedDir, filename), resultBuf);
+      return { success: true, output: { message: `Added image to page ${page}\nDownload: /api/tools/download/${filename}`, downloadUrl: `/api/tools/download/${filename}`, downloadFilename: filename, displayName: name } };
+    }
+
+    case 'add_pdf_watermark': {
+      const { attachment_id, text, opacity, rotation, pages } = toolInput;
+      if (!attachment_id || !text) return { success: false, error: 'Missing required params' };
+      const { addWatermark } = await import('../DocumentProcessorService.js');
+      const { buffer, name } = await loadAttachmentBuffer(attachment_id, context.userId, context.db);
+      const resultBuf = await addWatermark(buffer, text, opacity ?? 0.3, rotation ?? 45, pages);
+      const fs = await import('fs/promises');
+      const generatedDir = path.join(process.env.STORAGE_ROOT || process.cwd(), 'generated');
+      await fs.mkdir(generatedDir, { recursive: true });
+      const filename = `${Date.now()}_watermarked_${name}`;
+      await fs.writeFile(path.join(generatedDir, filename), resultBuf);
+      return { success: true, output: { message: `Watermark "${text}" added\nDownload: /api/tools/download/${filename}`, downloadUrl: `/api/tools/download/${filename}`, downloadFilename: filename, displayName: name } };
+    }
+
+    case 'remove_pdf_pages': {
+      const { attachment_id, pages } = toolInput;
+      if (!attachment_id || !pages) return { success: false, error: 'Missing required params' };
+      const { removePdfPages } = await import('../DocumentProcessorService.js');
+      const { buffer, name } = await loadAttachmentBuffer(attachment_id, context.userId, context.db);
+      const resultBuf = await removePdfPages(buffer, pages);
+      const fs = await import('fs/promises');
+      const generatedDir = path.join(process.env.STORAGE_ROOT || process.cwd(), 'generated');
+      await fs.mkdir(generatedDir, { recursive: true });
+      const filename = `${Date.now()}_edited_${name}`;
+      await fs.writeFile(path.join(generatedDir, filename), resultBuf);
+      return { success: true, output: { message: `Removed pages ${pages}\nDownload: /api/tools/download/${filename}`, downloadUrl: `/api/tools/download/${filename}`, downloadFilename: filename, displayName: name } };
+    }
+
+    case 'pdf_annotate': {
+      const { action, attachment_id, page, search_text, color, x, y, text } = toolInput;
+      if (!attachment_id) return { success: false, error: 'Missing attachment_id' };
+      const { highlightText, underlineText, strikethroughText, addStickyNote, addStamp, removeAnnotations } = await import('../DocumentProcessorService.js');
+      const { buffer, name } = await loadAttachmentBuffer(attachment_id, context.userId, context.db);
+      let resultBuf: Buffer;
+
+      switch (action) {
+        case 'highlight':
+          resultBuf = await highlightText(buffer, page, search_text, color); break;
+        case 'underline':
+          resultBuf = await underlineText(buffer, page, search_text, color); break;
+        case 'strikethrough':
+          resultBuf = await strikethroughText(buffer, page, search_text, color); break;
+        case 'sticky_note':
+          resultBuf = await addStickyNote(buffer, page, x, y, text); break;
+        case 'stamp':
+          resultBuf = await addStamp(buffer, page, text, x, y); break;
+        case 'remove_annotations':
+          resultBuf = await removeAnnotations(buffer, page); break;
+        default:
+          return { success: false, error: `Unknown annotation action: ${action}` };
+      }
+
+      const fs = await import('fs/promises');
+      const generatedDir = path.join(process.env.STORAGE_ROOT || process.cwd(), 'generated');
+      await fs.mkdir(generatedDir, { recursive: true });
+      const filename = `${Date.now()}_annotated_${name}`;
+      await fs.writeFile(path.join(generatedDir, filename), resultBuf);
+      return { success: true, output: { message: `Annotation ${action} applied\nDownload: /api/tools/download/${filename}`, downloadUrl: `/api/tools/download/${filename}`, downloadFilename: filename, displayName: name } };
+    }
+
+    case 'pdf_form': {
+      const { action, attachment_id, field, values } = toolInput;
+      if (!attachment_id) return { success: false, error: 'Missing attachment_id' };
+      const { addFormField, fillFormFields, extractFormData } = await import('../DocumentProcessorService.js');
+      const { buffer, name } = await loadAttachmentBuffer(attachment_id, context.userId, context.db);
+
+      if (action === 'extract') {
+        const data = await extractFormData(buffer);
+        return { success: true, output: `Form data:\n${JSON.stringify(data, null, 2)}` };
+      }
+
+      let resultBuf: Buffer;
+      if (action === 'add_field') {
+        if (!field) return { success: false, error: 'Missing field definition' };
+        resultBuf = await addFormField(buffer, field.page ?? 0, field);
+      } else if (action === 'fill') {
+        if (!values) return { success: false, error: 'Missing values' };
+        resultBuf = await fillFormFields(buffer, values);
+      } else {
+        return { success: false, error: `Unknown form action: ${action}` };
+      }
+
+      const fs = await import('fs/promises');
+      const generatedDir = path.join(process.env.STORAGE_ROOT || process.cwd(), 'generated');
+      await fs.mkdir(generatedDir, { recursive: true });
+      const filename = `${Date.now()}_form_${name}`;
+      await fs.writeFile(path.join(generatedDir, filename), resultBuf);
+      return { success: true, output: { message: `Form ${action} completed\nDownload: /api/tools/download/${filename}`, downloadUrl: `/api/tools/download/${filename}`, downloadFilename: filename, displayName: name } };
+    }
+
+    case 'pdf_security': {
+      const { action, attachment_id, user_password, owner_password, permissions, areas, patterns } = toolInput;
+      if (!attachment_id) return { success: false, error: 'Missing attachment_id' };
+      const { protectPdf, unlockPdf, redactAreas, smartRedactRegex } = await import('../DocumentProcessorService.js');
+      const { buffer, name } = await loadAttachmentBuffer(attachment_id, context.userId, context.db);
+      let resultBuf: Buffer;
+      let msg: string;
+
+      switch (action) {
+        case 'protect': {
+          if (!user_password) return { success: false, error: 'Missing user_password' };
+          resultBuf = await protectPdf(buffer, user_password, owner_password, permissions);
+          msg = 'PDF encrypted successfully';
+          break;
+        }
+        case 'unlock': {
+          if (!user_password) return { success: false, error: 'Missing user_password (password)' };
+          resultBuf = await unlockPdf(buffer, user_password);
+          msg = 'PDF unlocked successfully';
+          break;
+        }
+        case 'redact': {
+          if (!areas || areas.length === 0) return { success: false, error: 'Missing redaction areas' };
+          resultBuf = await redactAreas(buffer, areas);
+          msg = `Redacted ${areas.length} areas`;
+          break;
+        }
+        case 'smart_redact': {
+          const result = await smartRedactRegex(buffer, patterns);
+          resultBuf = result.buffer;
+          msg = `Smart redaction: ${result.redactedCount} items redacted`;
+          break;
+        }
+        default:
+          return { success: false, error: `Unknown security action: ${action}` };
+      }
+
+      const fs = await import('fs/promises');
+      const generatedDir = path.join(process.env.STORAGE_ROOT || process.cwd(), 'generated');
+      await fs.mkdir(generatedDir, { recursive: true });
+      const filename = `${Date.now()}_secured_${name}`;
+      await fs.writeFile(path.join(generatedDir, filename), resultBuf);
+      return { success: true, output: { message: `${msg}\nDownload: /api/tools/download/${filename}`, downloadUrl: `/api/tools/download/${filename}`, downloadFilename: filename, displayName: name } };
     }
 
     case 'get_attachment_text': {

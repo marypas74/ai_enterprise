@@ -57,3 +57,33 @@ export {
   type TextBlock,
   type ImageInput,
 } from './PDFConversionService.js';
+
+export {
+  addTextToPdf,
+  addImageToPdf,
+  addWatermark,
+  removePdfPages,
+  findAndReplaceText,
+} from './PDFEditingService.js';
+
+export {
+  highlightText,
+  addStickyNote,
+  addStamp,
+  underlineText,
+  strikethroughText,
+  removeAnnotations,
+} from './PDFAnnotationService.js';
+
+export {
+  addFormField,
+  fillFormFields,
+  extractFormData,
+} from './PDFFormService.js';
+
+export {
+  protectPdf,
+  unlockPdf,
+  redactAreas,
+  smartRedactRegex,
+} from './PDFSecurityService.js';
