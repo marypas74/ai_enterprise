@@ -30,3 +30,15 @@ export {
     convertOfficeToPdf,
     convertPdfToDocx,
 } from './ConversionService.js';
+
+export {
+  mergePdfs,
+  splitPdf,
+  rotatePdfPages,
+  reorderPdfPages,
+  compressPdf,
+  getPdfInfo,
+  parsePagesSpec,
+  type PdfInfo,
+  type PdfPageInfo,
+} from './PDFManipulationService.js';

@@ -144,6 +144,53 @@ IMPORTANT: This tool converts the ORIGINAL uploaded file to PDF using LibreOffic
       }
     },
     {
+      name: 'pdf_manipulate',
+      description: 'Manipulate PDF documents: merge multiple PDFs, split/extract pages, compress, rotate pages, reorder pages, or get PDF metadata. Use action parameter to select operation.',
+      input_schema: {
+        type: 'object' as const,
+        properties: {
+          action: {
+            type: 'string',
+            enum: ['merge', 'split', 'compress', 'rotate', 'reorder', 'info'],
+            description: 'Operation to perform',
+          },
+          attachment_id: {
+            type: 'number',
+            description: 'Attachment ID of the PDF (for split/compress/rotate/reorder/info)',
+          },
+          attachment_ids: {
+            type: 'array',
+            items: { type: 'number' },
+            description: 'Array of attachment IDs to merge (for merge action, min 2)',
+          },
+          pages: {
+            type: 'string',
+            description: 'Page specification like "1,3-5,7" (1-based). For split, rotate.',
+          },
+          degrees: {
+            type: 'number',
+            enum: [90, 180, 270],
+            description: 'Rotation degrees (for rotate action)',
+          },
+          quality: {
+            type: 'string',
+            enum: ['low', 'medium', 'high'],
+            description: 'Compression quality (for compress action). Low=max compression, high=min compression.',
+          },
+          order: {
+            type: 'array',
+            items: { type: 'number' },
+            description: 'New page order as 1-based page numbers, e.g. [3,1,2] (for reorder action)',
+          },
+          output_name: {
+            type: 'string',
+            description: 'Output filename (without extension). Defaults to auto-generated name.',
+          },
+        },
+        required: ['action'],
+      },
+    },
+    {
       name: 'get_attachment_text',
       description: 'Get the full processed text content of an attachment (PDF, Word, etc.). Use this if the initial context was truncated or if you need to read the full content of a file.',
       input_schema: {
@@ -211,6 +258,25 @@ async function copyToDownloadDir(
   const downloadUrl = `/api/tools/download/${encodeURIComponent(downloadFilename)}`;
   const displayName = path.basename(relativePath);
   return { downloadUrl, downloadFilename, displayName };
+}
+
+/**
+ * Module-level helper — reused by all document tool handlers.
+ * context.db is a mysql2 Promise Pool (from ToolContext).
+ */
+async function loadAttachmentBuffer(
+  attachmentId: number,
+  userId: number,
+  db: any,
+): Promise<{ buffer: Buffer; name: string; mime_type: string }> {
+  const [rows] = await db.query(
+    'SELECT file_path, original_name, mime_type FROM chat_attachments WHERE id = ? AND user_id = ?',
+    [attachmentId, userId]
+  );
+  const att = (rows as any[])?.[0];
+  if (!att) throw new Error(`Attachment ${attachmentId} not found or access denied`);
+  const fsPromises = await import('fs/promises');
+  return { buffer: await fsPromises.readFile(att.file_path), name: att.original_name, mime_type: att.mime_type };
 }
 
 /**
@@ -356,6 +422,101 @@ export async function executeDocumentTool(
         await fsp.rm(tmpDir, { recursive: true, force: true });
         return { success: false, error: `PDF conversion failed: ${convErr.message}` };
       }
+    }
+
+    case 'pdf_manipulate': {
+      const { action, attachment_id, attachment_ids, pages, degrees: degreesVal, quality, order, output_name } = toolInput;
+      const { mergePdfs, splitPdf, rotatePdfPages, reorderPdfPages, compressPdf, getPdfInfo } = await import('../DocumentProcessorService.js');
+
+      const userId = context.userId;
+      const db = context.db;
+
+      let resultBuffer: Buffer;
+      let resultName: string;
+
+      switch (action) {
+        case 'merge': {
+          if (!attachment_ids || attachment_ids.length < 2) {
+            return { success: false, error: 'merge requires at least 2 attachment_ids' };
+          }
+          const loaded = await Promise.all(attachment_ids.map((id: number) => loadAttachmentBuffer(id, userId, db)));
+          resultBuffer = await mergePdfs(loaded.map(l => l.buffer));
+          resultName = output_name ? `${output_name}.pdf` : `merged_${Date.now()}.pdf`;
+          break;
+        }
+        case 'split': {
+          if (!attachment_id || !pages) return { success: false, error: 'split requires attachment_id and pages' };
+          const { buffer, name } = await loadAttachmentBuffer(attachment_id, userId, db);
+          resultBuffer = await splitPdf(buffer, pages);
+          const baseName = name.replace(/\.pdf$/i, '');
+          resultName = output_name ? `${output_name}.pdf` : `${baseName}_pages_${pages.replace(/,/g, '_')}.pdf`;
+          break;
+        }
+        case 'compress': {
+          if (!attachment_id) return { success: false, error: 'compress requires attachment_id' };
+          const { buffer, name } = await loadAttachmentBuffer(attachment_id, userId, db);
+          resultBuffer = await compressPdf(buffer, quality || 'medium');
+          const baseName = name.replace(/\.pdf$/i, '');
+          resultName = output_name ? `${output_name}.pdf` : `${baseName}_compressed.pdf`;
+          break;
+        }
+        case 'rotate': {
+          if (!attachment_id || !pages || !degreesVal) {
+            return { success: false, error: 'rotate requires attachment_id, pages, and degrees' };
+          }
+          const { buffer, name } = await loadAttachmentBuffer(attachment_id, userId, db);
+          resultBuffer = await rotatePdfPages(buffer, pages, degreesVal);
+          resultName = output_name ? `${output_name}.pdf` : name;
+          break;
+        }
+        case 'reorder': {
+          if (!attachment_id || !order) return { success: false, error: 'reorder requires attachment_id and order' };
+          const { buffer, name } = await loadAttachmentBuffer(attachment_id, userId, db);
+          resultBuffer = await reorderPdfPages(buffer, order);
+          resultName = output_name ? `${output_name}.pdf` : name;
+          break;
+        }
+        case 'info': {
+          if (!attachment_id) return { success: false, error: 'info requires attachment_id' };
+          const { buffer, name } = await loadAttachmentBuffer(attachment_id, userId, db);
+          const info = await getPdfInfo(buffer);
+          return {
+            success: true,
+            output: `PDF Info for "${name}":\n` +
+              `- Pages: ${info.pageCount}\n` +
+              `- File size: ${(info.fileSizeBytes / 1024).toFixed(1)} KB\n` +
+              `- Title: ${info.title || 'N/A'}\n` +
+              `- Author: ${info.author || 'N/A'}\n` +
+              `- Page dimensions:\n` +
+              info.pages.map(p => `  Page ${p.pageNumber}: ${p.width}x${p.height} pt (rotation: ${p.rotation}°)`).join('\n'),
+          };
+        }
+        default:
+          return { success: false, error: `Unknown action: ${action}` };
+      }
+
+      // Save result and return download link
+      const generatedDir = path.join(process.env.STORAGE_ROOT || process.cwd(), 'generated');
+      const fs = await import('fs/promises');
+      await fs.mkdir(generatedDir, { recursive: true });
+      const outputPath = path.join(generatedDir, `${Date.now()}_${resultName}`);
+      await fs.writeFile(outputPath, resultBuffer);
+
+      const downloadFilename = path.basename(outputPath);
+      const downloadUrl = `/api/tools/download/${downloadFilename}`;
+      const sizeMb = (resultBuffer.length / (1024 * 1024)).toFixed(2);
+
+      return {
+        success: true,
+        output: {
+          message: `PDF ${action} completed successfully.\n` +
+            `Output: ${resultName} (${sizeMb} MB)\n` +
+            `Download: ${downloadUrl}`,
+          downloadUrl,
+          downloadFilename,
+          displayName: resultName,
+        },
+      };
     }
 
     case 'get_attachment_text': {

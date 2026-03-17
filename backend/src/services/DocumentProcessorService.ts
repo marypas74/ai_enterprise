@@ -38,6 +38,16 @@ export {
     convertPdfToDocx,
 } from './document-processing/ConversionService.js';
 
+export {
+  mergePdfs,
+  splitPdf,
+  rotatePdfPages,
+  reorderPdfPages,
+  compressPdf,
+  getPdfInfo,
+  parsePagesSpec,
+} from './document-processing/PDFManipulationService.js';
+
 // Import what processDocument needs
 import { extractWithOCR, extractPdfWithOCR } from './document-processing/OCRService.js';
 import { extractOfficeContent } from './document-processing/OfficeExtractionService.js';
