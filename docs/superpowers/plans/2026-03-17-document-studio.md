@@ -662,27 +662,37 @@ Add to `getDocumentToolDefinitions()` in `backend/src/services/tools/DocumentToo
 },
 ```
 
-- [ ] **Step 2: Add execution handler**
+- [ ] **Step 2: Add loadAttachmentBuffer helper and execution handler**
 
-Add to `executeDocumentTool()` in `DocumentTools.ts` (in the switch/if chain):
+First, add a module-level helper function at the top of `DocumentTools.ts` (before `executeDocumentTool`). This helper is reused by ALL tool handlers in later tasks:
+
+```typescript
+// Module-level helper — reused by all document tool handlers
+async function loadAttachmentBuffer(
+  attachmentId: number,
+  userId: number,
+  db: any,
+): Promise<{ buffer: Buffer; name: string; mime_type: string }> {
+  const [att] = await db.query(
+    'SELECT file_path, original_name, mime_type FROM chat_attachments WHERE id = ? AND user_id = ?',
+    [attachmentId, userId]
+  ) as any[];
+  if (!att?.length || !att[0]) throw new Error(`Attachment ${attachmentId} not found or access denied`);
+  const row = att[0];
+  const fsPromises = await import('fs/promises');
+  return { buffer: await fsPromises.readFile(row.file_path), name: row.original_name, mime_type: row.mime_type };
+}
+```
+
+Then add the execution handler to `executeDocumentTool()` (extracting `userId` and `db` from context):
 
 ```typescript
 if (toolName === 'pdf_manipulate') {
   const { action, attachment_id, attachment_ids, pages, degrees: degreesVal, quality, order, output_name } = toolInput;
   const { mergePdfs, splitPdf, rotatePdfPages, reorderPdfPages, compressPdf, getPdfInfo } = await import('../DocumentProcessorService.js');
 
-  // Helper to load attachment buffer
-  const loadAttachmentBuffer = async (id: number): Promise<{ buffer: Buffer; name: string }> => {
-    const [att] = await context.fastify.mysql.query(
-      'SELECT file_path, original_name, mime_type FROM chat_attachments WHERE id = ? AND user_id = ?',
-      [id, context.userId]
-    ) as any[];
-    if (!att?.length || !att[0]) throw new Error(`Attachment ${id} not found or access denied`);
-    const row = att[0];
-    if (row.mime_type !== 'application/pdf') throw new Error(`Attachment ${id} is not a PDF (${row.mime_type})`);
-    const fs = await import('fs/promises');
-    return { buffer: await fs.readFile(row.file_path), name: row.original_name };
-  };
+  const userId = context.userId;
+  const db = context.fastify.mysql;
 
   let resultBuffer: Buffer;
   let resultName: string;
@@ -692,14 +702,14 @@ if (toolName === 'pdf_manipulate') {
       if (!attachment_ids || attachment_ids.length < 2) {
         return { success: false, error: 'merge requires at least 2 attachment_ids' };
       }
-      const loaded = await Promise.all(attachment_ids.map(loadAttachmentBuffer));
+      const loaded = await Promise.all(attachment_ids.map((id: number) => loadAttachmentBuffer(id, userId, db)));
       resultBuffer = await mergePdfs(loaded.map(l => l.buffer));
       resultName = output_name ? `${output_name}.pdf` : `merged_${Date.now()}.pdf`;
       break;
     }
     case 'split': {
       if (!attachment_id || !pages) return { success: false, error: 'split requires attachment_id and pages' };
-      const { buffer, name } = await loadAttachmentBuffer(attachment_id);
+      const { buffer, name } = await loadAttachmentBuffer(attachment_id, userId, db);
       resultBuffer = await splitPdf(buffer, pages);
       const baseName = name.replace(/\.pdf$/i, '');
       resultName = output_name ? `${output_name}.pdf` : `${baseName}_pages_${pages.replace(/,/g, '_')}.pdf`;
@@ -707,7 +717,7 @@ if (toolName === 'pdf_manipulate') {
     }
     case 'compress': {
       if (!attachment_id) return { success: false, error: 'compress requires attachment_id' };
-      const { buffer, name } = await loadAttachmentBuffer(attachment_id);
+      const { buffer, name } = await loadAttachmentBuffer(attachment_id, userId, db);
       resultBuffer = await compressPdf(buffer, quality || 'medium');
       const baseName = name.replace(/\.pdf$/i, '');
       resultName = output_name ? `${output_name}.pdf` : `${baseName}_compressed.pdf`;
@@ -717,21 +727,21 @@ if (toolName === 'pdf_manipulate') {
       if (!attachment_id || !pages || !degreesVal) {
         return { success: false, error: 'rotate requires attachment_id, pages, and degrees' };
       }
-      const { buffer, name } = await loadAttachmentBuffer(attachment_id);
+      const { buffer, name } = await loadAttachmentBuffer(attachment_id, userId, db);
       resultBuffer = await rotatePdfPages(buffer, pages, degreesVal);
       resultName = output_name ? `${output_name}.pdf` : name;
       break;
     }
     case 'reorder': {
       if (!attachment_id || !order) return { success: false, error: 'reorder requires attachment_id and order' };
-      const { buffer, name } = await loadAttachmentBuffer(attachment_id);
+      const { buffer, name } = await loadAttachmentBuffer(attachment_id, userId, db);
       resultBuffer = await reorderPdfPages(buffer, order);
       resultName = output_name ? `${output_name}.pdf` : name;
       break;
     }
     case 'info': {
       if (!attachment_id) return { success: false, error: 'info requires attachment_id' };
-      const { buffer, name } = await loadAttachmentBuffer(attachment_id);
+      const { buffer, name } = await loadAttachmentBuffer(attachment_id, userId, db);
       const info = await getPdfInfo(buffer);
       return {
         success: true,
@@ -1610,11 +1620,11 @@ case 'convert_pdf_to_pptx': {
 case 'convert_pdf_to_images': {
   const { attachment_id, format, dpi, pages } = args;
   const { buffer, name } = await loadAttachmentBuffer(attachment_id, userId, db);
-  const images = await convertPdfToImages(buffer, format ?? 'png', dpi ?? 150, pages);
+  const pageImages = await convertPdfToImages(buffer, format ?? 'png', dpi ?? 150, pages);
   // Save as zip if multiple images
-  if (images.length === 1) {
+  if (pageImages.length === 1) {
     const filename = `${name.replace(/\.pdf$/i, '')}.${format ?? 'png'}`;
-    await fs.promises.writeFile(path.join(GENERATED_DIR, filename), images[0]);
+    await fs.promises.writeFile(path.join(GENERATED_DIR, filename), pageImages[0].buffer);
     return { success: true, output: `Converted page to ${format ?? 'png'}`, downloadUrl: `/api/tools/download/${filename}`, downloadFilename: filename, displayName: filename };
   }
   // Multiple images — create zip
@@ -1624,23 +1634,23 @@ case 'convert_pdf_to_images': {
   const output = fs.createWriteStream(zipPath);
   const archive = archiver('zip');
   archive.pipe(output);
-  images.forEach((img, i) => archive.append(img, { name: `page_${i + 1}.${format ?? 'png'}` }));
+  pageImages.forEach((img) => archive.append(img.buffer, { name: `page_${img.pageNumber}.${img.format}` }));
   await archive.finalize();
-  return { success: true, output: `Converted ${images.length} pages to ${format ?? 'png'}`, downloadUrl: `/api/tools/download/${zipFilename}`, downloadFilename: zipFilename, displayName: zipFilename };
+  return { success: true, output: `Converted ${pageImages.length} pages to ${format ?? 'png'}`, downloadUrl: `/api/tools/download/${zipFilename}`, downloadFilename: zipFilename, displayName: zipFilename };
 }
 
 case 'convert_image_to_pdf': {
   const { attachment_ids } = args;
-  // Load multiple image attachments
-  const imageBuffers: Buffer[] = [];
+  // Load multiple image attachments with their mime types
+  const imageInputs: Array<{ buffer: Buffer; mimeType: string }> = [];
   for (const id of attachment_ids) {
-    const { buffer } = await loadAttachmentBuffer(id, userId, db);
-    imageBuffers.push(buffer);
+    const { buffer, mime_type } = await loadAttachmentBuffer(id, userId, db);
+    imageInputs.push({ buffer, mimeType: mime_type });
   }
-  const result = await convertImagesToPdf(imageBuffers);
+  const result = await convertImagesToPdf(imageInputs);
   const filename = `images_combined.pdf`;
   await fs.promises.writeFile(path.join(GENERATED_DIR, filename), result);
-  return { success: true, output: `${imageBuffers.length} images converted to PDF`, downloadUrl: `/api/tools/download/${filename}`, downloadFilename: filename, displayName: filename };
+  return { success: true, output: `${imageInputs.length} images converted to PDF`, downloadUrl: `/api/tools/download/${filename}`, downloadFilename: filename, displayName: filename };
 }
 ```
 
@@ -1946,9 +1956,78 @@ return {
 };
 ```
 
-- [ ] **Step 2: Add execution handlers**
+- [ ] **Step 2: Add execution handlers in executeDocumentTool()**
+
+```typescript
+case 'edit_pdf_text': {
+  const { attachment_id, page, search_text, replace_text } = args;
+  const { buffer, name } = await loadAttachmentBuffer(attachment_id, userId, db);
+  const result = await findAndReplaceText(buffer, page, search_text, replace_text);
+  const filename = `edited_${name}`;
+  await fs.promises.writeFile(path.join(GENERATED_DIR, filename), result);
+  return { success: true, output: `Replaced "${search_text}" with "${replace_text}"`, downloadUrl: `/api/tools/download/${filename}`, downloadFilename: filename, displayName: filename };
+}
+
+case 'add_pdf_text': {
+  const { attachment_id, page, text, x, y, size, color } = args;
+  const { buffer, name } = await loadAttachmentBuffer(attachment_id, userId, db);
+  const result = await addTextToPdf(buffer, page, text, x, y, size ?? 12, color);
+  const filename = `edited_${name}`;
+  await fs.promises.writeFile(path.join(GENERATED_DIR, filename), result);
+  return { success: true, output: `Added text to page ${page}`, downloadUrl: `/api/tools/download/${filename}`, downloadFilename: filename, displayName: filename };
+}
+
+case 'add_pdf_image': {
+  const { attachment_id, page, image_attachment_id, x, y, width, height } = args;
+  const { buffer, name } = await loadAttachmentBuffer(attachment_id, userId, db);
+  const { buffer: imgBuffer, mime_type } = await loadAttachmentBuffer(image_attachment_id, userId, db);
+  const result = await addImageToPdf(buffer, page, imgBuffer, mime_type, x, y, width, height);
+  const filename = `edited_${name}`;
+  await fs.promises.writeFile(path.join(GENERATED_DIR, filename), result);
+  return { success: true, output: `Added image to page ${page}`, downloadUrl: `/api/tools/download/${filename}`, downloadFilename: filename, displayName: filename };
+}
+
+case 'remove_pdf_page': {
+  const { attachment_id, pages } = args;
+  const { buffer, name } = await loadAttachmentBuffer(attachment_id, userId, db);
+  const result = await removePdfPages(buffer, pages);
+  const filename = `edited_${name}`;
+  await fs.promises.writeFile(path.join(GENERATED_DIR, filename), result);
+  return { success: true, output: `Removed pages ${pages}`, downloadUrl: `/api/tools/download/${filename}`, downloadFilename: filename, displayName: filename };
+}
+
+case 'add_pdf_watermark': {
+  const { attachment_id, text, opacity, rotation, pages } = args;
+  const { buffer, name } = await loadAttachmentBuffer(attachment_id, userId, db);
+  const result = await addWatermark(buffer, text, opacity ?? 0.3, rotation ?? -45, pages);
+  const filename = `watermarked_${name}`;
+  await fs.promises.writeFile(path.join(GENERATED_DIR, filename), result);
+  return { success: true, output: `Watermark "${text}" added`, downloadUrl: `/api/tools/download/${filename}`, downloadFilename: filename, displayName: filename };
+}
+
+case 'open_pdf_editor': {
+  const { attachment_id } = args;
+  const { name } = await loadAttachmentBuffer(attachment_id, userId, db);
+  return {
+    success: true,
+    output: `Opening PDF editor for "${name}"`,
+    widget: 'pdf_editor',
+    widgetData: { attachmentId: attachment_id, attachmentName: name },
+  };
+}
+```
+
+Add imports at top of DocumentTools.ts:
+```typescript
+import { addTextToPdf, addWatermark, removePdfPages, findAndReplaceText, addImageToPdf } from '../document-processing/PDFEditingService.js';
+```
 
 - [ ] **Step 3: Export from barrels and verify build**
+
+Add to `backend/src/services/document-processing/index.ts`:
+```typescript
+export { addTextToPdf, addWatermark, removePdfPages, findAndReplaceText, addImageToPdf } from './PDFEditingService.js';
+```
 
 - [ ] **Step 4: Commit**
 
@@ -3028,6 +3107,8 @@ export async function addImageToPdf(
 }
 ```
 
+Note: `quadsToBoundingRect` is also used in `PDFSecurityService.ts` — extract it to a shared utility file `backend/src/services/document-processing/pdfUtils.ts` and import from there in both services, rather than duplicating the function.
+
 Note: `findAndReplaceText` is a best-effort operation. The AI tool description should include a note:
 > "Text replacement in PDFs is approximate — it redacts the old text and places new text at the same position. Formatting (font, size) may differ from the original."
 
@@ -3088,8 +3169,8 @@ git commit -m "feat: add findAndReplaceText and addImageToPdf to PDFEditingServi
       attachment_id: { type: 'number', description: 'ID of the PDF attachment' },
       action: {
         type: 'string',
-        enum: ['add_field', 'fill', 'extract'],
-        description: 'Form action to perform',
+        enum: ['add_field', 'fill', 'extract', 'detect'],
+        description: 'Form action: add_field (create form fields), fill (populate values), extract (read values), detect (AI-detect form fields in scanned PDFs)',
       },
       page: { type: 'number', description: 'Zero-based page index (for add_field)' },
       field: {
@@ -3223,6 +3304,31 @@ case 'pdf_form': {
       const data = await extractFormData(buffer);
       return { success: true, output: `Form data:\n${JSON.stringify(data, null, 2)}` };
     }
+    case 'detect': {
+      // AI-powered form field detection using Ollama Vision
+      // Render page to image, send to Ollama with prompt to identify form fields
+      const { renderPageToImage } = await import('../document-processing/PDFConversionService.js');
+      const pageImage = await renderPageToImage(buffer, 0, 'png', 150);
+      const base64Img = pageImage.buffer.toString('base64');
+
+      // Call Ollama vision model to detect form fields
+      const ollamaResponse = await fetch(`${process.env.OLLAMA_BASE_URL || 'http://10.0.1.1:8086/ollama'}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Ollama-Key': process.env.OLLAMA_AUTH_KEY || '' },
+        body: JSON.stringify({
+          model: 'llama3.2-vision',
+          messages: [{
+            role: 'user',
+            content: 'Analyze this form image. Return a JSON array of detected form fields with: name, type (text/checkbox/dropdown), x, y, width, height (in points, page is 612x792). Only return the JSON array.',
+            images: [base64Img],
+          }],
+          stream: false,
+        }),
+      });
+      const ollamaData = await ollamaResponse.json() as any;
+      const detectedFields = JSON.parse(ollamaData.message?.content || '[]');
+      return { success: true, output: `Detected ${detectedFields.length} form fields:\n${JSON.stringify(detectedFields, null, 2)}` };
+    }
     default:
       throw new Error(`Unknown form action: ${action}`);
   }
@@ -3255,12 +3361,45 @@ case 'pdf_security': {
       return { success: true, output: `${targets.length} area(s) redacted`, downloadUrl: `/api/tools/download/${filename}`, downloadFilename: filename, displayName: filename };
     }
     case 'smart_redact': {
-      const { redactedBuffer, findings } = await smartRedactRegex(buffer, pii_types);
+      // Pass 1: Regex-based deterministic redaction (email, phone, CF, IBAN)
+      const { redactedBuffer: regexRedacted, findings: regexFindings } = await smartRedactRegex(buffer, pii_types);
+
+      // Pass 2: AI-based redaction for unstructured PII (names, addresses, companies)
+      // Uses Ollama Vision to detect PII that regex can't catch
+      let finalBuffer = regexRedacted;
+      let aiFindings: Array<{ type: string; text: string; page: number }> = [];
+      if (pii_types.includes('names') || pii_types.includes('addresses') || pii_types.includes('all')) {
+        try {
+          const { renderPageToImage } = await import('../document-processing/PDFConversionService.js');
+          for (let pageIdx = 0; pageIdx < 5; pageIdx++) { // Limit to first 5 pages for cost
+            try {
+              const pageImg = await renderPageToImage(finalBuffer, pageIdx, 'png', 150);
+              const base64 = pageImg.buffer.toString('base64');
+              const resp = await fetch(`${process.env.OLLAMA_BASE_URL || 'http://10.0.1.1:8086/ollama'}/api/chat`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Ollama-Key': process.env.OLLAMA_AUTH_KEY || '' },
+                body: JSON.stringify({
+                  model: 'llama3.2-vision',
+                  messages: [{ role: 'user', content: 'List all personal names, addresses, and company names visible in this document page. Return JSON array: [{text, type}]. Only return JSON.', images: [base64] }],
+                  stream: false,
+                }),
+              });
+              const data = await resp.json() as any;
+              const items = JSON.parse(data.message?.content || '[]');
+              aiFindings.push(...items.map((i: any) => ({ ...i, page: pageIdx })));
+            } catch { break; } // Stop if page doesn't exist
+          }
+        } catch (aiErr) {
+          // AI pass is best-effort — regex results are still valid
+        }
+      }
+
+      const allFindings = [...regexFindings, ...aiFindings];
       const filename = `redacted_${name}`;
       const filepath = path.join(GENERATED_DIR, filename);
-      await fs.promises.writeFile(filepath, redactedBuffer);
-      const summary = findings.map(f => `- ${f.type}: "${f.text}" (page ${f.page})`).join('\n');
-      return { success: true, output: `Found and redacted ${findings.length} PII items:\n${summary}`, downloadUrl: `/api/tools/download/${filename}`, downloadFilename: filename, displayName: filename };
+      await fs.promises.writeFile(filepath, finalBuffer);
+      const summary = allFindings.map(f => `- ${f.type}: "${f.text}" (page ${f.page})`).join('\n');
+      return { success: true, output: `Found ${allFindings.length} PII items (${regexFindings.length} regex + ${aiFindings.length} AI):\n${summary}`, downloadUrl: `/api/tools/download/${filename}`, downloadFilename: filename, displayName: filename };
     }
     default:
       throw new Error(`Unknown security action: ${action}`);
@@ -3795,12 +3934,15 @@ export function encryptPrivateKey(
   passphrase: string,
 ): { encrypted: string; iv: string; salt: string } {
   const salt = crypto.randomBytes(32);
-  const iv = crypto.randomBytes(16);
+  const iv = crypto.randomBytes(12); // 96-bit nonce for GCM
   // PBKDF2 with 100k iterations as specified in design
   const key = crypto.pbkdf2Sync(passphrase, salt, 100000, 32, 'sha256');
-  const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
   let encrypted = cipher.update(privateKeyPem, 'utf8', 'base64');
   encrypted += cipher.final('base64');
+  // Append auth tag to encrypted data (GCM provides authenticated encryption)
+  const authTag = cipher.getAuthTag().toString('base64');
+  encrypted = encrypted + '.' + authTag;
 
   return {
     encrypted,
@@ -3819,13 +3961,18 @@ export function decryptPrivateKey(
   const iv = Buffer.from(ivHex, 'hex');
   const key = crypto.pbkdf2Sync(passphrase, salt, 100000, 32, 'sha256');
 
+  // Split encrypted data and auth tag
+  const [encData, authTagB64] = encrypted.split('.');
+  if (!authTagB64) throw new Error('Invalid encrypted data — missing auth tag');
+
   try {
-    const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
-    let decrypted = decipher.update(encrypted, 'base64', 'utf8');
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+    decipher.setAuthTag(Buffer.from(authTagB64, 'base64'));
+    let decrypted = decipher.update(encData, 'base64', 'utf8');
     decrypted += decipher.final('utf8');
     return decrypted;
   } catch {
-    throw new Error('Failed to decrypt private key — wrong passphrase');
+    throw new Error('Failed to decrypt private key — wrong passphrase or tampered data');
   }
 }
 
@@ -4173,6 +4320,41 @@ case 'manage_certificates': {
         ]
       );
       return { success: true, output: `Self-signed certificate generated for "${common_name}". Valid for 2 years.` };
+    }
+    case 'import_p12': {
+      if (!p12_base64 || !p12_password || !passphrase) {
+        throw new Error('import_p12 requires p12_base64, p12_password, and passphrase');
+      }
+      const p12Buffer = Buffer.from(p12_base64, 'base64');
+      const p12Asn1 = forge.asn1.fromDer(p12Buffer.toString('binary'));
+      const p12 = forge.pkcs12.pkcs12FromAsn1(p12Asn1, p12_password);
+
+      // Extract certificate and private key from PKCS#12
+      const certBags = p12.getBags({ bagType: forge.pki.oids.certBag });
+      const keyBags = p12.getBags({ bagType: forge.pki.oids.pkcs8ShroudedKeyBag });
+      const certBag = (certBags[forge.pki.oids.certBag] || [])[0];
+      const keyBag = (keyBags[forge.pki.oids.pkcs8ShroudedKeyBag] || [])[0];
+
+      if (!certBag?.cert || !keyBag?.key) throw new Error('PKCS#12 file does not contain a certificate and private key');
+
+      const cert = certBag.cert;
+      const certificatePem = forge.pki.certificateToPem(cert);
+      const privateKeyPem = forge.pki.privateKeyToPem(keyBag.key);
+      const { encrypted, iv, salt } = encryptPrivateKey(privateKeyPem, passphrase);
+      const cn = cert.subject.getField('CN')?.value ?? 'Imported';
+      const issuerCn = cert.issuer.getField('CN')?.value ?? 'Unknown';
+
+      await db.query(
+        `INSERT INTO user_certificates (user_id, name, subject_cn, issuer_cn, serial_number, valid_from, valid_to, certificate_pem, private_key_encrypted, key_encryption_iv, key_encryption_salt, fingerprint_sha256, is_self_signed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          userId, cn, cn, issuerCn,
+          cert.serialNumber, cert.validity.notBefore, cert.validity.notAfter,
+          certificatePem, encrypted, iv, salt,
+          forge.md.sha256.create().update(forge.asn1.toDer(forge.pki.certificateToAsn1(cert)).getBytes()).digest().toHex(),
+          cn === issuerCn, // self-signed if subject == issuer
+        ]
+      );
+      return { success: true, output: `PKCS#12 certificate imported for "${cn}" (issuer: ${issuerCn})` };
     }
     case 'list': {
       const [rows] = await db.query(
@@ -4618,10 +4800,10 @@ sudo /snap/bin/microk8s kubectl scale deployment/backend --replicas=2 -n enterpr
 sudo /snap/bin/microk8s kubectl scale deployment/frontend --replicas=2 -n enterprise-ai-chat
 ```
 
-- [ ] **Step 4: Verify pods running**
+- [ ] **Step 5: Verify pods running**
 
 ```bash
 sudo /snap/bin/microk8s kubectl get pods -n enterprise-ai-chat
 ```
 
-- [ ] **Step 5: Update MEMORY.md version to 2.1.21**
+- [ ] **Step 6: Update MEMORY.md version to 2.1.21**
