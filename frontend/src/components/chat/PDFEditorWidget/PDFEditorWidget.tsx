@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { PDFToolbar } from './PDFToolbar';
+import { PDFAnnotationLayer } from './PDFAnnotationLayer';
+import { PDFFormLayer } from './PDFFormLayer';
+import { PDFSignatureDialog } from './PDFSignatureDialog';
 import { usePDFEditor } from './usePDFEditor';
 import { api } from '../../../services/api';
 import { useAuthStore } from '../../../hooks/useAuthStore';
@@ -10,9 +13,17 @@ interface PDFEditorWidgetProps {
   filename?: string;
 }
 
+/** Annotation modes that activate the annotation layer */
+const ANNOTATION_MODES = ['highlight', 'note', 'draw', 'stamp'] as const;
+type AnnotationMode = (typeof ANNOTATION_MODES)[number];
+
+function isAnnotationMode(mode: string): mode is AnnotationMode {
+  return (ANNOTATION_MODES as readonly string[]).includes(mode);
+}
+
 /**
  * PDFEditorWidget — renders a PDF inline in chat with page navigation,
- * zoom controls, mode switching, and save capability.
+ * zoom controls, mode switching, annotation/form/signature layers, and save.
  *
  * Rendering strategy: fetches per-page images from the backend
  * (which uses mupdf WASM server-side) to avoid bundling heavy WASM in the frontend.
@@ -24,6 +35,8 @@ export const PDFEditorWidget: React.FC<PDFEditorWidgetProps> = ({
   const editor = usePDFEditor();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [pageImageUrl, setPageImageUrl] = useState<string | null>(null);
+  /** Counter to force page re-fetch after edits */
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Fetch PDF info (page count) on mount
   useEffect(() => {
@@ -42,9 +55,8 @@ export const PDFEditorWidget: React.FC<PDFEditorWidgetProps> = ({
           editor.setTotalPages(info.totalPages ?? info.pageCount ?? 1);
           editor.setLoading(false);
         }
-      } catch (err: any) {
+      } catch {
         if (!cancelled) {
-          // Fallback: if info endpoint doesn't exist, assume 1 page and load it
           editor.setTotalPages(1);
           editor.setLoading(false);
         }
@@ -56,10 +68,9 @@ export const PDFEditorWidget: React.FC<PDFEditorWidgetProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attachmentId]);
 
-  // Fetch page image whenever currentPage or zoom changes
+  // Fetch page image whenever currentPage, zoom, or refreshKey changes
   useEffect(() => {
     let cancelled = false;
-    // Clean up previous blob URL
     if (pageImageUrl) {
       URL.revokeObjectURL(pageImageUrl);
     }
@@ -90,11 +101,9 @@ export const PDFEditorWidget: React.FC<PDFEditorWidgetProps> = ({
       fetchPageImage();
     }
 
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [attachmentId, editor.currentPage, editor.zoom, editor.isLoading, editor.totalPages]);
+  }, [attachmentId, editor.currentPage, editor.zoom, editor.isLoading, editor.totalPages, refreshKey]);
 
   // Draw image on canvas
   useEffect(() => {
@@ -124,8 +133,14 @@ export const PDFEditorWidget: React.FC<PDFEditorWidgetProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /** Mark as dirty and refresh the page image */
+  const handleDirty = useCallback(() => {
+    editor.setDirty(true);
+    setRefreshKey(prev => prev + 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleSave = useCallback(async () => {
-    // Save triggers re-upload of the modified PDF as a new attachment
     try {
       const token = useAuthStore.getState().accessToken;
       await api.post(
@@ -134,11 +149,74 @@ export const PDFEditorWidget: React.FC<PDFEditorWidgetProps> = ({
         { headers: token ? { Authorization: `Bearer ${token}` } : {} },
       );
       editor.setDirty(false);
+      editor.clearHistory();
     } catch (err: any) {
-      editor.setError(err.message || 'Save failed');
+      editor.setError(err.message || 'Salvataggio fallito');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attachmentId]);
+
+  const handleUndo = useCallback(async () => {
+    const label = editor.undo();
+    if (label) {
+      // Request server-side undo
+      try {
+        const token = useAuthStore.getState().accessToken;
+        await api.post(
+          `/tools/pdf-undo/${attachmentId}`,
+          { label },
+          { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+        );
+        setRefreshKey(prev => prev + 1);
+      } catch {
+        // If undo endpoint doesn't exist, just refresh
+        setRefreshKey(prev => prev + 1);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attachmentId]);
+
+  const handleRedo = useCallback(async () => {
+    const label = editor.redo();
+    if (label) {
+      try {
+        const token = useAuthStore.getState().accessToken;
+        await api.post(
+          `/tools/pdf-redo/${attachmentId}`,
+          { label },
+          { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+        );
+        setRefreshKey(prev => prev + 1);
+      } catch {
+        setRefreshKey(prev => prev + 1);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attachmentId]);
+
+  /** When mode is set to 'sign', open the signature dialog */
+  const handleModeChange = useCallback((mode: Parameters<typeof editor.setMode>[0]) => {
+    if (mode === 'sign') {
+      editor.setShowSignatureDialog(true);
+      return;
+    }
+    editor.setMode(mode);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleAnnotationComplete = useCallback(() => {
+    editor.pushUndo('annotation');
+    setRefreshKey(prev => prev + 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleSignatureComplete = useCallback(() => {
+    editor.setShowSignatureDialog(false);
+    editor.pushUndo('signature');
+    editor.setDirty(true);
+    setRefreshKey(prev => prev + 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (editor.error) {
     return (
@@ -171,14 +249,19 @@ export const PDFEditorWidget: React.FC<PDFEditorWidgetProps> = ({
         zoom={editor.zoom}
         mode={editor.mode}
         isDirty={editor.isDirty}
+        canUndo={editor.canUndo}
+        canRedo={editor.canRedo}
         onPageChange={editor.setCurrentPage}
         onZoomChange={editor.setZoom}
-        onModeChange={editor.setMode}
+        onModeChange={handleModeChange}
         onSave={handleSave}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
       />
 
-      {/* Canvas / Loading */}
-      <div className="relative bg-gray-200 dark:bg-gray-900 flex items-center justify-center overflow-auto"
+      {/* Canvas / Loading + Overlay Layers */}
+      <div
+        className="relative bg-gray-200 dark:bg-gray-900 flex items-center justify-center overflow-auto"
         style={{ minHeight: 300, maxHeight: 600 }}
       >
         {editor.isLoading ? (
@@ -189,11 +272,36 @@ export const PDFEditorWidget: React.FC<PDFEditorWidgetProps> = ({
             </span>
           </div>
         ) : pageImageUrl ? (
-          <canvas
-            ref={canvasRef}
-            className="max-w-full"
-            style={{ imageRendering: 'auto' }}
-          />
+          <div className="relative">
+            <canvas
+              ref={canvasRef}
+              className="max-w-full"
+              style={{ imageRendering: 'auto' }}
+            />
+
+            {/* Annotation layer overlay */}
+            {isAnnotationMode(editor.mode) && (
+              <PDFAnnotationLayer
+                attachmentId={attachmentId}
+                currentPage={editor.currentPage}
+                zoom={editor.zoom}
+                activeAnnotation={editor.mode}
+                onAnnotationComplete={handleAnnotationComplete}
+                onDirty={handleDirty}
+              />
+            )}
+
+            {/* Form layer overlay */}
+            {editor.mode === 'form' && (
+              <PDFFormLayer
+                attachmentId={attachmentId}
+                currentPage={editor.currentPage}
+                zoom={editor.zoom}
+                active={true}
+                onDirty={handleDirty}
+              />
+            )}
+          </div>
         ) : (
           <div className="flex flex-col items-center gap-2 py-12 text-gray-400">
             <FileText className="w-12 h-12" />
@@ -201,6 +309,16 @@ export const PDFEditorWidget: React.FC<PDFEditorWidgetProps> = ({
           </div>
         )}
       </div>
+
+      {/* Signature Dialog (modal) */}
+      {editor.showSignatureDialog && (
+        <PDFSignatureDialog
+          attachmentId={attachmentId}
+          currentPage={editor.currentPage}
+          onClose={() => editor.setShowSignatureDialog(false)}
+          onSigned={handleSignatureComplete}
+        />
+      )}
     </div>
   );
 };

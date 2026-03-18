@@ -134,8 +134,13 @@ export async function extractStructuredText(pdfBuffer: Buffer, pageIndex: number
 /**
  * Convert PDF to DOCX using smart extraction (structure-aware).
  * Extracts text with font/position info and rebuilds DOCX with headings and paragraphs.
+ * Optionally enhances with Ollama Vision for improved layout reconstruction.
  */
-export async function convertPdfToDocxSmart(pdfBuffer: Buffer, title?: string): Promise<Buffer> {
+export async function convertPdfToDocxSmart(
+  pdfBuffer: Buffer,
+  title?: string,
+  enableVisionEnhancement?: boolean,
+): Promise<Buffer> {
   const doc = mupdf.Document.openDocument(pdfBuffer, 'application/pdf');
   const totalPages = doc.countPages();
   doc.destroy();
@@ -164,7 +169,44 @@ export async function convertPdfToDocxSmart(pdfBuffer: Buffer, title?: string): 
     }
   }
 
-  const textContent = lines.join('\n');
+  let textContent = lines.join('\n');
+
+  // Optional: Ollama Vision enhancement pass for layout accuracy
+  if (enableVisionEnhancement !== false) {
+    try {
+      const { analyzeImageWithVision } = await import('./OllamaVisionHelper.js');
+
+      // Only process first 5 pages to avoid excessive API calls
+      const maxPages = Math.min(totalPages, 5);
+      const visionInsights: string[] = [];
+
+      for (let i = 0; i < maxPages; i++) {
+        const pageImage = await renderPageToImage(pdfBuffer, i, 'png', 150);
+        const result = await analyzeImageWithVision(
+          pageImage,
+          'Analyze this document page. Describe the layout structure: identify headers, paragraphs, lists, tables, columns, footnotes, and any special formatting. For tables, describe the column headers and row structure. Respond concisely.',
+        );
+
+        if (!result.available) {
+          console.warn('[convertPdfToDocxSmart] Ollama Vision not available — skipping enhancement');
+          break;
+        }
+
+        if (result.text) {
+          visionInsights.push(`--- Page ${i + 1} Layout ---\n${result.text}`);
+        }
+      }
+
+      // If vision provided layout insights, append as metadata
+      if (visionInsights.length > 0) {
+        textContent += '\n\n[Document layout analysis (AI-enhanced)]\n';
+        textContent += visionInsights.join('\n\n');
+      }
+    } catch (err) {
+      console.warn('[convertPdfToDocxSmart] Vision enhancement failed:', err);
+    }
+  }
+
   return generateDocxBuffer(textContent, title || 'Converted Document');
 }
 

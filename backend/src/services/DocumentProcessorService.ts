@@ -81,6 +81,7 @@ export {
   addFormField,
   fillFormFields,
   extractFormData,
+  detectFormFields,
 } from './document-processing/PDFFormService.js';
 
 export {

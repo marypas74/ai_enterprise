@@ -79,6 +79,7 @@ export {
   addFormField,
   fillFormFields,
   extractFormData,
+  detectFormFields,
 } from './PDFFormService.js';
 
 export {
@@ -96,3 +97,21 @@ export {
   signPdfCertified,
   verifySignatures,
 } from './PDFSignatureService.js';
+
+export {
+  isOllamaVisionAvailable,
+  analyzeImageWithVision,
+} from './OllamaVisionHelper.js';
+
+export {
+  getCachedOCR,
+  setCachedOCR,
+  clearOCRCache,
+} from './OCRCacheService.js';
+
+export {
+  acquireLock,
+  releaseLock,
+  getLockStatus,
+  getActiveLockCount,
+} from './PDFLockService.js';

@@ -5,9 +5,29 @@
 
 import { convertTextToDocx, convertDataToXlsx, convertSlidesToPptx, convertOfficeToPdf } from '../DocumentProcessorService.js';
 import { getProjectFolder } from '../StorageService.js';
-import { findOne } from '../../database/index.js';
+import { findOne, insertOne } from '../../database/index.js';
 import path from 'path';
 import type { ToolDefinition, ToolContext, ToolResult } from '../ToolService.js';
+
+/**
+ * Log a document operation to the activity_log table for audit trail.
+ */
+async function logDocumentActivity(
+  db: any,
+  userId: number,
+  action: string,
+  details: Record<string, unknown>,
+): Promise<void> {
+  try {
+    await insertOne(
+      db,
+      'INSERT INTO activity_log (user_id, action, details, source, ip_address) VALUES (?, ?, ?, ?, ?)',
+      [userId, action, JSON.stringify(details), 'document-tools', ''],
+    );
+  } catch {
+    // Audit logging is best-effort — don't fail the operation
+  }
+}
 
 /**
  * Document generation tool definitions for Anthropic API
@@ -313,6 +333,33 @@ IMPORTANT: This tool converts the ORIGINAL uploaded file to PDF using LibreOffic
           pages: { type: 'string', description: 'Pages to remove, e.g. "2,4-5"' },
         },
         required: ['attachment_id', 'pages'],
+      },
+    },
+    {
+      name: 'edit_pdf_text',
+      description: 'Find and replace text in a PDF using mupdf. Searches for exact text matches on the specified page, redacts the old text, and draws the new text in its place.',
+      input_schema: {
+        type: 'object' as const,
+        properties: {
+          attachment_id: { type: 'number', description: 'Attachment ID of the PDF' },
+          page: { type: 'number', description: 'Page number (0-based)' },
+          search_text: { type: 'string', description: 'Text to find' },
+          replace_text: { type: 'string', description: 'Replacement text' },
+          font_size: { type: 'number', description: 'Font size for replacement (default: auto-detect)' },
+        },
+        required: ['attachment_id', 'page', 'search_text', 'replace_text'],
+      },
+    },
+    {
+      name: 'open_pdf_editor',
+      description: 'Open a PDF attachment in the interactive visual editor widget inline in the chat. Provides page navigation, zoom, annotation, form, and signature tools.',
+      input_schema: {
+        type: 'object' as const,
+        properties: {
+          attachment_id: { type: 'number', description: 'Attachment ID of the PDF to open' },
+          filename: { type: 'string', description: 'Display filename (optional)' },
+        },
+        required: ['attachment_id'],
       },
     },
     {
@@ -895,6 +942,33 @@ export async function executeDocumentTool(
       };
     }
 
+    case 'edit_pdf_text': {
+      const { attachment_id, page, search_text, replace_text } = toolInput;
+      if (!attachment_id || search_text === undefined || replace_text === undefined) return { success: false, error: 'Missing required params: attachment_id, search_text, replace_text' };
+      const { findAndReplaceText } = await import('../DocumentProcessorService.js');
+      const { buffer, name } = await loadAttachmentBuffer(attachment_id, context.userId, context.db);
+      const resultBuf = await findAndReplaceText(buffer, page ?? 0, search_text, replace_text);
+      const fs = await import('fs/promises');
+      const generatedDir = path.join(process.env.STORAGE_ROOT || process.cwd(), 'generated');
+      await fs.mkdir(generatedDir, { recursive: true });
+      const filename = `${Date.now()}_edited_${name}`;
+      await fs.writeFile(path.join(generatedDir, filename), resultBuf);
+      return { success: true, output: { message: `Replaced "${search_text}" with "${replace_text}" on page ${(page ?? 0) + 1}\nDownload: /api/tools/download/${filename}`, downloadUrl: `/api/tools/download/${filename}`, downloadFilename: filename, displayName: name } };
+    }
+
+    case 'open_pdf_editor': {
+      const { attachment_id, filename: displayFilename } = toolInput;
+      if (!attachment_id) return { success: false, error: 'Missing attachment_id' };
+      // Verify attachment exists
+      if (context.db) {
+        const att = await findOne<any>(context.db, 'SELECT original_name FROM chat_attachments WHERE id = ? AND user_id = ?', [attachment_id, context.userId]);
+        if (!att) return { success: false, error: `Attachment ${attachment_id} not found` };
+      }
+      const fname = displayFilename || 'document.pdf';
+      // Return the HTML comment marker that the frontend detects to render the PDF editor widget
+      return { success: true, output: `<!-- pdf_editor:attachmentId=${attachment_id},filename=${fname} -->` };
+    }
+
     case 'add_pdf_text': {
       const { attachment_id, page, text, x, y, size, color } = toolInput;
       if (!attachment_id || !page || !text) return { success: false, error: 'Missing required params' };
@@ -985,14 +1059,24 @@ export async function executeDocumentTool(
     }
 
     case 'pdf_form': {
-      const { action, attachment_id, field, values } = toolInput;
+      const { action, attachment_id, field, values, page } = toolInput;
       if (!attachment_id) return { success: false, error: 'Missing attachment_id' };
-      const { addFormField, fillFormFields, extractFormData } = await import('../DocumentProcessorService.js');
+      const { addFormField, fillFormFields, extractFormData, detectFormFields } = await import('../DocumentProcessorService.js');
       const { buffer, name } = await loadAttachmentBuffer(attachment_id, context.userId, context.db);
 
       if (action === 'extract') {
         const data = await extractFormData(buffer);
         return { success: true, output: `Form data:\n${JSON.stringify(data, null, 2)}` };
+      }
+
+      if (action === 'detect') {
+        const result = await detectFormFields(buffer, page ?? 0);
+        if (result.fields.length === 0) {
+          const note = result.visionUsed ? '' : ' (Ollama Vision not available — detection requires a vision model)';
+          return { success: true, output: `No form fields detected on page ${(page ?? 0) + 1}${note}` };
+        }
+        const fieldList = result.fields.map((f, i) => `${i + 1}. ${f.type} "${f.name}" at (${f.x}, ${f.y}) ${f.width}x${f.height}`).join('\n');
+        return { success: true, output: `Detected ${result.fields.length} potential fields on page ${(page ?? 0) + 1}:\n${fieldList}${result.visionUsed ? '' : '\n(AI detection not available)'}` };
       }
 
       let resultBuf: Buffer;
@@ -1042,9 +1126,9 @@ export async function executeDocumentTool(
           break;
         }
         case 'smart_redact': {
-          const result = await smartRedactRegex(buffer, patterns);
+          const result = await smartRedactRegex(buffer, patterns, true);
           resultBuf = result.buffer;
-          msg = `Smart redaction: ${result.redactedCount} items redacted`;
+          msg = `Smart redaction: ${result.redactedCount} items redacted${result.visionUsed ? ' (AI-enhanced)' : ' (regex only)'}`;
           break;
         }
         default:
@@ -1056,6 +1140,9 @@ export async function executeDocumentTool(
       await fs.mkdir(generatedDir, { recursive: true });
       const filename = `${Date.now()}_secured_${name}`;
       await fs.writeFile(path.join(generatedDir, filename), resultBuf);
+      if ((action === 'redact' || action === 'smart_redact') && context.db) {
+        await logDocumentActivity(context.db, context.userId, `pdf_${action}`, { attachment_id, action, filename: name });
+      }
       return { success: true, output: { message: `${msg}\nDownload: /api/tools/download/${filename}`, downloadUrl: `/api/tools/download/${filename}`, downloadFilename: filename, displayName: name } };
     }
 
@@ -1078,6 +1165,7 @@ export async function executeDocumentTool(
           await fs.mkdir(generatedDir, { recursive: true });
           const filename = `${Date.now()}_signed_${name}`;
           await fs.writeFile(path.join(generatedDir, filename), result);
+          await logDocumentActivity(db, context.userId, 'pdf_sign_simple', { attachment_id, filename: name });
           return { success: true, output: { message: `PDF signed with visual signature\nDownload: /api/tools/download/${filename}`, downloadUrl: `/api/tools/download/${filename}`, downloadFilename: filename, displayName: name } };
         }
         case 'sign_certified': {
@@ -1100,6 +1188,7 @@ export async function executeDocumentTool(
           await fs.mkdir(generatedDir, { recursive: true });
           const filename = `${Date.now()}_certified_${name}`;
           await fs.writeFile(path.join(generatedDir, filename), result);
+          await logDocumentActivity(db, context.userId, 'pdf_sign_certified', { attachment_id, certificate_id, reason: reason ?? 'Digital Approval', filename: name });
           return { success: true, output: { message: `PDF signed with certified digital signature (PAdES-B-B)\nDownload: /api/tools/download/${filename}`, downloadUrl: `/api/tools/download/${filename}`, downloadFilename: filename, displayName: name } };
         }
         case 'verify': {

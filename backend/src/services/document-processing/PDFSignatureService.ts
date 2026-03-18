@@ -124,6 +124,12 @@ interface SignOptions {
   height: number;
 }
 
+/**
+ * Reserved size for the CMS signature hex in /Contents.
+ * 16384 bytes of DER -> 32768 hex chars. Sufficient for RSA-2048 + cert chain.
+ */
+const SIGNATURE_MAX_LENGTH = 16384;
+
 export async function signPdfCertified(
   buffer: Buffer,
   options: SignOptions,
@@ -164,9 +170,43 @@ export async function signPdfCertified(
 
   const pdfBytes = await doc.save();
 
-  // Step 2: Create CMS/PKCS#7 signature (PAdES-B-B level)
+  // Step 2: PAdES-B-B ByteRange-based signature
+  // Insert a /Sig dictionary with a placeholder /Contents and /ByteRange,
+  // then compute the hash of everything outside /Contents and sign it.
+  const pdfWithPlaceholder = insertSignaturePlaceholder(
+    Buffer.from(pdfBytes),
+    signerName,
+    options.reason ?? 'Approval',
+    options.location ?? '',
+    options.contactInfo ?? '',
+  );
+
+  // Step 3: Find the /Contents hex placeholder in the PDF and compute ByteRange hash
+  const contentsTag = Buffer.from('/Contents <');
+  const contentsStart = pdfWithPlaceholder.indexOf(contentsTag);
+  if (contentsStart === -1) {
+    throw new Error('Failed to find /Contents placeholder in prepared PDF');
+  }
+  // Offset of the '<' that starts the hex string
+  const hexStart = contentsStart + contentsTag.length - 1;
+  // The hex string is SIGNATURE_MAX_LENGTH * 2 hex chars + '<' + '>'
+  const hexEnd = hexStart + 1 + SIGNATURE_MAX_LENGTH * 2; // position of closing '>'
+
+  // ByteRange: [0, hexStart, hexEnd+1, totalLength - (hexEnd+1)]
+  const byteRange = [0, hexStart, hexEnd + 1, pdfWithPlaceholder.length - (hexEnd + 1)];
+
+  // Update the /ByteRange value in the PDF
+  const updatedPdf = updateByteRange(pdfWithPlaceholder, byteRange);
+
+  // Step 4: Hash the two segments (everything outside /Contents hex value)
+  const hash = crypto.createHash('sha256');
+  hash.update(updatedPdf.subarray(byteRange[0], byteRange[0] + byteRange[1]));
+  hash.update(updatedPdf.subarray(byteRange[2], byteRange[2] + byteRange[3]));
+  const digest = hash.digest();
+
+  // Step 5: Create CMS detached signature (PKCS#7 SignedData)
   const p7 = forge.pkcs7.createSignedData();
-  p7.content = forge.util.createBuffer(Buffer.from(pdfBytes).toString('binary'));
+  p7.content = forge.util.createBuffer('');
   p7.addCertificate(cert);
   p7.addSigner({
     key: privateKey,
@@ -174,25 +214,132 @@ export async function signPdfCertified(
     digestAlgorithm: forge.pki.oids.sha256,
     authenticatedAttributes: [
       { type: forge.pki.oids.contentType, value: forge.pki.oids.data },
-      { type: forge.pki.oids.messageDigest },
+      {
+        type: forge.pki.oids.messageDigest,
+        value: forge.util.createBuffer(digest.toString('binary')),
+      },
       { type: forge.pki.oids.signingTime, value: new Date() as any },
     ],
   });
-  p7.sign();
+  p7.sign({ detached: true });
 
   const signedDer = forge.asn1.toDer(p7.toAsn1()).getBytes();
-  const signatureBuffer = Buffer.from(signedDer, 'binary');
+  const signatureHex = Buffer.from(signedDer, 'binary').toString('hex');
 
-  // Embed CMS signature as a PDF file attachment
-  // NOTE: For proper PAdES-B-B, the CMS should be in a /Sig dictionary with /ByteRange.
-  // Current approach: CMS attachment + visual signature for basic signing capability.
-  const signedDoc = await PDFDocument.load(pdfBytes);
-  await signedDoc.attach(signatureBuffer, 'signature.p7s', {
-    mimeType: 'application/pkcs7-signature',
-    description: `Digital signature by ${signerName}`,
-  });
+  if (signatureHex.length > SIGNATURE_MAX_LENGTH * 2) {
+    throw new Error(
+      `CMS signature too large (${signatureHex.length / 2} bytes). Max: ${SIGNATURE_MAX_LENGTH} bytes.`,
+    );
+  }
 
-  return Buffer.from(await signedDoc.save());
+  // Step 6: Write the CMS hex into the reserved /Contents placeholder
+  const paddedHex = signatureHex.padEnd(SIGNATURE_MAX_LENGTH * 2, '0');
+  const result = Buffer.from(updatedPdf);
+  result.write(paddedHex, hexStart + 1, paddedHex.length, 'ascii');
+
+  return result;
+}
+
+/**
+ * Insert a signature placeholder dictionary at the end of the PDF.
+ * Creates a proper /Sig dictionary with /ByteRange and /Contents placeholders
+ * using an incremental save approach.
+ */
+function insertSignaturePlaceholder(
+  pdfBuffer: Buffer,
+  signerName: string,
+  reason: string,
+  location: string,
+  contactInfo: string,
+): Buffer {
+  const pdfStr = pdfBuffer.toString('binary');
+  const eofIdx = pdfStr.lastIndexOf('%%EOF');
+  if (eofIdx === -1) throw new Error('Invalid PDF: no %%EOF marker found');
+
+  const startxrefIdx = pdfStr.lastIndexOf('startxref', eofIdx);
+  if (startxrefIdx === -1) throw new Error('Invalid PDF: no startxref found');
+
+  const afterStartxref = pdfStr.substring(startxrefIdx + 'startxref'.length, eofIdx).trim();
+  const oldXrefOffset = parseInt(afterStartxref, 10);
+
+  // Find the next available object number
+  let maxObj = 0;
+  const objPattern = /(\d+)\s+0\s+obj/g;
+  let match: RegExpExecArray | null;
+  while ((match = objPattern.exec(pdfStr)) !== null) {
+    const num = parseInt(match[1], 10);
+    if (num > maxObj) maxObj = num;
+  }
+  const sigObjNum = maxObj + 1;
+
+  // Build the signature object
+  const byteRangePlaceholder = '/ByteRange [0 0000000000 0000000000 0000000000]';
+  const contentPlaceholder = '0'.repeat(SIGNATURE_MAX_LENGTH * 2);
+
+  const sigObjLines = [
+    `${sigObjNum} 0 obj`,
+    '<<',
+    '/Type /Sig',
+    '/Filter /Adobe.PPKLite',
+    '/SubFilter /adbe.pkcs7.detached',
+    byteRangePlaceholder,
+    `/Contents <${contentPlaceholder}>`,
+    `/Name (${escapePdfString(signerName)})`,
+    `/M (D:${formatPdfDate(new Date())})`,
+  ];
+  if (reason) sigObjLines.push(`/Reason (${escapePdfString(reason)})`);
+  if (location) sigObjLines.push(`/Location (${escapePdfString(location)})`);
+  if (contactInfo) sigObjLines.push(`/ContactInfo (${escapePdfString(contactInfo)})`);
+  sigObjLines.push('>>', 'endobj', '');
+
+  const sigObj = sigObjLines.join('\n');
+
+  const newObjOffset = eofIdx;
+  const xrefStart = newObjOffset + sigObj.length;
+
+  const xref = [
+    'xref',
+    `${sigObjNum} 1`,
+    `${String(newObjOffset).padStart(10, '0')} 00000 n `,
+    '',
+    'trailer',
+    `<< /Size ${sigObjNum + 1} /Prev ${oldXrefOffset} >>`,
+    'startxref',
+    `${xrefStart}`,
+    '%%EOF',
+    '',
+  ].join('\n');
+
+  const beforeEof = pdfBuffer.subarray(0, eofIdx);
+  const appendix = Buffer.from(sigObj + xref, 'binary');
+  return Buffer.concat([beforeEof, appendix]);
+}
+
+function updateByteRange(pdfBuffer: Buffer, byteRange: number[]): Buffer {
+  const placeholder = '/ByteRange [0 0000000000 0000000000 0000000000]';
+  const actual = `/ByteRange [${byteRange[0]} ${String(byteRange[1]).padStart(10, ' ')} ${String(byteRange[2]).padStart(10, ' ')} ${String(byteRange[3]).padStart(10, ' ')}]`;
+  const padded = actual.padEnd(placeholder.length, ' ');
+
+  const idx = pdfBuffer.indexOf(Buffer.from(placeholder, 'ascii'));
+  if (idx === -1) throw new Error('ByteRange placeholder not found');
+
+  const result = Buffer.from(pdfBuffer);
+  result.write(padded, idx, padded.length, 'ascii');
+  return result;
+}
+
+function escapePdfString(str: string): string {
+  return str.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+}
+
+function formatPdfDate(date: Date): string {
+  const y = date.getUTCFullYear();
+  const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(date.getUTCDate()).padStart(2, '0');
+  const h = String(date.getUTCHours()).padStart(2, '0');
+  const min = String(date.getUTCMinutes()).padStart(2, '0');
+  const s = String(date.getUTCSeconds()).padStart(2, '0');
+  return `${y}${m}${d}${h}${min}${s}Z`;
 }
 
 // --- Signature Verification ---
@@ -207,50 +354,109 @@ interface SignatureInfo {
 export async function verifySignatures(buffer: Buffer): Promise<SignatureInfo[]> {
   const signatures: SignatureInfo[] = [];
 
-  // Use mupdf to extract embedded signature.p7s files from the PDF Names tree
+  // Method 1: Scan for ByteRange-based /Sig dictionaries in raw PDF
   try {
-    const mupdf = await import('mupdf');
-    const doc = mupdf.Document.openDocument(buffer, 'application/pdf') as any;
+    extractByteRangeSignatures(buffer, signatures);
+  } catch {
+    // ByteRange scan failed — continue to embedded files method
+  }
 
-    const trailer = doc.getTrailer();
-    const root = trailer?.get('Root');
-    const names = root?.get('Names');
-    const embeddedFiles = names?.get('EmbeddedFiles');
+  // Method 2: Use mupdf to extract embedded signature.p7s files from the PDF Names tree
+  // (for backward compatibility with older attachment-based signatures)
+  if (signatures.length === 0) {
+    try {
+      const mupdf = await import('mupdf');
+      const doc = mupdf.Document.openDocument(buffer, 'application/pdf') as any;
 
-    if (embeddedFiles) {
-      const namesArray = embeddedFiles.get('Names');
-      if (namesArray) {
-        const len = namesArray.length;
-        // Names array is pairs: [name, filespec, name, filespec, ...]
-        for (let i = 0; i < len; i += 2) {
-          const name = namesArray.get(i)?.asString?.() ?? '';
-          if (!name.endsWith('.p7s')) continue;
+      const trailer = doc.getTrailer();
+      const root = trailer?.get('Root');
+      const names = root?.get('Names');
+      const embeddedFiles = names?.get('EmbeddedFiles');
 
-          const fileSpec = namesArray.get(i + 1);
-          const ef = fileSpec?.get('EF');
-          const fStream = ef?.get('F');
-          if (!fStream || !fStream.readStream) continue;
+      if (embeddedFiles) {
+        const namesArray = embeddedFiles.get('Names');
+        if (namesArray) {
+          const len = namesArray.length;
+          for (let i = 0; i < len; i += 2) {
+            const name = namesArray.get(i)?.asString?.() ?? '';
+            if (!name.endsWith('.p7s')) continue;
 
-          try {
-            const streamData = fStream.readStream();
-            const uint8 = streamData.asUint8Array();
-            const p7DerStr = Buffer.from(uint8).toString('binary');
-            const p7Asn1 = forge.asn1.fromDer(p7DerStr);
-            const p7 = forge.pkcs7.messageFromAsn1(p7Asn1) as any;
-            extractSignaturesFromP7(p7, signatures);
-          } catch {
-            // Could not parse this signature — skip
+            const fileSpec = namesArray.get(i + 1);
+            const ef = fileSpec?.get('EF');
+            const fStream = ef?.get('F');
+            if (!fStream || !fStream.readStream) continue;
+
+            try {
+              const streamData = fStream.readStream();
+              const uint8 = streamData.asUint8Array();
+              const p7DerStr = Buffer.from(uint8).toString('binary');
+              const p7Asn1 = forge.asn1.fromDer(p7DerStr);
+              const p7 = forge.pkcs7.messageFromAsn1(p7Asn1) as any;
+              extractSignaturesFromP7(p7, signatures);
+            } catch {
+              // Could not parse this signature — skip
+            }
           }
         }
       }
-    }
 
-    doc.destroy();
-  } catch {
-    // mupdf not available or failed — signatures cannot be verified
+      doc.destroy();
+    } catch {
+      // mupdf not available or failed
+    }
   }
 
   return signatures;
+}
+
+/**
+ * Extract ByteRange-based signatures from the raw PDF binary.
+ * Scans for /Type /Sig dictionaries, extracts /Contents hex data, and parses the CMS.
+ */
+function extractByteRangeSignatures(buffer: Buffer, signatures: SignatureInfo[]): void {
+  const pdfStr = buffer.toString('binary');
+
+  // Find all /Type /Sig ... /Contents <hex> patterns
+  const sigPattern = /\/Type\s*\/Sig\b/g;
+  let sigMatch: RegExpExecArray | null;
+
+  while ((sigMatch = sigPattern.exec(pdfStr)) !== null) {
+    try {
+      // Find the enclosing dictionary boundaries
+      const searchStart = Math.max(0, sigMatch.index - 200);
+      const searchEnd = Math.min(pdfStr.length, sigMatch.index + 100000);
+      const region = pdfStr.substring(searchStart, searchEnd);
+
+      // Extract /Contents <hex>
+      const contentsMatch = region.match(/\/Contents\s*<([0-9a-fA-F]+)>/);
+      if (!contentsMatch) continue;
+
+      const hexData = contentsMatch[1].replace(/0+$/, ''); // strip trailing zero padding
+      if (hexData.length < 10) continue;
+
+      const derBytes = Buffer.from(hexData, 'hex').toString('binary');
+      const asn1 = forge.asn1.fromDer(derBytes);
+      const p7 = forge.pkcs7.messageFromAsn1(asn1) as any;
+      extractSignaturesFromP7(p7, signatures);
+
+      // Extract /Name if present
+      const nameMatch = region.match(/\/Name\s*\(([^)]*)\)/);
+      if (nameMatch && signatures.length > 0) {
+        const lastSig = signatures[signatures.length - 1];
+        if (lastSig.signerName === 'Unknown') {
+          lastSig.signerName = nameMatch[1];
+        }
+      }
+
+      // Extract /Reason if present
+      const reasonMatch = region.match(/\/Reason\s*\(([^)]*)\)/);
+      if (reasonMatch && signatures.length > 0) {
+        signatures[signatures.length - 1].reason = reasonMatch[1];
+      }
+    } catch {
+      // Could not parse this signature — skip
+    }
+  }
 }
 
 function extractSignaturesFromP7(p7: any, signatures: SignatureInfo[]): void {
