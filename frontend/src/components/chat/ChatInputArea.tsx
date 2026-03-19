@@ -17,6 +17,7 @@ import type { Attachment } from '../../hooks/useFileAttachments';
 import { isNativePlatform } from '../../utils/platform';
 import VoiceButton from './VoiceButton';
 import { RagModeToggle } from './RagModeToggle';
+import RagDocumentPanel from './RagDocumentPanel';
 import { useDocumentStore, ChatMode } from '../../hooks/useDocumentStore';
 
 // Helper to get icon for attachment type
@@ -150,6 +151,9 @@ export default function ChatInputArea({
         <div className="flex items-center mb-4">
           <RagModeToggle onModeChange={onModeChange} />
         </div>
+
+        {/* RAG Document Panel — shown when Documents mode is active */}
+        {isRagMode && <RagDocumentPanel />}
 
         {/* Input row: attach + textarea + send */}
         <div className="relative flex items-end gap-2">
