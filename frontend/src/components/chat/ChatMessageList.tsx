@@ -4,6 +4,7 @@ import {
   ChevronDown,
   Download,
   FileText,
+  FileCheck,
   Loader2,
   Brain,
   Edit3,
@@ -19,6 +20,7 @@ import SensitiveTopicWarning from '../SensitiveTopicWarning';
 import { downloadFile } from '../../utils/fileDownload';
 import { isNativePlatform } from '../../utils/platform';
 import { usePDFEditorStore } from '../../hooks/usePDFEditorStore';
+import { useDocumentStore } from '../../hooks/useDocumentStore';
 import type { Message } from '../../hooks/useChatMessages';
 
 const PDF_EDITOR_MARKER = /<!-- pdf_editor:attachmentId=(\d+),filename=(.+?) -->/;
@@ -136,7 +138,79 @@ export default function ChatMessageList({
     }
   }, [messages, isStreaming, openPdfEditor]);
 
+  const { chatMode, documents, selectedDocumentIds, selectAllDocuments } = useDocumentStore();
+  const isRagMode = chatMode === 'rag';
+
   if (messages.length === 0) {
+    if (isRagMode) {
+      const hasDocuments = documents.length > 0;
+
+      if (!hasDocuments) {
+        // No documents uploaded — prompt to use the upload panel below
+        return (
+          <div className="h-full flex flex-col items-center justify-center text-center px-4 animate-in fade-in duration-700">
+            <div className="w-20 h-20 rounded-3xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center mb-8 border border-indigo-600/20">
+              <FileText className="w-10 h-10 text-indigo-500 dark:text-indigo-400" />
+            </div>
+            <h2 className="text-3xl font-bold mb-3 tracking-tight">Carica i tuoi documenti</h2>
+            <p className="text-surface-500 max-w-md text-lg leading-relaxed">
+              Usa il pannello qui sotto per caricare PDF, DOCX o TXT e interrogarli con l'AI
+            </p>
+          </div>
+        );
+      }
+
+      // Documents exist but none selected
+      if (selectedDocumentIds.length === 0) {
+        const readyCount = documents.filter(d => d.status === 'ready').length;
+
+        if (readyCount === 0) {
+          return (
+            <div className="h-full flex flex-col items-center justify-center text-center px-4 animate-in fade-in duration-700">
+              <div className="w-20 h-20 rounded-3xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center mb-8 border border-indigo-600/20">
+                <Loader2 className="w-10 h-10 text-indigo-500 dark:text-indigo-400 animate-spin" />
+              </div>
+              <h2 className="text-3xl font-bold mb-3 tracking-tight">Elaborazione in corso</h2>
+              <p className="text-surface-500 max-w-md text-lg leading-relaxed">
+                I documenti sono ancora in fase di elaborazione. Saranno disponibili a breve.
+              </p>
+            </div>
+          );
+        }
+
+        return (
+          <div className="h-full flex flex-col items-center justify-center text-center px-4 animate-in fade-in duration-700">
+            <div className="w-20 h-20 rounded-3xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center mb-8 border border-indigo-600/20">
+              <FileCheck className="w-10 h-10 text-indigo-500 dark:text-indigo-400" />
+            </div>
+            <h2 className="text-3xl font-bold mb-3 tracking-tight">Seleziona i documenti da analizzare</h2>
+            <p className="text-surface-500 max-w-md text-lg leading-relaxed mb-8">
+              Hai {readyCount} document{readyCount === 1 ? 'o' : 'i'} disponibil{readyCount === 1 ? 'e' : 'i'}. Selezionali nel pannello qui sotto per iniziare.
+            </p>
+            <button
+              onClick={selectAllDocuments}
+              className="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white font-semibold text-base transition-colors"
+            >
+              Seleziona Tutti
+            </button>
+          </div>
+        );
+      }
+
+      // Documents selected — ready to chat
+      return (
+        <div className="h-full flex flex-col items-center justify-center text-center px-4 animate-in fade-in duration-700">
+          <div className="w-20 h-20 rounded-3xl bg-indigo-600/10 flex items-center justify-center mb-8 border border-indigo-600/20 text-indigo-600">
+            <FileText className="w-10 h-10" />
+          </div>
+          <h2 className="text-3xl font-bold mb-3 tracking-tight">Analisi Documenti</h2>
+          <p className="text-surface-500 max-w-md text-lg leading-relaxed">
+            {selectedDocumentIds.length} document{selectedDocumentIds.length === 1 ? 'o' : 'i'} selezionat{selectedDocumentIds.length === 1 ? 'o' : 'i'}. Scrivi una domanda per iniziare l'analisi.
+          </p>
+        </div>
+      );
+    }
+
     return (
       <div className="h-full flex flex-col items-center justify-center text-center px-4">
         <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center mb-6 text-white">
