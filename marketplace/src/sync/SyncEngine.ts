@@ -1,6 +1,7 @@
 import type mysql from 'mysql2/promise';
 import type { SourceAdapter } from './CLIAdapter.js';
 import type { CatalogItemInput } from './CatalogParser.js';
+import type { EmbeddingIndexer } from '../qdrant/EmbeddingIndexer.js';
 import { parseRawCatalog } from './CatalogParser.js';
 import { HealthChecker } from './HealthChecker.js';
 import { calculateDiff } from './DiffCalculator.js';
@@ -25,6 +26,7 @@ export class SyncEngine {
     private readonly pool: mysql.Pool,
     private readonly adapter: SourceAdapter,
     private readonly healthChecker: HealthChecker,
+    private readonly embeddingIndexer?: EmbeddingIndexer,
   ) {}
 
   async sync(): Promise<SyncResult> {
@@ -79,6 +81,18 @@ export class SyncEngine {
       consecutive_failures: 0,
       error_message: errors.length > 0 ? errors.join('; ') : null,
     });
+
+    if (this.embeddingIndexer) {
+      try {
+        const indexed = await this.embeddingIndexer.indexUnindexedItems();
+        if (indexed > 0) {
+          console.log(`[SyncEngine] Indexed ${indexed} items into Qdrant`);
+        }
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.warn(`[SyncEngine] Embedding indexing failed (non-fatal): ${message}`);
+      }
+    }
 
     return {
       added: diff.added.length,

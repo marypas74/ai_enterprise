@@ -1,4 +1,5 @@
 import type mysql from 'mysql2/promise';
+import type { QdrantClient } from '../qdrant/QdrantClient.js';
 import { findOne, findMany } from '../database/helpers.js';
 
 interface CatalogListOptions {
@@ -17,8 +18,15 @@ interface CatalogListResult {
   readonly limit: number;
 }
 
+const COLLECTION_NAME = 'competency_catalog';
+
 export class CatalogService {
-  constructor(private readonly pool: mysql.Pool) {}
+  constructor(
+    private readonly pool: mysql.Pool,
+    private readonly qdrantClient?: QdrantClient,
+    private readonly backendUrl?: string,
+    private readonly serviceToken?: string,
+  ) {}
 
   async list(opts: CatalogListOptions): Promise<CatalogListResult> {
     const page = opts.page ?? 1;
@@ -51,9 +59,75 @@ export class CatalogService {
     );
   }
 
-  async search(_query: string): Promise<readonly Record<string, unknown>[]> {
-    // Stub for Phase 4 (Qdrant integration)
-    return [];
+  async search(query: string): Promise<readonly Record<string, unknown>[]> {
+    if (this.qdrantClient && this.backendUrl) {
+      try {
+        const available = await this.qdrantClient.isAvailable();
+        if (available) {
+          return await this.semanticSearch(query);
+        }
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.warn(`[CatalogService] Semantic search failed, falling back to SQL: ${message}`);
+      }
+    }
+
+    return this.sqlFallbackSearch(query);
+  }
+
+  private async semanticSearch(query: string): Promise<readonly Record<string, unknown>[]> {
+    const embedding = await this.generateQueryEmbedding(query);
+    const results = await this.qdrantClient!.search(COLLECTION_NAME, embedding, 20);
+
+    if (results.length === 0) {
+      return [];
+    }
+
+    const ids = results.map((r) => r.id);
+    const placeholders = ids.map(() => '?').join(',');
+    const items = await findMany<Record<string, unknown>>(
+      this.pool,
+      `SELECT * FROM marketplace_catalog_items WHERE id IN (${placeholders})`,
+      ids,
+    );
+
+    const scoreMap = new Map(results.map((r) => [r.id, r.score]));
+    return items
+      .map((item) => ({
+        ...item,
+        search_score: scoreMap.get(item.id as number) ?? 0,
+      }))
+      .sort((a, b) => (b.search_score as number) - (a.search_score as number));
+  }
+
+  private async sqlFallbackSearch(query: string): Promise<readonly Record<string, unknown>[]> {
+    const searchTerm = `%${query}%`;
+    return findMany<Record<string, unknown>>(
+      this.pool,
+      `SELECT * FROM marketplace_catalog_items
+       WHERE name LIKE ? OR description LIKE ?
+       ORDER BY id ASC LIMIT 20`,
+      [searchTerm, searchTerm],
+    );
+  }
+
+  private async generateQueryEmbedding(text: string): Promise<readonly number[]> {
+    const response = await fetch(`${this.backendUrl}/api/embeddings`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.serviceToken ?? ''}`,
+      },
+      body: JSON.stringify({ texts: [text] }),
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Embedding endpoint returned ${response.status}`);
+    }
+
+    const data = await response.json() as { embeddings: number[][] };
+    return data.embeddings[0];
   }
 
   private buildWhereClause(opts: CatalogListOptions): {

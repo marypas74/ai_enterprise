@@ -2,6 +2,8 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { CatalogService } from './CatalogService.js';
 import { getPool } from '../database/connection.js';
+import { QdrantClient } from '../qdrant/QdrantClient.js';
+import { config } from '../config.js';
 
 const listQuerySchema = z.object({
   type: z.enum(['skill', 'agent', 'mcp', 'hook']).optional(),
@@ -21,7 +23,8 @@ const searchQuerySchema = z.object({
 });
 
 export async function catalogRoutes(fastify: FastifyInstance): Promise<void> {
-  const service = new CatalogService(getPool());
+  const qdrantClient = new QdrantClient(config.qdrantUrl);
+  const service = new CatalogService(getPool(), qdrantClient, config.backendUrl, config.serviceToken);
 
   fastify.get('/catalog', {
     preHandler: [fastify.authenticate],

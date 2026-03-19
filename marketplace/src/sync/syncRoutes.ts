@@ -6,6 +6,9 @@ import { SyncEngine } from './SyncEngine.js';
 import { HealthChecker } from './HealthChecker.js';
 import { CLIAdapter } from './CLIAdapter.js';
 import { NotificationService } from './NotificationService.js';
+import { QdrantClient } from '../qdrant/QdrantClient.js';
+import { EmbeddingIndexer } from '../qdrant/EmbeddingIndexer.js';
+import { config } from '../config.js';
 
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
 
@@ -27,7 +30,9 @@ export async function syncRoutes(fastify: FastifyInstance): Promise<void> {
   const pool = getPool();
   const healthChecker = new HealthChecker();
   const adapter = new CLIAdapter();
-  const syncEngine = new SyncEngine(pool, adapter, healthChecker);
+  const qdrantClient = new QdrantClient(config.qdrantUrl);
+  const embeddingIndexer = new EmbeddingIndexer(pool, qdrantClient, config.backendUrl, config.serviceToken);
+  const syncEngine = new SyncEngine(pool, adapter, healthChecker, embeddingIndexer);
   const notificationService = new NotificationService(pool);
 
   // POST /sync — Admin only, triggers sync

@@ -159,10 +159,21 @@ describe('CatalogService', () => {
   });
 
   describe('search()', () => {
-    it('returns empty array (stub)', async () => {
-      const result = await service.search('anything');
+    it('falls back to SQL LIKE search when no Qdrant client', async () => {
+      mockPool.execute.mockResolvedValueOnce([[
+        { id: 1, name: 'git-helper', description: 'Git utilities' },
+      ]]);
 
-      expect(result).toEqual([]);
+      const result = await service.search('git');
+
+      expect(result).toEqual([
+        { id: 1, name: 'git-helper', description: 'Git utilities' },
+      ]);
+
+      const call = mockPool.execute.mock.calls[0];
+      expect(call[0]).toContain('name LIKE ?');
+      expect(call[0]).toContain('description LIKE ?');
+      expect(call[1]).toContain('%git%');
     });
   });
 });
