@@ -143,7 +143,7 @@ const MainLayout: React.FC = () => {
   const [versionInfo, setVersionInfo] = useState<{
     extension: string;
     backend?: { version: string; buildTime: string };
-  }>({ extension: '2.1.23' });
+  }>({ extension: '2.1.24' });
 
   const streamingRef = useRef('');
   const generateId = () => `msg-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
@@ -403,7 +403,7 @@ const MainLayout: React.FC = () => {
 
         case 'versionInfo':
           setVersionInfo({
-            extension: payload?.extension || '2.1.23',
+            extension: payload?.extension || '2.1.24',
             backend: payload?.backend
           });
           break;
