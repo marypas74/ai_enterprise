@@ -14,6 +14,7 @@ const docGenRateLimit = {
 };
 import { generateDocxBuffer, generateExcelBuffer, generatePptxBuffer, convertOfficeToPdf } from '../../services/DocumentProcessorService.js';
 import { findOne, findMany } from '../../database/index.js';
+import { pdfEditorRoutes } from './pdfEditorRoutes.js';
 import fs from 'fs/promises';
 import { existsSync, mkdirSync } from 'fs';
 import path from 'path';
@@ -34,6 +35,8 @@ if (!existsSync(GENERATED_DIR)) {
 }
 
 export async function toolsRoutes(fastify: FastifyInstance) {
+    await fastify.register(pdfEditorRoutes);
+
     // POST: Generate and save file
     fastify.post('/tools/generate-docx', {
         onRequest: [(fastify as any).authenticate],

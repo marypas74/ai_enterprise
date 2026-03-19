@@ -1,450 +1,119 @@
 <!DOCTYPE html>
 <html lang="it">
-
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Enterprise AI Chat - Guida Amministratore</title>
-  <style>
-    :root {
-      --primary: #6366f1;
-      --primary-dark: #4f46e5;
-      --bg: #0f172a;
-      --surface: #1e293b;
-      --surface-2: #334155;
-      --text: #e2e8f0;
-      --text-muted: #94a3b8;
-      --accent: #f59e0b;
-      --border: #334155;
-      --success: #22c55e;
-      --warning: #f59e0b;
-      --danger: #ef4444;
-      --info: #22d3ee;
-    }
-
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
-    body {
-      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      line-height: 1.7;
-    }
-
-    .container {
-      max-width: 900px;
-      margin: 0 auto;
-      padding: 40px 24px;
-    }
-
-    h1 {
-      font-size: 2.5rem;
-      font-weight: 800;
-      background: linear-gradient(135deg, var(--accent), #ef4444);
-      -webkit-background-clip: text;
-      background-clip: text;
-      -webkit-text-fill-color: transparent;
-      margin-bottom: 8px;
-    }
-
-    .subtitle {
-      color: var(--text-muted);
-      font-size: 1.1rem;
-      margin-bottom: 48px;
-    }
-
-    .version {
-      display: inline-block;
-      background: var(--surface);
-      border: 1px solid var(--accent);
-      border-radius: 20px;
-      padding: 4px 14px;
-      font-size: 0.8rem;
-      color: var(--accent);
-      margin-bottom: 12px;
-    }
-
-    h2 {
-      font-size: 1.6rem;
-      font-weight: 700;
-      color: var(--accent);
-      margin-top: 56px;
-      margin-bottom: 20px;
-      padding-bottom: 10px;
-      border-bottom: 2px solid var(--border);
-    }
-
-    h3 {
-      font-size: 1.2rem;
-      font-weight: 600;
-      color: var(--text);
-      margin-top: 32px;
-      margin-bottom: 12px;
-    }
-
-    h4 {
-      font-size: 1rem;
-      font-weight: 600;
-      color: var(--primary);
-      margin-top: 20px;
-      margin-bottom: 8px;
-    }
-
-    p {
-      margin-bottom: 14px;
-      color: var(--text);
-    }
-
-    ul,
-    ol {
-      margin-bottom: 16px;
-      padding-left: 24px;
-    }
-
-    li {
-      margin-bottom: 8px;
-      color: var(--text);
-    }
-
-    li strong {
-      color: var(--accent);
-    }
-
-    .card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 24px;
-      margin-bottom: 20px;
-    }
-
-    .card-title {
-      font-weight: 600;
-      color: var(--primary);
-      margin-bottom: 10px;
-      font-size: 1.05rem;
-    }
-
-    .badge {
-      display: inline-block;
-      padding: 3px 10px;
-      border-radius: 12px;
-      font-size: 0.75rem;
-      font-weight: 600;
-      margin-right: 6px;
-    }
-
-    .badge-primary {
-      background: rgba(99, 102, 241, 0.2);
-      color: #818cf8;
-    }
-
-    .badge-accent {
-      background: rgba(245, 158, 11, 0.2);
-      color: #fbbf24;
-    }
-
-    .badge-success {
-      background: rgba(34, 197, 94, 0.2);
-      color: #4ade80;
-    }
-
-    .badge-warning {
-      background: rgba(245, 158, 11, 0.2);
-      color: #fbbf24;
-    }
-
-    .badge-danger {
-      background: rgba(239, 68, 68, 0.2);
-      color: #f87171;
-    }
-
-    .badge-info {
-      background: rgba(34, 211, 238, 0.2);
-      color: #22d3ee;
-    }
-
-    .tip {
-      background: rgba(245, 158, 11, 0.1);
-      border-left: 4px solid var(--accent);
-      padding: 16px 20px;
-      border-radius: 0 8px 8px 0;
-      margin: 20px 0;
-    }
-
-    .tip-title {
-      font-weight: 700;
-      color: var(--accent);
-      margin-bottom: 4px;
-    }
-
-    .warning {
-      background: rgba(239, 68, 68, 0.1);
-      border-left: 4px solid var(--danger);
-      padding: 16px 20px;
-      border-radius: 0 8px 8px 0;
-      margin: 20px 0;
-    }
-
-    .warning-title {
-      font-weight: 700;
-      color: var(--danger);
-      margin-bottom: 4px;
-    }
-
-    .info {
-      background: rgba(34, 211, 238, 0.1);
-      border-left: 4px solid var(--info);
-      padding: 16px 20px;
-      border-radius: 0 8px 8px 0;
-      margin: 20px 0;
-    }
-
-    .info-title {
-      font-weight: 700;
-      color: var(--info);
-      margin-bottom: 4px;
-    }
-
-    .toc {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 24px 32px;
-      margin-bottom: 40px;
-    }
-
-    .toc-title {
-      font-weight: 700;
-      font-size: 1.1rem;
-      margin-bottom: 16px;
-      color: var(--accent);
-    }
-
-    .toc a {
-      color: var(--text-muted);
-      text-decoration: none;
-      display: block;
-      padding: 4px 0;
-      transition: color 0.2s;
-    }
-
-    .toc a:hover {
-      color: var(--accent);
-    }
-
-    .toc ol {
-      counter-reset: toc-counter;
-      list-style: none;
-      padding-left: 0;
-    }
-
-    .toc ol li {
-      counter-increment: toc-counter;
-    }
-
-    .toc ol li::before {
-      content: counter(toc-counter) ". ";
-      color: var(--accent);
-      font-weight: 600;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin: 16px 0;
-    }
-
-    th,
-    td {
-      padding: 10px 14px;
-      text-align: left;
-      border-bottom: 1px solid var(--border);
-    }
-
-    th {
-      background: var(--surface-2);
-      color: var(--accent);
-      font-weight: 600;
-      font-size: 0.85rem;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-
-    td {
-      color: var(--text);
-      font-size: 0.95rem;
-    }
-
-    tr:hover td {
-      background: rgba(245, 158, 11, 0.05);
-    }
-
-    code {
-      background: var(--surface-2);
-      padding: 2px 8px;
-      border-radius: 4px;
-      font-size: 0.9rem;
-      color: #f472b6;
-    }
-
-    pre {
-      background: var(--surface-2);
-      border-radius: 8px;
-      padding: 16px;
-      overflow-x: auto;
-      margin: 16px 0;
-    }
-
-    pre code {
-      background: none;
-      padding: 0;
-      color: var(--text);
-    }
-
-    .footer {
-      margin-top: 80px;
-      padding-top: 24px;
-      border-top: 1px solid var(--border);
-      text-align: center;
-      color: var(--text-muted);
-      font-size: 0.85rem;
-    }
-
-    .grid-2 {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-    }
-
-    .grid-3 {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 16px;
-    }
-
-    @media (max-width: 768px) {
-
-      .grid-2,
-      .grid-3 {
-        grid-template-columns: 1fr;
-      }
-
-      h1 {
-        font-size: 1.8rem;
-      }
-    }
-
-    .endpoint {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 12px 16px;
-      margin: 8px 0;
-      font-family: monospace;
-      font-size: 0.9rem;
-    }
-
-    .endpoint .method {
-      font-weight: 700;
-      margin-right: 8px;
-    }
-
-    .method-get {
-      color: #4ade80;
-    }
-
-    .method-post {
-      color: #60a5fa;
-    }
-
-    .method-patch {
-      color: #fbbf24;
-    }
-
-    .method-delete {
-      color: #f87171;
-    }
-
-    .method-put {
-      color: #c084fc;
-    }
-
-    @media print {
-      body {
-        background: white;
-        color: #1e293b;
-      }
-
-      .card {
-        border-color: #e2e8f0;
-      }
-
-      h1 {
-        -webkit-text-fill-color: var(--accent);
-      }
-
-      h2 {
-        color: #b45309;
-      }
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Enterprise AI Chat - Guida Amministratore</title>
+<style>
+  :root { --primary: #6366f1; --primary-dark: #4f46e5; --bg: #0f172a; --surface: #1e293b; --surface-2: #334155; --text: #e2e8f0; --text-muted: #94a3b8; --accent: #f59e0b; --border: #334155; --success: #22c55e; --warning: #f59e0b; --danger: #ef4444; --info: #22d3ee; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; }
+  .container { max-width: 900px; margin: 0 auto; padding: 40px 24px; }
+  h1 { font-size: 2.5rem; font-weight: 800; background: linear-gradient(135deg, var(--accent), #ef4444); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 8px; }
+  .subtitle { color: var(--text-muted); font-size: 1.1rem; margin-bottom: 48px; }
+  .version { display: inline-block; background: var(--surface); border: 1px solid var(--accent); border-radius: 20px; padding: 4px 14px; font-size: 0.8rem; color: var(--accent); margin-bottom: 12px; }
+  h2 { font-size: 1.6rem; font-weight: 700; color: var(--accent); margin-top: 56px; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid var(--border); }
+  h3 { font-size: 1.2rem; font-weight: 600; color: var(--text); margin-top: 32px; margin-bottom: 12px; }
+  h4 { font-size: 1rem; font-weight: 600; color: var(--primary); margin-top: 20px; margin-bottom: 8px; }
+  p { margin-bottom: 14px; color: var(--text); }
+  ul, ol { margin-bottom: 16px; padding-left: 24px; }
+  li { margin-bottom: 8px; color: var(--text); }
+  li strong { color: var(--accent); }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 20px; }
+  .card-title { font-weight: 600; color: var(--primary); margin-bottom: 10px; font-size: 1.05rem; }
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; margin-right: 6px; }
+  .badge-primary { background: rgba(99,102,241,0.2); color: #818cf8; }
+  .badge-accent { background: rgba(245,158,11,0.2); color: #fbbf24; }
+  .badge-success { background: rgba(34,197,94,0.2); color: #4ade80; }
+  .badge-warning { background: rgba(245,158,11,0.2); color: #fbbf24; }
+  .badge-danger { background: rgba(239,68,68,0.2); color: #f87171; }
+  .badge-info { background: rgba(34,211,238,0.2); color: #22d3ee; }
+  .tip { background: rgba(245,158,11,0.1); border-left: 4px solid var(--accent); padding: 16px 20px; border-radius: 0 8px 8px 0; margin: 20px 0; }
+  .tip-title { font-weight: 700; color: var(--accent); margin-bottom: 4px; }
+  .warning { background: rgba(239,68,68,0.1); border-left: 4px solid var(--danger); padding: 16px 20px; border-radius: 0 8px 8px 0; margin: 20px 0; }
+  .warning-title { font-weight: 700; color: var(--danger); margin-bottom: 4px; }
+  .info { background: rgba(34,211,238,0.1); border-left: 4px solid var(--info); padding: 16px 20px; border-radius: 0 8px 8px 0; margin: 20px 0; }
+  .info-title { font-weight: 700; color: var(--info); margin-bottom: 4px; }
+  .toc { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px 32px; margin-bottom: 40px; }
+  .toc-title { font-weight: 700; font-size: 1.1rem; margin-bottom: 16px; color: var(--accent); }
+  .toc a { color: var(--text-muted); text-decoration: none; display: block; padding: 4px 0; transition: color 0.2s; }
+  .toc a:hover { color: var(--accent); }
+  .toc ol { counter-reset: toc-counter; list-style: none; padding-left: 0; }
+  .toc ol li { counter-increment: toc-counter; }
+  .toc ol li::before { content: counter(toc-counter) ". "; color: var(--accent); font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+  th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); }
+  th { background: var(--surface-2); color: var(--accent); font-weight: 600; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; }
+  td { color: var(--text); font-size: 0.95rem; }
+  tr:hover td { background: rgba(245,158,11,0.05); }
+  code { background: var(--surface-2); padding: 2px 8px; border-radius: 4px; font-size: 0.9rem; color: #f472b6; }
+  pre { background: var(--surface-2); border-radius: 8px; padding: 16px; overflow-x: auto; margin: 16px 0; }
+  pre code { background: none; padding: 0; color: var(--text); }
+  .footer { margin-top: 80px; padding-top: 24px; border-top: 1px solid var(--border); text-align: center; color: var(--text-muted); font-size: 0.85rem; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  @media (max-width: 768px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } h1 { font-size: 1.8rem; } }
+  .endpoint { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; margin: 8px 0; font-family: monospace; font-size: 0.9rem; }
+  .endpoint .method { font-weight: 700; margin-right: 8px; }
+  .method-get { color: #4ade80; }
+  .method-post { color: #60a5fa; }
+  .method-patch { color: #fbbf24; }
+  .method-delete { color: #f87171; }
+  .method-put { color: #c084fc; }
+  @media print { body { background: white; color: #1e293b; } .card { border-color: #e2e8f0; } h1 { -webkit-text-fill-color: var(--accent); } h2 { color: #b45309; } }
+</style>
 </head>
-
 <body>
-  <div class="container">
+<div class="container">
 
-    <span class="version">v2.1.4 - ADMIN</span>
-    <h1>Enterprise AI Chat</h1>
-    <p class="subtitle">Guida Amministratore Completa - Configurazione, Gestione e Architettura del Sistema</p>
+<span class="version">v2.1.23 - ADMIN</span>
+<h1>Enterprise AI Chat</h1>
+<p class="subtitle">Guida Amministratore Completa - Configurazione, Gestione e Architettura del Sistema</p>
 
-    <div class="toc">
-      <div class="toc-title">Indice</div>
-      <ol>
-        <li><a href="#architettura">Architettura del Sistema</a></li>
-        <li><a href="#utenti">Gestione Utenti e Gruppi</a></li>
-        <li><a href="#provider">Configurazione Provider AI</a></li>
-        <li><a href="#modelli">Gestione Modelli</a></li>
-        <li><a href="#agenti">Agenti e Orchestratore</a></li>
-        <li><a href="#skills">Skills e Tool</a></li>
-        <li><a href="#plugins">Plugin e Server MCP</a></li>
-        <li><a href="#memoria-admin">Memoria e RAG</a></li>
-        <li><a href="#hooks">Hooks e Automazione</a></li>
-        <li><a href="#templates">Template Prompt</a></li>
-        <li><a href="#forms">Form Conversazionali</a></li>
-        <li><a href="#scheduler-admin">Scheduler (White Rabbit)</a></li>
-        <li><a href="#permessi">Permessi e RBAC</a></li>
-        <li><a href="#sessioni">Sessioni e Sicurezza</a></li>
-        <li><a href="#monitoring">Monitoraggio Sistema</a></li>
-        <li><a href="#compliance-admin">Conformita AI Act</a></li>
-        <li><a href="#database">Schema Database</a></li>
-        <li><a href="#api">Riferimento API Completo</a></li>
-        <li><a href="#deploy">Deploy e Infrastruttura</a></li>
-        <li><a href="#troubleshooting">Troubleshooting</a></li>
-        <li><a href="#plugin-config">Appendice A: Configurazione Avanzata Plugin</a></li>
-        <li><a href="#hooks-advanced">Appendice B: Sistema di Hooks Avanzato</a></li>
-        <li><a href="#tools-config">Appendice C: Configurazione Tools AI</a></li>
-        <li><a href="#forms-advanced">Appendice D: Form Conversazionali Avanzati</a></li>
-        <li><a href="#memory-architecture">Appendice E: Architettura della Memoria</a></li>
-        <li><a href="#ingestion-advanced">Appendice F: Pipeline di Ingestione Avanzata</a></li>
-        <li><a href="#scheduler-advanced">Appendice G: Scheduler Avanzato</a></li>
-        <li><a href="#auth-advanced">Appendice H: Autenticazione e Autorizzazione Avanzata</a></li>
-      </ol>
-    </div>
+<div class="toc">
+  <div class="toc-title">Indice</div>
+  <ol>
+    <li><a href="#architettura">Architettura del Sistema</a></li>
+    <li><a href="#utenti">Gestione Utenti e Gruppi</a></li>
+    <li><a href="#provider">Configurazione Provider AI</a></li>
+    <li><a href="#modelli">Gestione Modelli</a></li>
+    <li><a href="#agenti">Agenti e Orchestratore</a></li>
+    <li><a href="#skills">Skills e Tool</a></li>
+    <li><a href="#plugins">Plugin e Server MCP</a></li>
+    <li><a href="#memoria-admin">Memoria e RAG</a></li>
+    <li><a href="#hooks">Hooks e Automazione</a></li>
+    <li><a href="#marketplace">Marketplace Competenze</a></li>
+    <li><a href="#pipeline-visualizer">Hook Pipeline Visualizer</a></li>
+    <li><a href="#templates">Template Prompt</a></li>
+    <li><a href="#forms">Form Conversazionali</a></li>
+    <li><a href="#scheduler-admin">Scheduler (White Rabbit)</a></li>
+    <li><a href="#permessi">Permessi e RBAC</a></li>
+    <li><a href="#sessioni">Sessioni e Sicurezza</a></li>
+    <li><a href="#monitoring">Monitoraggio Sistema</a></li>
+    <li><a href="#compliance-admin">Conformita AI Act</a></li>
+    <li><a href="#database">Schema Database</a></li>
+    <li><a href="#api">Riferimento API Completo</a></li>
+    <li><a href="#deploy">Deploy e Infrastruttura</a></li>
+    <li><a href="#troubleshooting">Troubleshooting</a></li>
+    <li><a href="#plugin-config">Appendice A: Configurazione Avanzata Plugin</a></li>
+    <li><a href="#hooks-advanced">Appendice B: Sistema di Hooks Avanzato</a></li>
+    <li><a href="#tools-config">Appendice C: Configurazione Tools AI</a></li>
+    <li><a href="#forms-advanced">Appendice D: Form Conversazionali Avanzati</a></li>
+    <li><a href="#memory-architecture">Appendice E: Architettura della Memoria</a></li>
+    <li><a href="#ingestion-advanced">Appendice F: Pipeline di Ingestione Avanzata</a></li>
+    <li><a href="#scheduler-advanced">Appendice G: Scheduler Avanzato</a></li>
+    <li><a href="#auth-advanced">Appendice H: Autenticazione e Autorizzazione Avanzata</a></li>
+  </ol>
+</div>
 
-    <!-- SECTION 1: ARCHITETTURA -->
-    <h2 id="architettura">1. Architettura del Sistema</h2>
+<!-- SECTION 1: ARCHITETTURA -->
+<h2 id="architettura">1. Architettura del Sistema</h2>
 
-    <h3>Panoramica</h3>
-    <p>Enterprise AI Chat e una piattaforma multi-tier distribuita su Kubernetes con i seguenti componenti principali:
-    </p>
+<h3>Panoramica</h3>
+<p>Enterprise AI Chat e una piattaforma multi-tier distribuita su Kubernetes con i seguenti componenti principali:</p>
 
-    <div class="card">
-      <pre><code>                        TLS TERMINATION
+<div class="card">
+<pre><code>                        TLS TERMINATION
                        (HTTPS, WAF, CDN)
                               |
                         NGINX INGRESS
@@ -463,2326 +132,1491 @@
                               |
                          Parlant
                       (Python Agent, port 8800)</code></pre>
-    </div>
+</div>
 
-    <h3>Stack Tecnologico</h3>
-    <div class="grid-3">
-      <div class="card">
-        <div class="card-title">Frontend</div>
-        <ul>
-          <li>React 18 + TypeScript</li>
-          <li>Vite (build tool)</li>
-          <li>Tailwind CSS</li>
-          <li>Zustand (state)</li>
-          <li>React Router v6</li>
-          <li>Axios + SSE</li>
-        </ul>
-      </div>
-      <div class="card">
-        <div class="card-title">Backend</div>
-        <ul>
-          <li>Fastify 5 + TypeScript</li>
-          <li>20+ moduli</li>
-          <li>MySQL2 (MariaDB)</li>
-          <li>ioredis</li>
-          <li>JWT + bcrypt</li>
-          <li>WebSocket</li>
-        </ul>
-      </div>
-      <div class="card">
-        <div class="card-title">Infrastruttura</div>
-        <ul>
-          <li>MicroK8s</li>
-          <li>Docker</li>
-          <li>Reverse Proxy / CDN</li>
-          <li>Nginx Ingress</li>
-          <li>Node 20 LTS</li>
-          <li>LibreOffice + Tesseract</li>
-        </ul>
-      </div>
-    </div>
-
-    <h3>Flusso delle Richieste</h3>
-    <ol>
-      <li>L'utente invia una richiesta HTTPS al dominio della piattaforma</li>
-      <li>Il <strong>Reverse Proxy / CDN</strong> termina il TLS e inoltra la richiesta al cluster</li>
-      <li><strong>Nginx Ingress</strong> gestisce il routing: <code>/api/*</code> va al backend, tutto il resto al
-        frontend</li>
-      <li>Il <strong>Backend Fastify</strong> autentica via JWT, processa la richiesta e risponde</li>
-      <li>Per le chat AI, la risposta viene inviata in <strong>streaming SSE</strong> (Server-Sent Events)</li>
-      <li>Le sessioni sono gestite tramite <strong>Redis</strong>, i dati persistenti su <strong>MariaDB</strong></li>
-    </ol>
-
-    <div class="info">
-      <div class="info-title">Nota sulla Restrizione IP</div>
-      <p>Quando il sistema e dietro un reverse proxy o tunnel, le annotazioni Kubernetes
-        <code>whitelist-source-range</code> potrebbero non funzionare. La restrizione IP viene gestita a livello
-        applicativo leggendo gli header del proxy (es: <code>X-Forwarded-For</code>, <code>X-Real-IP</code>).
-      </p>
-    </div>
-
-    <h3>Rete</h3>
-    <table>
-      <thead>
-        <tr>
-          <th>Rete</th>
-          <th>CIDR</th>
-          <th>Uso</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>LAN Server</td>
-          <td><code>192.168.34.0/24</code></td>
-          <td>Rete locale server</td>
-        </tr>
-        <tr>
-          <td>Pod Network K8s</td>
-          <td><code>10.1.28.0/24</code></td>
-          <td>Comunicazione tra pod</td>
-        </tr>
-        <tr>
-          <td>IP Whitelist</td>
-          <td><code>217.198.133.248</code></td>
-          <td>Accesso consentito</td>
-        </tr>
-        <tr>
-          <td>Ollama Proxy</td>
-          <td><code>10.0.1.1:8086</code></td>
-          <td>Proxy verso Docker host</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <!-- SECTION 2: UTENTI -->
-    <h2 id="utenti">2. Gestione Utenti e Gruppi</h2>
-
-    <h3>Pagina Admin: Utenti</h3>
-    <p>Percorso: <code>/admin/users</code></p>
-
-    <h4>Gestione Utenti</h4>
+<h3>Stack Tecnologico</h3>
+<div class="grid-3">
+  <div class="card">
+    <div class="card-title">Frontend</div>
     <ul>
-      <li><strong>Elenco utenti</strong> - Tabella con ricerca per nome/email e filtro per ruolo</li>
-      <li><strong>Creazione utente</strong> - Nome, email, password, ruolo (user/admin)</li>
-      <li><strong>Modifica utente</strong> - Nome, email, ruolo, stato attivo/disattivo, gruppi assegnati, campi profilo
-        (telefono, azienda, dipartimento, posizione, note)</li>
-      <li><strong>Reset MFA</strong> - Reset dell'autenticazione a due fattori per un utente</li>
-      <li><strong>Eliminazione</strong> - Rimozione permanente dell'utente e dei dati associati</li>
+      <li>React 18 + TypeScript</li>
+      <li>Vite (build tool)</li>
+      <li>Tailwind CSS</li>
+      <li>Zustand (state)</li>
+      <li>React Router v6</li>
+      <li>Axios + SSE</li>
     </ul>
-
-    <h4>Gestione Gruppi</h4>
+  </div>
+  <div class="card">
+    <div class="card-title">Backend</div>
     <ul>
-      <li><strong>Creazione gruppo</strong> - Nome, descrizione, limite token mensili, abilitazione Kanban</li>
-      <li><strong>Assegnazione utenti</strong> - Aggiungi/rimuovi utenti dai gruppi</li>
-      <li><strong>Quote</strong> - Limite massimo di token per mese per gruppo</li>
-      <li><strong>Modifica/Eliminazione</strong> - Aggiornamento impostazioni o rimozione gruppo</li>
+      <li>Fastify 5 + TypeScript</li>
+      <li>20+ moduli</li>
+      <li>MySQL2 (MariaDB)</li>
+      <li>ioredis</li>
+      <li>JWT + bcrypt</li>
+      <li>WebSocket</li>
     </ul>
-
-    <h4>Endpoint API</h4>
-    <div class="endpoint"><span class="method method-get">GET</span> /api/admin/users - Lista utenti (paginata, con
-      ricerca)</div>
-    <div class="endpoint"><span class="method method-post">POST</span> /api/admin/users - Crea utente</div>
-    <div class="endpoint"><span class="method method-get">GET</span> /api/admin/users/:id - Dettagli utente</div>
-    <div class="endpoint"><span class="method method-patch">PATCH</span> /api/admin/users/:id - Aggiorna utente</div>
-    <div class="endpoint"><span class="method method-delete">DELETE</span> /api/admin/users/:id - Elimina utente</div>
-    <div class="endpoint"><span class="method method-post">POST</span> /api/admin/users/:id/mfa-reset - Reset MFA</div>
-
-    <!-- SECTION 3: PROVIDER -->
-    <h2 id="provider">3. Configurazione Provider AI</h2>
-
-    <h3>Pagina Admin: Provider</h3>
-    <p>Percorso: <code>/admin/providers</code></p>
-
-    <p>I provider AI determinano quali servizi di intelligenza artificiale sono disponibili per gli utenti.</p>
-
-    <h4>Provider Supportati</h4>
-    <table>
-      <thead>
-        <tr>
-          <th>Provider</th>
-          <th>Configurazione</th>
-          <th>Note</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><span class="badge badge-success">OpenAI</span></td>
-          <td>API Key, Organization ID (opzionale)</td>
-          <td>GPT-4, GPT-4o, o1, DALL-E, Whisper</td>
-        </tr>
-        <tr>
-          <td><span class="badge badge-primary">Anthropic</span></td>
-          <td>API Key</td>
-          <td>Claude 3/3.5/4, batch processing</td>
-        </tr>
-        <tr>
-          <td><span class="badge badge-info">Google</span></td>
-          <td>API Key o OAuth</td>
-          <td>Gemini 1.5/2.0/2.5, multimodale</td>
-        </tr>
-        <tr>
-          <td><span class="badge badge-accent">Ollama</span></td>
-          <td>URL base, Auth header</td>
-          <td>Modelli locali, zero costo API</td>
-        </tr>
-        <tr>
-          <td><span class="badge badge-primary">Vertex AI</span></td>
-          <td>Service Account JSON</td>
-          <td>Google Cloud, modelli enterprise</td>
-        </tr>
-        <tr>
-          <td><span class="badge badge-danger">Custom</span></td>
-          <td>URL base, API Key, Header</td>
-          <td>Qualsiasi provider compatibile OpenAI</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <h4>Configurazione Provider</h4>
-    <ol>
-      <li>Vai su <code>/admin/providers</code></li>
-      <li>Seleziona il provider da configurare</li>
-      <li>Inserisci le credenziali richieste (API key, endpoint, ecc.)</li>
-      <li>Clicca <strong>"Testa Connessione"</strong> per verificare</li>
-      <li>Abilita il provider con il toggle on/off</li>
-      <li>Clicca <strong>"Salva"</strong></li>
-    </ol>
-
-    <h4>Ollama - Configurazione Speciale</h4>
-    <div class="warning">
-      <div class="warning-title">Regole Critiche Ollama</div>
-      <ul>
-        <li>Ollama gira come <strong>container Docker sull'host</strong>, NON in Kubernetes</li>
-        <li>URL base: <code>http://10.0.1.1:8086/ollama</code> (via proxy Antigravity)</li>
-        <li>Header auth: <code>X-Ollama-Key: mTLS-k8s-backend-2026</code></li>
-        <li>Per pullare modelli: <code>docker exec ollama ollama pull &lt;modello&gt;</code></li>
-        <li><strong>MAI creare CronJob o pod Kubernetes per Ollama</strong></li>
-      </ul>
-    </div>
-
-    <p>Il pannello admin Ollama mostra:</p>
+  </div>
+  <div class="card">
+    <div class="card-title">Infrastruttura</div>
     <ul>
-      <li>Stato Docker (running, container ID, porta, GPU)</li>
-      <li>Lista modelli disponibili con dimensione e parametri</li>
-      <li>Pulsante per pullare nuovi modelli</li>
-      <li>Pulsante "Sincronizza da Ollama" per aggiornare la lista</li>
+      <li>MicroK8s</li>
+      <li>Docker</li>
+      <li>Reverse Proxy / CDN</li>
+      <li>Nginx Ingress</li>
+      <li>Node 20 LTS</li>
+      <li>LibreOffice + Tesseract</li>
     </ul>
+  </div>
+</div>
 
-    <h3>AIProviderFactory</h3>
-    <p>Il servizio <code>AIProviderFactory</code> gestisce la creazione dei client AI per ogni provider. Supporta:</p>
+<h3>Flusso delle Richieste</h3>
+<ol>
+  <li>L'utente invia una richiesta HTTPS al dominio della piattaforma</li>
+  <li>Il <strong>Reverse Proxy / CDN</strong> termina il TLS e inoltra la richiesta al cluster</li>
+  <li><strong>Nginx Ingress</strong> gestisce il routing: <code>/api/*</code> va al backend, tutto il resto al frontend</li>
+  <li>Il <strong>Backend Fastify</strong> autentica via JWT, processa la richiesta e risponde</li>
+  <li>Per le chat AI, la risposta viene inviata in <strong>streaming SSE</strong> (Server-Sent Events)</li>
+  <li>Le sessioni sono gestite tramite <strong>Redis</strong>, i dati persistenti su <strong>MariaDB</strong></li>
+</ol>
+
+<div class="info">
+  <div class="info-title">Nota sulla Restrizione IP</div>
+  <p>Quando il sistema e dietro un reverse proxy o tunnel, le annotazioni Kubernetes <code>whitelist-source-range</code> potrebbero non funzionare. La restrizione IP viene gestita a livello applicativo leggendo gli header del proxy (es: <code>X-Forwarded-For</code>, <code>X-Real-IP</code>).</p>
+</div>
+
+<h3>Rete</h3>
+<table>
+  <thead><tr><th>Rete</th><th>CIDR</th><th>Uso</th></tr></thead>
+  <tbody>
+    <tr><td>LAN Server</td><td><code>192.168.34.0/24</code></td><td>Rete locale server</td></tr>
+    <tr><td>Pod Network K8s</td><td><code>10.1.28.0/24</code></td><td>Comunicazione tra pod</td></tr>
+    <tr><td>IP Whitelist</td><td><code>217.198.133.248</code></td><td>Accesso consentito</td></tr>
+    <tr><td>Ollama Proxy</td><td><code>10.0.1.1:8086</code></td><td>Proxy verso Docker host</td></tr>
+  </tbody>
+</table>
+
+<!-- SECTION 2: UTENTI -->
+<h2 id="utenti">2. Gestione Utenti e Gruppi</h2>
+
+<h3>Pagina Admin: Utenti</h3>
+<p>Percorso: <code>/admin/users</code></p>
+
+<h4>Gestione Utenti</h4>
+<ul>
+  <li><strong>Elenco utenti</strong> - Tabella con ricerca per nome/email e filtro per ruolo</li>
+  <li><strong>Creazione utente</strong> - Nome, email, password, ruolo (user/admin)</li>
+  <li><strong>Modifica utente</strong> - Nome, email, ruolo, stato attivo/disattivo, gruppi assegnati, campi profilo (telefono, azienda, dipartimento, posizione, note)</li>
+  <li><strong>Reset MFA</strong> - Reset dell'autenticazione a due fattori per un utente</li>
+  <li><strong>Eliminazione</strong> - Rimozione permanente dell'utente e dei dati associati</li>
+</ul>
+
+<h4>Gestione Gruppi</h4>
+<ul>
+  <li><strong>Creazione gruppo</strong> - Nome, descrizione, limite token mensili, abilitazione Kanban</li>
+  <li><strong>Assegnazione utenti</strong> - Aggiungi/rimuovi utenti dai gruppi</li>
+  <li><strong>Quote</strong> - Limite massimo di token per mese per gruppo</li>
+  <li><strong>Modifica/Eliminazione</strong> - Aggiornamento impostazioni o rimozione gruppo</li>
+</ul>
+
+<h4>Endpoint API</h4>
+<div class="endpoint"><span class="method method-get">GET</span> /api/admin/users - Lista utenti (paginata, con ricerca)</div>
+<div class="endpoint"><span class="method method-post">POST</span> /api/admin/users - Crea utente</div>
+<div class="endpoint"><span class="method method-get">GET</span> /api/admin/users/:id - Dettagli utente</div>
+<div class="endpoint"><span class="method method-patch">PATCH</span> /api/admin/users/:id - Aggiorna utente</div>
+<div class="endpoint"><span class="method method-delete">DELETE</span> /api/admin/users/:id - Elimina utente</div>
+<div class="endpoint"><span class="method method-post">POST</span> /api/admin/users/:id/mfa-reset - Reset MFA</div>
+
+<!-- SECTION 3: PROVIDER -->
+<h2 id="provider">3. Configurazione Provider AI</h2>
+
+<h3>Pagina Admin: Provider</h3>
+<p>Percorso: <code>/admin/providers</code></p>
+
+<p>I provider AI determinano quali servizi di intelligenza artificiale sono disponibili per gli utenti.</p>
+
+<h4>Provider Supportati</h4>
+<table>
+  <thead><tr><th>Provider</th><th>Configurazione</th><th>Note</th></tr></thead>
+  <tbody>
+    <tr><td><span class="badge badge-success">OpenAI</span></td><td>API Key, Organization ID (opzionale)</td><td>GPT-4, GPT-4o, o1, DALL-E, Whisper</td></tr>
+    <tr><td><span class="badge badge-primary">Anthropic</span></td><td>API Key</td><td>Claude 3/3.5/4, batch processing</td></tr>
+    <tr><td><span class="badge badge-info">Google</span></td><td>API Key o OAuth</td><td>Gemini 1.5/2.0/2.5, multimodale</td></tr>
+    <tr><td><span class="badge badge-accent">Ollama</span></td><td>URL base, Auth header</td><td>Modelli locali, zero costo API</td></tr>
+    <tr><td><span class="badge badge-primary">Vertex AI</span></td><td>Service Account JSON</td><td>Google Cloud, modelli enterprise</td></tr>
+    <tr><td><span class="badge badge-danger">Custom</span></td><td>URL base, API Key, Header</td><td>Qualsiasi provider compatibile OpenAI</td></tr>
+  </tbody>
+</table>
+
+<h4>Configurazione Provider</h4>
+<ol>
+  <li>Vai su <code>/admin/providers</code></li>
+  <li>Seleziona il provider da configurare</li>
+  <li>Inserisci le credenziali richieste (API key, endpoint, ecc.)</li>
+  <li>Clicca <strong>"Testa Connessione"</strong> per verificare</li>
+  <li>Abilita il provider con il toggle on/off</li>
+  <li>Clicca <strong>"Salva"</strong></li>
+</ol>
+
+<h4>Ollama - Configurazione Speciale</h4>
+<div class="warning">
+  <div class="warning-title">Regole Critiche Ollama</div>
+  <ul>
+    <li>Ollama gira come <strong>container Docker sull'host</strong>, NON in Kubernetes</li>
+    <li>URL base: <code>http://10.0.1.1:8086/ollama</code> (via proxy Antigravity)</li>
+    <li>Header auth: <code>X-Ollama-Key: mTLS-k8s-backend-2026</code></li>
+    <li>Per pullare modelli: <code>docker exec ollama ollama pull &lt;modello&gt;</code></li>
+    <li><strong>MAI creare CronJob o pod Kubernetes per Ollama</strong></li>
+  </ul>
+</div>
+
+<p>Il pannello admin Ollama mostra:</p>
+<ul>
+  <li>Stato Docker (running, container ID, porta, GPU)</li>
+  <li>Lista modelli disponibili con dimensione e parametri</li>
+  <li>Pulsante per pullare nuovi modelli</li>
+  <li>Pulsante "Sincronizza da Ollama" per aggiornare la lista</li>
+</ul>
+
+<h3>AIProviderFactory</h3>
+<p>Il servizio <code>AIProviderFactory</code> gestisce la creazione dei client AI per ogni provider. Supporta:</p>
+<ul>
+  <li><strong>Routing automatico</strong> - Smistamento richieste al provider/modello selezionato</li>
+  <li><strong>Fallback su quota exceeded</strong> - Switch automatico a provider alternativi</li>
+  <li><strong>Conteggio token</strong> - Tracciamento per ogni provider</li>
+  <li><strong>Streaming</strong> - Supporto SSE per tutti i provider</li>
+</ul>
+
+<!-- SECTION 4: MODELLI -->
+<h2 id="modelli">4. Gestione Modelli</h2>
+
+<h3>Pagina Admin: Modelli</h3>
+<p>Percorso: <code>/admin/models</code></p>
+
+<h4>Operazioni Disponibili</h4>
+<ul>
+  <li><strong>Lista modelli</strong> - Filtrabile per provider, ricercabile per nome</li>
+  <li><strong>Abilita/Disabilita</strong> - Toggle per rendere un modello disponibile agli utenti</li>
+  <li><strong>Modello predefinito</strong> - Imposta un modello come default per nuove conversazioni</li>
+  <li><strong>Configurazione</strong> - Per ogni modello puoi impostare:
     <ul>
-      <li><strong>Routing automatico</strong> - Smistamento richieste al provider/modello selezionato</li>
-      <li><strong>Fallback su quota exceeded</strong> - Switch automatico a provider alternativi</li>
-      <li><strong>Conteggio token</strong> - Tracciamento per ogni provider</li>
-      <li><strong>Streaming</strong> - Supporto SSE per tutti i provider</li>
+      <li>Nome visualizzato</li>
+      <li>Tipo di modello</li>
+      <li>Finestra di contesto (token)</li>
+      <li>Output massimo (token)</li>
+      <li>Prezzi (input/output per 1K token)</li>
+      <li>Capacita: streaming, funzioni, visione</li>
     </ul>
+  </li>
+  <li><strong>Eliminazione</strong> - Rimuovi un modello dalla lista</li>
+</ul>
 
-    <!-- SECTION 4: MODELLI -->
-    <h2 id="modelli">4. Gestione Modelli</h2>
+<h4>ModelConfigService</h4>
+<p>Il servizio <code>ModelConfigService</code> mantiene il registro dei modelli con:</p>
+<ul>
+  <li>Sincronizzazione automatica con i provider abilitati</li>
+  <li>Cache dei modelli disponibili</li>
+  <li>Validazione delle configurazioni</li>
+  <li>Filtraggio per capacita (streaming, tool use, vision)</li>
+</ul>
 
-    <h3>Pagina Admin: Modelli</h3>
-    <p>Percorso: <code>/admin/models</code></p>
+<!-- SECTION 5: AGENTI -->
+<h2 id="agenti">5. Agenti e Orchestratore</h2>
 
-    <h4>Operazioni Disponibili</h4>
+<h3>Pagina Admin: Agenti</h3>
+<p>Percorso: <code>/admin/agents</code></p>
+
+<h4>Tipi di Agente</h4>
+<table>
+  <thead><tr><th>Tipo</th><th>Descrizione</th><th>Uso</th></tr></thead>
+  <tbody>
+    <tr><td><span class="badge badge-primary">assistant</span></td><td>Assistente conversazionale</td><td>Chat interattiva con tool</td></tr>
+    <tr><td><span class="badge badge-accent">autonomous</span></td><td>Agente autonomo</td><td>Esecuzione task senza supervisione</td></tr>
+    <tr><td><span class="badge badge-success">tool-caller</span></td><td>Chiamante di tool</td><td>Esecuzione sequenziale di tool</td></tr>
+    <tr><td><span class="badge badge-danger">custom</span></td><td>Personalizzato</td><td>Configurazione libera</td></tr>
+  </tbody>
+</table>
+
+<h4>Creazione Agente</h4>
+<p>Ogni agente richiede:</p>
+<ul>
+  <li><strong>Nome e Descrizione</strong></li>
+  <li><strong>Tipo</strong> - assistant, autonomous, tool-caller, custom</li>
+  <li><strong>Modello AI</strong> - Quale modello usa l'agente</li>
+  <li><strong>System Prompt</strong> - Istruzioni per il comportamento</li>
+  <li><strong>Tool</strong> - Strumenti a disposizione (selezione multipla)</li>
+  <li><strong>Skill</strong> - Competenze abilitate (selezione multipla)</li>
+  <li><strong>Configurazione</strong> - Iterazioni massime, timeout</li>
+</ul>
+
+<h3>Architettura Orchestratore</h3>
+<p>L'orchestratore gestisce il ciclo di vita delle sessioni agente:</p>
+
+<div class="card">
+  <div class="card-title">Componenti dell'Orchestratore</div>
+  <ul>
+    <li><strong>AgentOrchestrator</strong> - Gestione lifecycle delle sessioni (create, start, pause, resume, cancel)</li>
+    <li><strong>TerminalManager</strong> - Pool di 12 slot terminali per esecuzioni parallele</li>
+    <li><strong>WorktreeManager</strong> - Isolamento Git worktree per ogni sessione</li>
+    <li><strong>AgentEventEmitter</strong> - Streaming eventi in tempo reale (SSE)</li>
+    <li><strong>MCPClientManager</strong> - Supporto protocollo MCP per tool esterni</li>
+  </ul>
+</div>
+
+<h4>Flusso Sessione Agente</h4>
+<ol>
+  <li><strong>Creazione</strong> - L'utente definisce task, modello, configurazione</li>
+  <li><strong>Inizializzazione</strong> - Allocazione slot terminale, creazione worktree (se richiesto)</li>
+  <li><strong>Esecuzione</strong> - L'agente esegue iterazioni: ragionamento → azione → osservazione</li>
+  <li><strong>Monitoraggio</strong> - Log in tempo reale via SSE, metriche aggiornate</li>
+  <li><strong>Completamento</strong> - Merge worktree (se applicabile), rilascio risorse</li>
+</ol>
+
+<h4>Gestione Conflitti</h4>
+<p>Quando un worktree viene mergiato e ci sono conflitti:</p>
+<ul>
+  <li>Il sistema rileva automaticamente i file in conflitto</li>
+  <li>L'AI puo assistere nella risoluzione dei conflitti</li>
+  <li>L'admin puo forzare il merge o annullare</li>
+</ul>
+
+<div class="endpoint"><span class="method method-get">GET</span> /api/orchestrator/status - Stato orchestratore</div>
+<div class="endpoint"><span class="method method-get">GET</span> /api/orchestrator/terminals - Stato slot terminali</div>
+<div class="endpoint"><span class="method method-post">POST</span> /api/orchestrator/terminals/:slot/release - Rilascio forzato slot</div>
+<div class="endpoint"><span class="method method-post">POST</span> /api/orchestrator/worktrees/prune - Pulizia worktree vecchi</div>
+
+<!-- SECTION 6: SKILLS -->
+<h2 id="skills">6. Skills e Tool</h2>
+
+<h3>Pagina Admin: Skills</h3>
+<p>Percorso: <code>/admin/skills</code></p>
+
+<h4>Categorie Skill</h4>
+<div class="grid-2">
+  <div class="card">
+    <div class="card-title">Categorie</div>
     <ul>
-      <li><strong>Lista modelli</strong> - Filtrabile per provider, ricercabile per nome</li>
-      <li><strong>Abilita/Disabilita</strong> - Toggle per rendere un modello disponibile agli utenti</li>
-      <li><strong>Modello predefinito</strong> - Imposta un modello come default per nuove conversazioni</li>
-      <li><strong>Configurazione</strong> - Per ogni modello puoi impostare:
-        <ul>
-          <li>Nome visualizzato</li>
-          <li>Tipo di modello</li>
-          <li>Finestra di contesto (token)</li>
-          <li>Output massimo (token)</li>
-          <li>Prezzi (input/output per 1K token)</li>
-          <li>Capacita: streaming, funzioni, visione</li>
-        </ul>
-      </li>
-      <li><strong>Eliminazione</strong> - Rimuovi un modello dalla lista</li>
+      <li><span class="badge badge-primary">coding</span> Sviluppo software</li>
+      <li><span class="badge badge-accent">writing</span> Scrittura e contenuti</li>
+      <li><span class="badge badge-success">analysis</span> Analisi dati</li>
+      <li><span class="badge badge-info">research</span> Ricerca</li>
+      <li><span class="badge badge-danger">creative</span> Creativo</li>
+      <li><span class="badge badge-warning">technical</span> Tecnico</li>
+      <li><span class="badge badge-primary">communication</span> Comunicazione</li>
+      <li><span class="badge badge-accent">other</span> Altro</li>
     </ul>
-
-    <h4>ModelConfigService</h4>
-    <p>Il servizio <code>ModelConfigService</code> mantiene il registro dei modelli con:</p>
+  </div>
+  <div class="card">
+    <div class="card-title">Proprieta Skill</div>
     <ul>
-      <li>Sincronizzazione automatica con i provider abilitati</li>
-      <li>Cache dei modelli disponibili</li>
-      <li>Validazione delle configurazioni</li>
-      <li>Filtraggio per capacita (streaming, tool use, vision)</li>
+      <li><strong>Display Name</strong> - Nome visualizzato</li>
+      <li><strong>Descrizione</strong> - Cosa fa la skill</li>
+      <li><strong>System Prompt</strong> - Istruzioni per l'AI</li>
+      <li><strong>Example Prompts</strong> - Esempi d'uso</li>
+      <li><strong>Required Tools</strong> - Tool necessari</li>
+      <li><strong>Default/Active</strong> - Toggle attivazione</li>
     </ul>
+  </div>
+</div>
 
-    <!-- SECTION 5: AGENTI -->
-    <h2 id="agenti">5. Agenti e Orchestratore</h2>
+<!-- SECTION 7: PLUGINS -->
+<h2 id="plugins">7. Plugin e Server MCP</h2>
 
-    <h3>Pagina Admin: Agenti</h3>
-    <p>Percorso: <code>/admin/agents</code></p>
+<h3>Pagina Admin: Plugin</h3>
+<p>Percorso: <code>/admin/plugins</code></p>
 
-    <h4>Tipi di Agente</h4>
-    <table>
-      <thead>
-        <tr>
-          <th>Tipo</th>
-          <th>Descrizione</th>
-          <th>Uso</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><span class="badge badge-primary">assistant</span></td>
-          <td>Assistente conversazionale</td>
-          <td>Chat interattiva con tool</td>
-        </tr>
-        <tr>
-          <td><span class="badge badge-accent">autonomous</span></td>
-          <td>Agente autonomo</td>
-          <td>Esecuzione task senza supervisione</td>
-        </tr>
-        <tr>
-          <td><span class="badge badge-success">tool-caller</span></td>
-          <td>Chiamante di tool</td>
-          <td>Esecuzione sequenziale di tool</td>
-        </tr>
-        <tr>
-          <td><span class="badge badge-danger">custom</span></td>
-          <td>Personalizzato</td>
-          <td>Configurazione libera</td>
-        </tr>
-      </tbody>
-    </table>
+<p>Il sistema plugin e organizzato in tre tab:</p>
 
-    <h4>Creazione Agente</h4>
-    <p>Ogni agente richiede:</p>
+<h4>Plugin</h4>
+<ul>
+  <li><strong>Lista plugin</strong> - Con toggle abilita/disabilita, versione, autore, categoria</li>
+  <li><strong>Plugin di sistema</strong> - Plugin core non disabilitabili</li>
+  <li><strong>Configurazione</strong> - Schema-driven settings per ogni plugin</li>
+  <li><strong>Tool inclusi</strong> - Numero di tool forniti da ogni plugin</li>
+</ul>
+
+<h4>Server MCP (Model Context Protocol)</h4>
+<ul>
+  <li><strong>Tipi di trasporto</strong> - stdio, SSE (Server-Sent Events), HTTP</li>
+  <li><strong>Configurazione</strong> - Comando, URL, variabili d'ambiente</li>
+  <li><strong>Test connessione</strong> - Verifica che il server MCP risponda</li>
+  <li><strong>Abilita/Disabilita</strong> - Toggle per ogni server</li>
+</ul>
+
+<h4>Tool</h4>
+<ul>
+  <li><strong>Lista per plugin</strong> - Ogni tool con tipo, descrizione, schema input</li>
+  <li><strong>Approvazione richiesta</strong> - Toggle per tool che richiedono conferma utente</li>
+  <li><strong>Abilita/Disabilita</strong> - Toggle per singolo tool</li>
+</ul>
+
+<h3>Grafo Dipendenze Plugin</h3>
+<p>Percorso: <code>/admin/plugin-graph</code></p>
+<p>Visualizzazione force-directed delle dipendenze tra plugin, utile per capire le relazioni e prevenire conflitti.</p>
+
+<!-- SECTION 8: MEMORIA -->
+<h2 id="memoria-admin">8. Memoria e RAG</h2>
+
+<h3>Pagina Admin: Memoria</h3>
+<p>Percorso: <code>/admin/memory</code></p>
+
+<h4>Architettura Memoria</h4>
+<div class="card">
+  <div class="card-title">4 Livelli di Memoria</div>
+  <ol>
+    <li><strong>Working Memory</strong> - Memoria di sessione, volatile, ottimizza i token nella conversazione corrente</li>
+    <li><strong>Observations (Memoria Testuale)</strong> - Osservazioni persistenti per utente (insight, decisioni, pattern, ecc.)</li>
+    <li><strong>Vector Memory (RAG)</strong> - Ricerca semantica su 3 collezioni: episodica, dichiarativa, procedurale</li>
+    <li><strong>Conversation Summaries</strong> - Riassunti delle conversazioni passate, con risparmio token</li>
+  </ol>
+</div>
+
+<h4>Servizi di Memoria</h4>
+<table>
+  <thead><tr><th>Servizio</th><th>Funzione</th></tr></thead>
+  <tbody>
+    <tr><td><code>MemoryService</code></td><td>CRUD osservazioni, ricerca full-text</td></tr>
+    <tr><td><code>VectorMemoryService</code></td><td>Embedding + ricerca semantica</td></tr>
+    <tr><td><code>WorkingMemoryService</code></td><td>Gestione contesto sessione</td></tr>
+    <tr><td><code>HybridSearchService</code></td><td>Combinazione full-text + semantica</td></tr>
+    <tr><td><code>MemoryDecayService</code></td><td>Decadimento basato su importanza</td></tr>
+    <tr><td><code>HyDEService</code></td><td>Hypothetical Document Embeddings</td></tr>
+  </tbody>
+</table>
+
+<h3>Pagina Admin: Memoria Vettoriale</h3>
+<p>Percorso: <code>/admin/vector-memory</code></p>
+
+<h4>Tab Disponibili</h4>
+<ul>
+  <li><strong>Collezioni</strong> - Vista delle collezioni vettoriali (episodic, declarative, procedural) con conteggio punti e stato</li>
+  <li><strong>Recall</strong> - Interfaccia per testare la ricerca semantica: inserisci una query e vedi i risultati raggruppati per collezione con score di similarita</li>
+  <li><strong>Ingest</strong> - Ingestione di URL: inserisci un URL, il sistema scarica la pagina, la spezzetta in chunk e la indicizza. Cronologia ingestioni con stato, chunk e errori</li>
+  <li><strong>Settings</strong> - Configurazione RAG:
     <ul>
-      <li><strong>Nome e Descrizione</strong></li>
-      <li><strong>Tipo</strong> - assistant, autonomous, tool-caller, custom</li>
-      <li><strong>Modello AI</strong> - Quale modello usa l'agente</li>
-      <li><strong>System Prompt</strong> - Istruzioni per il comportamento</li>
-      <li><strong>Tool</strong> - Strumenti a disposizione (selezione multipla)</li>
-      <li><strong>Skill</strong> - Competenze abilitate (selezione multipla)</li>
-      <li><strong>Configurazione</strong> - Iterazioni massime, timeout</li>
+      <li>Toggle Auto RAG (abilita/disabilita ricerca automatica)</li>
+      <li>Valori K per collezione (quanti risultati restituire)</li>
+      <li>Threshold per collezione (soglia minima di similarita)</li>
     </ul>
-
-    <h3>Architettura Orchestratore</h3>
-    <p>L'orchestratore gestisce il ciclo di vita delle sessioni agente:</p>
-
-    <div class="card">
-      <div class="card-title">Componenti dell'Orchestratore</div>
-      <ul>
-        <li><strong>AgentOrchestrator</strong> - Gestione lifecycle delle sessioni (create, start, pause, resume,
-          cancel)</li>
-        <li><strong>TerminalManager</strong> - Pool di 12 slot terminali per esecuzioni parallele</li>
-        <li><strong>WorktreeManager</strong> - Isolamento Git worktree per ogni sessione</li>
-        <li><strong>AgentEventEmitter</strong> - Streaming eventi in tempo reale (SSE)</li>
-        <li><strong>MCPClientManager</strong> - Supporto protocollo MCP per tool esterni</li>
-      </ul>
-    </div>
-
-    <h4>Flusso Sessione Agente</h4>
-    <ol>
-      <li><strong>Creazione</strong> - L'utente definisce task, modello, configurazione</li>
-      <li><strong>Inizializzazione</strong> - Allocazione slot terminale, creazione worktree (se richiesto)</li>
-      <li><strong>Esecuzione</strong> - L'agente esegue iterazioni: ragionamento → azione → osservazione</li>
-      <li><strong>Monitoraggio</strong> - Log in tempo reale via SSE, metriche aggiornate</li>
-      <li><strong>Completamento</strong> - Merge worktree (se applicabile), rilascio risorse</li>
-    </ol>
-
-    <h4>Gestione Conflitti</h4>
-    <p>Quando un worktree viene mergiato e ci sono conflitti:</p>
-    <ul>
-      <li>Il sistema rileva automaticamente i file in conflitto</li>
-      <li>L'AI puo assistere nella risoluzione dei conflitti</li>
-      <li>L'admin puo forzare il merge o annullare</li>
-    </ul>
-
-    <div class="endpoint"><span class="method method-get">GET</span> /api/orchestrator/status - Stato orchestratore
-    </div>
-    <div class="endpoint"><span class="method method-get">GET</span> /api/orchestrator/terminals - Stato slot terminali
-    </div>
-    <div class="endpoint"><span class="method method-post">POST</span> /api/orchestrator/terminals/:slot/release -
-      Rilascio forzato slot</div>
-    <div class="endpoint"><span class="method method-post">POST</span> /api/orchestrator/worktrees/prune - Pulizia
-      worktree vecchi</div>
-
-    <!-- SECTION 6: SKILLS -->
-    <h2 id="skills">6. Skills e Tool</h2>
-
-    <h3>Pagina Admin: Skills</h3>
-    <p>Percorso: <code>/admin/skills</code></p>
-
-    <h4>Categorie Skill</h4>
-    <div class="grid-2">
-      <div class="card">
-        <div class="card-title">Categorie</div>
-        <ul>
-          <li><span class="badge badge-primary">coding</span> Sviluppo software</li>
-          <li><span class="badge badge-accent">writing</span> Scrittura e contenuti</li>
-          <li><span class="badge badge-success">analysis</span> Analisi dati</li>
-          <li><span class="badge badge-info">research</span> Ricerca</li>
-          <li><span class="badge badge-danger">creative</span> Creativo</li>
-          <li><span class="badge badge-warning">technical</span> Tecnico</li>
-          <li><span class="badge badge-primary">communication</span> Comunicazione</li>
-          <li><span class="badge badge-accent">other</span> Altro</li>
-        </ul>
-      </div>
-      <div class="card">
-        <div class="card-title">Proprieta Skill</div>
-        <ul>
-          <li><strong>Display Name</strong> - Nome visualizzato</li>
-          <li><strong>Descrizione</strong> - Cosa fa la skill</li>
-          <li><strong>System Prompt</strong> - Istruzioni per l'AI</li>
-          <li><strong>Example Prompts</strong> - Esempi d'uso</li>
-          <li><strong>Required Tools</strong> - Tool necessari</li>
-          <li><strong>Default/Active</strong> - Toggle attivazione</li>
-        </ul>
-      </div>
-    </div>
-
-    <!-- SECTION 7: PLUGINS -->
-    <h2 id="plugins">7. Plugin e Server MCP</h2>
-
-    <h3>Pagina Admin: Plugin</h3>
-    <p>Percorso: <code>/admin/plugins</code></p>
-
-    <p>Il sistema plugin e organizzato in tre tab:</p>
-
-    <h4>Plugin</h4>
-    <ul>
-      <li><strong>Lista plugin</strong> - Con toggle abilita/disabilita, versione, autore, categoria</li>
-      <li><strong>Plugin di sistema</strong> - Plugin core non disabilitabili</li>
-      <li><strong>Configurazione</strong> - Schema-driven settings per ogni plugin</li>
-      <li><strong>Tool inclusi</strong> - Numero di tool forniti da ogni plugin</li>
-    </ul>
-
-    <h4>Server MCP (Model Context Protocol)</h4>
-    <ul>
-      <li><strong>Tipi di trasporto</strong> - stdio, SSE (Server-Sent Events), HTTP</li>
-      <li><strong>Configurazione</strong> - Comando, URL, variabili d'ambiente</li>
-      <li><strong>Test connessione</strong> - Verifica che il server MCP risponda</li>
-      <li><strong>Abilita/Disabilita</strong> - Toggle per ogni server</li>
-    </ul>
-
-    <h4>Tool</h4>
-    <ul>
-      <li><strong>Lista per plugin</strong> - Ogni tool con tipo, descrizione, schema input</li>
-      <li><strong>Approvazione richiesta</strong> - Toggle per tool che richiedono conferma utente</li>
-      <li><strong>Abilita/Disabilita</strong> - Toggle per singolo tool</li>
-    </ul>
-
-    <h3>Grafo Dipendenze Plugin</h3>
-    <p>Percorso: <code>/admin/plugin-graph</code></p>
-    <p>Visualizzazione force-directed delle dipendenze tra plugin, utile per capire le relazioni e prevenire conflitti.
-    </p>
-
-    <!-- SECTION 8: MEMORIA -->
-    <h2 id="memoria-admin">8. Memoria e RAG</h2>
-
-    <h3>Pagina Admin: Memoria</h3>
-    <p>Percorso: <code>/admin/memory</code></p>
-
-    <h4>Architettura Memoria</h4>
-    <div class="card">
-      <div class="card-title">4 Livelli di Memoria</div>
-      <ol>
-        <li><strong>Working Memory</strong> - Memoria di sessione, volatile, ottimizza i token nella conversazione
-          corrente</li>
-        <li><strong>Observations (Memoria Testuale)</strong> - Osservazioni persistenti per utente (insight, decisioni,
-          pattern, ecc.)</li>
-        <li><strong>Vector Memory (RAG)</strong> - Ricerca semantica su 3 collezioni: episodica, dichiarativa,
-          procedurale</li>
-        <li><strong>Conversation Summaries</strong> - Riassunti delle conversazioni passate, con risparmio token</li>
-      </ol>
-    </div>
-
-    <h4>Servizi di Memoria</h4>
-    <table>
-      <thead>
-        <tr>
-          <th>Servizio</th>
-          <th>Funzione</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><code>MemoryService</code></td>
-          <td>CRUD osservazioni, ricerca full-text</td>
-        </tr>
-        <tr>
-          <td><code>VectorMemoryService</code></td>
-          <td>Embedding + ricerca semantica</td>
-        </tr>
-        <tr>
-          <td><code>WorkingMemoryService</code></td>
-          <td>Gestione contesto sessione</td>
-        </tr>
-        <tr>
-          <td><code>HybridSearchService</code></td>
-          <td>Combinazione full-text + semantica</td>
-        </tr>
-        <tr>
-          <td><code>MemoryDecayService</code></td>
-          <td>Decadimento basato su importanza</td>
-        </tr>
-        <tr>
-          <td><code>HyDEService</code></td>
-          <td>Hypothetical Document Embeddings</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <h3>Pagina Admin: Memoria Vettoriale</h3>
-    <p>Percorso: <code>/admin/vector-memory</code></p>
-
-    <h4>Tab Disponibili</h4>
-    <ul>
-      <li><strong>Collezioni</strong> - Vista delle collezioni vettoriali (episodic, declarative, procedural) con
-        conteggio punti e stato</li>
-      <li><strong>Recall</strong> - Interfaccia per testare la ricerca semantica: inserisci una query e vedi i risultati
-        raggruppati per collezione con score di similarita</li>
-      <li><strong>Ingest</strong> - Ingestione di URL: inserisci un URL, il sistema scarica la pagina, la spezzetta in
-        chunk e la indicizza. Cronologia ingestioni con stato, chunk e errori</li>
-      <li><strong>Settings</strong> - Configurazione RAG:
-        <ul>
-          <li>Toggle Auto RAG (abilita/disabilita ricerca automatica)</li>
-          <li>Valori K per collezione (quanti risultati restituire)</li>
-          <li>Threshold per collezione (soglia minima di similarita)</li>
-        </ul>
-      </li>
-    </ul>
-
-    <h4>Pipeline di Ingestione</h4>
-    <ol>
-      <li>URL/documento ricevuto</li>
-      <li>Estrazione contenuto (scraping, parsing, OCR)</li>
-      <li>Pulizia e normalizzazione del testo</li>
-      <li>Chunking (spezzettamento con overlap configurabile)</li>
-      <li>Generazione embedding vettoriali</li>
-      <li>Indicizzazione nella collezione appropriata</li>
-    </ol>
-
-    <!-- SECTION 9: HOOKS -->
-    <h2 id="hooks">9. Hooks e Automazione</h2>
-
-    <h3>Pagina Admin: Hooks</h3>
-    <p>Percorso: <code>/admin/hooks</code></p>
-
-    <p>Il sistema di hooks permette di intercettare eventi e trigger azioni automatiche.</p>
-
-    <h4>Tipi di Hook</h4>
-    <ul>
-      <li><strong>pipe</strong> - Trasformazione dei dati in transito (input/output)</li>
-      <li><strong>emit</strong> - Notifica di eventi (senza trasformazione)</li>
-    </ul>
-
-    <h4>Gestione Handler</h4>
-    <ul>
-      <li>Ogni hook puo avere multipli handler</li>
-      <li>Priorita configurabile per ordine di esecuzione</li>
-      <li>Abilita/Disabilita per singolo handler</li>
-      <li>Associazione a plugin specifici</li>
-    </ul>
-
-    <h3>Hook Trace</h3>
-    <p>Percorso: <code>/admin/hook-trace</code></p>
-    <p>Monitoraggio in tempo reale delle esecuzioni hook con:</p>
-    <ul>
-      <li>Nome hook e handler ID</li>
-      <li>Stato (successo/errore)</li>
-      <li>Tempo di esecuzione</li>
-      <li>Input/Output della trasformazione</li>
-      <li>Messaggi di errore dettagliati</li>
-    </ul>
-
-    <!-- SECTION 10: TEMPLATES -->
-    <h2 id="templates">10. Template Prompt</h2>
-
-    <h3>Pagina Admin: Template</h3>
-    <p>Percorso: <code>/admin/prompt-templates</code></p>
-
-    <h4>Tipi di Template</h4>
-    <table>
-      <thead>
-        <tr>
-          <th>Tipo</th>
-          <th>Uso</th>
-          <th>Quando viene applicato</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><span class="badge badge-primary">prefix</span></td>
-          <td>Prepended al system prompt</td>
-          <td>Prima di ogni conversazione</td>
-        </tr>
-        <tr>
-          <td><span class="badge badge-accent">suffix</span></td>
-          <td>Appended al system prompt</td>
-          <td>Dopo il system prompt utente</td>
-        </tr>
-        <tr>
-          <td><span class="badge badge-success">instructions</span></td>
-          <td>Istruzioni generali</td>
-          <td>Iniettato nel contesto</td>
-        </tr>
-        <tr>
-          <td><span class="badge badge-info">tool_prompt</span></td>
-          <td>Prompt per uso tool</td>
-          <td>Quando l'AI deve usare tool</td>
-        </tr>
-        <tr>
-          <td><span class="badge badge-warning">custom</span></td>
-          <td>Personalizzato</td>
-          <td>A discrezione</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <h4>Variabili Template</h4>
-    <p>I template supportano variabili dinamiche estratte automaticamente (es: <code>{{user_name}}</code>,
-      <code>{{current_date}}</code>, ecc.).
-    </p>
-
-    <h4>Operazioni</h4>
-    <ul>
-      <li>Crea, modifica, elimina template</li>
-      <li>Toggle attivo/inattivo</li>
-      <li>Toggle predefinito (usato automaticamente)</li>
-      <li>Preview del template renderizzato</li>
-    </ul>
-
-    <!-- SECTION 11: FORMS -->
-    <h2 id="forms">11. Form Conversazionali</h2>
-
-    <h3>Pagina Admin: Form</h3>
-    <p>Percorso: <code>/admin/forms</code></p>
-
-    <p>I form conversazionali permettono all'AI di raccogliere dati strutturati durante la chat.</p>
-
-    <h4>Creazione Form</h4>
-    <ul>
-      <li><strong>Schema JSON</strong> - Definizione dei campi con JSON Schema</li>
-      <li><strong>Tipi di campo</strong> - text, number, email, checkbox, select, textarea, date, file</li>
-      <li><strong>Validazione</strong> - Regole di validazione per campo</li>
-      <li><strong>Ordine campi</strong> - Sequenza di raccolta</li>
-      <li><strong>Obbligatorio/Opzionale</strong> - Per ogni campo</li>
-    </ul>
-
-    <h4>Flusso di Raccolta</h4>
-    <ol>
-      <li>L'AI rileva che serve compilare un form</li>
-      <li>Avvia una sessione form nella chat</li>
-      <li>Estrae i dati campo per campo dalla conversazione</li>
-      <li>Mostra un riepilogo per conferma</li>
-      <li>Salva i dati e/o chiama un webhook</li>
-    </ol>
-
-    <!-- SECTION 12: SCHEDULER -->
-    <h2 id="scheduler-admin">12. Scheduler (White Rabbit)</h2>
-
-    <h3>Pagina Admin: Scheduler</h3>
-    <p>Percorso: <code>/admin/scheduler</code></p>
-
-    <h4>Tipi di Job</h4>
-    <table>
-      <thead>
-        <tr>
-          <th>Tipo</th>
-          <th>Descrizione</th>
-          <th>Esempio</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><span class="badge badge-primary">one_shot</span></td>
-          <td>Esecuzione singola</td>
-          <td>Invio report domani alle 9:00</td>
-        </tr>
-        <tr>
-          <td><span class="badge badge-accent">interval</span></td>
-          <td>Ripetizione a intervalli</td>
-          <td>Ogni 30 minuti</td>
-        </tr>
-        <tr>
-          <td><span class="badge badge-success">cron</span></td>
-          <td>Espressione cron</td>
-          <td><code>0 9 * * 1</code> (ogni lunedi alle 9)</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <h4>Azioni</h4>
-    <ul>
-      <li><strong>scheduled_message</strong> - Invia messaggio a un utente/chat</li>
-      <li><strong>webhook</strong> - Chiama URL esterno con payload</li>
-      <li><strong>hook</strong> - Trigger hook di sistema</li>
-      <li><strong>plugin_action</strong> - Esegui azione plugin</li>
-    </ul>
-
-    <h4>Gestione</h4>
-    <ul>
-      <li>Crea, pausa, riprendi, cancella job</li>
-      <li>Visualizza cronologia esecuzioni</li>
-      <li>Stato: active, paused, completed, failed</li>
-      <li>Prossima esecuzione prevista</li>
-    </ul>
-
-    <!-- SECTION 13: PERMESSI -->
-    <h2 id="permessi">13. Permessi e RBAC</h2>
-
-    <h3>Pagina Admin: Permessi</h3>
-    <p>Percorso: <code>/admin/permissions</code></p>
-
-    <h4>Ruoli</h4>
-    <ul>
-      <li><strong>Admin</strong> - Accesso completo a tutte le funzionalita</li>
-      <li><strong>User</strong> - Accesso alle funzionalita utente (chat, progetti, agenti personali)</li>
-      <li><strong>Ruoli Custom</strong> - Configurabili con permessi granulari</li>
-    </ul>
-
-    <h4>Scope Permessi</h4>
-    <table>
-      <thead>
-        <tr>
-          <th>Scope</th>
-          <th>Descrizione</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><span class="badge badge-success">read</span></td>
-          <td>Lettura risorse</td>
-        </tr>
-        <tr>
-          <td><span class="badge badge-primary">write</span></td>
-          <td>Creazione e modifica</td>
-        </tr>
-        <tr>
-          <td><span class="badge badge-danger">delete</span></td>
-          <td>Eliminazione</td>
-        </tr>
-        <tr>
-          <td><span class="badge badge-accent">admin</span></td>
-          <td>Operazioni amministrative</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <!-- SECTION 14: SESSIONI -->
-    <h2 id="sessioni">14. Sessioni e Sicurezza</h2>
-
-    <h3>Pagina Admin: Sessioni</h3>
-    <p>Percorso: <code>/admin/sessions</code></p>
-
-    <h4>Monitoraggio Sessioni</h4>
-    <ul>
-      <li><strong>Sessioni attive</strong> - Lista di tutte le sessioni utente in corso</li>
-      <li><strong>Dettagli</strong> - Email, nome, ora login, ultima attivita, IP, browser/dispositivo</li>
-      <li><strong>Geolocalizzazione</strong> - Paese e localita da IP</li>
-      <li><strong>Kill Session</strong> - Termina forzatamente una sessione utente</li>
-      <li><strong>Kill All</strong> - Termina tutte le sessioni di un utente</li>
-    </ul>
-
-    <h4>Sicurezza Implementata</h4>
-    <table>
-      <thead>
-        <tr>
-          <th>Misura</th>
-          <th>Dettaglio</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>JWT</td>
-          <td>Token con session ID embedded, scadenza configurabile</td>
-        </tr>
-        <tr>
-          <td>Refresh Token</td>
-          <td>HTTP-only cookie, rotazione automatica, 7 giorni</td>
-        </tr>
-        <tr>
-          <td>Sessione Singola</td>
-          <td>Nuovo login revoca sessioni precedenti</td>
-        </tr>
-        <tr>
-          <td>MFA (TOTP)</td>
-          <td>Autenticazione a due fattori opzionale</td>
-        </tr>
-        <tr>
-          <td>MFA Bypass</td>
-          <td>Bypass per reti locali trusted (192.168.34.0/24, 10.1.28.0/24)</td>
-        </tr>
-        <tr>
-          <td>Rate Limiting</td>
-          <td>10 tentativi login/minuto per IP</td>
-        </tr>
-        <tr>
-          <td>Password Hash</td>
-          <td>bcrypt con costo 10</td>
-        </tr>
-        <tr>
-          <td>SSRF Protection</td>
-          <td>Blocco URL privati nell'ingestione</td>
-        </tr>
-        <tr>
-          <td>Helmet</td>
-          <td>XSS, CSRF, clickjacking protection</td>
-        </tr>
-        <tr>
-          <td>CORS</td>
-          <td>Origin whitelist configurabile</td>
-        </tr>
-        <tr>
-          <td>Encryption</td>
-          <td>AES per segreti sensibili nel DB</td>
-        </tr>
-        <tr>
-          <td>Audit Log</td>
-          <td>Tracciamento completo azioni admin + auth</td>
-        </tr>
-        <tr>
-          <td>IP Whitelist</td>
-          <td>Restrizione accesso a IP specifici</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <!-- SECTION 15: MONITORING -->
-    <h2 id="monitoring">15. Monitoraggio Sistema</h2>
-
-    <h3>Pagina Admin: Monitor</h3>
-    <p>Percorso: <code>/admin/monitor</code></p>
-
-    <h4>Metriche in Tempo Reale (Refresh 10s)</h4>
-    <div class="grid-2">
-      <div class="card">
-        <div class="card-title">CPU</div>
-        <p>Utilizzo %, modello, core, velocita, load averages (1m, 5m, 15m)</p>
-      </div>
-      <div class="card">
-        <div class="card-title">Memoria</div>
-        <p>Totale, usata, libera, percentuale, barra di progresso con colore</p>
-      </div>
-      <div class="card">
-        <div class="card-title">Disco</div>
-        <p>Per partizione: device, dimensione, usato, disponibile, percentuale, mount point</p>
-      </div>
-      <div class="card">
-        <div class="card-title">Rete</div>
-        <p>Interfacce, throughput RX/TX bytes/sec</p>
-      </div>
-      <div class="card">
-        <div class="card-title">Docker</div>
-        <p>Container attivi, stato, immagine, porte esposte</p>
-      </div>
-      <div class="card">
-        <div class="card-title">Kubernetes</div>
-        <p>Pod per namespace: nome, ready, stato, restart, eta</p>
-      </div>
-      <div class="card">
-        <div class="card-title">GPU</div>
-        <p>Per-GPU: utilizzo %, memoria, temperatura, potenza</p>
-      </div>
-      <div class="card">
-        <div class="card-title">Ollama</div>
-        <p>Modelli attivi, coda richieste, req/sec</p>
-      </div>
-    </div>
-
-    <h3>Dashboard Overview</h3>
-    <p>Percorso: <code>/admin</code></p>
-    <p>La dashboard principale mostra:</p>
-    <ul>
-      <li><strong>Statistiche Utilizzo Mensile</strong> - Token totali, costo, richieste</li>
-      <li><strong>Per Provider</strong> - Breakdown utilizzo per provider AI</li>
-      <li><strong>Per Utente</strong> - Classifica utenti per token, costo, richieste</li>
-      <li><strong>Contatori</strong> - Utenti attivi/totali, provider attivi/totali, modelli attivi/totali</li>
-    </ul>
-
-    <h3>Metriche Pubbliche</h3>
-    <p>Percorso: <code>/api/public/metrics</code> (senza autenticazione)</p>
-    <p>Dashboard pubblica con metriche di sistema base: CPU, memoria, disco, pod K8s, container Docker, uptime. Questa
-      rotta è accessibile pubblicamente per permettere l'integrazione con tool di monitoraggio esterni come UptimeRobot
-      o dashboard di status personalizzate.</p>
-
-    <h3>Debug Console</h3>
-    <p>Percorso: <code>/admin/debug</code></p>
-    <ul>
-      <li>Log in tempo reale (debug, info, warn, error)</li>
-      <li>Filtraggio per livello, sorgente, keyword</li>
-      <li>Trace richieste API (method, URL, status, durata, body)</li>
-      <li>Download/clear logs</li>
-    </ul>
-
-    <!-- SECTION 16: COMPLIANCE -->
-    <h2 id="compliance-admin">16. Conformita AI Act</h2>
-
-    <h3>Pagina Admin: Compliance</h3>
-    <p>Percorso: <code>/admin/compliance</code></p>
-
-    <h4>Scorecard Conformita</h4>
-    <p>Dashboard con stato di conformita per ogni requisito:</p>
-
-    <table>
-      <thead>
-        <tr>
-          <th>Requisito</th>
-          <th>Riferimento</th>
-          <th>Descrizione</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>AI Disclosure</td>
-          <td>Art. 50.1</td>
-          <td>Banner informativo obbligatorio</td>
-        </tr>
-        <tr>
-          <td>Content Marking</td>
-          <td>Art. 50.2</td>
-          <td>Etichettatura contenuti AI-generated</td>
-        </tr>
-        <tr>
-          <td>Privacy + DPIA</td>
-          <td>GDPR</td>
-          <td>Informativa privacy e valutazione impatto</td>
-        </tr>
-        <tr>
-          <td>User Consent</td>
-          <td>GDPR Art. 6</td>
-          <td>Consenso esplicito utente</td>
-        </tr>
-        <tr>
-          <td>AI Decision Log</td>
-          <td>Art. 14</td>
-          <td>Registro decisioni AI (modello, token, latenza)</td>
-        </tr>
-        <tr>
-          <td>Data Export</td>
-          <td>GDPR Art. 20</td>
-          <td>Portabilita dati utente</td>
-        </tr>
-        <tr>
-          <td>Account Deletion</td>
-          <td>GDPR Art. 17</td>
-          <td>Diritto all'oblio</td>
-        </tr>
-        <tr>
-          <td>Model Documentation</td>
-          <td>Art. 11</td>
-          <td>Documentazione tecnica modelli</td>
-        </tr>
-        <tr>
-          <td>Feedback System</td>
-          <td>Art. 9</td>
-          <td>Sistema di feedback utente</td>
-        </tr>
-        <tr>
-          <td>Human Oversight</td>
-          <td>Art. 14</td>
-          <td>Supervisione umana</td>
-        </tr>
-        <tr>
-          <td>Bias Monitoring</td>
-          <td>Art. 10</td>
-          <td>Monitoraggio bias algoritmico</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <h4>Decision Log</h4>
-    <p>Registro di tutte le interazioni AI con:</p>
-    <ul>
-      <li>Modello e provider utilizzato</li>
-      <li>Token input/output</li>
-      <li>Latenza (ms)</li>
-      <li>Utente e timestamp</li>
-    </ul>
-
-    <h4>Feedback Statistics</h4>
-    <ul>
-      <li>Totale feedback ricevuti</li>
-      <li>Rapporto positivi/negativi</li>
-      <li>Trend nel tempo</li>
-      <li>Per modello/provider</li>
-    </ul>
-
-    <h4>Richieste Pending</h4>
-    <ul>
-      <li><strong>Export Data</strong> - Richieste di esportazione dati da approvare</li>
-      <li><strong>Account Deletion</strong> - Richieste di eliminazione account da processare</li>
-    </ul>
-
-    <h4>Bias Monitoring</h4>
-    <p>Il <code>BiasMonitorService</code> effettua rilevamento basato su keyword per identificare potenziali bias nelle
-      risposte AI. I report sono accessibili dalla dashboard compliance.</p>
-
-    <!-- SECTION 17: DATABASE -->
-    <h2 id="database">17. Schema Database</h2>
-
-    <h3>Tabelle Principali</h3>
-
-    <h4>Utenti e Autenticazione</h4>
-    <table>
-      <thead>
-        <tr>
-          <th>Tabella</th>
-          <th>Descrizione</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><code>users</code></td>
-          <td>Account utente (email, password hash, ruolo, MFA)</td>
-        </tr>
-        <tr>
-          <td><code>user_sessions</code></td>
-          <td>Sessioni attive con geo-tracking</td>
-        </tr>
-        <tr>
-          <td><code>refresh_tokens</code></td>
-          <td>Token di refresh per rotazione</td>
-        </tr>
-        <tr>
-          <td><code>user_groups</code></td>
-          <td>Gruppi utente con quote</td>
-        </tr>
-        <tr>
-          <td><code>user_group_members</code></td>
-          <td>Associazione utenti-gruppi</td>
-        </tr>
-        <tr>
-          <td><code>user_consents</code></td>
-          <td>Consensi GDPR tracciati</td>
-        </tr>
-        <tr>
-          <td><code>account_deletion_requests</code></td>
-          <td>Richieste eliminazione account</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <h4>Chat e Conversazioni</h4>
-    <table>
-      <thead>
-        <tr>
-          <th>Tabella</th>
-          <th>Descrizione</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><code>conversations</code></td>
-          <td>Conversazioni utente (titolo, modello, archiviata)</td>
-        </tr>
-        <tr>
-          <td><code>messages</code></td>
-          <td>Messaggi (ruolo, contenuto, metadata AI)</td>
-        </tr>
-        <tr>
-          <td><code>chat_attachments</code></td>
-          <td>File allegati con stato processamento</td>
-        </tr>
-        <tr>
-          <td><code>user_feedback</code></td>
-          <td>Feedback su messaggi AI</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <h4>AI e Provider</h4>
-    <table>
-      <thead>
-        <tr>
-          <th>Tabella</th>
-          <th>Descrizione</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><code>ai_providers</code></td>
-          <td>Provider configurati</td>
-        </tr>
-        <tr>
-          <td><code>ai_provider_settings</code></td>
-          <td>Impostazioni provider (API key, endpoint)</td>
-        </tr>
-        <tr>
-          <td><code>ai_models</code></td>
-          <td>Registro modelli con capacita e prezzi</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <h4>Agenti e Orchestratore</h4>
-    <table>
-      <thead>
-        <tr>
-          <th>Tabella</th>
-          <th>Descrizione</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><code>agent_sessions</code></td>
-          <td>Sessioni agente (task, stato, slot)</td>
-        </tr>
-        <tr>
-          <td><code>agent_execution_history</code></td>
-          <td>Cronologia esecuzioni</td>
-        </tr>
-        <tr>
-          <td><code>agent_templates</code></td>
-          <td>Template predefiniti e custom</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <h4>Memoria</h4>
-    <table>
-      <thead>
-        <tr>
-          <th>Tabella</th>
-          <th>Descrizione</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><code>observations</code></td>
-          <td>Osservazioni utente (tipo, contenuto, importanza)</td>
-        </tr>
-        <tr>
-          <td><code>memory_summaries</code></td>
-          <td>Riassunti conversazioni</td>
-        </tr>
-        <tr>
-          <td><code>memory_settings</code></td>
-          <td>Impostazioni memoria per utente</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <h4>Progetti e Kanban</h4>
-    <table>
-      <thead>
-        <tr>
-          <th>Tabella</th>
-          <th>Descrizione</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><code>projects</code></td>
-          <td>Progetti utente</td>
-        </tr>
-        <tr>
-          <td><code>project_members</code></td>
-          <td>Membri del progetto</td>
-        </tr>
-        <tr>
-          <td><code>kanban_boards</code></td>
-          <td>Bacheche Kanban</td>
-        </tr>
-        <tr>
-          <td><code>kanban_columns</code></td>
-          <td>Colonne delle bacheche</td>
-        </tr>
-        <tr>
-          <td><code>kanban_cards</code></td>
-          <td>Card/Task con priorita e assegnazione</td>
-        </tr>
-        <tr>
-          <td><code>kanban_card_activity</code></td>
-          <td>Registro attivita card</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <h4>Admin e Audit</h4>
-    <table>
-      <thead>
-        <tr>
-          <th>Tabella</th>
-          <th>Descrizione</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><code>audit_log</code></td>
-          <td>Audit trail completo (azione, utente, entita, dettagli)</td>
-        </tr>
-        <tr>
-          <td><code>activity_log</code></td>
-          <td>Log attivita utente</td>
-        </tr>
-        <tr>
-          <td><code>system_settings</code></td>
-          <td>Impostazioni di sistema (versione, feature flag)</td>
-        </tr>
-        <tr>
-          <td><code>token_usage</code></td>
-          <td>Tracciamento utilizzo token per utente/provider</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <p>Il backend esegue <strong>auto-migrazioni</strong> all'avvio: le tabelle vengono create/aggiornate
-      automaticamente senza necessita di script manuali.</p>
-
-    <!-- SECTION 18: API -->
-    <h2 id="api">18. Riferimento API Completo</h2>
-
-    <p>Il backend espone <strong>216+ endpoint API</strong> organizzati in moduli. Tutti gli endpoint (eccetto quelli
-      pubblici) richiedono autenticazione JWT.</p>
-
-    <h4>Prefissi Principali</h4>
-    <table>
-      <thead>
-        <tr>
-          <th>Prefisso</th>
-          <th>Modulo</th>
-          <th>Auth</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><code>/api/auth</code></td>
-          <td>Autenticazione e MFA</td>
-          <td>Parziale (login/register no auth)</td>
-        </tr>
-        <tr>
-          <td><code>/api/chat</code></td>
-          <td>Chat, conversazioni, modelli</td>
-          <td>Si</td>
-        </tr>
-        <tr>
-          <td><code>/api/memory</code></td>
-          <td>Osservazioni e ricerca</td>
-          <td>Si</td>
-        </tr>
-        <tr>
-          <td><code>/api/ingestion</code></td>
-          <td>Ingestione URL e documenti</td>
-          <td>Si</td>
-        </tr>
-        <tr>
-          <td><code>/api/attachments</code></td>
-          <td>Upload e elaborazione file</td>
-          <td>Si</td>
-        </tr>
-        <tr>
-          <td><code>/api/projects</code></td>
-          <td>Progetti e Kanban</td>
-          <td>Si</td>
-        </tr>
-        <tr>
-          <td><code>/api/agents</code></td>
-          <td>Sessioni agente</td>
-          <td>Si</td>
-        </tr>
-        <tr>
-          <td><code>/api/orchestrator</code></td>
-          <td>Dashboard orchestratore</td>
-          <td>Si</td>
-        </tr>
-        <tr>
-          <td><code>/api/tools</code></td>
-          <td>Generazione documenti</td>
-          <td>Si</td>
-        </tr>
-        <tr>
-          <td><code>/api/forms</code></td>
-          <td>Form conversazionali</td>
-          <td>Si</td>
-        </tr>
-        <tr>
-          <td><code>/api/jobs</code></td>
-          <td>Scheduler</td>
-          <td>Si</td>
-        </tr>
-        <tr>
-          <td><code>/api/batch</code></td>
-          <td>Batch processing</td>
-          <td>Si</td>
-        </tr>
-        <tr>
-          <td><code>/api/ralph</code></td>
-          <td>Ralph Loop</td>
-          <td>Si</td>
-        </tr>
-        <tr>
-          <td><code>/api/parlant</code></td>
-          <td>Parlant framework</td>
-          <td>Si</td>
-        </tr>
-        <tr>
-          <td><code>/api/compliance</code></td>
-          <td>GDPR e AI Act</td>
-          <td>Parziale</td>
-        </tr>
-        <tr>
-          <td><code>/api/admin</code></td>
-          <td>Admin dashboard</td>
-          <td>Si (admin only)</td>
-        </tr>
-        <tr>
-          <td><code>/api/downloads</code></td>
-          <td>Download risorse</td>
-          <td>Si</td>
-        </tr>
-        <tr>
-          <td><code>/api/public</code></td>
-          <td>Metriche pubbliche</td>
-          <td>No</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <h4>Streaming</h4>
-    <p>I seguenti endpoint usano SSE (Server-Sent Events) per streaming:</p>
-    <ul>
-      <li><code>POST /api/chat/completions</code> - Stream risposta AI</li>
-      <li><code>GET /api/agents/sessions/:id/logs/stream</code> - Stream log agente</li>
-      <li><code>GET /api/orchestrator/events</code> - Stream eventi orchestratore</li>
-      <li><code>POST /api/ralph/:loopId/iterate</code> - Stream iterazione Ralph</li>
-    </ul>
-
-    <h4>WebSocket</h4>
-    <p>Il backend supporta WebSocket per comunicazione bidirezionale in tempo reale, usato per notifiche e aggiornamenti
-      live della chat.</p>
-
-    <!-- SECTION 19: DEPLOY -->
-    <h2 id="deploy">19. Deploy e Infrastruttura</h2>
-
-    <h3>Build</h3>
-    <pre><code>cd enterprise-ai-chat
+  </li>
+</ul>
+
+<h4>Pipeline di Ingestione</h4>
+<ol>
+  <li>URL/documento ricevuto</li>
+  <li>Estrazione contenuto (scraping, parsing, OCR)</li>
+  <li>Pulizia e normalizzazione del testo</li>
+  <li>Chunking (spezzettamento con overlap configurabile)</li>
+  <li>Generazione embedding vettoriali</li>
+  <li>Indicizzazione nella collezione appropriata</li>
+</ol>
+
+<!-- SECTION 9: HOOKS -->
+<h2 id="hooks">9. Hooks e Automazione</h2>
+
+<h3>Pagina Admin: Hooks</h3>
+<p>Percorso: <code>/admin/hooks</code></p>
+
+<p>Il sistema di hooks permette di intercettare eventi e trigger azioni automatiche.</p>
+
+<h4>Tipi di Hook</h4>
+<ul>
+  <li><strong>pipe</strong> - Trasformazione dei dati in transito (input/output)</li>
+  <li><strong>emit</strong> - Notifica di eventi (senza trasformazione)</li>
+</ul>
+
+<h4>Gestione Handler</h4>
+<ul>
+  <li>Ogni hook puo avere multipli handler</li>
+  <li>Priorita configurabile per ordine di esecuzione</li>
+  <li>Abilita/Disabilita per singolo handler</li>
+  <li>Associazione a plugin specifici</li>
+</ul>
+
+<h3>Hook Trace</h3>
+<p>Percorso: <code>/admin/hook-trace</code></p>
+<p>Monitoraggio in tempo reale delle esecuzioni hook con:</p>
+<ul>
+  <li>Nome hook e handler ID</li>
+  <li>Stato (successo/errore)</li>
+  <li>Tempo di esecuzione</li>
+  <li>Input/Output della trasformazione</li>
+  <li>Messaggi di errore dettagliati</li>
+</ul>
+
+<!-- SECTION 10: TEMPLATES -->
+<h2 id="templates">10. Template Prompt</h2>
+
+<h3>Pagina Admin: Template</h3>
+<p>Percorso: <code>/admin/prompt-templates</code></p>
+
+<h4>Tipi di Template</h4>
+<table>
+  <thead><tr><th>Tipo</th><th>Uso</th><th>Quando viene applicato</th></tr></thead>
+  <tbody>
+    <tr><td><span class="badge badge-primary">prefix</span></td><td>Prepended al system prompt</td><td>Prima di ogni conversazione</td></tr>
+    <tr><td><span class="badge badge-accent">suffix</span></td><td>Appended al system prompt</td><td>Dopo il system prompt utente</td></tr>
+    <tr><td><span class="badge badge-success">instructions</span></td><td>Istruzioni generali</td><td>Iniettato nel contesto</td></tr>
+    <tr><td><span class="badge badge-info">tool_prompt</span></td><td>Prompt per uso tool</td><td>Quando l'AI deve usare tool</td></tr>
+    <tr><td><span class="badge badge-warning">custom</span></td><td>Personalizzato</td><td>A discrezione</td></tr>
+  </tbody>
+</table>
+
+<h4>Variabili Template</h4>
+<p>I template supportano variabili dinamiche estratte automaticamente (es: <code>{{user_name}}</code>, <code>{{current_date}}</code>, ecc.).</p>
+
+<h4>Operazioni</h4>
+<ul>
+  <li>Crea, modifica, elimina template</li>
+  <li>Toggle attivo/inattivo</li>
+  <li>Toggle predefinito (usato automaticamente)</li>
+  <li>Preview del template renderizzato</li>
+</ul>
+
+<!-- SECTION 11: FORMS -->
+<h2 id="forms">11. Form Conversazionali</h2>
+
+<h3>Pagina Admin: Form</h3>
+<p>Percorso: <code>/admin/forms</code></p>
+
+<p>I form conversazionali permettono all'AI di raccogliere dati strutturati durante la chat.</p>
+
+<h4>Creazione Form</h4>
+<ul>
+  <li><strong>Schema JSON</strong> - Definizione dei campi con JSON Schema</li>
+  <li><strong>Tipi di campo</strong> - text, number, email, checkbox, select, textarea, date, file</li>
+  <li><strong>Validazione</strong> - Regole di validazione per campo</li>
+  <li><strong>Ordine campi</strong> - Sequenza di raccolta</li>
+  <li><strong>Obbligatorio/Opzionale</strong> - Per ogni campo</li>
+</ul>
+
+<h4>Flusso di Raccolta</h4>
+<ol>
+  <li>L'AI rileva che serve compilare un form</li>
+  <li>Avvia una sessione form nella chat</li>
+  <li>Estrae i dati campo per campo dalla conversazione</li>
+  <li>Mostra un riepilogo per conferma</li>
+  <li>Salva i dati e/o chiama un webhook</li>
+</ol>
+
+<!-- SECTION 12: SCHEDULER -->
+<h2 id="scheduler-admin">12. Scheduler (White Rabbit)</h2>
+
+<h3>Pagina Admin: Scheduler</h3>
+<p>Percorso: <code>/admin/scheduler</code></p>
+
+<h4>Tipi di Job</h4>
+<table>
+  <thead><tr><th>Tipo</th><th>Descrizione</th><th>Esempio</th></tr></thead>
+  <tbody>
+    <tr><td><span class="badge badge-primary">one_shot</span></td><td>Esecuzione singola</td><td>Invio report domani alle 9:00</td></tr>
+    <tr><td><span class="badge badge-accent">interval</span></td><td>Ripetizione a intervalli</td><td>Ogni 30 minuti</td></tr>
+    <tr><td><span class="badge badge-success">cron</span></td><td>Espressione cron</td><td><code>0 9 * * 1</code> (ogni lunedi alle 9)</td></tr>
+  </tbody>
+</table>
+
+<h4>Azioni</h4>
+<ul>
+  <li><strong>scheduled_message</strong> - Invia messaggio a un utente/chat</li>
+  <li><strong>webhook</strong> - Chiama URL esterno con payload</li>
+  <li><strong>hook</strong> - Trigger hook di sistema</li>
+  <li><strong>plugin_action</strong> - Esegui azione plugin</li>
+</ul>
+
+<h4>Gestione</h4>
+<ul>
+  <li>Crea, pausa, riprendi, cancella job</li>
+  <li>Visualizza cronologia esecuzioni</li>
+  <li>Stato: active, paused, completed, failed</li>
+  <li>Prossima esecuzione prevista</li>
+</ul>
+
+<!-- SECTION 13: PERMESSI -->
+<h2 id="permessi">13. Permessi e RBAC</h2>
+
+<h3>Pagina Admin: Permessi</h3>
+<p>Percorso: <code>/admin/permissions</code></p>
+
+<h4>Ruoli</h4>
+<ul>
+  <li><strong>Admin</strong> - Accesso completo a tutte le funzionalita</li>
+  <li><strong>User</strong> - Accesso alle funzionalita utente (chat, progetti, agenti personali)</li>
+  <li><strong>Ruoli Custom</strong> - Configurabili con permessi granulari</li>
+</ul>
+
+<h4>Scope Permessi</h4>
+<table>
+  <thead><tr><th>Scope</th><th>Descrizione</th></tr></thead>
+  <tbody>
+    <tr><td><span class="badge badge-success">read</span></td><td>Lettura risorse</td></tr>
+    <tr><td><span class="badge badge-primary">write</span></td><td>Creazione e modifica</td></tr>
+    <tr><td><span class="badge badge-danger">delete</span></td><td>Eliminazione</td></tr>
+    <tr><td><span class="badge badge-accent">admin</span></td><td>Operazioni amministrative</td></tr>
+  </tbody>
+</table>
+
+<!-- SECTION 14: SESSIONI -->
+<h2 id="sessioni">14. Sessioni e Sicurezza</h2>
+
+<h3>Pagina Admin: Sessioni</h3>
+<p>Percorso: <code>/admin/sessions</code></p>
+
+<h4>Monitoraggio Sessioni</h4>
+<ul>
+  <li><strong>Sessioni attive</strong> - Lista di tutte le sessioni utente in corso</li>
+  <li><strong>Dettagli</strong> - Email, nome, ora login, ultima attivita, IP, browser/dispositivo</li>
+  <li><strong>Geolocalizzazione</strong> - Paese e localita da IP</li>
+  <li><strong>Kill Session</strong> - Termina forzatamente una sessione utente</li>
+  <li><strong>Kill All</strong> - Termina tutte le sessioni di un utente</li>
+</ul>
+
+<h4>Sicurezza Implementata</h4>
+<table>
+  <thead><tr><th>Misura</th><th>Dettaglio</th></tr></thead>
+  <tbody>
+    <tr><td>JWT</td><td>Token con session ID embedded, scadenza configurabile</td></tr>
+    <tr><td>Refresh Token</td><td>HTTP-only cookie, rotazione automatica, 7 giorni</td></tr>
+    <tr><td>Sessione Singola</td><td>Nuovo login revoca sessioni precedenti</td></tr>
+    <tr><td>MFA (TOTP)</td><td>Autenticazione a due fattori opzionale</td></tr>
+    <tr><td>MFA Bypass</td><td>Bypass per reti locali trusted (192.168.34.0/24, 10.1.28.0/24)</td></tr>
+    <tr><td>Rate Limiting</td><td>10 tentativi login/minuto per IP</td></tr>
+    <tr><td>Password Hash</td><td>bcrypt con costo 10</td></tr>
+    <tr><td>SSRF Protection</td><td>Blocco URL privati nell'ingestione</td></tr>
+    <tr><td>Helmet</td><td>XSS, CSRF, clickjacking protection</td></tr>
+    <tr><td>CORS</td><td>Origin whitelist configurabile</td></tr>
+    <tr><td>Encryption</td><td>AES per segreti sensibili nel DB</td></tr>
+    <tr><td>Audit Log</td><td>Tracciamento completo azioni admin + auth</td></tr>
+    <tr><td>IP Whitelist</td><td>Restrizione accesso a IP specifici</td></tr>
+  </tbody>
+</table>
+
+<!-- SECTION 15: MONITORING -->
+<h2 id="monitoring">15. Monitoraggio Sistema</h2>
+
+<h3>Pagina Admin: Monitor</h3>
+<p>Percorso: <code>/admin/monitor</code></p>
+
+<h4>Metriche in Tempo Reale (Refresh 10s)</h4>
+<div class="grid-2">
+  <div class="card">
+    <div class="card-title">CPU</div>
+    <p>Utilizzo %, modello, core, velocita, load averages (1m, 5m, 15m)</p>
+  </div>
+  <div class="card">
+    <div class="card-title">Memoria</div>
+    <p>Totale, usata, libera, percentuale, barra di progresso con colore</p>
+  </div>
+  <div class="card">
+    <div class="card-title">Disco</div>
+    <p>Per partizione: device, dimensione, usato, disponibile, percentuale, mount point</p>
+  </div>
+  <div class="card">
+    <div class="card-title">Rete</div>
+    <p>Interfacce, throughput RX/TX bytes/sec</p>
+  </div>
+  <div class="card">
+    <div class="card-title">Docker</div>
+    <p>Container attivi, stato, immagine, porte esposte</p>
+  </div>
+  <div class="card">
+    <div class="card-title">Kubernetes</div>
+    <p>Pod per namespace: nome, ready, stato, restart, eta</p>
+  </div>
+  <div class="card">
+    <div class="card-title">GPU</div>
+    <p>Per-GPU: utilizzo %, memoria, temperatura, potenza</p>
+  </div>
+  <div class="card">
+    <div class="card-title">Ollama</div>
+    <p>Modelli attivi, coda richieste, req/sec</p>
+  </div>
+</div>
+
+<h3>Dashboard Overview</h3>
+<p>Percorso: <code>/admin</code></p>
+<p>La dashboard principale mostra:</p>
+<ul>
+  <li><strong>Statistiche Utilizzo Mensile</strong> - Token totali, costo, richieste</li>
+  <li><strong>Per Provider</strong> - Breakdown utilizzo per provider AI</li>
+  <li><strong>Per Utente</strong> - Classifica utenti per token, costo, richieste</li>
+  <li><strong>Contatori</strong> - Utenti attivi/totali, provider attivi/totali, modelli attivi/totali</li>
+</ul>
+
+<h3>Metriche Pubbliche</h3>
+<p>Percorso: <code>/metrics</code> (senza autenticazione)</p>
+<p>Dashboard pubblica con metriche di sistema base: CPU, memoria, disco, pod K8s, container Docker, uptime.</p>
+
+<h3>Debug Console</h3>
+<p>Percorso: <code>/admin/debug</code></p>
+<ul>
+  <li>Log in tempo reale (debug, info, warn, error)</li>
+  <li>Filtraggio per livello, sorgente, keyword</li>
+  <li>Trace richieste API (method, URL, status, durata, body)</li>
+  <li>Download/clear logs</li>
+</ul>
+
+<!-- SECTION 16: COMPLIANCE -->
+<h2 id="compliance-admin">16. Conformita AI Act</h2>
+
+<h3>Pagina Admin: Compliance</h3>
+<p>Percorso: <code>/admin/compliance</code></p>
+
+<h4>Scorecard Conformita</h4>
+<p>Dashboard con stato di conformita per ogni requisito:</p>
+
+<table>
+  <thead><tr><th>Requisito</th><th>Riferimento</th><th>Descrizione</th></tr></thead>
+  <tbody>
+    <tr><td>AI Disclosure</td><td>Art. 50.1</td><td>Banner informativo obbligatorio</td></tr>
+    <tr><td>Content Marking</td><td>Art. 50.2</td><td>Etichettatura contenuti AI-generated</td></tr>
+    <tr><td>Privacy + DPIA</td><td>GDPR</td><td>Informativa privacy e valutazione impatto</td></tr>
+    <tr><td>User Consent</td><td>GDPR Art. 6</td><td>Consenso esplicito utente</td></tr>
+    <tr><td>AI Decision Log</td><td>Art. 14</td><td>Registro decisioni AI (modello, token, latenza)</td></tr>
+    <tr><td>Data Export</td><td>GDPR Art. 20</td><td>Portabilita dati utente</td></tr>
+    <tr><td>Account Deletion</td><td>GDPR Art. 17</td><td>Diritto all'oblio</td></tr>
+    <tr><td>Model Documentation</td><td>Art. 11</td><td>Documentazione tecnica modelli</td></tr>
+    <tr><td>Feedback System</td><td>Art. 9</td><td>Sistema di feedback utente</td></tr>
+    <tr><td>Human Oversight</td><td>Art. 14</td><td>Supervisione umana</td></tr>
+    <tr><td>Bias Monitoring</td><td>Art. 10</td><td>Monitoraggio bias algoritmico</td></tr>
+  </tbody>
+</table>
+
+<h4>Decision Log</h4>
+<p>Registro di tutte le interazioni AI con:</p>
+<ul>
+  <li>Modello e provider utilizzato</li>
+  <li>Token input/output</li>
+  <li>Latenza (ms)</li>
+  <li>Utente e timestamp</li>
+</ul>
+
+<h4>Feedback Statistics</h4>
+<ul>
+  <li>Totale feedback ricevuti</li>
+  <li>Rapporto positivi/negativi</li>
+  <li>Trend nel tempo</li>
+  <li>Per modello/provider</li>
+</ul>
+
+<h4>Richieste Pending</h4>
+<ul>
+  <li><strong>Export Data</strong> - Richieste di esportazione dati da approvare</li>
+  <li><strong>Account Deletion</strong> - Richieste di eliminazione account da processare</li>
+</ul>
+
+<h4>Bias Monitoring</h4>
+<p>Il <code>BiasMonitorService</code> effettua rilevamento basato su keyword per identificare potenziali bias nelle risposte AI. I report sono accessibili dalla dashboard compliance.</p>
+
+<!-- SECTION 17: DATABASE -->
+<h2 id="database">17. Schema Database</h2>
+
+<h3>Tabelle Principali</h3>
+
+<h4>Utenti e Autenticazione</h4>
+<table>
+  <thead><tr><th>Tabella</th><th>Descrizione</th></tr></thead>
+  <tbody>
+    <tr><td><code>users</code></td><td>Account utente (email, password hash, ruolo, MFA)</td></tr>
+    <tr><td><code>user_sessions</code></td><td>Sessioni attive con geo-tracking</td></tr>
+    <tr><td><code>refresh_tokens</code></td><td>Token di refresh per rotazione</td></tr>
+    <tr><td><code>user_groups</code></td><td>Gruppi utente con quote</td></tr>
+    <tr><td><code>user_group_members</code></td><td>Associazione utenti-gruppi</td></tr>
+    <tr><td><code>user_consents</code></td><td>Consensi GDPR tracciati</td></tr>
+    <tr><td><code>account_deletion_requests</code></td><td>Richieste eliminazione account</td></tr>
+  </tbody>
+</table>
+
+<h4>Chat e Conversazioni</h4>
+<table>
+  <thead><tr><th>Tabella</th><th>Descrizione</th></tr></thead>
+  <tbody>
+    <tr><td><code>conversations</code></td><td>Conversazioni utente (titolo, modello, archiviata)</td></tr>
+    <tr><td><code>messages</code></td><td>Messaggi (ruolo, contenuto, metadata AI)</td></tr>
+    <tr><td><code>chat_attachments</code></td><td>File allegati con stato processamento</td></tr>
+    <tr><td><code>user_feedback</code></td><td>Feedback su messaggi AI</td></tr>
+  </tbody>
+</table>
+
+<h4>AI e Provider</h4>
+<table>
+  <thead><tr><th>Tabella</th><th>Descrizione</th></tr></thead>
+  <tbody>
+    <tr><td><code>ai_providers</code></td><td>Provider configurati</td></tr>
+    <tr><td><code>ai_provider_settings</code></td><td>Impostazioni provider (API key, endpoint)</td></tr>
+    <tr><td><code>ai_models</code></td><td>Registro modelli con capacita e prezzi</td></tr>
+  </tbody>
+</table>
+
+<h4>Agenti e Orchestratore</h4>
+<table>
+  <thead><tr><th>Tabella</th><th>Descrizione</th></tr></thead>
+  <tbody>
+    <tr><td><code>agent_sessions</code></td><td>Sessioni agente (task, stato, slot)</td></tr>
+    <tr><td><code>agent_execution_history</code></td><td>Cronologia esecuzioni</td></tr>
+    <tr><td><code>agent_templates</code></td><td>Template predefiniti e custom</td></tr>
+  </tbody>
+</table>
+
+<h4>Memoria</h4>
+<table>
+  <thead><tr><th>Tabella</th><th>Descrizione</th></tr></thead>
+  <tbody>
+    <tr><td><code>observations</code></td><td>Osservazioni utente (tipo, contenuto, importanza)</td></tr>
+    <tr><td><code>memory_summaries</code></td><td>Riassunti conversazioni</td></tr>
+    <tr><td><code>memory_settings</code></td><td>Impostazioni memoria per utente</td></tr>
+  </tbody>
+</table>
+
+<h4>Progetti e Kanban</h4>
+<table>
+  <thead><tr><th>Tabella</th><th>Descrizione</th></tr></thead>
+  <tbody>
+    <tr><td><code>projects</code></td><td>Progetti utente</td></tr>
+    <tr><td><code>project_members</code></td><td>Membri del progetto</td></tr>
+    <tr><td><code>kanban_boards</code></td><td>Bacheche Kanban</td></tr>
+    <tr><td><code>kanban_columns</code></td><td>Colonne delle bacheche</td></tr>
+    <tr><td><code>kanban_cards</code></td><td>Card/Task con priorita e assegnazione</td></tr>
+    <tr><td><code>kanban_card_activity</code></td><td>Registro attivita card</td></tr>
+  </tbody>
+</table>
+
+<h4>Admin e Audit</h4>
+<table>
+  <thead><tr><th>Tabella</th><th>Descrizione</th></tr></thead>
+  <tbody>
+    <tr><td><code>audit_log</code></td><td>Audit trail completo (azione, utente, entita, dettagli)</td></tr>
+    <tr><td><code>activity_log</code></td><td>Log attivita utente</td></tr>
+    <tr><td><code>system_settings</code></td><td>Impostazioni di sistema (versione, feature flag)</td></tr>
+    <tr><td><code>token_usage</code></td><td>Tracciamento utilizzo token per utente/provider</td></tr>
+  </tbody>
+</table>
+
+<p>Il backend esegue <strong>auto-migrazioni</strong> all'avvio: le tabelle vengono create/aggiornate automaticamente senza necessita di script manuali.</p>
+
+<!-- SECTION 18: API -->
+<h2 id="api">18. Riferimento API Completo</h2>
+
+<p>Il backend espone <strong>216+ endpoint API</strong> organizzati in moduli. Tutti gli endpoint (eccetto quelli pubblici) richiedono autenticazione JWT.</p>
+
+<h4>Prefissi Principali</h4>
+<table>
+  <thead><tr><th>Prefisso</th><th>Modulo</th><th>Auth</th></tr></thead>
+  <tbody>
+    <tr><td><code>/api/auth</code></td><td>Autenticazione e MFA</td><td>Parziale (login/register no auth)</td></tr>
+    <tr><td><code>/api/chat</code></td><td>Chat, conversazioni, modelli</td><td>Si</td></tr>
+    <tr><td><code>/api/memory</code></td><td>Osservazioni e ricerca</td><td>Si</td></tr>
+    <tr><td><code>/api/ingestion</code></td><td>Ingestione URL e documenti</td><td>Si</td></tr>
+    <tr><td><code>/api/attachments</code></td><td>Upload e elaborazione file</td><td>Si</td></tr>
+    <tr><td><code>/api/projects</code></td><td>Progetti e Kanban</td><td>Si</td></tr>
+    <tr><td><code>/api/agents</code></td><td>Sessioni agente</td><td>Si</td></tr>
+    <tr><td><code>/api/orchestrator</code></td><td>Dashboard orchestratore</td><td>Si</td></tr>
+    <tr><td><code>/api/tools</code></td><td>Generazione documenti</td><td>Si</td></tr>
+    <tr><td><code>/api/forms</code></td><td>Form conversazionali</td><td>Si</td></tr>
+    <tr><td><code>/api/jobs</code></td><td>Scheduler</td><td>Si</td></tr>
+    <tr><td><code>/api/batch</code></td><td>Batch processing</td><td>Si</td></tr>
+    <tr><td><code>/api/ralph</code></td><td>Ralph Loop</td><td>Si</td></tr>
+    <tr><td><code>/api/parlant</code></td><td>Parlant framework</td><td>Si</td></tr>
+    <tr><td><code>/api/compliance</code></td><td>GDPR e AI Act</td><td>Parziale</td></tr>
+    <tr><td><code>/api/admin</code></td><td>Admin dashboard</td><td>Si (admin only)</td></tr>
+    <tr><td><code>/api/downloads</code></td><td>Download risorse</td><td>Si</td></tr>
+    <tr><td><code>/api/public</code></td><td>Metriche pubbliche</td><td>No</td></tr>
+  </tbody>
+</table>
+
+<h4>Streaming</h4>
+<p>I seguenti endpoint usano SSE (Server-Sent Events) per streaming:</p>
+<ul>
+  <li><code>POST /api/chat/completions</code> - Stream risposta AI</li>
+  <li><code>GET /api/agents/sessions/:id/logs/stream</code> - Stream log agente</li>
+  <li><code>GET /api/orchestrator/events</code> - Stream eventi orchestratore</li>
+  <li><code>POST /api/ralph/:loopId/iterate</code> - Stream iterazione Ralph</li>
+</ul>
+
+<h4>WebSocket</h4>
+<p>Il backend supporta WebSocket per comunicazione bidirezionale in tempo reale, usato per notifiche e aggiornamenti live della chat.</p>
+
+<!-- SECTION 19: DEPLOY -->
+<h2 id="deploy">19. Deploy e Infrastruttura</h2>
+
+<h3>Build</h3>
+<pre><code>cd enterprise-ai-chat
 bash BUILD.sh    # Richiede sudo: npm install, Docker build, MicroK8s import, K8s deploy</code></pre>
 
-    <h4>Cosa fa BUILD.sh</h4>
-    <ol>
-      <li><code>npm install</code> per backend e frontend</li>
-      <li>Build TypeScript del backend</li>
-      <li>Build Vite del frontend</li>
-      <li>Build Docker images (multi-stage)</li>
-      <li>Push al registry locale <code>localhost:32000/</code></li>
-      <li>Apply manifesti Kubernetes</li>
-    </ol>
+<h4>Cosa fa BUILD.sh</h4>
+<ol>
+  <li><code>npm install</code> per backend e frontend</li>
+  <li>Build TypeScript del backend</li>
+  <li>Build Vite del frontend</li>
+  <li>Build Docker images (multi-stage)</li>
+  <li>Push al registry locale <code>localhost:32000/</code></li>
+  <li>Apply manifesti Kubernetes</li>
+</ol>
 
-    <h4>Docker Images</h4>
-    <ul>
-      <li><strong>Backend</strong> - Node 20 builder → production. Include LibreOffice, Poppler, Tesseract, fonts</li>
-      <li><strong>Frontend</strong> - Node 20 builder → Nginx Alpine. Gzip, security headers, streaming support</li>
-    </ul>
+<h4>Docker Images</h4>
+<ul>
+  <li><strong>Backend</strong> - Node 20 builder → production. Include LibreOffice, Poppler, Tesseract, fonts</li>
+  <li><strong>Frontend</strong> - Node 20 builder → Nginx Alpine. Gzip, security headers, streaming support</li>
+</ul>
 
-    <h3>Deploy Rapido</h3>
-    <pre><code>sudo bash DEPLOY.sh    # Import tar pre-built e restart K8s deployments</code></pre>
+<h3>Deploy Rapido</h3>
+<pre><code>sudo bash DEPLOY.sh    # Import tar pre-built e restart K8s deployments</code></pre>
 
-    <h3>Rollout</h3>
-    <div class="warning">
-      <div class="warning-title">Procedura di Rollout Obbligatoria</div>
-      <ol>
-        <li>Scala repliche a 0: <code>kubectl scale deployment backend --replicas=0</code></li>
-        <li>Applica il nuovo deployment</li>
-        <li>Ripristina repliche originali: Backend 2, Frontend 2, LiteLLM 1</li>
-      </ol>
-    </div>
+<h3>Rollout</h3>
+<div class="warning">
+  <div class="warning-title">Procedura di Rollout Obbligatoria</div>
+  <ol>
+    <li>Scala repliche a 0: <code>kubectl scale deployment backend --replicas=0</code></li>
+    <li>Applica il nuovo deployment</li>
+    <li>Ripristina repliche originali: Backend 2, Frontend 2, LiteLLM 1</li>
+  </ol>
+</div>
 
-    <h3>Regole Critiche Deploy</h3>
-    <div class="warning">
-      <div class="warning-title">MAI Fare</div>
-      <ul>
-        <li><strong>MAI usare <code>kubectl apply -k</code></strong> se <code>k8s/secrets.yaml</code> ha valori
-          placeholder - sovrascrive i segreti reali</li>
-        <li><strong>MAI usare <code>commonLabels</code></strong> in kustomization.yaml - rompe i selectors dei Service
-        </li>
-        <li><strong>MAI creare CronJob/pod K8s per Ollama</strong> - gira come Docker container sull'host</li>
-        <li>I segreti vanno gestiti via <code>kubectl create secret generic</code> direttamente</li>
-      </ul>
-    </div>
+<h3>Regole Critiche Deploy</h3>
+<div class="warning">
+  <div class="warning-title">MAI Fare</div>
+  <ul>
+    <li><strong>MAI usare <code>kubectl apply -k</code></strong> se <code>k8s/secrets.yaml</code> ha valori placeholder - sovrascrive i segreti reali</li>
+    <li><strong>MAI usare <code>commonLabels</code></strong> in kustomization.yaml - rompe i selectors dei Service</li>
+    <li><strong>MAI creare CronJob/pod K8s per Ollama</strong> - gira come Docker container sull'host</li>
+    <li>I segreti vanno gestiti via <code>kubectl create secret generic</code> direttamente</li>
+  </ul>
+</div>
 
-    <h3>Version Bump</h3>
-    <p>Quando si aggiorna la versione, TUTTI questi 12 file devono essere aggiornati:</p>
-    <ol>
-      <li><code>backend/package.json</code></li>
-      <li><code>frontend/package.json</code></li>
-      <li><code>frontend/src/version.ts</code></li>
-      <li><code>frontend/src/pages/PublicMonitorPage.tsx</code></li>
-      <li><code>vscode-extension/package.json</code></li>
-      <li><code>vscode-extension/src/extension.ts</code></li>
-      <li><code>vscode-extension/webview-ui/src/claude-code/MainLayout.tsx</code> (2 occorrenze)</li>
-      <li><code>k8s/backend/deployment.yaml</code></li>
-      <li><code>k8s/frontend/deployment.yaml</code></li>
-      <li><code>k8s/kustomization.yaml</code></li>
-      <li><code>k8s/mariadb/init-configmap.yaml</code></li>
-      <li><code>backend-deploy.yaml</code></li>
-    </ol>
+<h3>Version Bump</h3>
+<p>Quando si aggiorna la versione, TUTTI questi 12 file devono essere aggiornati:</p>
+<ol>
+  <li><code>backend/package.json</code></li>
+  <li><code>frontend/package.json</code></li>
+  <li><code>frontend/src/version.ts</code></li>
+  <li><code>frontend/src/pages/PublicMonitorPage.tsx</code></li>
+  <li><code>vscode-extension/package.json</code></li>
+  <li><code>vscode-extension/src/extension.ts</code></li>
+  <li><code>vscode-extension/webview-ui/src/claude-code/MainLayout.tsx</code> (2 occorrenze)</li>
+  <li><code>k8s/backend/deployment.yaml</code></li>
+  <li><code>k8s/frontend/deployment.yaml</code></li>
+  <li><code>k8s/kustomization.yaml</code></li>
+  <li><code>k8s/mariadb/init-configmap.yaml</code></li>
+  <li><code>backend-deploy.yaml</code></li>
+</ol>
 
-    <h3>Namespace Kubernetes</h3>
-    <pre><code>sudo microk8s kubectl get pods -n enterprise-ai-chat</code></pre>
+<h3>Namespace Kubernetes</h3>
+<pre><code>sudo microk8s kubectl get pods -n enterprise-ai-chat</code></pre>
 
-    <!-- SECTION 20: TROUBLESHOOTING -->
-    <h2 id="troubleshooting">20. Troubleshooting</h2>
+<!-- SECTION 20: TROUBLESHOOTING -->
+<h2 id="troubleshooting">20. Troubleshooting</h2>
 
-    <div class="card">
-      <div class="card-title">Pod non si avviano</div>
-      <p>Verifica: <code>kubectl describe pod &lt;nome&gt; -n enterprise-ai-chat</code>. Cause comuni: immagine non
-        trovata nel registry locale, segreti mancanti, risorse insufficienti.</p>
-    </div>
+<div class="card">
+  <div class="card-title">Pod non si avviano</div>
+  <p>Verifica: <code>kubectl describe pod &lt;nome&gt; -n enterprise-ai-chat</code>. Cause comuni: immagine non trovata nel registry locale, segreti mancanti, risorse insufficienti.</p>
+</div>
 
-    <div class="card">
-      <div class="card-title">Errore 502 Bad Gateway</div>
-      <p>Il backend non risponde. Verifica i log: <code>kubectl logs deployment/backend -n enterprise-ai-chat</code>.
-        Cause comuni: errore nella connessione al database, variabili d'ambiente mancanti.</p>
-    </div>
+<div class="card">
+  <div class="card-title">Errore 502 Bad Gateway</div>
+  <p>Il backend non risponde. Verifica i log: <code>kubectl logs deployment/backend -n enterprise-ai-chat</code>. Cause comuni: errore nella connessione al database, variabili d'ambiente mancanti.</p>
+</div>
 
-    <div class="card">
-      <div class="card-title">Ollama non risponde</div>
-      <p>Verifica che il container Docker sia attivo: <code>docker ps | grep ollama</code>. Verifica il proxy:
-        <code>curl http://10.0.1.1:8086/ollama/api/tags -H "X-Ollama-Key: mTLS-k8s-backend-2026"</code>
-      </p>
-    </div>
+<div class="card">
+  <div class="card-title">Ollama non risponde</div>
+  <p>Verifica che il container Docker sia attivo: <code>docker ps | grep ollama</code>. Verifica il proxy: <code>curl http://10.0.1.1:8086/ollama/api/tags -H "X-Ollama-Key: mTLS-k8s-backend-2026"</code></p>
+</div>
 
-    <div class="card">
-      <div class="card-title">Segreti sovrascritti</div>
-      <p>Se i segreti sono stati accidentalmente sovrascritti da <code>kubectl apply -k</code>, ricreali manualmente:
-        <code>kubectl create secret generic enterprise-ai-chat-secrets --from-literal=KEY=VALUE -n enterprise-ai-chat</code>
-      </p>
-    </div>
+<div class="card">
+  <div class="card-title">Segreti sovrascritti</div>
+  <p>Se i segreti sono stati accidentalmente sovrascritti da <code>kubectl apply -k</code>, ricreali manualmente: <code>kubectl create secret generic enterprise-ai-chat-secrets --from-literal=KEY=VALUE -n enterprise-ai-chat</code></p>
+</div>
 
-    <div class="card">
-      <div class="card-title">Redirect loop con reverse proxy</div>
-      <p>Se il sistema e dietro un reverse proxy che gestisce TLS, assicurati che <code>ssl-redirect</code> sia
-        impostato a "false" nell'Ingress. Il doppio redirect SSL causa loop infiniti.</p>
-    </div>
+<div class="card">
+  <div class="card-title">Redirect loop con reverse proxy</div>
+  <p>Se il sistema e dietro un reverse proxy che gestisce TLS, assicurati che <code>ssl-redirect</code> sia impostato a "false" nell'Ingress. Il doppio redirect SSL causa loop infiniti.</p>
+</div>
 
-    <div class="card">
-      <div class="card-title">Frontend non si build</div>
-      <p>Usa <code>--legacy-peer-deps</code> per npm ci nel Dockerfile frontend. Verifica che il Dockerfile contenga il
-        flag.</p>
-    </div>
+<div class="card">
+  <div class="card-title">Frontend non si build</div>
+  <p>Usa <code>--legacy-peer-deps</code> per npm ci nel Dockerfile frontend. Verifica che il Dockerfile contenga il flag.</p>
+</div>
 
-    <div class="card">
-      <div class="card-title">Memoria vettoriale vuota</div>
-      <p>Verifica che il servizio di embedding sia attivo e che le collezioni siano state inizializzate. Controlla la
-        pagina <code>/admin/vector-memory</code> per lo stato delle collezioni.</p>
-    </div>
+<div class="card">
+  <div class="card-title">Memoria vettoriale vuota</div>
+  <p>Verifica che il servizio di embedding sia attivo e che le collezioni siano state inizializzate. Controlla la pagina <code>/admin/vector-memory</code> per lo stato delle collezioni.</p>
+</div>
 
-    <!-- APPENDIX A: CONFIGURAZIONE AVANZATA PLUGIN -->
-    <h2 id="plugin-config">Appendice A: Configurazione Avanzata Plugin</h2>
+<!-- APPENDIX A: CONFIGURAZIONE AVANZATA PLUGIN -->
+<h2 id="plugin-config">Appendice A: Configurazione Avanzata Plugin</h2>
 
-    <p>Il sistema di plugin e progettato per essere estensibile tramite un'architettura ad eventi (hooks), strumenti AI
-      (tools), form conversazionali e endpoint personalizzati.</p>
+<p>Il sistema di plugin e progettato per essere estensibile tramite un'architettura ad eventi (hooks), strumenti AI (tools), form conversazionali e endpoint personalizzati.</p>
 
-    <h3>Struttura di un Plugin</h3>
-    <div class="card">
-      <pre><code>my_plugin/
+<h3>Struttura di un Plugin</h3>
+<div class="card">
+<pre><code>my_plugin/
   plugin.json           # Metadata (nome, versione, autore, descrizione)
   index.ts              # Codice principale (hooks, tools, endpoint)
   settings.json         # Configurazione persistente
   requirements.txt      # Dipendenze aggiuntive (se Python)</code></pre>
-    </div>
+</div>
 
-    <h3>Impostazioni Plugin (Schema-Driven)</h3>
-    <p>Ogni plugin puo definire uno schema di configurazione che genera automaticamente un form nel pannello admin:</p>
+<h3>Impostazioni Plugin (Schema-Driven)</h3>
+<p>Ogni plugin puo definire uno schema di configurazione che genera automaticamente un form nel pannello admin:</p>
 
-    <div class="card">
-      <div class="card-title">Tipi di Campo Supportati</div>
-      <table>
-        <thead>
-          <tr>
-            <th>Tipo</th>
-            <th>Rendering Admin</th>
-            <th>Esempio</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><code>string</code></td>
-            <td>Campo di testo</td>
-            <td>API key, URL</td>
-          </tr>
-          <tr>
-            <td><code>number</code> / <code>integer</code></td>
-            <td>Input numerico</td>
-            <td>Timeout, soglie</td>
-          </tr>
-          <tr>
-            <td><code>boolean</code></td>
-            <td>Toggle on/off</td>
-            <td>Feature flag</td>
-          </tr>
-          <tr>
-            <td><code>enum</code></td>
-            <td>Menu a tendina</td>
-            <td>Modalita operative</td>
-          </tr>
-          <tr>
-            <td><code>password</code></td>
-            <td>Campo mascherato</td>
-            <td>Token segreti</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+<div class="card">
+  <div class="card-title">Tipi di Campo Supportati</div>
+  <table>
+    <thead><tr><th>Tipo</th><th>Rendering Admin</th><th>Esempio</th></tr></thead>
+    <tbody>
+      <tr><td><code>string</code></td><td>Campo di testo</td><td>API key, URL</td></tr>
+      <tr><td><code>number</code> / <code>integer</code></td><td>Input numerico</td><td>Timeout, soglie</td></tr>
+      <tr><td><code>boolean</code></td><td>Toggle on/off</td><td>Feature flag</td></tr>
+      <tr><td><code>enum</code></td><td>Menu a tendina</td><td>Modalita operative</td></tr>
+      <tr><td><code>password</code></td><td>Campo mascherato</td><td>Token segreti</td></tr>
+    </tbody>
+  </table>
+</div>
 
-    <p>Le impostazioni vengono salvate automaticamente nel file <code>settings.json</code> della directory del plugin e
-      sono accessibili via API.</p>
+<p>Le impostazioni vengono salvate automaticamente nel file <code>settings.json</code> della directory del plugin e sono accessibili via API.</p>
 
-    <h3>Dipendenze Plugin</h3>
-    <ul>
-      <li>Inserire solo dipendenze <strong>aggiuntive</strong> (non quelle gia presenti nel core)</li>
-      <li>Usare vincoli di versione minimi (<code>&gt;=X.Y.Z</code>) anziche versioni fissate</li>
-      <li>Le dipendenze vengono installate automaticamente all'attivazione del plugin</li>
-    </ul>
+<h3>Dipendenze Plugin</h3>
+<ul>
+  <li>Inserire solo dipendenze <strong>aggiuntive</strong> (non quelle gia presenti nel core)</li>
+  <li>Usare vincoli di versione minimi (<code>&gt;=X.Y.Z</code>) anziche versioni fissate</li>
+  <li>Le dipendenze vengono installate automaticamente all'attivazione del plugin</li>
+</ul>
 
-    <!-- APPENDIX B: SISTEMA DI HOOKS AVANZATO -->
-    <h2 id="hooks-advanced">Appendice B: Sistema di Hooks Avanzato</h2>
+<!-- APPENDIX B: SISTEMA DI HOOKS AVANZATO -->
+<h2 id="hooks-advanced">Appendice B: Sistema di Hooks Avanzato</h2>
 
-    <p>Il sistema di hooks implementa un pattern event-driven che permette ai plugin di intercettare, trasformare e
-      reagire a eventi durante l'intero ciclo di vita delle richieste.</p>
+<p>Il sistema di hooks implementa un pattern event-driven che permette ai plugin di intercettare, trasformare e reagire a eventi durante l'intero ciclo di vita delle richieste.</p>
 
-    <h3>Meccanismo di Concatenamento (Hook Chaining)</h3>
-    <p>Quando piu handler sono registrati sullo stesso hook, vengono eseguiti in catena secondo la priorita:</p>
+<h3>Meccanismo di Concatenamento (Hook Chaining)</h3>
+<p>Quando piu handler sono registrati sullo stesso hook, vengono eseguiti in catena secondo la priorita:</p>
 
-    <div class="card">
-      <div class="card-title">Flusso di Esecuzione</div>
-      <ol>
-        <li>L'evento viene emesso con un dato iniziale</li>
-        <li>L'handler con <strong>priorita piu alta</strong> viene eseguito per primo</li>
-        <li>L'output dell'handler N diventa l'input dell'handler N+1</li>
-        <li>Il risultato finale viene restituito al sistema</li>
-      </ol>
-    </div>
+<div class="card">
+  <div class="card-title">Flusso di Esecuzione</div>
+  <ol>
+    <li>L'evento viene emesso con un dato iniziale</li>
+    <li>L'handler con <strong>priorita piu alta</strong> viene eseguito per primo</li>
+    <li>L'output dell'handler N diventa l'input dell'handler N+1</li>
+    <li>Il risultato finale viene restituito al sistema</li>
+  </ol>
+</div>
 
-    <h3>Categorie di Hook</h3>
+<h3>Categorie di Hook</h3>
 
-    <h4>Hook del Flusso Messaggi</h4>
-    <table>
-      <thead>
-        <tr>
-          <th>Hook</th>
-          <th>Quando viene eseguito</th>
-          <th>Uso tipico</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><code>before_reads_message</code></td>
-          <td>Ricezione messaggio utente</td>
-          <td>Filtraggio, traduzione, validazione input</td>
-        </tr>
-        <tr>
-          <td><code>recall_query</code></td>
-          <td>Formulazione query per la memoria</td>
-          <td>Modifica della query di ricerca</td>
-        </tr>
-        <tr>
-          <td><code>before_recalls_memories</code></td>
-          <td>Prima del richiamo memorie</td>
-          <td>Filtraggio pre-ricerca</td>
-        </tr>
-        <tr>
-          <td><code>before_recalls_episodic</code></td>
-          <td>Prima del richiamo episodico</td>
-          <td>Filtraggio memorie episodiche</td>
-        </tr>
-        <tr>
-          <td><code>before_recalls_declarative</code></td>
-          <td>Prima del richiamo dichiarativo</td>
-          <td>Filtraggio conoscenze</td>
-        </tr>
-        <tr>
-          <td><code>before_recalls_procedural</code></td>
-          <td>Prima del richiamo procedurale</td>
-          <td>Filtraggio tool/procedure</td>
-        </tr>
-        <tr>
-          <td><code>after_recalls_memories</code></td>
-          <td>Dopo il richiamo completo</td>
-          <td>Post-processing dei risultati</td>
-        </tr>
-        <tr>
-          <td><code>before_stores_memory</code></td>
-          <td>Prima della memorizzazione</td>
-          <td>Arricchimento metadata</td>
-        </tr>
-        <tr>
-          <td><code>before_sends_message</code></td>
-          <td>Prima dell'invio risposta</td>
-          <td>Trasformazione output, logging</td>
-        </tr>
-      </tbody>
-    </table>
+<h4>Hook del Flusso Messaggi</h4>
+<table>
+  <thead><tr><th>Hook</th><th>Quando viene eseguito</th><th>Uso tipico</th></tr></thead>
+  <tbody>
+    <tr><td><code>before_reads_message</code></td><td>Ricezione messaggio utente</td><td>Filtraggio, traduzione, validazione input</td></tr>
+    <tr><td><code>recall_query</code></td><td>Formulazione query per la memoria</td><td>Modifica della query di ricerca</td></tr>
+    <tr><td><code>before_recalls_memories</code></td><td>Prima del richiamo memorie</td><td>Filtraggio pre-ricerca</td></tr>
+    <tr><td><code>before_recalls_episodic</code></td><td>Prima del richiamo episodico</td><td>Filtraggio memorie episodiche</td></tr>
+    <tr><td><code>before_recalls_declarative</code></td><td>Prima del richiamo dichiarativo</td><td>Filtraggio conoscenze</td></tr>
+    <tr><td><code>before_recalls_procedural</code></td><td>Prima del richiamo procedurale</td><td>Filtraggio tool/procedure</td></tr>
+    <tr><td><code>after_recalls_memories</code></td><td>Dopo il richiamo completo</td><td>Post-processing dei risultati</td></tr>
+    <tr><td><code>before_stores_memory</code></td><td>Prima della memorizzazione</td><td>Arricchimento metadata</td></tr>
+    <tr><td><code>before_sends_message</code></td><td>Prima dell'invio risposta</td><td>Trasformazione output, logging</td></tr>
+  </tbody>
+</table>
 
-    <h4>Hook dell'Agente AI</h4>
-    <table>
-      <thead>
-        <tr>
-          <th>Hook</th>
-          <th>Quando viene eseguito</th>
-          <th>Uso tipico</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><code>before_agent_starts</code></td>
-          <td>Inizializzazione agente</td>
-          <td>Configurazione iniziale</td>
-        </tr>
-        <tr>
-          <td><code>agent_fast_reply</code></td>
-          <td>Risposta rapida (bypass pipeline)</td>
-          <td>Risposte predefinite, FAQ</td>
-        </tr>
-        <tr>
-          <td><code>agent_allowed_tools</code></td>
-          <td>Selezione tool disponibili</td>
-          <td>Filtraggio per contesto/ruolo</td>
-        </tr>
-        <tr>
-          <td><code>agent_prompt_prefix</code></td>
-          <td>Prima del system prompt</td>
-          <td>Istruzioni contestuali</td>
-        </tr>
-        <tr>
-          <td><code>agent_prompt_suffix</code></td>
-          <td>Dopo il system prompt</td>
-          <td>Vincoli aggiuntivi</td>
-        </tr>
-      </tbody>
-    </table>
+<h4>Hook dell'Agente AI</h4>
+<table>
+  <thead><tr><th>Hook</th><th>Quando viene eseguito</th><th>Uso tipico</th></tr></thead>
+  <tbody>
+    <tr><td><code>before_agent_starts</code></td><td>Inizializzazione agente</td><td>Configurazione iniziale</td></tr>
+    <tr><td><code>agent_fast_reply</code></td><td>Risposta rapida (bypass pipeline)</td><td>Risposte predefinite, FAQ</td></tr>
+    <tr><td><code>agent_allowed_tools</code></td><td>Selezione tool disponibili</td><td>Filtraggio per contesto/ruolo</td></tr>
+    <tr><td><code>agent_prompt_prefix</code></td><td>Prima del system prompt</td><td>Istruzioni contestuali</td></tr>
+    <tr><td><code>agent_prompt_suffix</code></td><td>Dopo il system prompt</td><td>Vincoli aggiuntivi</td></tr>
+  </tbody>
+</table>
 
-    <h4>Hook dell'Ingestione Documenti</h4>
-    <table>
-      <thead>
-        <tr>
-          <th>Hook</th>
-          <th>Quando viene eseguito</th>
-          <th>Uso tipico</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><code>instantiates_parsers</code></td>
-          <td>Inizializzazione parser</td>
-          <td>Aggiunta formati custom</td>
-        </tr>
-        <tr>
-          <td><code>instantiates_splitter</code></td>
-          <td>Configurazione splitter</td>
-          <td>Chunk size, overlap personalizzati</td>
-        </tr>
-        <tr>
-          <td><code>before_splits_text</code></td>
-          <td>Pre-segmentazione</td>
-          <td>Pulizia testo, rimozione rumore</td>
-        </tr>
-        <tr>
-          <td><code>after_splitted_text</code></td>
-          <td>Post-segmentazione</td>
-          <td>Filtraggio chunk, arricchimento</td>
-        </tr>
-        <tr>
-          <td><code>before_stores_documents</code></td>
-          <td>Pre-indicizzazione</td>
-          <td>Aggiunta metadata personalizzati</td>
-        </tr>
-        <tr>
-          <td><code>after_stored_documents</code></td>
-          <td>Post-indicizzazione</td>
-          <td>Notifiche, trigger secondari</td>
-        </tr>
-      </tbody>
-    </table>
+<h4>Hook dell'Ingestione Documenti</h4>
+<table>
+  <thead><tr><th>Hook</th><th>Quando viene eseguito</th><th>Uso tipico</th></tr></thead>
+  <tbody>
+    <tr><td><code>instantiates_parsers</code></td><td>Inizializzazione parser</td><td>Aggiunta formati custom</td></tr>
+    <tr><td><code>instantiates_splitter</code></td><td>Configurazione splitter</td><td>Chunk size, overlap personalizzati</td></tr>
+    <tr><td><code>before_splits_text</code></td><td>Pre-segmentazione</td><td>Pulizia testo, rimozione rumore</td></tr>
+    <tr><td><code>after_splitted_text</code></td><td>Post-segmentazione</td><td>Filtraggio chunk, arricchimento</td></tr>
+    <tr><td><code>before_stores_documents</code></td><td>Pre-indicizzazione</td><td>Aggiunta metadata personalizzati</td></tr>
+    <tr><td><code>after_stored_documents</code></td><td>Post-indicizzazione</td><td>Notifiche, trigger secondari</td></tr>
+  </tbody>
+</table>
 
-    <h4>Hook del Ciclo di Vita</h4>
-    <table>
-      <thead>
-        <tr>
-          <th>Hook</th>
-          <th>Quando viene eseguito</th>
-          <th>Uso tipico</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><code>before_bootstrap</code></td>
-          <td>Pre-inizializzazione sistema</td>
-          <td>Setup risorse esterne</td>
-        </tr>
-        <tr>
-          <td><code>after_bootstrap</code></td>
-          <td>Post-inizializzazione</td>
-          <td>Scheduling job, validazione config</td>
-        </tr>
-        <tr>
-          <td><code>plugin_activated</code></td>
-          <td>Attivazione plugin</td>
-          <td>Inizializzazione risorse plugin</td>
-        </tr>
-        <tr>
-          <td><code>plugin_deactivated</code></td>
-          <td>Disattivazione plugin</td>
-          <td>Pulizia risorse plugin</td>
-        </tr>
-      </tbody>
-    </table>
+<h4>Hook del Ciclo di Vita</h4>
+<table>
+  <thead><tr><th>Hook</th><th>Quando viene eseguito</th><th>Uso tipico</th></tr></thead>
+  <tbody>
+    <tr><td><code>before_bootstrap</code></td><td>Pre-inizializzazione sistema</td><td>Setup risorse esterne</td></tr>
+    <tr><td><code>after_bootstrap</code></td><td>Post-inizializzazione</td><td>Scheduling job, validazione config</td></tr>
+    <tr><td><code>plugin_activated</code></td><td>Attivazione plugin</td><td>Inizializzazione risorse plugin</td></tr>
+    <tr><td><code>plugin_deactivated</code></td><td>Disattivazione plugin</td><td>Pulizia risorse plugin</td></tr>
+  </tbody>
+</table>
 
-    <h3>Hook Personalizzati (Inter-Plugin)</h3>
-    <p>I plugin possono definire e emettere hook personalizzati per la comunicazione inter-plugin:</p>
-    <ul>
-      <li>Un plugin <strong>emette</strong> un hook con dati iniziali</li>
-      <li>Altri plugin <strong>ascoltano</strong> e possono trasformare i dati</li>
-      <li>Il risultato finale viene restituito al plugin emittente</li>
-    </ul>
+<h3>Hook Personalizzati (Inter-Plugin)</h3>
+<p>I plugin possono definire e emettere hook personalizzati per la comunicazione inter-plugin:</p>
+<ul>
+  <li>Un plugin <strong>emette</strong> un hook con dati iniziali</li>
+  <li>Altri plugin <strong>ascoltano</strong> e possono trasformare i dati</li>
+  <li>Il risultato finale viene restituito al plugin emittente</li>
+</ul>
 
-    <div class="tip">
-      <div class="tip-title">Best Practice</div>
-      <p>Usare hook personalizzati per disaccoppiare la logica tra plugin correlati, consentendo estensioni future senza
-        modificare il codice esistente.</p>
-    </div>
+<div class="tip">
+  <div class="tip-title">Best Practice</div>
+  <p>Usare hook personalizzati per disaccoppiare la logica tra plugin correlati, consentendo estensioni future senza modificare il codice esistente.</p>
+</div>
 
-    <!-- APPENDIX C: TOOLS AI -->
-    <h2 id="tools-config">Appendice C: Configurazione Tools AI</h2>
+<!-- APPENDIX C: TOOLS AI -->
+<h2 id="tools-config">Appendice C: Configurazione Tools AI</h2>
 
-    <p>I tool sono funzioni che l'LLM puo decidere autonomamente di invocare durante una conversazione. Il modello legge
-      la descrizione del tool e sceglie quando e come utilizzarlo.</p>
+<p>I tool sono funzioni che l'LLM puo decidere autonomamente di invocare durante una conversazione. Il modello legge la descrizione del tool e sceglie quando e come utilizzarlo.</p>
 
-    <h3>Ciclo di Decisione LLM</h3>
-    <div class="card">
-      <div class="card-title">Come l'LLM Seleziona i Tool</div>
-      <ol>
-        <li>L'utente invia un messaggio</li>
-        <li>I tool disponibili vengono recuperati dalla <strong>memoria procedurale</strong> tramite ricerca semantica
-        </li>
-        <li>Le descrizioni dei tool vengono passate all'LLM come contesto</li>
-        <li>L'LLM decide se usare un tool e con quali argomenti</li>
-        <li>Il framework esegue il tool selezionato</li>
-        <li>Il risultato viene restituito direttamente all'utente o rielaborato dall'agente</li>
-      </ol>
-    </div>
+<h3>Ciclo di Decisione LLM</h3>
+<div class="card">
+  <div class="card-title">Come l'LLM Seleziona i Tool</div>
+  <ol>
+    <li>L'utente invia un messaggio</li>
+    <li>I tool disponibili vengono recuperati dalla <strong>memoria procedurale</strong> tramite ricerca semantica</li>
+    <li>Le descrizioni dei tool vengono passate all'LLM come contesto</li>
+    <li>L'LLM decide se usare un tool e con quali argomenti</li>
+    <li>Il framework esegue il tool selezionato</li>
+    <li>Il risultato viene restituito direttamente all'utente o rielaborato dall'agente</li>
+  </ol>
+</div>
 
-    <h3>Proprieta dei Tool</h3>
-    <table>
-      <thead>
-        <tr>
-          <th>Proprieta</th>
-          <th>Tipo</th>
-          <th>Descrizione</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><strong>Nome</strong></td>
-          <td>string</td>
-          <td>Identificativo univoco del tool</td>
-        </tr>
-        <tr>
-          <td><strong>Descrizione</strong></td>
-          <td>string</td>
-          <td>Descrizione per l'LLM (CRITICA: determina quando il tool viene scelto)</td>
-        </tr>
-        <tr>
-          <td><strong>Schema Input</strong></td>
-          <td>JSON Schema</td>
-          <td>Definizione dei parametri di ingresso</td>
-        </tr>
-        <tr>
-          <td><strong>Richiede Approvazione</strong></td>
-          <td>boolean</td>
-          <td>Se abilitato, l'utente deve confermare prima dell'esecuzione</td>
-        </tr>
-        <tr>
-          <td><strong>Return Direct</strong></td>
-          <td>boolean</td>
-          <td>Se vero, l'output va direttamente all'utente senza rielaborazione LLM</td>
-        </tr>
-        <tr>
-          <td><strong>Esempi</strong></td>
-          <td>string[]</td>
-          <td>Frasi di trigger che aiutano la ricerca semantica</td>
-        </tr>
-      </tbody>
-    </table>
+<h3>Proprieta dei Tool</h3>
+<table>
+  <thead><tr><th>Proprieta</th><th>Tipo</th><th>Descrizione</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Nome</strong></td><td>string</td><td>Identificativo univoco del tool</td></tr>
+    <tr><td><strong>Descrizione</strong></td><td>string</td><td>Descrizione per l'LLM (CRITICA: determina quando il tool viene scelto)</td></tr>
+    <tr><td><strong>Schema Input</strong></td><td>JSON Schema</td><td>Definizione dei parametri di ingresso</td></tr>
+    <tr><td><strong>Richiede Approvazione</strong></td><td>boolean</td><td>Se abilitato, l'utente deve confermare prima dell'esecuzione</td></tr>
+    <tr><td><strong>Return Direct</strong></td><td>boolean</td><td>Se vero, l'output va direttamente all'utente senza rielaborazione LLM</td></tr>
+    <tr><td><strong>Esempi</strong></td><td>string[]</td><td>Frasi di trigger che aiutano la ricerca semantica</td></tr>
+  </tbody>
+</table>
 
-    <div class="warning">
-      <div class="warning-title">Sicurezza Tool</div>
-      <p>I tool con <strong>Richiede Approvazione</strong> disabilitato vengono eseguiti automaticamente senza conferma
-        dell'utente. Abilitare sempre l'approvazione per tool che eseguono azioni irreversibili (scrittura file, invio
-        email, modifiche database).</p>
-    </div>
+<div class="warning">
+  <div class="warning-title">Sicurezza Tool</div>
+  <p>I tool con <strong>Richiede Approvazione</strong> disabilitato vengono eseguiti automaticamente senza conferma dell'utente. Abilitare sempre l'approvazione per tool che eseguono azioni irreversibili (scrittura file, invio email, modifiche database).</p>
+</div>
 
-    <h3>Chain del Tool nell'Agente</h3>
-    <p>L'agente AI utilizza un sistema a doppia catena per decidere come rispondere:</p>
+<h3>Chain del Tool nell'Agente</h3>
+<p>L'agente AI utilizza un sistema a doppia catena per decidere come rispondere:</p>
 
-    <div class="grid-2">
-      <div class="card">
-        <div class="card-title">Procedures Chain</div>
-        <p>Attivata quando tool rilevanti vengono trovati nella memoria procedurale. L'LLM seleziona ed esegue i tool
-          appropriati.</p>
-      </div>
-      <div class="card">
-        <div class="card-title">Memory Chain</div>
-        <p>Attivata quando nessun tool e applicabile. Genera risposte usando la memoria dichiarativa (documenti) ed
-          episodica (conversazioni passate).</p>
-      </div>
-    </div>
-
-    <!-- APPENDIX D: FORM CONVERSAZIONALI AVANZATI -->
-    <h2 id="forms-advanced">Appendice D: Form Conversazionali Avanzati</h2>
-
-    <p>I form conversazionali implementano una <strong>Macchina a Stati Finiti (FSM)</strong> che raccoglie dati
-      strutturati attraverso il dialogo naturale.</p>
-
-    <h3>Stati della Macchina</h3>
-    <table>
-      <thead>
-        <tr>
-          <th>Stato</th>
-          <th>Descrizione</th>
-          <th>Transizione</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><span class="badge badge-accent">INCOMPLETE</span></td>
-          <td>Raccolta dati in corso</td>
-          <td>Quando tutti i campi sono compilati → WAIT_CONFIRM</td>
-        </tr>
-        <tr>
-          <td><span class="badge badge-info">WAIT_CONFIRM</span></td>
-          <td>In attesa di conferma utente</td>
-          <td>Conferma → COMPLETE / Rifiuto → INCOMPLETE</td>
-        </tr>
-        <tr>
-          <td><span class="badge badge-danger">CLOSED</span></td>
-          <td>Form annullato/uscito</td>
-          <td>Stato finale (nessuna transizione)</td>
-        </tr>
-        <tr>
-          <td><span class="badge badge-success">COMPLETE</span></td>
-          <td>Dati inviati con successo</td>
-          <td>Stato finale (trigger azione)</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <h3>Ciclo di Vita del Form</h3>
-    <ol>
-      <li><strong>Attivazione</strong> - L'AI rileva un'intenzione che corrisponde a un form configurato</li>
-      <li><strong>Estrazione</strong> - L'AI estrae i campi dal messaggio dell'utente (anche piu campi alla volta)</li>
-      <li><strong>Sanitizzazione</strong> - Rimozione valori nulli/vuoti</li>
-      <li><strong>Validazione</strong> - Verifica del tipo e dei vincoli di ogni campo</li>
-      <li><strong>Visualizzazione</strong> - Mostra lo stato attuale e chiede i campi mancanti</li>
-      <li><strong>Conferma</strong> - Riepilogo completo presentato all'utente</li>
-      <li><strong>Invio</strong> - Esecuzione dell'azione finale (salvataggio, webhook, ecc.)</li>
-    </ol>
-
-    <h3>Configurazione Avanzata Form</h3>
-    <div class="card">
-      <div class="card-title">Opzioni di Configurazione</div>
-      <table>
-        <thead>
-          <tr>
-            <th>Opzione</th>
-            <th>Tipo</th>
-            <th>Descrizione</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><strong>description</strong></td>
-            <td>string</td>
-            <td>Descrizione per l'LLM (determina quando il form viene attivato)</td>
-          </tr>
-          <tr>
-            <td><strong>model_class</strong></td>
-            <td>JSON Schema</td>
-            <td>Schema dei campi da raccogliere</td>
-          </tr>
-          <tr>
-            <td><strong>start_examples</strong></td>
-            <td>string[]</td>
-            <td>Frasi che attivano il form</td>
-          </tr>
-          <tr>
-            <td><strong>stop_examples</strong></td>
-            <td>string[]</td>
-            <td>Frasi che annullano il form</td>
-          </tr>
-          <tr>
-            <td><strong>ask_confirm</strong></td>
-            <td>boolean</td>
-            <td>Richiedi conferma prima dell'invio</td>
-          </tr>
-          <tr>
-            <td><strong>completion_action</strong></td>
-            <td>enum</td>
-            <td>Azione a completamento (save, webhook, hook)</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <div class="tip">
-      <div class="tip-title">Suggerimento</div>
-      <p>I campi del form possono essere raccolti in <strong>qualsiasi ordine</strong>. L'utente puo fornire piu
-        informazioni in un singolo messaggio (es: "Voglio una pizza grande con funghi al mio indirizzo Via Roma 10") e
-        il sistema estrarra tutti i campi pertinenti.</p>
-    </div>
-
-    <!-- APPENDIX E: ARCHITETTURA DELLA MEMORIA -->
-    <h2 id="memory-architecture">Appendice E: Architettura della Memoria</h2>
-
-    <p>Il sistema di memoria implementa un'architettura a 4 livelli ispirata alla cognizione umana, con memoria a lungo
-      termine persistente e memoria di lavoro volatile.</p>
-
-    <h3>Memoria a Lungo Termine (Vettoriale)</h3>
-    <p>Archiviata nel database vettoriale (Qdrant), sopravvive ai riavvii del sistema ed e organizzata in tre collezioni
-      semantiche:</p>
-
-    <div class="grid-3">
-      <div class="card">
-        <div class="card-title">Episodica</div>
-        <p><strong>Cosa:</strong> Contesto delle conversazioni passate</p>
-        <p><strong>Sorgente:</strong> Interazioni utente automaticamente indicizzate</p>
-        <p><strong>Uso:</strong> Ricordare discussioni precedenti, preferenze espresse, contesto storico</p>
-      </div>
-      <div class="card">
-        <div class="card-title">Dichiarativa</div>
-        <p><strong>Cosa:</strong> Conoscenza fattuale e documentale</p>
-        <p><strong>Sorgente:</strong> Documenti caricati (PDF, DOCX, URL)</p>
-        <p><strong>Uso:</strong> RAG - risposte basate su documenti aziendali</p>
-      </div>
-      <div class="card">
-        <div class="card-title">Procedurale</div>
-        <p><strong>Cosa:</strong> Tool, skill e procedure operative</p>
-        <p><strong>Sorgente:</strong> Definizioni di plugin e tool</p>
-        <p><strong>Uso:</strong> Selezione automatica degli strumenti appropriati</p>
-      </div>
-    </div>
-
-    <h3>Pipeline di Ricerca Semantica</h3>
-    <ol>
-      <li>Il messaggio dell'utente viene convertito in un <strong>vettore di embedding</strong></li>
-      <li>Il vettore viene confrontato con tutti i vettori nelle tre collezioni</li>
-      <li>I risultati piu simili (sopra la soglia configurata) vengono restituiti</li>
-      <li>I risultati vengono <strong>iniettati nel contesto</strong> dell'LLM come informazione aggiuntiva</li>
-      <li>L'LLM genera la risposta tenendo conto del contesto recuperato</li>
-    </ol>
-
-    <h3>Configurazione Recall</h3>
-    <table>
-      <thead>
-        <tr>
-          <th>Parametro</th>
-          <th>Per Collezione</th>
-          <th>Descrizione</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><strong>K (risultati)</strong></td>
-          <td>Si</td>
-          <td>Numero massimo di risultati da restituire per collezione</td>
-        </tr>
-        <tr>
-          <td><strong>Threshold (soglia)</strong></td>
-          <td>Si</td>
-          <td>Similarita minima (0.0-1.0) per includere un risultato</td>
-        </tr>
-        <tr>
-          <td><strong>Auto RAG</strong></td>
-          <td>Globale</td>
-          <td>Abilita/disabilita la ricerca automatica ad ogni messaggio</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <h3>Memoria di Lavoro (Working Memory)</h3>
-    <p>Memoria volatile di sessione che mantiene il contesto della conversazione corrente:</p>
-
-    <div class="card">
-      <div class="card-title">Proprieta della Working Memory</div>
-      <table>
-        <thead>
-          <tr>
-            <th>Proprieta</th>
-            <th>Descrizione</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><code>history</code></td>
-            <td>Cronologia interazioni della sessione</td>
-          </tr>
-          <tr>
-            <td><code>user_message</code></td>
-            <td>Messaggio utente corrente</td>
-          </tr>
-          <tr>
-            <td><code>active_form</code></td>
-            <td>Form conversazionale attivo (se presente)</td>
-          </tr>
-          <tr>
-            <td><code>recall_query</code></td>
-            <td>Query usata per il richiamo memoria</td>
-          </tr>
-          <tr>
-            <td><code>episodic_memories</code></td>
-            <td>Memorie episodiche recuperate</td>
-          </tr>
-          <tr>
-            <td><code>declarative_memories</code></td>
-            <td>Memorie dichiarative recuperate</td>
-          </tr>
-          <tr>
-            <td><code>procedural_memories</code></td>
-            <td>Memorie procedurali recuperate</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <p>La working memory puo essere estesa con <strong>attributi personalizzati</strong> per mantenere stato tra una
-      chiamata e l'altra all'interno della stessa sessione (es: contatori, stati di una macchina a stati, dati
-      temporanei).</p>
-
-    <h3>HyDE (Hypothetical Document Embeddings)</h3>
-    <p>Tecnica avanzata per migliorare la qualita della ricerca semantica:</p>
-    <ol>
-      <li>L'LLM genera un <strong>documento ipotetico</strong> che risponderebbe alla query dell'utente</li>
-      <li>Il documento ipotetico viene convertito in embedding</li>
-      <li>La ricerca vettoriale viene eseguita con l'embedding del documento ipotetico</li>
-      <li>Questo produce risultati piu rilevanti rispetto alla semplice ricerca con la query originale</li>
-    </ol>
-
-    <!-- APPENDIX F: PIPELINE INGESTIONE AVANZATA -->
-    <h2 id="ingestion-advanced">Appendice F: Pipeline di Ingestione Avanzata</h2>
-
-    <p>La pipeline di ingestione (Rabbit Hole) gestisce il caricamento, la processazione e l'indicizzazione dei
-      documenti nella memoria dichiarativa.</p>
-
-    <h3>Formati Supportati e Parser</h3>
-    <table>
-      <thead>
-        <tr>
-          <th>Formato</th>
-          <th>Parser</th>
-          <th>Note</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>PDF</td>
-          <td>pdf-parse + OCR (Tesseract)</td>
-          <td>Supporta PDF nativi e scansionati</td>
-        </tr>
-        <tr>
-          <td>DOCX</td>
-          <td>Mammoth</td>
-          <td>Estrazione testo con struttura</td>
-        </tr>
-        <tr>
-          <td>XLSX</td>
-          <td>XLSX parser</td>
-          <td>Dati tabulari convertiti in testo</td>
-        </tr>
-        <tr>
-          <td>PPTX</td>
-          <td>PPTXGenJS</td>
-          <td>Testo slide per slide</td>
-        </tr>
-        <tr>
-          <td>TXT / MD</td>
-          <td>Lettura diretta</td>
-          <td>Nessuna conversione necessaria</td>
-        </tr>
-        <tr>
-          <td>HTML (URL)</td>
-          <td>Web scraper + Trafilatura</td>
-          <td>Estrazione contenuto principale, rimozione nav/footer</td>
-        </tr>
-        <tr>
-          <td>Immagini</td>
-          <td>Tesseract OCR</td>
-          <td>PNG, JPG, GIF, WebP</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <h3>Fasi della Pipeline</h3>
-    <div class="card">
-      <div class="card-title">Flusso Completo di Ingestione</div>
-      <ol>
-        <li><strong>Ricezione</strong> - File caricato o URL inviato (con protezione SSRF per URL)</li>
-        <li><strong>Parsing</strong> - Estrazione testo dal formato originale (hook: <code>instantiates_parsers</code>)
-        </li>
-        <li><strong>Pre-Processing</strong> - Pulizia testo, rimozione rumore (hook: <code>before_splits_text</code>)
-        </li>
-        <li><strong>Chunking</strong> - Segmentazione in frammenti con overlap (hook:
-          <code>instantiates_splitter</code>)
-          <ul>
-            <li><strong>Chunk Size</strong> - Dimensione target di ogni frammento</li>
-            <li><strong>Chunk Overlap</strong> - Sovrapposizione tra frammenti consecutivi per mantenere contesto</li>
-          </ul>
-        </li>
-        <li><strong>Post-Chunking</strong> - Filtraggio/arricchimento chunk (hook: <code>after_splitted_text</code>)
-        </li>
-        <li><strong>Embedding</strong> - Conversione di ogni chunk in vettore numerico tramite il modello di embedding
-          configurato</li>
-        <li><strong>Pre-Storage</strong> - Aggiunta metadata (hook: <code>before_stores_documents</code>)</li>
-        <li><strong>Indicizzazione</strong> - Inserimento nel database vettoriale (collezione dichiarativa)</li>
-        <li><strong>Post-Storage</strong> - Notifiche, trigger secondari (hook: <code>after_stored_documents</code>)
-        </li>
-      </ol>
-    </div>
-
-    <h3>Personalizzazione della Pipeline</h3>
-    <p>Ogni fase della pipeline puo essere personalizzata tramite hook:</p>
-
-    <div class="tip">
-      <div class="tip-title">Esempi di Personalizzazione</div>
-      <ul>
-        <li><strong>Aggiunta parser</strong> - Supporto per formati non standard (es: file CAD, formati proprietari)
-        </li>
-        <li><strong>Chunk size adattivo</strong> - Dimensione variabile basata sul tipo di contenuto</li>
-        <li><strong>Filtraggio contenuto</strong> - Rimozione sezioni irrilevanti (indici, note legali ripetitive)</li>
-        <li><strong>Metadata personalizzati</strong> - Aggiunta di tag, categorie, data di validita ai chunk</li>
-        <li><strong>Notifiche</strong> - Invio email/webhook al completamento dell'ingestione</li>
-      </ul>
-    </div>
-
-    <h3>Protezione SSRF</h3>
-    <p>L'ingestione di URL include protezione SSRF (Server-Side Request Forgery) che blocca automaticamente:</p>
-    <ul>
-      <li>URL verso indirizzi IP privati (10.x.x.x, 172.16-31.x.x, 192.168.x.x)</li>
-      <li>URL verso localhost e loopback (127.0.0.1, ::1)</li>
-      <li>URL verso reti interne del cluster</li>
-    </ul>
-
-    <!-- APPENDIX G: SCHEDULER AVANZATO -->
-    <h2 id="scheduler-advanced">Appendice G: Scheduler Avanzato (White Rabbit)</h2>
-
-    <p>Lo scheduler e basato su APScheduler e supporta tre modalita di pianificazione con persistenza in memoria (con
-      ri-scheduling automatico al bootstrap).</p>
-
-    <h3>Metodi del Scheduler</h3>
-    <table>
-      <thead>
-        <tr>
-          <th>Metodo</th>
-          <th>Uso</th>
-          <th>Parametri</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><code>schedule_job()</code></td>
-          <td>Esecuzione una tantum</td>
-          <td>days, hours, minutes, seconds</td>
-        </tr>
-        <tr>
-          <td><code>schedule_interval_job()</code></td>
-          <td>Ripetizione a intervalli</td>
-          <td>Intervallo + start/end date opzionali</td>
-        </tr>
-        <tr>
-          <td><code>schedule_cron_job()</code></td>
-          <td>Espressione cron</td>
-          <td>year, month, day, week, day_of_week, hour, minute, second</td>
-        </tr>
-        <tr>
-          <td><code>schedule_chat_message()</code></td>
-          <td>Messaggio ritardato</td>
-          <td>Contenuto + ritardo</td>
-        </tr>
-        <tr>
-          <td><code>get_jobs()</code></td>
-          <td>Lista job attivi</td>
-          <td>-</td>
-        </tr>
-        <tr>
-          <td><code>pause_job(id)</code></td>
-          <td>Sospendi job</td>
-          <td>Job ID</td>
-        </tr>
-        <tr>
-          <td><code>resume_job(id)</code></td>
-          <td>Riprendi job</td>
-          <td>Job ID</td>
-        </tr>
-        <tr>
-          <td><code>remove_job(id)</code></td>
-          <td>Elimina job</td>
-          <td>Job ID</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <div class="warning">
-      <div class="warning-title">Persistenza Job</div>
-      <p>I job schedulati sono attualmente mantenuti in memoria. In caso di riavvio del backend, i job devono essere
-        ri-schedulati. Usare l'hook <code>after_bootstrap</code> per registrare nuovamente i job ricorrenti all'avvio
-        del sistema.</p>
-    </div>
-
-    <h3>Espressioni Cron</h3>
-    <table>
-      <thead>
-        <tr>
-          <th>Esempio</th>
-          <th>Significato</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><code>0 9 * * 1-5</code></td>
-          <td>Ogni giorno feriale alle 9:00</td>
-        </tr>
-        <tr>
-          <td><code>0 */2 * * *</code></td>
-          <td>Ogni 2 ore</td>
-        </tr>
-        <tr>
-          <td><code>30 8 1 * *</code></td>
-          <td>Il primo di ogni mese alle 8:30</td>
-        </tr>
-        <tr>
-          <td><code>0 0 * * 0</code></td>
-          <td>Ogni domenica a mezzanotte</td>
-        </tr>
-        <tr>
-          <td><code>*/15 * * * *</code></td>
-          <td>Ogni 15 minuti</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <!-- APPENDIX H: AUTENTICAZIONE E AUTORIZZAZIONE -->
-    <h2 id="auth-advanced">Appendice H: Autenticazione e Autorizzazione Avanzata</h2>
-
-    <h3>Metodi di Autenticazione</h3>
-
-    <div class="grid-2">
-      <div class="card">
-        <div class="card-title">JWT (JSON Web Token)</div>
-        <ul>
-          <li>Token con scadenza configurabile</li>
-          <li>Session ID embedded nel token</li>
-          <li>Refresh token via HTTP-only cookie</li>
-          <li>Rotazione automatica dei token</li>
-          <li>Revoca su nuovo login (sessione singola)</li>
-        </ul>
-      </div>
-      <div class="card">
-        <div class="card-title">API Key</div>
-        <ul>
-          <li>Header: <code>Authorization: Bearer &lt;API_KEY&gt;</code></li>
-          <li>Accesso completo a tutte le risorse</li>
-          <li>Ideale per integrazioni M2M</li>
-          <li>Nessuna scadenza (revocabile manualmente)</li>
-        </ul>
-      </div>
-    </div>
-
-    <h3>Autorizzazione (RBAC)</h3>
-    <p>Il sistema implementa un modello di autorizzazione Role-Based Access Control con permessi granulari:</p>
-
-    <table>
-      <thead>
-        <tr>
-          <th>Permesso</th>
-          <th>Scope</th>
-          <th>Descrizione</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><code>READ</code></td>
-          <td>Per risorsa</td>
-          <td>Visualizzazione dati</td>
-        </tr>
-        <tr>
-          <td><code>WRITE</code></td>
-          <td>Per risorsa</td>
-          <td>Creazione e modifica</td>
-        </tr>
-        <tr>
-          <td><code>DELETE</code></td>
-          <td>Per risorsa</td>
-          <td>Eliminazione</td>
-        </tr>
-        <tr>
-          <td><code>LIST</code></td>
-          <td>Per risorsa</td>
-          <td>Elenco risorse</td>
-        </tr>
-        <tr>
-          <td><code>ADMIN</code></td>
-          <td>Globale</td>
-          <td>Operazioni amministrative</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <h3>Tipi di Utente</h3>
-    <table>
-      <thead>
-        <tr>
-          <th>Tipo</th>
-          <th>Descrizione</th>
-          <th>Auth Method</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><strong>Interno</strong></td>
-          <td>Creato nel sistema, credenziali locali</td>
-          <td>Email + password + MFA opzionale</td>
-        </tr>
-        <tr>
-          <td><strong>API</strong></td>
-          <td>Accesso programmatico</td>
-          <td>API Key</td>
-        </tr>
-        <tr>
-          <td><strong>Esterno</strong></td>
-          <td>Integrato tramite auth handler custom</td>
-          <td>OAuth, SAML, LDAP (via plugin)</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <h3>Auth Handler Personalizzati</h3>
-    <p>Il sistema supporta handler di autenticazione personalizzati tramite il sistema plugin, consentendo
-      l'integrazione con identity provider esterni (Active Directory, Okta, Auth0, ecc.):</p>
-    <ul>
-      <li>Implementare le interfacce di validazione JWT e API key</li>
-      <li>Registrare l'handler tramite l'hook <code>factory_allowed_auth_handlers</code></li>
-      <li>Configurare le credenziali del provider esterno nelle impostazioni del plugin</li>
-    </ul>
-
-    <h3>Best Practice di Sicurezza</h3>
-    <div class="warning">
-      <div class="warning-title">Checklist Sicurezza</div>
-      <ul>
-        <li>Impostare <strong>sempre</strong> un JWT secret forte e casuale (mai usare il valore di default)</li>
-        <li>Configurare rate limiting sugli endpoint di login</li>
-        <li>Abilitare MFA per tutti gli account admin</li>
-        <li>Usare HTTPS in produzione (mai HTTP)</li>
-        <li>Gli endpoint custom dei plugin sono <strong>aperti per default</strong> - aggiungere sempre il controllo
-          permessi</li>
-        <li>Verificare la lista <code>/admin/sessions</code> regolarmente per sessioni sospette</li>
-        <li>Ruotare le API key periodicamente</li>
-      </ul>
-    </div>
-
-    <div class="footer">
-      <p>Enterprise AI Chat v2.1.4 - Guida Amministratore</p>
-      <p>Documento riservato - Solo per personale autorizzato</p>
-      <p>Conforme al Regolamento Europeo sull'AI (AI Act) e GDPR</p>
-      <p>Ultimo aggiornamento: Marzo 2026</p>
-    </div>
-
+<div class="grid-2">
+  <div class="card">
+    <div class="card-title">Procedures Chain</div>
+    <p>Attivata quando tool rilevanti vengono trovati nella memoria procedurale. L'LLM seleziona ed esegue i tool appropriati.</p>
   </div>
-</body>
+  <div class="card">
+    <div class="card-title">Memory Chain</div>
+    <p>Attivata quando nessun tool e applicabile. Genera risposte usando la memoria dichiarativa (documenti) ed episodica (conversazioni passate).</p>
+  </div>
+</div>
 
+<!-- APPENDIX D: FORM CONVERSAZIONALI AVANZATI -->
+<h2 id="forms-advanced">Appendice D: Form Conversazionali Avanzati</h2>
+
+<p>I form conversazionali implementano una <strong>Macchina a Stati Finiti (FSM)</strong> che raccoglie dati strutturati attraverso il dialogo naturale.</p>
+
+<h3>Stati della Macchina</h3>
+<table>
+  <thead><tr><th>Stato</th><th>Descrizione</th><th>Transizione</th></tr></thead>
+  <tbody>
+    <tr><td><span class="badge badge-accent">INCOMPLETE</span></td><td>Raccolta dati in corso</td><td>Quando tutti i campi sono compilati → WAIT_CONFIRM</td></tr>
+    <tr><td><span class="badge badge-info">WAIT_CONFIRM</span></td><td>In attesa di conferma utente</td><td>Conferma → COMPLETE / Rifiuto → INCOMPLETE</td></tr>
+    <tr><td><span class="badge badge-danger">CLOSED</span></td><td>Form annullato/uscito</td><td>Stato finale (nessuna transizione)</td></tr>
+    <tr><td><span class="badge badge-success">COMPLETE</span></td><td>Dati inviati con successo</td><td>Stato finale (trigger azione)</td></tr>
+  </tbody>
+</table>
+
+<h3>Ciclo di Vita del Form</h3>
+<ol>
+  <li><strong>Attivazione</strong> - L'AI rileva un'intenzione che corrisponde a un form configurato</li>
+  <li><strong>Estrazione</strong> - L'AI estrae i campi dal messaggio dell'utente (anche piu campi alla volta)</li>
+  <li><strong>Sanitizzazione</strong> - Rimozione valori nulli/vuoti</li>
+  <li><strong>Validazione</strong> - Verifica del tipo e dei vincoli di ogni campo</li>
+  <li><strong>Visualizzazione</strong> - Mostra lo stato attuale e chiede i campi mancanti</li>
+  <li><strong>Conferma</strong> - Riepilogo completo presentato all'utente</li>
+  <li><strong>Invio</strong> - Esecuzione dell'azione finale (salvataggio, webhook, ecc.)</li>
+</ol>
+
+<h3>Configurazione Avanzata Form</h3>
+<div class="card">
+  <div class="card-title">Opzioni di Configurazione</div>
+  <table>
+    <thead><tr><th>Opzione</th><th>Tipo</th><th>Descrizione</th></tr></thead>
+    <tbody>
+      <tr><td><strong>description</strong></td><td>string</td><td>Descrizione per l'LLM (determina quando il form viene attivato)</td></tr>
+      <tr><td><strong>model_class</strong></td><td>JSON Schema</td><td>Schema dei campi da raccogliere</td></tr>
+      <tr><td><strong>start_examples</strong></td><td>string[]</td><td>Frasi che attivano il form</td></tr>
+      <tr><td><strong>stop_examples</strong></td><td>string[]</td><td>Frasi che annullano il form</td></tr>
+      <tr><td><strong>ask_confirm</strong></td><td>boolean</td><td>Richiedi conferma prima dell'invio</td></tr>
+      <tr><td><strong>completion_action</strong></td><td>enum</td><td>Azione a completamento (save, webhook, hook)</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="tip">
+  <div class="tip-title">Suggerimento</div>
+  <p>I campi del form possono essere raccolti in <strong>qualsiasi ordine</strong>. L'utente puo fornire piu informazioni in un singolo messaggio (es: "Voglio una pizza grande con funghi al mio indirizzo Via Roma 10") e il sistema estrarra tutti i campi pertinenti.</p>
+</div>
+
+<!-- APPENDIX E: ARCHITETTURA DELLA MEMORIA -->
+<h2 id="memory-architecture">Appendice E: Architettura della Memoria</h2>
+
+<p>Il sistema di memoria implementa un'architettura a 4 livelli ispirata alla cognizione umana, con memoria a lungo termine persistente e memoria di lavoro volatile.</p>
+
+<h3>Memoria a Lungo Termine (Vettoriale)</h3>
+<p>Archiviata nel database vettoriale (Qdrant), sopravvive ai riavvii del sistema ed e organizzata in tre collezioni semantiche:</p>
+
+<div class="grid-3">
+  <div class="card">
+    <div class="card-title">Episodica</div>
+    <p><strong>Cosa:</strong> Contesto delle conversazioni passate</p>
+    <p><strong>Sorgente:</strong> Interazioni utente automaticamente indicizzate</p>
+    <p><strong>Uso:</strong> Ricordare discussioni precedenti, preferenze espresse, contesto storico</p>
+  </div>
+  <div class="card">
+    <div class="card-title">Dichiarativa</div>
+    <p><strong>Cosa:</strong> Conoscenza fattuale e documentale</p>
+    <p><strong>Sorgente:</strong> Documenti caricati (PDF, DOCX, URL)</p>
+    <p><strong>Uso:</strong> RAG - risposte basate su documenti aziendali</p>
+  </div>
+  <div class="card">
+    <div class="card-title">Procedurale</div>
+    <p><strong>Cosa:</strong> Tool, skill e procedure operative</p>
+    <p><strong>Sorgente:</strong> Definizioni di plugin e tool</p>
+    <p><strong>Uso:</strong> Selezione automatica degli strumenti appropriati</p>
+  </div>
+</div>
+
+<h3>Pipeline di Ricerca Semantica</h3>
+<ol>
+  <li>Il messaggio dell'utente viene convertito in un <strong>vettore di embedding</strong></li>
+  <li>Il vettore viene confrontato con tutti i vettori nelle tre collezioni</li>
+  <li>I risultati piu simili (sopra la soglia configurata) vengono restituiti</li>
+  <li>I risultati vengono <strong>iniettati nel contesto</strong> dell'LLM come informazione aggiuntiva</li>
+  <li>L'LLM genera la risposta tenendo conto del contesto recuperato</li>
+</ol>
+
+<h3>Configurazione Recall</h3>
+<table>
+  <thead><tr><th>Parametro</th><th>Per Collezione</th><th>Descrizione</th></tr></thead>
+  <tbody>
+    <tr><td><strong>K (risultati)</strong></td><td>Si</td><td>Numero massimo di risultati da restituire per collezione</td></tr>
+    <tr><td><strong>Threshold (soglia)</strong></td><td>Si</td><td>Similarita minima (0.0-1.0) per includere un risultato</td></tr>
+    <tr><td><strong>Auto RAG</strong></td><td>Globale</td><td>Abilita/disabilita la ricerca automatica ad ogni messaggio</td></tr>
+  </tbody>
+</table>
+
+<h3>Memoria di Lavoro (Working Memory)</h3>
+<p>Memoria volatile di sessione che mantiene il contesto della conversazione corrente:</p>
+
+<div class="card">
+  <div class="card-title">Proprieta della Working Memory</div>
+  <table>
+    <thead><tr><th>Proprieta</th><th>Descrizione</th></tr></thead>
+    <tbody>
+      <tr><td><code>history</code></td><td>Cronologia interazioni della sessione</td></tr>
+      <tr><td><code>user_message</code></td><td>Messaggio utente corrente</td></tr>
+      <tr><td><code>active_form</code></td><td>Form conversazionale attivo (se presente)</td></tr>
+      <tr><td><code>recall_query</code></td><td>Query usata per il richiamo memoria</td></tr>
+      <tr><td><code>episodic_memories</code></td><td>Memorie episodiche recuperate</td></tr>
+      <tr><td><code>declarative_memories</code></td><td>Memorie dichiarative recuperate</td></tr>
+      <tr><td><code>procedural_memories</code></td><td>Memorie procedurali recuperate</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<p>La working memory puo essere estesa con <strong>attributi personalizzati</strong> per mantenere stato tra una chiamata e l'altra all'interno della stessa sessione (es: contatori, stati di una macchina a stati, dati temporanei).</p>
+
+<h3>HyDE (Hypothetical Document Embeddings)</h3>
+<p>Tecnica avanzata per migliorare la qualita della ricerca semantica:</p>
+<ol>
+  <li>L'LLM genera un <strong>documento ipotetico</strong> che risponderebbe alla query dell'utente</li>
+  <li>Il documento ipotetico viene convertito in embedding</li>
+  <li>La ricerca vettoriale viene eseguita con l'embedding del documento ipotetico</li>
+  <li>Questo produce risultati piu rilevanti rispetto alla semplice ricerca con la query originale</li>
+</ol>
+
+<!-- APPENDIX F: PIPELINE INGESTIONE AVANZATA -->
+<h2 id="ingestion-advanced">Appendice F: Pipeline di Ingestione Avanzata</h2>
+
+<p>La pipeline di ingestione (Rabbit Hole) gestisce il caricamento, la processazione e l'indicizzazione dei documenti nella memoria dichiarativa.</p>
+
+<h3>Formati Supportati e Parser</h3>
+<table>
+  <thead><tr><th>Formato</th><th>Parser</th><th>Note</th></tr></thead>
+  <tbody>
+    <tr><td>PDF</td><td>pdf-parse + OCR (Tesseract)</td><td>Supporta PDF nativi e scansionati</td></tr>
+    <tr><td>DOCX</td><td>Mammoth</td><td>Estrazione testo con struttura</td></tr>
+    <tr><td>XLSX</td><td>XLSX parser</td><td>Dati tabulari convertiti in testo</td></tr>
+    <tr><td>PPTX</td><td>PPTXGenJS</td><td>Testo slide per slide</td></tr>
+    <tr><td>TXT / MD</td><td>Lettura diretta</td><td>Nessuna conversione necessaria</td></tr>
+    <tr><td>HTML (URL)</td><td>Web scraper + Trafilatura</td><td>Estrazione contenuto principale, rimozione nav/footer</td></tr>
+    <tr><td>Immagini</td><td>Tesseract OCR</td><td>PNG, JPG, GIF, WebP</td></tr>
+  </tbody>
+</table>
+
+<h3>Fasi della Pipeline</h3>
+<div class="card">
+  <div class="card-title">Flusso Completo di Ingestione</div>
+  <ol>
+    <li><strong>Ricezione</strong> - File caricato o URL inviato (con protezione SSRF per URL)</li>
+    <li><strong>Parsing</strong> - Estrazione testo dal formato originale (hook: <code>instantiates_parsers</code>)</li>
+    <li><strong>Pre-Processing</strong> - Pulizia testo, rimozione rumore (hook: <code>before_splits_text</code>)</li>
+    <li><strong>Chunking</strong> - Segmentazione in frammenti con overlap (hook: <code>instantiates_splitter</code>)
+      <ul>
+        <li><strong>Chunk Size</strong> - Dimensione target di ogni frammento</li>
+        <li><strong>Chunk Overlap</strong> - Sovrapposizione tra frammenti consecutivi per mantenere contesto</li>
+      </ul>
+    </li>
+    <li><strong>Post-Chunking</strong> - Filtraggio/arricchimento chunk (hook: <code>after_splitted_text</code>)</li>
+    <li><strong>Embedding</strong> - Conversione di ogni chunk in vettore numerico tramite il modello di embedding configurato</li>
+    <li><strong>Pre-Storage</strong> - Aggiunta metadata (hook: <code>before_stores_documents</code>)</li>
+    <li><strong>Indicizzazione</strong> - Inserimento nel database vettoriale (collezione dichiarativa)</li>
+    <li><strong>Post-Storage</strong> - Notifiche, trigger secondari (hook: <code>after_stored_documents</code>)</li>
+  </ol>
+</div>
+
+<h3>Personalizzazione della Pipeline</h3>
+<p>Ogni fase della pipeline puo essere personalizzata tramite hook:</p>
+
+<div class="tip">
+  <div class="tip-title">Esempi di Personalizzazione</div>
+  <ul>
+    <li><strong>Aggiunta parser</strong> - Supporto per formati non standard (es: file CAD, formati proprietari)</li>
+    <li><strong>Chunk size adattivo</strong> - Dimensione variabile basata sul tipo di contenuto</li>
+    <li><strong>Filtraggio contenuto</strong> - Rimozione sezioni irrilevanti (indici, note legali ripetitive)</li>
+    <li><strong>Metadata personalizzati</strong> - Aggiunta di tag, categorie, data di validita ai chunk</li>
+    <li><strong>Notifiche</strong> - Invio email/webhook al completamento dell'ingestione</li>
+  </ul>
+</div>
+
+<h3>Protezione SSRF</h3>
+<p>L'ingestione di URL include protezione SSRF (Server-Side Request Forgery) che blocca automaticamente:</p>
+<ul>
+  <li>URL verso indirizzi IP privati (10.x.x.x, 172.16-31.x.x, 192.168.x.x)</li>
+  <li>URL verso localhost e loopback (127.0.0.1, ::1)</li>
+  <li>URL verso reti interne del cluster</li>
+</ul>
+
+<!-- APPENDIX G: SCHEDULER AVANZATO -->
+<h2 id="scheduler-advanced">Appendice G: Scheduler Avanzato (White Rabbit)</h2>
+
+<p>Lo scheduler e basato su APScheduler e supporta tre modalita di pianificazione con persistenza in memoria (con ri-scheduling automatico al bootstrap).</p>
+
+<h3>Metodi del Scheduler</h3>
+<table>
+  <thead><tr><th>Metodo</th><th>Uso</th><th>Parametri</th></tr></thead>
+  <tbody>
+    <tr><td><code>schedule_job()</code></td><td>Esecuzione una tantum</td><td>days, hours, minutes, seconds</td></tr>
+    <tr><td><code>schedule_interval_job()</code></td><td>Ripetizione a intervalli</td><td>Intervallo + start/end date opzionali</td></tr>
+    <tr><td><code>schedule_cron_job()</code></td><td>Espressione cron</td><td>year, month, day, week, day_of_week, hour, minute, second</td></tr>
+    <tr><td><code>schedule_chat_message()</code></td><td>Messaggio ritardato</td><td>Contenuto + ritardo</td></tr>
+    <tr><td><code>get_jobs()</code></td><td>Lista job attivi</td><td>-</td></tr>
+    <tr><td><code>pause_job(id)</code></td><td>Sospendi job</td><td>Job ID</td></tr>
+    <tr><td><code>resume_job(id)</code></td><td>Riprendi job</td><td>Job ID</td></tr>
+    <tr><td><code>remove_job(id)</code></td><td>Elimina job</td><td>Job ID</td></tr>
+  </tbody>
+</table>
+
+<div class="warning">
+  <div class="warning-title">Persistenza Job</div>
+  <p>I job schedulati sono attualmente mantenuti in memoria. In caso di riavvio del backend, i job devono essere ri-schedulati. Usare l'hook <code>after_bootstrap</code> per registrare nuovamente i job ricorrenti all'avvio del sistema.</p>
+</div>
+
+<h3>Espressioni Cron</h3>
+<table>
+  <thead><tr><th>Esempio</th><th>Significato</th></tr></thead>
+  <tbody>
+    <tr><td><code>0 9 * * 1-5</code></td><td>Ogni giorno feriale alle 9:00</td></tr>
+    <tr><td><code>0 */2 * * *</code></td><td>Ogni 2 ore</td></tr>
+    <tr><td><code>30 8 1 * *</code></td><td>Il primo di ogni mese alle 8:30</td></tr>
+    <tr><td><code>0 0 * * 0</code></td><td>Ogni domenica a mezzanotte</td></tr>
+    <tr><td><code>*/15 * * * *</code></td><td>Ogni 15 minuti</td></tr>
+  </tbody>
+</table>
+
+<!-- APPENDIX H: AUTENTICAZIONE E AUTORIZZAZIONE -->
+<h2 id="auth-advanced">Appendice H: Autenticazione e Autorizzazione Avanzata</h2>
+
+<h3>Metodi di Autenticazione</h3>
+
+<div class="grid-2">
+  <div class="card">
+    <div class="card-title">JWT (JSON Web Token)</div>
+    <ul>
+      <li>Token con scadenza configurabile</li>
+      <li>Session ID embedded nel token</li>
+      <li>Refresh token via HTTP-only cookie</li>
+      <li>Rotazione automatica dei token</li>
+      <li>Revoca su nuovo login (sessione singola)</li>
+    </ul>
+  </div>
+  <div class="card">
+    <div class="card-title">API Key</div>
+    <ul>
+      <li>Header: <code>Authorization: Bearer &lt;API_KEY&gt;</code></li>
+      <li>Accesso completo a tutte le risorse</li>
+      <li>Ideale per integrazioni M2M</li>
+      <li>Nessuna scadenza (revocabile manualmente)</li>
+    </ul>
+  </div>
+</div>
+
+<h3>Autorizzazione (RBAC)</h3>
+<p>Il sistema implementa un modello di autorizzazione Role-Based Access Control con permessi granulari:</p>
+
+<table>
+  <thead><tr><th>Permesso</th><th>Scope</th><th>Descrizione</th></tr></thead>
+  <tbody>
+    <tr><td><code>READ</code></td><td>Per risorsa</td><td>Visualizzazione dati</td></tr>
+    <tr><td><code>WRITE</code></td><td>Per risorsa</td><td>Creazione e modifica</td></tr>
+    <tr><td><code>DELETE</code></td><td>Per risorsa</td><td>Eliminazione</td></tr>
+    <tr><td><code>LIST</code></td><td>Per risorsa</td><td>Elenco risorse</td></tr>
+    <tr><td><code>ADMIN</code></td><td>Globale</td><td>Operazioni amministrative</td></tr>
+  </tbody>
+</table>
+
+<h3>Tipi di Utente</h3>
+<table>
+  <thead><tr><th>Tipo</th><th>Descrizione</th><th>Auth Method</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Interno</strong></td><td>Creato nel sistema, credenziali locali</td><td>Email + password + MFA opzionale</td></tr>
+    <tr><td><strong>API</strong></td><td>Accesso programmatico</td><td>API Key</td></tr>
+    <tr><td><strong>Esterno</strong></td><td>Integrato tramite auth handler custom</td><td>OAuth, SAML, LDAP (via plugin)</td></tr>
+  </tbody>
+</table>
+
+<h3>Auth Handler Personalizzati</h3>
+<p>Il sistema supporta handler di autenticazione personalizzati tramite il sistema plugin, consentendo l'integrazione con identity provider esterni (Active Directory, Okta, Auth0, ecc.):</p>
+<ul>
+  <li>Implementare le interfacce di validazione JWT e API key</li>
+  <li>Registrare l'handler tramite l'hook <code>factory_allowed_auth_handlers</code></li>
+  <li>Configurare le credenziali del provider esterno nelle impostazioni del plugin</li>
+</ul>
+
+<h3>Best Practice di Sicurezza</h3>
+<div class="warning">
+  <div class="warning-title">Checklist Sicurezza</div>
+  <ul>
+    <li>Impostare <strong>sempre</strong> un JWT secret forte e casuale (mai usare il valore di default)</li>
+    <li>Configurare rate limiting sugli endpoint di login</li>
+    <li>Abilitare MFA per tutti gli account admin</li>
+    <li>Usare HTTPS in produzione (mai HTTP)</li>
+    <li>Gli endpoint custom dei plugin sono <strong>aperti per default</strong> - aggiungere sempre il controllo permessi</li>
+    <li>Verificare la lista <code>/admin/sessions</code> regolarmente per sessioni sospette</li>
+    <li>Ruotare le API key periodicamente</li>
+  </ul>
+</div>
+
+<!-- SECTION: MARKETPLACE -->
+<h2 id="marketplace">Marketplace Competenze</h2>
+
+<p>Il Marketplace consente di sincronizzare, installare e gestire competenze AI (skills, agenti, plugin MCP, hooks) da un catalogo centralizzato. Accessibile dal pannello admin alla voce <strong>Marketplace</strong>.</p>
+
+<h3>Catalogo e Sincronizzazione</h3>
+
+<div class="card">
+  <div class="card-title">Sincronizzazione Catalogo</div>
+  <p>Il catalogo viene sincronizzato da fonti esterne. L'amministratore puo:</p>
+  <ul>
+    <li><strong>Sincronizzazione manuale</strong> - Premere il pulsante "Sincronizza" nella pagina Marketplace</li>
+    <li><strong>Stato sincronizzazione</strong> - Verificare data e stato dell'ultima sincronizzazione</li>
+    <li><strong>Sospensione automatica</strong> - Se la fonte non e raggiungibile per 3 tentativi consecutivi, la sincronizzazione viene sospesa</li>
+    <li><strong>Ripresa</strong> - Usare il pulsante "Riprendi" per riprendere la sincronizzazione dopo una sospensione</li>
+  </ul>
+</div>
+
+<h3>Classificazione Tier</h3>
+
+<div class="card">
+  <p>Le competenze sono classificate in tre livelli di sicurezza:</p>
+  <table>
+    <tr><th>Tier</th><th>Tipo</th><th>Approvazione</th></tr>
+    <tr><td><span class="badge badge-success">Tier 1</span></td><td>Skills, Prompt Templates</td><td>Self-service (installazione libera)</td></tr>
+    <tr><td><span class="badge badge-warning">Tier 2</span></td><td>Agenti, Automazioni</td><td>Self-service con limiti</td></tr>
+    <tr><td><span class="badge badge-danger">Tier 3</span></td><td>Plugin MCP, Hooks</td><td>Richiede approvazione admin</td></tr>
+  </table>
+</div>
+
+<h3>Workflow di Approvazione</h3>
+
+<div class="card">
+  <div class="card-title">Gestione Approvazioni</div>
+  <p>Quando un utente richiede l'installazione di una competenza Tier 3, viene creata una richiesta di approvazione:</p>
+  <ol>
+    <li>L'utente clicca "Installa" su un elemento Tier 3</li>
+    <li>Viene generata una richiesta di approvazione con stato <span class="badge badge-warning">pending</span></li>
+    <li>L'amministratore riceve una notifica (badge nel menu laterale)</li>
+    <li>Dalla sezione Marketplace, tab "Approvazioni", l'admin puo <span class="badge badge-success">Approvare</span> o <span class="badge badge-danger">Rifiutare</span></li>
+    <li>L'utente viene notificato della decisione</li>
+  </ol>
+</div>
+
+<h3>Ricerca Semantica</h3>
+
+<div class="card">
+  <p>Il marketplace integra la ricerca semantica tramite Qdrant:</p>
+  <ul>
+    <li><strong>Ricerca per testo</strong> - Filtra per nome, categoria o descrizione</li>
+    <li><strong>Ricerca semantica</strong> - Usa il campo ricerca per trovare competenze simili per significato</li>
+    <li><strong>Auto-suggerimento</strong> - Il sistema suggerisce automaticamente competenze rilevanti durante le conversazioni AI (se abilitato nelle impostazioni)</li>
+  </ul>
+</div>
+
+<h3>Notifiche</h3>
+
+<div class="card">
+  <p>Il pannello admin mostra notifiche in tempo reale:</p>
+  <ul>
+    <li><strong>Badge Marketplace</strong> - Indica nuove competenze aggiunte al catalogo dall'ultima sincronizzazione</li>
+    <li><strong>Badge Pipeline</strong> - Indica approvazioni in attesa per competenze Tier 3</li>
+  </ul>
+</div>
+
+<div class="tip">
+  <div class="tip-title">Suggerimento</div>
+  <p>Configura la sincronizzazione automatica del catalogo per mantenere aggiornate le competenze disponibili. Ogni installazione e limitata a un massimo di 50 per utente.</p>
+</div>
+
+<!-- SECTION: PIPELINE VISUALIZER -->
+<h2 id="pipeline-visualizer">Hook Pipeline Visualizer</h2>
+
+<p>Il Pipeline Visualizer offre una vista grafica della pipeline degli hook, mostrando come gli eventi fluiscono attraverso i vari handler registrati.</p>
+
+<div class="card">
+  <div class="card-title">Funzionalita</div>
+  <ul>
+    <li><strong>Vista Hook Points</strong> - Visualizza tutti i punti di aggancio disponibili (before_llm_call, after_llm_call, ecc.)</li>
+    <li><strong>Handler registrati</strong> - Per ogni hook point, mostra gli handler attivi con priorita e timeout</li>
+    <li><strong>Log di esecuzione</strong> - Pannello trace con log dettagliati delle esecuzioni degli handler</li>
+    <li><strong>Approvazioni pendenti</strong> - Badge con il numero di approvazioni in attesa</li>
+  </ul>
+</div>
+
+<div class="card">
+  <div class="card-title">Auto-Suggest Hook</div>
+  <p>Il Marketplace registra automaticamente un handler <code>marketplace-auto-suggest</code> nel hook point <code>before_llm_call</code>:</p>
+  <ul>
+    <li><strong>Priorita</strong>: 50 (esecuzione anticipata)</li>
+    <li><strong>Timeout</strong>: 100ms (non rallenta la risposta)</li>
+    <li><strong>Cache</strong>: Redis con TTL di 5 minuti per le query gia elaborate</li>
+    <li><strong>Funzione</strong>: Interroga Qdrant per suggerire competenze rilevanti al contesto della conversazione</li>
+  </ul>
+</div>
+
+<div class="footer">
+  <p>Enterprise AI Chat v2.1.23 - Guida Amministratore</p>
+  <p>Documento riservato - Solo per personale autorizzato</p>
+  <p>Conforme al Regolamento Europeo sull'AI (AI Act) e GDPR</p>
+  <p>Ultimo aggiornamento: Marzo 2026</p>
+</div>
+
+</div>
+</body>
 </html>

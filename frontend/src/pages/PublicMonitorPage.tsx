@@ -7,12 +7,12 @@ import {
     HardDrive,
     Network,
     Thermometer,
+    Box,
     Server,
     Gauge,
     Users,
     Container,
-    Shield,
-    Cloud,
+    ImagePlus,
 } from 'lucide-react';
 
 // Using direct axios for public route to bypass intercepted auth logic if necessary
@@ -131,7 +131,7 @@ export default function PublicMonitorPage() {
                         <Activity className="w-6 h-6 text-green-500" />
                         VITAL_SIGNS_OS
                     </h1>
-                    <span className="text-surface-500 text-[10px]">FE: 2.1.21_STABLE | BE: 2.1.21_STABLE | NODE: {data?.hostname}</span>
+                    <span className="text-surface-500 text-[10px]">FE: 2.1.23_STABLE | BE: 2.1.23_STABLE | NODE: {data?.hostname}</span>
                 </div>
                 <div className="text-right">
                     <div className="text-green-500 animate-pulse text-xs font-bold font-mono">● LIVE_STREAM_ACTIVE</div>
@@ -210,32 +210,14 @@ export default function PublicMonitorPage() {
                 {/* NETWORK_I/O */}
                 <GridCard title="NET_TRAFFIC_IO" icon={Network} color="cyan">
                     {data?.network?.stats && data.network.stats.length > 0 ? (
-                        <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
-                            {data.network.stats.map((stat: any, i: number) => {
-                                const hasErrors = (stat.rxErrors || 0) > 0 || (stat.txErrors || 0) > 0;
-                                const hasDrops = (stat.rxDropped || 0) > 0 || (stat.txDropped || 0) > 0;
-                                return (
-                                    <div key={i} className="border-b border-white/5 pb-2 last:border-0">
-                                        <div className="text-[10px] text-cyan-500 mb-1 font-bold">{stat.interface}</div>
-                                        <div className="grid grid-cols-2 gap-x-3">
-                                            <StatItem label="RX_RATE" value={formatBytes(stat.rxBytesPerSec)} subValue="/s" color="text-cyan-400" />
-                                            <StatItem label="TX_RATE" value={formatBytes(stat.txBytesPerSec)} subValue="/s" color="text-blue-400" />
-                                            <StatItem label="RX_TOTAL" value={formatBytes(stat.rxBytes || 0)} color="text-surface-400" />
-                                            <StatItem label="TX_TOTAL" value={formatBytes(stat.txBytes || 0)} color="text-surface-400" />
-                                            <StatItem label="RX_PKT" value={((stat.rxPackets || 0) / 1e6).toFixed(1) + 'M'} color="text-surface-500" />
-                                            <StatItem label="TX_PKT" value={((stat.txPackets || 0) / 1e6).toFixed(1) + 'M'} color="text-surface-500" />
-                                        </div>
-                                        {(hasErrors || hasDrops) && (
-                                            <div className="mt-1 pt-1 border-t border-white/5 grid grid-cols-2 gap-x-3">
-                                                <StatItem label="RX_ERR" value={stat.rxErrors || 0} color={hasErrors ? 'text-red-400' : 'text-surface-600'} />
-                                                <StatItem label="TX_ERR" value={stat.txErrors || 0} color={hasErrors ? 'text-red-400' : 'text-surface-600'} />
-                                                <StatItem label="RX_DROP" value={formatBytes(stat.rxDropped || 0)} color={hasDrops ? 'text-amber-400' : 'text-surface-600'} />
-                                                <StatItem label="TX_DROP" value={stat.txDropped || 0} color={hasDrops ? 'text-amber-400' : 'text-surface-600'} />
-                                            </div>
-                                        )}
-                                    </div>
-                                );
-                            })}
+                        <div className="space-y-2 max-h-[140px] overflow-y-auto pr-1">
+                            {data.network.stats.map((stat: any, i: number) => (
+                                <div key={i} className="border-b border-white/5 pb-1 last:border-0">
+                                    <div className="text-[10px] text-cyan-500 mb-1 font-bold">{stat.interface}</div>
+                                    <StatItem label="RX" value={formatBytes(stat.rxBytesPerSec)} subValue="/s" color="text-cyan-400" />
+                                    <StatItem label="TX" value={formatBytes(stat.txBytesPerSec)} subValue="/s" color="text-blue-400" />
+                                </div>
+                            ))}
                         </div>
                     ) : (
                         <div className="py-4 text-center text-surface-600 italic text-[10px]">Awaiting_First_Sample...</div>
@@ -292,76 +274,64 @@ export default function PublicMonitorPage() {
                     </div>
                 </GridCard>
 
-                {/* PRIMARY_INFERENCE_ENGINE */}
-                <GridCard title="PRIMARY_INFERENCE_ENGINE" icon={Zap} color="cyan">
-                    <div className="flex items-center gap-2 mb-2">
-                        <div className={`w-2 h-2 rounded-full ${data?.vllm?.healthy ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
-                        <span className={`font-bold ${data?.vllm?.healthy ? 'text-green-400' : 'text-red-400'}`}>
-                            {data?.vllm?.healthy ? 'ONLINE' : 'OFFLINE'}
-                        </span>
-                        <span className="ml-auto text-[8px] bg-cyan-500/20 text-cyan-400 px-1.5 rounded uppercase">
-                            vLLM
-                        </span>
-                    </div>
-                    <StatItem label="PROVIDER" value="vLLM (OpenAI-compat)" color="text-cyan-400" />
-                    {/* Served models */}
-                    <div className="flex items-center justify-between mt-2 mb-1">
-                        <span className="text-cyan-400">SERVED_MODELS</span>
-                        <span className="bg-cyan-500/20 text-cyan-400 px-1 rounded">{data?.vllm?.models?.length || 0}</span>
+                {/* OLLAMA_COMPUTE */}
+                <GridCard title="AI_INFERENCE_ORCHESTRATOR" icon={Box} color="purple">
+                    {data?.ollama?.version && (
+                        <div className="text-[8px] text-surface-500 mb-1">Ollama v{data.ollama.version}</div>
+                    )}
+                    {/* Active (loaded in VRAM) models */}
+                    <div className="flex items-center justify-between mb-1">
+                        <span className="text-purple-400">ACTIVE_IN_VRAM</span>
+                        <span className="bg-purple-500/20 text-purple-400 px-1 rounded">{data?.ollama?.activeModels?.length || 0}</span>
                     </div>
                     <div className="space-y-1 mb-2">
-                        {data?.vllm?.models?.map((model: string, i: number) => (
-                            <div key={i} className="bg-cyan-500/10 p-1.5 rounded border border-cyan-500/20">
-                                <div className="text-[10px] text-cyan-300 font-bold">{model}</div>
+                        {data?.ollama?.activeModels?.map((m: any, i: number) => (
+                            <div key={i} className="bg-purple-500/10 p-1.5 rounded border border-purple-500/20">
+                                <div className="text-[10px] text-purple-300 truncate font-bold">{m.name}</div>
+                                <div className="flex justify-between text-[8px] text-surface-500">
+                                    <span>{m.details?.parameter_size}</span>
+                                    <span className="text-green-500">VRAM: {formatBytes(m.size_vram || 0)}</span>
+                                </div>
                             </div>
                         ))}
-                        {(!data?.vllm?.models || data.vllm.models.length === 0) && (
-                            <div className="text-center py-1 text-surface-600 italic text-[9px]">No_Models_Served</div>
+                        {(!data?.ollama?.activeModels || data.ollama.activeModels.length === 0) && (
+                            <div className="text-center py-1 text-surface-600 italic text-[9px]">No_Compute_Load</div>
+                        )}
+                    </div>
+                    {/* All installed models */}
+                    <div className="flex items-center justify-between mb-1">
+                        <span className="text-cyan-400">INSTALLED_MODELS</span>
+                        <span className="bg-cyan-500/20 text-cyan-400 px-1 rounded">{data?.ollama?.installedModels?.length || 0}</span>
+                    </div>
+                    <div className="space-y-1 max-h-[100px] overflow-y-auto">
+                        {data?.ollama?.installedModels?.map((m: any, i: number) => (
+                            <div key={i} className="bg-white/5 p-1.5 rounded">
+                                <div className="text-[10px] text-cyan-300 truncate">{m.name}</div>
+                                <div className="flex justify-between text-[8px] text-surface-500">
+                                    <span>{m.details?.parameter_size || m.details?.family}</span>
+                                    <span>{m.details?.quantization_level}</span>
+                                    <span className="text-blue-400">{formatBytes(m.size || 0)}</span>
+                                </div>
+                            </div>
+                        ))}
+                        {(!data?.ollama?.installedModels || data.ollama.installedModels.length === 0) && (
+                            <div className="text-center py-1 text-surface-600 italic text-[9px]">No_Models_Installed</div>
                         )}
                     </div>
                 </GridCard>
 
-                {/* AI_INFERENCE_ORCHESTRATOR — vLLM model status */}
-                <GridCard title="AI_INFERENCE_ORCHESTRATOR" icon={Server} color="purple">
-                    <div className="flex items-center justify-between mb-1">
-                        <span className="text-purple-400">ACTIVE_IN_VRAM</span>
-                        <span className="bg-purple-500/20 text-purple-400 px-1.5 rounded font-bold">{data?.vllm?.models?.length || 0}</span>
-                    </div>
-                    {data?.vllm?.models && data.vllm.models.length > 0 ? (
-                        <div className="space-y-1 mb-3">
-                            {data.vllm.models.map((model: string, i: number) => (
-                                <div key={i} className="bg-purple-500/10 p-1.5 rounded border border-purple-500/20 flex items-center gap-2">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse flex-shrink-0" />
-                                    <span className="text-[10px] text-purple-300 font-bold">{model}</span>
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="py-2 text-center text-surface-600 italic text-[9px]">No_Compute_Load</div>
-                    )}
-                    <div className="flex items-center justify-between mb-1">
-                        <span className="text-purple-400">INSTALLED_MODELS</span>
-                        <span className="bg-purple-500/20 text-purple-400 px-1.5 rounded font-bold">
-                            {(() => {
-                                const aliases = ['qwen-fast','qwen-thinking','gemma-fast','phi-fast','deepseek-think','qwq-think','coder','gpt-oss','llama4'];
-                                return data?.vllm?.healthy ? aliases.length : 0;
-                            })()}
+                {/* IMAGE_GENERATION_ENGINE */}
+                <GridCard title="IMG_GEN_ENGINE" icon={ImagePlus} color="pink">
+                    <div className="flex items-center gap-2 mb-2">
+                        <div className={`w-2 h-2 rounded-full ${data?.diffuser?.status === 'ok' ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+                        <span className={`font-bold ${data?.diffuser?.status === 'ok' ? 'text-green-400' : 'text-red-400'}`}>
+                            {data?.diffuser?.status === 'ok' ? 'ONLINE' : 'OFFLINE'}
                         </span>
                     </div>
-                    {data?.vllm?.healthy ? (
-                        <div className="grid grid-cols-3 gap-1">
-                            {['qwen-fast','qwen-thinking','gemma-fast','phi-fast','deepseek-think','qwq-think','coder','gpt-oss','llama4'].map((alias, i) => (
-                                <div key={i} className="bg-purple-500/5 px-1 py-0.5 rounded border border-purple-500/10 text-center">
-                                    <span className="text-[8px] text-purple-300">{alias}</span>
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="py-2 text-center text-surface-600 italic text-[9px]">No_Models_Installed</div>
-                    )}
-                    <div className="mt-2 pt-1 border-t border-white/5 text-[8px] text-surface-500">
-                        ENGINE: vLLM | MODE: {data?.vllm?.inferenceMode || 'vllm'} | GPU: RTX_5090
-                    </div>
+                    <StatItem label="SERVICE" value="OllamaDiffuser" color="text-pink-400" />
+                    <StatItem label="MODEL" value="stable-diffusion-1.5" color="text-cyan-400" />
+                    <StatItem label="PROTOCOL" value="REST/HTTP" color="text-surface-400" />
+                    <StatItem label="ENDPOINT" value="/api/generate" color="text-surface-400" />
                 </GridCard>
 
                 {/* K8S_CLUSTER_STATE */}
@@ -382,9 +352,10 @@ export default function PublicMonitorPage() {
                     <div className="space-y-1 max-h-[100px] overflow-y-auto pr-1">
                         {data?.k8sPods?.map((p: any, i: number) => (
                             <div key={i} className="flex items-center gap-1.5 whitespace-nowrap overflow-hidden group">
-                                <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${p.status === 'Running' ? 'bg-green-500' :
+                                <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                                    p.status === 'Running' ? 'bg-green-500' :
                                     p.status === 'Pending' ? 'bg-yellow-500 animate-pulse' : 'bg-red-500'
-                                    }`} />
+                                }`} />
                                 <span className="text-[8px] truncate flex-1 text-surface-400 group-hover:text-surface-200">{p.name}</span>
                                 <span className="text-[7px] text-surface-600 flex-shrink-0">{p.ready}</span>
                             </div>
@@ -396,102 +367,7 @@ export default function PublicMonitorPage() {
                 </GridCard>
             </div>
 
-            {/* Second row: Connection Health + Cloudflare Tunnel */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                {/* TCP/UDP CONNECTION HEALTH */}
-                <GridCard title="CONN_HEALTH_MATRIX" icon={Shield} color="red">
-                    {data?.connectionHealth?.tcp ? (
-                        <div className="space-y-2">
-                            <div className="text-[10px] text-red-400 font-bold mb-1">TCP_STACK</div>
-                            <div className="grid grid-cols-2 gap-x-3">
-                                <StatItem label="ESTABLISHED" value={data.connectionHealth.tcp.currentEstablished || 0} color="text-green-400" />
-                                <StatItem label="RETRANSMIT_%" value={`${data.connectionHealth.tcp.retransmitRate || 0}%`} color={data.connectionHealth.tcp.retransmitRate > 1 ? 'text-red-400' : 'text-green-400'} />
-                                <StatItem label="RETRANSMITS" value={data.connectionHealth.tcp.retransmits || 0} color={data.connectionHealth.tcp.retransmits > 10000 ? 'text-amber-400' : 'text-surface-400'} />
-                                <StatItem label="TIMEOUTS" value={data.connectionHealth.tcp.timeouts || 0} color={data.connectionHealth.tcp.timeouts > 100 ? 'text-red-400' : 'text-surface-400'} />
-                                <StatItem label="ATTEMPT_FAILS" value={data.connectionHealth.tcp.attemptFails || 0} color={data.connectionHealth.tcp.attemptFails > 100 ? 'text-amber-400' : 'text-surface-400'} />
-                                <StatItem label="ESTAB_RESETS" value={data.connectionHealth.tcp.estabResets || 0} color={data.connectionHealth.tcp.estabResets > 100 ? 'text-amber-400' : 'text-surface-400'} />
-                                <StatItem label="ACTIVE_OPENS" value={data.connectionHealth.tcp.activeOpens || 0} color="text-surface-500" />
-                                <StatItem label="PASSIVE_OPENS" value={data.connectionHealth.tcp.passiveOpens || 0} color="text-surface-500" />
-                            </div>
-                            <div className="flex justify-between text-[8px] text-surface-600 mt-1">
-                                <span>IN_SEG: {((data.connectionHealth.tcp.inSegments || 0) / 1e6).toFixed(1)}M</span>
-                                <span>OUT_SEG: {((data.connectionHealth.tcp.outSegments || 0) / 1e6).toFixed(1)}M</span>
-                            </div>
-
-                            <div className="border-t border-white/10 pt-2 mt-2">
-                                <div className="text-[10px] text-yellow-400 font-bold mb-1">UDP_STACK</div>
-                                <div className="grid grid-cols-2 gap-x-3">
-                                    <StatItem label="IN_DGRAMS" value={((data.connectionHealth.udp?.inDatagrams || 0) / 1e6).toFixed(1) + 'M'} color="text-surface-400" />
-                                    <StatItem label="OUT_DGRAMS" value={((data.connectionHealth.udp?.outDatagrams || 0) / 1e6).toFixed(1) + 'M'} color="text-surface-400" />
-                                    <StatItem label="IN_ERRORS" value={data.connectionHealth.udp?.inErrors || 0} color={data.connectionHealth.udp?.inErrors > 0 ? 'text-red-400' : 'text-green-400'} />
-                                    <StatItem label="NO_PORTS" value={data.connectionHealth.udp?.noPorts || 0} color={data.connectionHealth.udp?.noPorts > 1000 ? 'text-amber-400' : 'text-surface-500'} />
-                                </div>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="py-4 text-center text-surface-600 italic text-[10px]">No_Connection_Data</div>
-                    )}
-                </GridCard>
-
-                {/* CLOUDFLARE TUNNEL STATUS */}
-                <GridCard title="CLOUDFLARE_TUNNEL" icon={Cloud} color="orange">
-                    {data?.cloudflared?.status === 'connected' ? (
-                        <div className="space-y-2">
-                            <div className="flex items-center gap-2 mb-2">
-                                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                                <span className="text-green-400 font-bold">TUNNEL_ACTIVE</span>
-                                <span className="text-[8px] bg-green-500/20 text-green-400 px-1 rounded ml-auto">HTTP/2</span>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-x-3">
-                                <StatItem label="HA_CONNECTIONS" value={data.cloudflared.haConnections || 0} color={data.cloudflared.haConnections >= 4 ? 'text-green-400' : 'text-amber-400'} />
-                                <StatItem label="REGISTRATIONS" value={data.cloudflared.tunnelRegistrations || 0} color="text-surface-400" />
-                                <StatItem label="TOTAL_REQ" value={data.cloudflared.totalRequests || 0} color="text-cyan-400" />
-                                <StatItem label="REQ_ERRORS" value={data.cloudflared.requestErrors || 0} color={data.cloudflared.requestErrors > 0 ? 'text-red-400' : 'text-green-400'} />
-                                <StatItem label="CONN_ERRORS" value={data.cloudflared.connectStreamErrors || 0} color={data.cloudflared.connectStreamErrors > 0 ? 'text-red-400' : 'text-green-400'} />
-                                <StatItem label="TCP_SESSIONS" value={data.cloudflared.activeTcpSessions || 0} subValue={`/ ${data.cloudflared.totalTcpSessions || 0}`} color="text-blue-400" />
-                            </div>
-
-                            {data.cloudflared.locations?.length > 0 && (
-                                <div className="border-t border-white/10 pt-2 mt-2">
-                                    <div className="text-[10px] text-orange-400 font-bold mb-1">EDGE_LOCATIONS</div>
-                                    <div className="flex flex-wrap gap-1">
-                                        {data.cloudflared.locations.map((loc: any, i: number) => (
-                                            <span key={i} className="text-[9px] bg-orange-500/20 text-orange-300 px-1.5 py-0.5 rounded">
-                                                {loc.location.toUpperCase()}
-                                            </span>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {data.cloudflared.responseCodes && Object.keys(data.cloudflared.responseCodes).length > 0 && (
-                                <div className="border-t border-white/10 pt-2 mt-2">
-                                    <div className="text-[10px] text-cyan-400 font-bold mb-1">RESPONSE_CODES</div>
-                                    <div className="grid grid-cols-3 gap-1">
-                                        {Object.entries(data.cloudflared.responseCodes)
-                                            .sort(([a], [b]) => a.localeCompare(b))
-                                            .map(([code, count]: [string, any]) => (
-                                                <div key={code} className="flex justify-between text-[9px]">
-                                                    <span className={`${code.startsWith('2') ? 'text-green-400' : code.startsWith('3') ? 'text-blue-400' : code.startsWith('4') ? 'text-amber-400' : 'text-red-400'}`}>{code}</span>
-                                                    <span className="text-surface-500">{count}</span>
-                                                </div>
-                                            ))}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    ) : (
-                        <div className="flex flex-col items-center justify-center gap-2 py-4">
-                            <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                            <span className="text-red-400 font-bold">TUNNEL_UNREACHABLE</span>
-                            <span className="text-[8px] text-surface-600">Metrics endpoint offline</span>
-                        </div>
-                    )}
-                </GridCard>
-            </div>
-
-            {/* Third row: Docker + K8s Containers + Active Users */}
+            {/* Second row: Docker + K8s Containers + Active Users */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
                 {/* HOST DOCKER CONTAINERS */}
                 <GridCard title="DOCKER_HOST_CONTAINERS" icon={Container} color="orange">
@@ -589,8 +465,9 @@ export default function PublicMonitorPage() {
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center justify-between gap-1">
                                             <span className="text-[10px] text-pink-300 truncate font-bold">{u.name || u.email}</span>
-                                            <span className={`text-[7px] px-1 rounded ${u.role === 'admin' ? 'bg-red-500/20 text-red-400' : 'bg-blue-500/20 text-blue-400'
-                                                }`}>{u.role}</span>
+                                            <span className={`text-[7px] px-1 rounded ${
+                                                u.role === 'admin' ? 'bg-red-500/20 text-red-400' : 'bg-blue-500/20 text-blue-400'
+                                            }`}>{u.role}</span>
                                         </div>
                                         <div className="flex items-center justify-between text-[8px] text-surface-500">
                                             <span className="truncate">{u.email}</span>

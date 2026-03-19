@@ -1,33 +1,28 @@
-import React, { Suspense } from 'react';
+import React, { useEffect } from 'react';
 import {
-  Brain,
-  Paperclip,
-  Database,
-  ExternalLink,
-  Globe,
   User,
   ChevronDown,
   Download,
   FileText,
-  FileCheck,
   Loader2,
+  Brain,
+  Edit3,
 } from 'lucide-react';
-
-const PDFEditorWidget = React.lazy(() => import('./PDFEditorWidget/PDFEditorWidget'));
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import clsx from 'clsx';
-import { useNavigate } from 'react-router-dom';
 import { BotIcon, BotIconType } from '../BotIcon';
 import AIGeneratedLabel from '../AIGeneratedLabel';
 import FeedbackButtons from '../FeedbackButtons';
 import SensitiveTopicWarning from '../SensitiveTopicWarning';
 import { downloadFile } from '../../utils/fileDownload';
 import { isNativePlatform } from '../../utils/platform';
+import { usePDFEditorStore } from '../../hooks/usePDFEditorStore';
 import type { Message } from '../../hooks/useChatMessages';
-import { useDocumentStore } from '../../hooks/useDocumentStore';
-import { useAuthStore } from '../../hooks/useAuthStore';
+
+const PDF_EDITOR_MARKER = /<!-- pdf_editor:attachmentId=(\d+),filename=(.+?) -->/;
+const PDF_ATTACHMENT_REF = /\[Allegato(?:\s+ID=(\d+))?:\s*([^\]]*?\.pdf)\s*(?:\([^)]*\))?\s*\]/gi;
 
 // Stable markdown components defined OUTSIDE the render function
 // to prevent React from re-creating DOM elements on each re-render
@@ -47,7 +42,7 @@ const MarkdownCode = ({ className, children, ...props }: any) => {
 const MarkdownImg = ({ src, alt, ...props }: any) => {
   const isGenerated = typeof src === 'string' && src.startsWith('/api/tools/download/');
   // Only render images from our API or standard https URLs (block javascript:, data: etc.)
-  const isSafeSrc = typeof src === 'string' && (src.startsWith('/api/') || src.startsWith('https://'));
+  const isSafeSrc = typeof src === 'string' && (src.startsWith('/api/') || src.startsWith('https://') || src.startsWith('http://'));
   const safeFilename = ((alt || 'image') as string).replace(/[^a-zA-Z0-9._-]/g, '_').substring(0, 100) + '.png';
 
   if (!isSafeSrc) return null;
@@ -65,7 +60,7 @@ const MarkdownImg = ({ src, alt, ...props }: any) => {
           <a
             href={src}
             download
-            onClick={async (e: React.MouseEvent) => { e.preventDefault(); const token = useAuthStore.getState().accessToken; await downloadFile(src!, safeFilename, token || undefined); }}
+            onClick={async (e: React.MouseEvent) => { e.preventDefault(); await downloadFile(src!, safeFilename); }}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary-600 hover:bg-primary-700 text-white no-underline transition-colors text-xs font-medium cursor-pointer"
           >
             <Download className="w-3.5 h-3.5" />
@@ -81,8 +76,7 @@ const MarkdownLink = ({ href, children, ...props }: any) => {
   if (href && href.includes('/api/tools/download/')) {
     const handleDownload = async (e: React.MouseEvent) => {
       e.preventDefault();
-      const token = useAuthStore.getState().accessToken;
-      await downloadFile(href, String(children), token || undefined);
+      await downloadFile(href, String(children));
     };
     return (
       <a href={href} onClick={handleDownload}
@@ -103,18 +97,6 @@ const MarkdownLink = ({ href, children, ...props }: any) => {
 };
 
 const markdownComponents = { code: MarkdownCode, img: MarkdownImg, a: MarkdownLink };
-
-/** Detect PDF editor widget markers in message content */
-const PDF_EDITOR_PATTERN = /<!-- pdf_editor:attachmentId=(\d+)(?:,filename=([^ ]+))? -->/;
-
-function extractPdfEditorData(content: string): { attachmentId: number; filename?: string } | null {
-  const match = PDF_EDITOR_PATTERN.exec(content);
-  if (!match) return null;
-  return {
-    attachmentId: parseInt(match[1], 10),
-    filename: match[2] || undefined,
-  };
-}
 
 interface ChatMessageListProps {
   messages: Message[];
@@ -141,88 +123,20 @@ export default function ChatMessageList({
   onToggleThinking,
   onGenerateDocument,
 }: ChatMessageListProps) {
-  const { chatMode, documents, selectedDocumentIds, selectAllDocuments } = useDocumentStore();
-  const isRagMode = chatMode === 'rag';
-  const navigate = useNavigate();
+  const openPdfEditor = usePDFEditorStore(s => s.openEditor);
+
+  // Auto-detect AI editor markers in assistant messages
+  useEffect(() => {
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg?.role === 'assistant' && !isStreaming) {
+      const match = PDF_EDITOR_MARKER.exec(lastMsg.content);
+      if (match) {
+        openPdfEditor(parseInt(match[1], 10), match[2]);
+      }
+    }
+  }, [messages, isStreaming, openPdfEditor]);
 
   if (messages.length === 0) {
-    if (isRagMode) {
-      const hasDocuments = documents.length > 0;
-
-      if (!hasDocuments) {
-        // Variant A: No documents uploaded
-        return (
-          <div className="h-full flex flex-col items-center justify-center text-center px-4 animate-in fade-in duration-700">
-            <div className="w-20 h-20 rounded-3xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center mb-8 border border-indigo-600/20">
-              <FileText className="w-10 h-10 text-indigo-500 dark:text-indigo-400" />
-            </div>
-            <h2 className="text-3xl font-bold mb-3 tracking-tight">Carica i tuoi documenti</h2>
-            <p className="text-surface-500 max-w-md text-lg leading-relaxed mb-8">
-              Carica documenti per analizzarli con l'AI
-            </p>
-            <button
-              onClick={() => navigate('/documents')}
-              aria-label="Vai ai Documenti"
-              className="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white font-semibold text-base transition-colors"
-            >
-              Vai ai Documenti
-            </button>
-          </div>
-        );
-      }
-
-      // Variant B: Documents exist but none selected
-      if (selectedDocumentIds.length === 0) {
-        const readyCount = documents.filter(d => d.status === 'ready').length;
-
-        // Sub-case: all documents still processing/failed
-        if (readyCount === 0) {
-          return (
-            <div className="h-full flex flex-col items-center justify-center text-center px-4 animate-in fade-in duration-700">
-              <div className="w-20 h-20 rounded-3xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center mb-8 border border-indigo-600/20">
-                <Loader2 className="w-10 h-10 text-indigo-500 dark:text-indigo-400 animate-spin" />
-              </div>
-              <h2 className="text-3xl font-bold mb-3 tracking-tight">Elaborazione in corso</h2>
-              <p className="text-surface-500 max-w-md text-lg leading-relaxed">
-                I documenti sono ancora in fase di elaborazione. Saranno disponibili a breve.
-              </p>
-            </div>
-          );
-        }
-
-        return (
-          <div className="h-full flex flex-col items-center justify-center text-center px-4 animate-in fade-in duration-700">
-            <div className="w-20 h-20 rounded-3xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center mb-8 border border-indigo-600/20">
-              <FileCheck className="w-10 h-10 text-indigo-500 dark:text-indigo-400" />
-            </div>
-            <h2 className="text-3xl font-bold mb-3 tracking-tight">Seleziona i documenti da analizzare</h2>
-            <p className="text-surface-500 max-w-md text-lg leading-relaxed mb-8">
-              Hai {readyCount} document{readyCount === 1 ? 'o' : 'i'} disponibil{readyCount === 1 ? 'e' : 'i'}. Selezionali per iniziare l'analisi.
-            </p>
-            <button
-              onClick={selectAllDocuments}
-              aria-label="Seleziona Tutti"
-              className="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white font-semibold text-base transition-colors"
-            >
-              Seleziona Tutti
-            </button>
-          </div>
-        );
-      }
-
-      // Documents selected — show invitation to start asking
-      return (
-        <div className="h-full flex flex-col items-center justify-center text-center px-4 animate-in fade-in duration-700">
-          <div className="w-20 h-20 rounded-3xl bg-indigo-600/10 flex items-center justify-center mb-8 border border-indigo-600/20 text-indigo-600">
-            <FileText className="w-10 h-10" />
-          </div>
-          <h2 className="text-3xl font-bold mb-3 tracking-tight">Analisi Documenti</h2>
-          <p className="text-surface-500 max-w-md text-lg leading-relaxed">
-            {selectedDocumentIds.length} document{selectedDocumentIds.length === 1 ? 'o' : 'i'} selezionat{selectedDocumentIds.length === 1 ? 'o' : 'i'}. Scrivi una domanda per iniziare l'analisi.
-          </p>
-        </div>
-      );
-    }
     return (
       <div className="h-full flex flex-col items-center justify-center text-center px-4">
         <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center mb-6 text-white">
@@ -247,22 +161,20 @@ export default function ChatMessageList({
           )}
         >
           <div className="flex gap-4 max-w-3xl mx-auto">
-            {!isRagMode && (
-              <div
-                className={clsx(
-                  'w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0',
-                  message.role === 'user'
-                    ? 'bg-primary-600'
-                    : 'bg-gradient-to-br from-violet-500 to-purple-600'
-                )}
-              >
-                {message.role === 'user' ? (
-                  <User className="w-5 h-5 text-white" />
-                ) : (
-                  <BotIcon type={selectedBotIcon} size={20} className="text-white" />
-                )}
-              </div>
-            )}
+            <div
+              className={clsx(
+                'w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0',
+                message.role === 'user'
+                  ? 'bg-primary-600'
+                  : 'bg-gradient-to-br from-violet-500 to-purple-600'
+              )}
+            >
+              {message.role === 'user' ? (
+                <User className="w-5 h-5 text-white" />
+              ) : (
+                <BotIcon type={selectedBotIcon} size={20} className="text-white" />
+              )}
+            </div>
             <div className="flex-1 min-w-0">
               {/* Thinking block */}
               {message.role === 'assistant' && message.thinking && (
@@ -292,7 +204,6 @@ export default function ChatMessageList({
                   <span>Sta ragionando...</span>
                 </div>
               )}
-
               <div className="prose dark:prose-invert prose-sm max-w-none">
                 {message.role === 'assistant' && message.content === '' && !message.thinking ? (
                   <div className="typing-indicator">
@@ -306,104 +217,52 @@ export default function ChatMessageList({
                   </ReactMarkdown>
                 )}
               </div>
-
-              {/* Inline PDF Editor Widget */}
-              {message.role === 'assistant' && (() => {
-                const pdfData = extractPdfEditorData(message.content);
-                if (!pdfData) return null;
+              {/* PDF Edit buttons for user messages with PDF attachments */}
+              {message.role === 'user' && message.content && (() => {
+                const pdfMatches: { id: string; name: string }[] = [];
+                let m;
+                const regex = new RegExp(PDF_ATTACHMENT_REF.source, PDF_ATTACHMENT_REF.flags);
+                while ((m = regex.exec(message.content)) !== null) {
+                  if (m[1]) pdfMatches.push({ id: m[1], name: m[2].trim() });
+                }
+                if (pdfMatches.length === 0) return null;
                 return (
-                  <Suspense fallback={
-                    <div className="flex items-center gap-2 p-4 text-sm text-gray-500">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Caricamento editor PDF...
-                    </div>
-                  }>
-                    <PDFEditorWidget
-                      attachmentId={pdfData.attachmentId}
-                      filename={pdfData.filename}
-                    />
-                  </Suspense>
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {pdfMatches.map(pdf => (
+                      <button
+                        key={pdf.id}
+                        onClick={() => openPdfEditor(parseInt(pdf.id, 10), pdf.name)}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs bg-amber-500/10 border border-amber-500/20 text-amber-400 hover:bg-amber-500/20 transition-colors"
+                        title={`Modifica ${pdf.name}`}
+                      >
+                        <Edit3 className="w-3 h-3" />
+                        Modifica PDF
+                      </button>
+                    ))}
+                  </div>
                 );
               })()}
-
-              {/* Vector Memory / Web Sources display (GAP-RAG) */}
-              {message.role === 'assistant' && message.vectorMemories && (message.vectorMemories.declarative.length > 0 || message.vectorMemories.episodic.length > 0) && (() => {
-                const fullSources = [...message.vectorMemories.declarative, ...message.vectorMemories.episodic];
-                const allSources = fullSources.slice(0, 4);
-                const hasWebSources = fullSources.some(s => s.metadata?.type === 'web_search');
-                return (
-                <div className="mt-6 pt-4 border-t border-surface-200 dark:border-surface-800 animate-in fade-in slide-in-from-top-2 duration-700">
-                  <div className="flex items-center gap-2 mb-4 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-[0.2em]">
-                    {hasWebSources ? <Globe className="w-3.5 h-3.5" /> : <Database className="w-3.5 h-3.5" />}
-                    <span>{hasWebSources ? 'Fonti Web' : 'Fonti ed Estratti'} ({fullSources.length})</span>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {allSources.map((source, sIdx) => {
-                      const isWeb = source.metadata?.type === 'web_search';
-                      return (
-                      <div key={sIdx} className="group relative p-3 rounded-xl bg-surface-50/50 dark:bg-surface-800/20 border border-surface-200/60 dark:border-surface-700/40 hover:border-indigo-500/30 hover:bg-white dark:hover:bg-surface-800/40 shadow-sm transition-all duration-300">
-                        <div className="flex items-start justify-between mb-2">
-                          <span className="text-[9px] font-bold text-surface-400 dark:text-surface-500 uppercase">Riferimento #{sIdx + 1}</span>
-                          {!isWeb && (
-                            <div className="flex items-center gap-1.5">
-                              <div className="w-12 h-1 bg-surface-200 dark:bg-surface-700 rounded-full overflow-hidden">
-                                <div className="h-full bg-indigo-500" style={{ width: `${Math.min(source.score * 100, 100)}%` }} />
-                              </div>
-                              <span className="text-[9px] text-surface-500 font-medium">{(source.score * 100).toFixed(0)}%</span>
-                            </div>
-                          )}
-                        </div>
-                        {source.metadata?.title && isWeb && (
-                          <p className="text-[11px] font-semibold text-surface-700 dark:text-surface-200 mb-1 line-clamp-1">{source.metadata.title}</p>
-                        )}
-                        <p className="text-[11px] text-surface-600 dark:text-surface-300 line-clamp-2 leading-relaxed italic">
-                          "{source.content}"
-                        </p>
-                        {source.metadata?.originalName && (
-                          <div className="mt-2.5 flex items-center gap-1.5 text-[10px] text-indigo-600/70 dark:text-indigo-400/70 font-semibold group-hover:text-indigo-600 transition-colors">
-                            {isWeb && typeof source.metadata.url === 'string' && /^https?:\/\//i.test(source.metadata.url) ? (
-                              <a href={source.metadata.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 hover:underline">
-                                <Globe className="w-3 h-3" />
-                                <span className="truncate">{source.metadata.originalName}</span>
-                                <ExternalLink className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 transition-opacity" />
-                              </a>
-                            ) : (
-                              <>
-                                <Paperclip className="w-3 h-3" />
-                                <span className="truncate">{source.metadata.originalName}</span>
-                              </>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                      );
-                    })}
-                  </div>
-                </div>
-                );
-              })()}
-
               {message.timestamp && (
-                <div className="mt-4 text-[10px] text-surface-400 flex items-center gap-3">
+                <div className="mt-1 text-xs text-surface-400 flex items-center gap-3">
                   <span>{message.timestamp}</span>
                   {message.role === 'assistant' && message.content.length > 50 && !isStreaming && currentConversationId && (
                     <div className="flex items-center gap-1">
                       <button
                         onClick={() => onGenerateDocument(index, 'docx')}
                         disabled={generatingDoc !== null}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] bg-surface-100 dark:bg-surface-800 hover:bg-primary-100 dark:hover:bg-primary-900/30 text-surface-600 dark:text-surface-400 hover:text-primary-700 dark:hover:text-primary-400 transition-colors disabled:opacity-50"
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-surface-100 dark:bg-surface-800 hover:bg-primary-100 dark:hover:bg-primary-900/30 text-surface-600 dark:text-surface-400 hover:text-primary-700 dark:hover:text-primary-400 transition-colors disabled:opacity-50"
                         title="Scarica come Word"
                       >
-                        {generatingDoc === index ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <FileText className="w-2.5 h-2.5" />}
+                        {generatingDoc === index ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileText className="w-3 h-3" />}
                         Word
                       </button>
                       <button
                         onClick={() => onGenerateDocument(index, 'pdf')}
                         disabled={generatingDoc !== null}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] bg-surface-100 dark:bg-surface-800 hover:bg-red-100 dark:hover:bg-red-900/30 text-surface-600 dark:text-surface-400 hover:text-red-700 dark:hover:text-red-400 transition-colors disabled:opacity-50"
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-surface-100 dark:bg-surface-800 hover:bg-red-100 dark:hover:bg-red-900/30 text-surface-600 dark:text-surface-400 hover:text-red-700 dark:hover:text-red-400 transition-colors disabled:opacity-50"
                         title="Scarica come PDF"
                       >
-                        {generatingDoc === index ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <FileText className="w-2.5 h-2.5" />}
+                        {generatingDoc === index ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileText className="w-3 h-3" />}
                         PDF
                       </button>
                     </div>
@@ -414,7 +273,6 @@ export default function ChatMessageList({
                   )}
                 </div>
               )}
-
               {/* AI Act: AI Generated Label (GAP-2) */}
               {message.role === 'assistant' && message.content && (index < messages.length - 1 || !isStreaming) && (
                 <div className="mt-1">

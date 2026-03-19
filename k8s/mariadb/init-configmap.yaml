@@ -25,6 +25,13 @@ data:
         name VARCHAR(100) NOT NULL,
         role ENUM('admin', 'user') DEFAULT 'user',
         is_active BOOLEAN DEFAULT TRUE,
+        phone VARCHAR(20) NULL,
+        company VARCHAR(100) NULL,
+        department VARCHAR(100) NULL,
+        job_title VARCHAR(100) NULL,
+        notes TEXT NULL,
+        mfa_enabled BOOLEAN DEFAULT FALSE,
+        mfa_secret VARCHAR(255) NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         last_login_at TIMESTAMP NULL,
@@ -834,7 +841,7 @@ data:
     ('allow_user_registration', 'false', 'boolean', 'Allow new users to self-register', FALSE),
     ('default_model', 'gpt-4o', 'string', 'Default model for new conversations', TRUE),
     ('maintenance_mode', 'false', 'boolean', 'Enable maintenance mode', FALSE),
-    ('app_version', '2.1.21', 'string', 'Versione corrente dell''applicazione', TRUE);
+    ('app_version', '2.1.23', 'string', 'Versione corrente dell''applicazione', TRUE);
     
     -- ============================================
     -- DEFAULT SKILLS
@@ -1194,46 +1201,3 @@ data:
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB;
     
-    -- ============================================
-    -- GDPR / AI ACT COMPLIANCE
-    -- ============================================
-    
-    CREATE TABLE IF NOT EXISTS data_export_requests (
-        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-        user_id BIGINT UNSIGNED NOT NULL,
-        format VARCHAR(20) DEFAULT 'json',
-        status ENUM('pending', 'processing', 'completed', 'failed') DEFAULT 'pending',
-        file_path TEXT,
-        requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        completed_at TIMESTAMP NULL,
-        expires_at TIMESTAMP NULL,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-        INDEX idx_user_id (user_id),
-        INDEX idx_status (status)
-    ) ENGINE=InnoDB;
-    
-    CREATE TABLE IF NOT EXISTS user_consents (
-        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-        user_id BIGINT UNSIGNED NOT NULL,
-        consent_type VARCHAR(100) NOT NULL,
-        granted BOOLEAN DEFAULT FALSE,
-        granted_at TIMESTAMP NULL,
-        revoked_at TIMESTAMP NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-        INDEX idx_user_id (user_id),
-        INDEX idx_consent_type (consent_type)
-    ) ENGINE=InnoDB;
-    
-    CREATE TABLE IF NOT EXISTS response_feedback (
-        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-        user_id BIGINT UNSIGNED NOT NULL,
-        message_id BIGINT UNSIGNED NULL,
-        rating TINYINT,
-        category VARCHAR(50),
-        comment TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-        INDEX idx_user_id (user_id),
-        INDEX idx_message_id (message_id)
-    ) ENGINE=InnoDB;

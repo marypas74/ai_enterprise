@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
+import { getMyInstallations, type Installation } from '../../services/marketplaceApi';
 import {
   Brain,
   Code,
@@ -14,7 +15,8 @@ import {
   Trash2,
   Users,
   Zap,
-  BookOpen
+  BookOpen,
+  Store
 } from 'lucide-react';
 
 interface Skill {
@@ -72,6 +74,8 @@ export default function SkillsPage() {
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
 
+  const [marketplaceSkillNames, setMarketplaceSkillNames] = useState<Set<string>>(new Set());
+
   const [formData, setFormData] = useState({
     name: '',
     display_name: '',
@@ -86,7 +90,24 @@ export default function SkillsPage() {
   useEffect(() => {
     fetchSkills();
     fetchTemplates();
+    fetchMarketplaceInstallations();
   }, []);
+
+  const fetchMarketplaceInstallations = async () => {
+    try {
+      const response = await getMyInstallations({ limit: 200 });
+      const installations: Installation[] = response.data?.data ?? [];
+      const skillNames = new Set<string>(
+        installations
+          .filter(inst => inst.catalogItem?.type === 'skill')
+          .map(inst => inst.catalogItem?.name ?? '')
+          .filter(Boolean)
+      );
+      setMarketplaceSkillNames(skillNames);
+    } catch (error) {
+      // Marketplace may not be available; silently ignore
+    }
+  };
 
   const fetchSkills = async () => {
     try {
@@ -346,6 +367,12 @@ export default function SkillsPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
+                      {marketplaceSkillNames.has(skill.name) && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-blue-100 text-blue-700 rounded-full">
+                          <Store size={10} />
+                          Marketplace
+                        </span>
+                      )}
                       {skill.is_default && (
                         <span className="px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded-full">
                           Default

@@ -46,7 +46,7 @@ import { schedulerRoutes } from './modules/scheduler/routes.js';
 import { batchRoutes } from './modules/batch/routes.js';
 import { permissionRoutes } from './modules/admin/permissions.js';
 import { complianceRoutes } from './modules/compliance/routes.js';
-import { documentRoutes } from './modules/documents/routes.js';
+import { marketplaceProxyRoutes } from './modules/admin/marketplace-proxy.js';
 import { BiasMonitorService } from './modules/compliance/biasMonitorService.js';
 import { eventBus } from './services/EventBusService.js';
 import { HyDEService } from './services/HyDEService.js';
@@ -57,6 +57,7 @@ import { LLMSyncWorker } from './services/LLMSyncWorker.js';
 import { MCPClientManager } from './services/MCPClientManager.js';
 import { MemoryDecayService } from './services/MemoryDecayService.js';
 import { ConversationCleanupService } from './services/ConversationCleanupService.js';
+import { registerAutoSuggestHook } from './services/MarketplaceAutoSuggestHook.js';
 import websocket from '@fastify/websocket';
 import { findAll, findOne } from './database/index.js';
 import { decryptSecret } from './utils/crypto.js';
@@ -293,7 +294,7 @@ const appPlugin = fp(async function (fastify) {
   await fastify.register(batchRoutes, { prefix: '/api/batch' });
   await fastify.register(permissionRoutes, { prefix: '/api/permissions' });
   await fastify.register(complianceRoutes, { prefix: '/api' });
-  await fastify.register(documentRoutes, { prefix: '/api/documents' });
+  await fastify.register(marketplaceProxyRoutes, { prefix: '/api/marketplace' });
 
   // Debug WebSocket clients set (defined early so addHook can reference it)
   const debugClients = new Set<any>();
@@ -502,14 +503,13 @@ async function bootstrap() {
       // Exclude health, version, and WebSocket endpoints from rate limiting
       const url = request.url;
       if (url === '/health' || url === '/version' || url.startsWith('/api/version')) return true;
-      // SECURITY: /api/public NO LONGER excluded — has its own per-route rate limits
+      if (url.startsWith('/api/public')) return true;  // Public metrics (polled every 3s)
       if (url.startsWith('/ws/')) return true;  // WebSocket connections
       return false;
     },
-    // SECURITY: Use real client IP from Cloudflare Tunnel (CF-Connecting-IP header)
-    // Behind Cloudflare Tunnel, request.ip is always ::1, breaking per-IP rate limiting
+    // Admin endpoints get a higher limit instead of full exemption
     keyGenerator: (request) => {
-      return (request.headers['cf-connecting-ip'] as string) || request.ip;
+      return request.ip;
     }
   });
 
@@ -547,7 +547,7 @@ async function bootstrap() {
       info: {
         title: 'Enterprise AI Chat API',
         description: 'Multi-provider AI chat platform with agent orchestration, project management, and RAG pipeline',
-        version: process.env.APP_VERSION || '2.1.12'
+        version: process.env.APP_VERSION || '1.8.10'
       },
       servers: [
         { url: `http://localhost:${process.env.PORT || 3000}`, description: 'Local' },
@@ -671,6 +671,14 @@ async function bootstrap() {
       fastify.log.warn('[Startup] HyDE service initialization failed: ' + err);
     }
 
+    // Initialize Marketplace Auto-Suggest hook
+    try {
+      registerAutoSuggestHook(fastify.db, fastify.redis);
+      fastify.log.info('[Startup] Marketplace Auto-Suggest hook registered');
+    } catch (err) {
+      fastify.log.warn('[Startup] Marketplace Auto-Suggest hook registration failed: ' + err);
+    }
+
     // Initialize Vision Service with DB for dynamic model resolution
     try {
       const { VisionService } = await import('./services/VisionService.js');
@@ -715,7 +723,7 @@ async function bootstrap() {
           const filePath = path.join(generatedDir, file);
           const fileStat = await stat(filePath).catch(() => null);
           if (fileStat && Date.now() - fileStat.mtimeMs > maxAge) {
-            await unlink(filePath).catch(() => { });
+            await unlink(filePath).catch(() => {});
             cleaned++;
           }
         }
@@ -760,7 +768,7 @@ async function bootstrap() {
     }
 
     // Fire bootstrap event for hook system
-    eventBus.emit('on_bootstrap', { port, host }, { userId: 0 }).catch(() => { });
+    eventBus.emit('on_bootstrap', { port, host }, { userId: 0 }).catch(() => {});
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);

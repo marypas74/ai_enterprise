@@ -38,7 +38,9 @@ import {
   PieChart,
   Lock,
   Radio,
-  GitBranch
+  GitBranch,
+  GitMerge,
+  Store
 } from 'lucide-react';
 import clsx from 'clsx';
 import { format } from 'date-fns';
@@ -63,7 +65,8 @@ import PermissionsPage from './admin/PermissionsPage';
 import HookTracePage from './admin/HookTracePage';
 import PluginGraphPage from './admin/PluginGraphPage';
 import ComplianceDashboardPage from './admin/ComplianceDashboardPage';
-import RecentUsersPage from './admin/RecentUsersPage';
+import MarketplacePage from './admin/MarketplacePage';
+import PipelineVisualizerPage from './admin/PipelineVisualizerPage';
 
 interface User {
   id: number;
@@ -109,18 +112,19 @@ const NAV_ITEMS = [
   { path: '/admin/agents', icon: Bot, label: 'Agents' },
   { path: '/admin/skills', icon: Brain, label: 'Skills' },
   { path: '/admin/plugins', icon: Puzzle, label: 'Plugins & MCP' },
+  { path: '/admin/marketplace', icon: Store, label: 'Marketplace' },
   { path: '/admin/plugin-graph', icon: GitBranch, label: 'Plugin Graph' },
   { path: '/admin/memory', icon: BookMarked, label: 'Memory' },
   { path: '/admin/vector-memory', icon: Database, label: 'Vector Memory' },
   { path: '/admin/memory-stats', icon: PieChart, label: 'Memory Stats' },
   { path: '/admin/hooks', icon: Zap, label: 'Hooks' },
   { path: '/admin/hook-trace', icon: Radio, label: 'Hook Trace' },
+  { path: '/admin/hooks/pipeline', icon: GitMerge, label: 'Hook Pipeline' },
   { path: '/admin/prompt-templates', icon: FileText, label: 'Prompt Templates' },
   { path: '/admin/forms', icon: ClipboardList, label: 'Forms' },
   { path: '/admin/scheduler', icon: Clock, label: 'Scheduler' },
   { path: '/admin/kanban', icon: LayoutDashboard, label: 'Kanban' },
   { path: '/admin/permissions', icon: Lock, label: 'Permessi' },
-  { path: '/admin/recent-users', icon: Clock, label: 'Accessi Recenti' },
   { path: '/admin/sessions', icon: Wifi, label: 'Sessioni Attive' },
   { path: '/admin/compliance', icon: Shield, label: 'AI Act Compliance' },
   { path: '/admin/audit', icon: Shield, label: 'Audit Log' },
@@ -584,12 +588,17 @@ function AuditLog() {
 }
 
 import { APP_VERSION } from '../version';
+import { useMarketplaceStore } from '../hooks/useMarketplaceStore';
+import { useHookPipelineStore } from '../hooks/useHookPipelineStore';
 
 const FRONTEND_VERSION = APP_VERSION;
 
 export default function AdminPage() {
   const location = useLocation();
   const [backendVersion, setBackendVersion] = useState<{ version: string; buildTime: string } | null>(null);
+  const notificationCount = useMarketplaceStore(s => s.notificationCount);
+  const pendingApprovals = useHookPipelineStore(s => s.pendingApprovals);
+  const pendingCount = pendingApprovals.length;
 
   useEffect(() => {
     // Fetch backend version
@@ -598,6 +607,16 @@ export default function AdminPage() {
     }).catch(() => {
       // Version endpoint might not exist yet
     });
+  }, []);
+
+  useEffect(() => {
+    const fetchNotifications = () => {
+      useMarketplaceStore.getState().fetchNotifications();
+      useHookPipelineStore.getState().fetchPendingApprovals();
+    };
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 5 * 60 * 1000);
+    return () => clearInterval(interval);
   }, []);
 
   return (
@@ -631,6 +650,16 @@ export default function AdminPage() {
                 >
                   <item.icon className="w-5 h-5" />
                   <span className="font-medium">{item.label}</span>
+                  {item.path === '/admin/marketplace' && notificationCount > 0 && (
+                    <span className="ml-auto bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[20px] text-center">
+                      {notificationCount}
+                    </span>
+                  )}
+                  {item.path === '/admin/hooks' && pendingCount > 0 && (
+                    <span className="ml-auto bg-orange-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[20px] text-center">
+                      {pendingCount}
+                    </span>
+                  )}
                 </Link>
               );
             })}
@@ -660,19 +689,20 @@ export default function AdminPage() {
           <Route path="/agents" element={<AgentsPage />} />
           <Route path="/skills" element={<SkillsPage />} />
           <Route path="/plugins" element={<PluginsPage />} />
+          <Route path="/marketplace" element={<MarketplacePage />} />
           <Route path="/plugin-graph" element={<PluginGraphPage />} />
           <Route path="/memory" element={<MemoryPage />} />
           <Route path="/vector-memory" element={<VectorMemoryPage />} />
           <Route path="/memory-stats" element={<MemoryStatsPage />} />
           <Route path="/hooks" element={<HooksPage />} />
           <Route path="/hook-trace" element={<HookTracePage />} />
+          <Route path="/hooks/pipeline" element={<PipelineVisualizerPage />} />
           <Route path="/prompt-templates" element={<PromptTemplatesPage />} />
           <Route path="/forms" element={<FormsPage />} />
           <Route path="/scheduler" element={<SchedulerPage />} />
           <Route path="/kanban" element={<KanbanPage />} />
           <Route path="/permissions" element={<PermissionsPage />} />
           <Route path="/users" element={<UsersGroupsPage />} />
-          <Route path="/recent-users" element={<RecentUsersPage />} />
           <Route path="/sessions" element={<SessionsPage />} />
           <Route path="/compliance" element={<ComplianceDashboardPage />} />
           <Route path="/audit" element={<AuditLog />} />

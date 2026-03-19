@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../hooks/useAuthStore';
+import { useUserSkillsStore } from '../hooks/useUserSkillsStore';
 import { api } from '../services/api';
 import { downloadBlob } from '../utils/fileDownload';
 import {
@@ -22,11 +23,16 @@ import {
     Eye,
     XCircle,
     RefreshCw,
-    ShieldAlert,
-    Save
+    Brain,
+    Bot,
+    Plug,
+    Zap,
+    Package,
+    Loader2,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import clsx from 'clsx';
+import type { Installation } from '../services/marketplaceApi';
 
 interface MfaSetupResponse {
     secret: string;
@@ -37,6 +43,7 @@ interface MfaSetupResponse {
 
 export default function SettingsPage() {
     const { user, logout } = useAuthStore();
+    const { installedSkills, loading: skillsLoading, error: skillsError, fetchMySkills } = useUserSkillsStore();
     const [loading, setLoading] = useState(false);
     const [mfaSetup, setMfaSetup] = useState<MfaSetupResponse | null>(null);
     const [totpCode, setTotpCode] = useState('');
@@ -51,26 +58,17 @@ export default function SettingsPage() {
     const [showMfaDisableModal, setShowMfaDisableModal] = useState(false);
     const [mfaDisableCode, setMfaDisableCode] = useState('');
 
-    // Guardrail Policy State
-    const [guardrailPolicy, setGuardrailPolicy] = useState('');
-    const [isSavingPolicy, setIsSavingPolicy] = useState(false);
-
     // Load latest user status + deletion status
     useEffect(() => {
         const loadStatus = async () => {
             try {
-                const [meRes, consentRes, exportsRes] = await Promise.all([
+                const [meRes, consentRes] = await Promise.all([
                     api.get('/auth/me'),
                     api.get('/compliance/consent/status').catch(() => null),
-                    api.get('/compliance/data-exports').catch(() => null),
                 ]);
                 setMfaEnabled(!!meRes.data.mfa_enabled);
-                setGuardrailPolicy(meRes.data.guardrail_policy || '');
                 if (consentRes?.data?.deletion_pending) {
                     setDeletionPending(true);
-                }
-                if (exportsRes?.data?.exports) {
-                    setExportsList(exportsRes.data.exports);
                 }
             } catch (err) {
                 console.error('Failed to load user status:', err);
@@ -78,6 +76,11 @@ export default function SettingsPage() {
         };
         loadStatus();
     }, []);
+
+    // Load installed skills
+    useEffect(() => {
+        fetchMySkills();
+    }, [fetchMySkills]);
 
     const handleStartMfaSetup = async () => {
         setLoading(true);
@@ -132,26 +135,44 @@ export default function SettingsPage() {
         }
     };
 
-    const handleSaveGuardrail = async () => {
-        setIsSavingPolicy(true);
-        setError('');
-        try {
-            await api.put('/auth/me/guardrail', { guardrail_policy: guardrailPolicy });
-            setSuccess('Policy Guardrail aggiornata con successo! Verrà applicata alle prossime conversazioni.');
-            setTimeout(() => setSuccess(''), 5000);
-        } catch (err: any) {
-            setError(err.response?.data?.error || 'Errore nel salvataggio della policy.');
-        } finally {
-            setIsSavingPolicy(false);
-        }
-    };
-
     const copySecret = () => {
         if (mfaSetup?.secret) {
             navigator.clipboard.writeText(mfaSetup.secret);
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
         }
+    };
+
+    const getTypeIcon = (type: string | undefined) => {
+        switch (type) {
+            case 'skill': return <Brain className="w-5 h-5" />;
+            case 'agent': return <Bot className="w-5 h-5" />;
+            case 'mcp': return <Plug className="w-5 h-5" />;
+            case 'hook': return <Zap className="w-5 h-5" />;
+            default: return <Package className="w-5 h-5" />;
+        }
+    };
+
+    const getStatusBadge = (status: Installation['status']) => {
+        const styles: Record<string, string> = {
+            installed: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+            approved: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+            pending_approval: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
+            rejected: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+            failed: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+        };
+        const labels: Record<string, string> = {
+            installed: 'Installato',
+            approved: 'Approvato',
+            pending_approval: 'In attesa',
+            rejected: 'Rifiutato',
+            failed: 'Errore',
+        };
+        return (
+            <span className={clsx('px-2 py-0.5 rounded-full text-xs font-medium', styles[status] || 'bg-surface-100 text-surface-500')}>
+                {labels[status] || status}
+            </span>
+        );
     };
 
     return (
@@ -371,50 +392,6 @@ export default function SettingsPage() {
                             </div>
                         </div>
 
-                        {/* Roadmap Speciale & Guardrail Policy */}
-                        <div className="card p-6">
-                            <div className="flex items-center gap-3 mb-6">
-                                <div className="p-2 rounded-lg bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600">
-                                    <ShieldAlert className="w-6 h-6" />
-                                </div>
-                                <div>
-                                    <h3 className="text-lg font-bold">Roadmap Speciale \ Guardrail Policy</h3>
-                                    <p className="text-sm text-surface-500">Definisci regole guida e vincoli per l'agente AI a protezione dei tuoi dati</p>
-                                </div>
-                            </div>
-
-                            <div className="space-y-4">
-                                <p className="text-sm text-surface-600 dark:text-surface-400">
-                                    Questa policy agisce come un <strong>guardrail globale</strong> per tutte le chat. Puoi istruire l'AI a filtrare nomi di aziende, persone, macchinari o seguire specifici comportamenti di ragionamento sui documenti caricati.
-                                </p>
-                                <textarea
-                                    value={guardrailPolicy}
-                                    onChange={(e) => setGuardrailPolicy(e.target.value)}
-                                    placeholder="ESEMPIO: Non menzionare mai nei risultati o nei ragionamenti nomi di aziende o persone, usa sempre i tag [AZIENDA_OSCURATA] o [PERSONA] in fase di output. Segui una linea logica puramente scientifica..."
-                                    className="input w-full min-h-[160px] resize-y font-mono text-sm leading-relaxed p-4 bg-surface-50 dark:bg-surface-900/50"
-                                />
-                                <div className="flex justify-end pt-2">
-                                    <button
-                                        onClick={handleSaveGuardrail}
-                                        disabled={isSavingPolicy}
-                                        className="btn btn-primary flex items-center gap-2"
-                                    >
-                                        {isSavingPolicy ? (
-                                            <>
-                                                <RefreshCw className="w-4 h-4 animate-spin" />
-                                                Salvataggio...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Save className="w-4 h-4" />
-                                                Salva Policy
-                                            </>
-                                        )}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
                         {/* Privacy & Data Section (AI Act / GDPR) */}
                         <div className="card p-6">
                             <div className="flex items-center gap-3 mb-6">
@@ -471,37 +448,23 @@ export default function SettingsPage() {
                                     {exportsList.length > 0 && (
                                         <div className="space-y-1">
                                             {exportsList.map((exp: any) => (
-                                                <div key={exp.id} className={`flex items-center justify-between text-xs p-2 rounded ${exp.status === 'failed' ? 'bg-red-50 dark:bg-red-900/20' : 'bg-white dark:bg-surface-900'}`}>
-                                                    <span className={`${exp.status === 'failed' ? 'text-red-600 dark:text-red-400' : 'text-surface-600 dark:text-surface-400'}`}>
-                                                        Export #{exp.id} — {exp.status === 'completed' ? 'Completato' : exp.status === 'pending' ? 'In attesa' : exp.status === 'processing' ? 'In elaborazione' : exp.status === 'failed' ? 'Fallito' : exp.status}
+                                                <div key={exp.id} className="flex items-center justify-between text-xs p-2 bg-white dark:bg-surface-900 rounded">
+                                                    <span className="text-surface-600 dark:text-surface-400">
+                                                        Export #{exp.id} — {exp.status === 'completed' ? 'Completato' : exp.status === 'pending' ? 'In attesa' : exp.status === 'processing' ? 'In elaborazione' : exp.status}
                                                     </span>
-                                                    <div className="flex items-center gap-2">
-                                                        {exp.status === 'completed' && (
-                                                            <button
-                                                                onClick={async () => {
-                                                                    try {
-                                                                        const res = await api.get(`/compliance/data-export/${exp.id}`, { responseType: 'blob' });
-                                                                        await downloadBlob(new Blob([res.data]), `data-export-${exp.id}.json`);
-                                                                    } catch { setError('Errore nel download del file export.'); }
-                                                                }}
-                                                                className="text-blue-600 hover:text-blue-700 font-medium"
-                                                            >
-                                                                Scarica
-                                                            </button>
-                                                        )}
+                                                    {exp.status === 'completed' && (
                                                         <button
                                                             onClick={async () => {
                                                                 try {
-                                                                    await api.delete(`/compliance/data-export/${exp.id}`);
-                                                                    setExportsList(prev => prev.filter((e: any) => e.id !== exp.id));
-                                                                } catch { setError('Errore nell\'eliminazione del record.'); }
+                                                                    const res = await api.get(`/compliance/data-export/${exp.id}`, { responseType: 'blob' });
+                                                                    await downloadBlob(new Blob([res.data]), `data-export-${exp.id}.json`);
+                                                                } catch { setError('Errore nel download del file export.'); }
                                                             }}
-                                                            className="text-surface-400 hover:text-red-500 transition-colors"
-                                                            title="Rimuovi dalla lista"
+                                                            className="text-blue-600 hover:text-blue-700 font-medium"
                                                         >
-                                                            ✕
+                                                            Scarica
                                                         </button>
-                                                    </div>
+                                                    )}
                                                 </div>
                                             ))}
                                         </div>
@@ -626,6 +589,100 @@ export default function SettingsPage() {
                                             </div>
                                         </div>
                                     </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* My Skills Section */}
+                        <div className="card p-6">
+                            <div className="flex items-center gap-3 mb-6">
+                                <div className="p-2 rounded-lg bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600">
+                                    <Brain className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-bold">Le Mie Skills</h3>
+                                    <p className="text-sm text-surface-500">Competenze e integrazioni installate</p>
+                                </div>
+                            </div>
+
+                            {skillsLoading ? (
+                                <div className="flex items-center justify-center py-8">
+                                    <Loader2 className="w-6 h-6 animate-spin text-surface-400" />
+                                    <span className="ml-2 text-sm text-surface-500">Caricamento...</span>
+                                </div>
+                            ) : skillsError ? (
+                                <div className="flex items-center gap-3 p-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded-xl border border-red-100 dark:border-red-900/30">
+                                    <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                                    <p className="text-sm">{skillsError}</p>
+                                </div>
+                            ) : installedSkills.length === 0 ? (
+                                <div className="text-center py-8">
+                                    <Package className="w-12 h-12 text-surface-300 mx-auto mb-3" />
+                                    <p className="text-sm text-surface-500 mb-1">Nessuna skill installata</p>
+                                    <p className="text-xs text-surface-400">Esplora il marketplace per aggiungere nuove competenze.</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    {installedSkills.map((skill) => (
+                                        <div
+                                            key={skill.id}
+                                            className="flex items-center justify-between p-4 bg-surface-50 dark:bg-surface-800/50 rounded-lg"
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2 rounded-lg bg-surface-100 dark:bg-surface-700 text-surface-600 dark:text-surface-300">
+                                                    {getTypeIcon(skill.catalogItem?.type)}
+                                                </div>
+                                                <div>
+                                                    <p className="font-medium text-sm">
+                                                        {skill.catalogItem?.name || `Item #${skill.catalogItemId}`}
+                                                    </p>
+                                                    <div className="flex items-center gap-2 mt-1">
+                                                        {getStatusBadge(skill.status)}
+                                                        {skill.installedVersion && (
+                                                            <span className="text-xs text-surface-400">
+                                                                v{skill.installedVersion}
+                                                            </span>
+                                                        )}
+                                                        {skill.catalogItem?.type && (
+                                                            <span className="text-xs text-surface-400 capitalize">
+                                                                {skill.catalogItem.type}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {(skill.status === 'installed' || skill.status === 'approved') && (
+                                                <button
+                                                    onClick={async () => {
+                                                        try {
+                                                            await api.delete(`/marketplace/installations/${skill.id}`);
+                                                            await fetchMySkills();
+                                                        } catch {
+                                                            // Error handled by store refresh
+                                                        }
+                                                    }}
+                                                    className="btn bg-red-50 dark:bg-red-900/20 text-red-600 hover:bg-red-100 dark:hover:bg-red-900/30 px-3 py-1.5 text-xs font-medium"
+                                                >
+                                                    Disinstalla
+                                                </button>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            <div className="mt-6 pt-4 border-t border-surface-200 dark:border-surface-700">
+                                {user?.role === 'admin' ? (
+                                    <Link
+                                        to="/admin/marketplace"
+                                        className="text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 font-medium"
+                                    >
+                                        Esplora Marketplace →
+                                    </Link>
+                                ) : (
+                                    <p className="text-xs text-surface-400">
+                                        Contatta un amministratore per installare nuove skills dal marketplace.
+                                    </p>
                                 )}
                             </div>
                         </div>
