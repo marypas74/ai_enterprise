@@ -6,9 +6,15 @@ const FORWARDED_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const;
 
 function buildTargetUrl(requestUrl: string): string {
   const base = MARKETPLACE_SERVICE_URL.replace(/\/+$/, '');
-  // Fastify strips the registered prefix (/api/marketplace) from request.url,
-  // but the marketplace service expects routes under /api/marketplace/*
-  return `${base}/api/marketplace${requestUrl}`;
+  // Fastify wildcard routes receive the full path including the prefix,
+  // and the marketplace service expects routes under /api/marketplace/*
+  const prefix = '/api/marketplace';
+  if (requestUrl.startsWith(prefix)) {
+    // URL already contains the prefix — forward as-is
+    return `${base}${requestUrl}`;
+  }
+  // Fallback: prepend prefix if stripped
+  return `${base}${prefix}${requestUrl}`;
 }
 
 function buildForwardHeaders(request: FastifyRequest): Record<string, string> {
