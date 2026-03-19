@@ -41,7 +41,7 @@ export async function pdfEditorRoutes(fastify: FastifyInstance) {
     const attachment = await findOne<AttachmentRow>(
       fastify.db,
       `SELECT a.*, c.user_id as conv_user_id FROM chat_attachments a
-       JOIN conversations c ON a.conversation_id = c.id
+       LEFT JOIN conversations c ON a.conversation_id = c.id
        WHERE a.id = ? AND (a.user_id = ? OR c.user_id = ?)`,
       [body.attachmentId, userId, userId]
     );
@@ -49,7 +49,7 @@ export async function pdfEditorRoutes(fastify: FastifyInstance) {
     if (!attachment) {
       return reply.status(404).send({ error: 'Allegato non trovato' });
     }
-    if (attachment.mime_type !== 'application/pdf') {
+    if (attachment.mime_type !== 'application/pdf' && attachment.content_type !== 'document') {
       return reply.status(400).send({ error: 'Il file non e un PDF' });
     }
 
@@ -83,7 +83,7 @@ export async function pdfEditorRoutes(fastify: FastifyInstance) {
     const original = await findOne<AttachmentRow>(
       fastify.db,
       `SELECT a.*, c.user_id as conv_user_id FROM chat_attachments a
-       JOIN conversations c ON a.conversation_id = c.id
+       LEFT JOIN conversations c ON a.conversation_id = c.id
        WHERE a.id = ? AND (a.user_id = ? OR c.user_id = ?)`,
       [body.attachmentId, userId, userId]
     );

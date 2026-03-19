@@ -11,6 +11,7 @@ import {
   History as HistoryIcon,
   ArchiveRestore,
   FolderOpen,
+  Store,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { api } from '../../services/api';
@@ -247,6 +248,18 @@ export default function ChatSidebar({
             </button>
           )}
         </div>
+      </div>
+
+      {/* Marketplace Link */}
+      <div className="px-4 pb-2">
+        <Link
+          to="/marketplace"
+          className="flex items-center gap-2 px-3 py-2 rounded-lg border border-surface-700 hover:bg-surface-800 transition-colors text-xs w-full"
+          title="Marketplace Strumenti"
+        >
+          <Store className="w-3.5 h-3.5 text-primary-400" />
+          <span>Marketplace</span>
+        </Link>
       </div>
 
       {/* User Menu */}

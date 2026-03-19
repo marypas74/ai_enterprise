@@ -655,7 +655,7 @@ export default function SettingsPage() {
                                                 <button
                                                     onClick={async () => {
                                                         try {
-                                                            await api.delete(`/marketplace/installations/${skill.id}`);
+                                                            await api.delete(`/marketplace/install/${skill.id}`);
                                                             await fetchMySkills();
                                                         } catch {
                                                             // Error handled by store refresh
@@ -672,18 +672,12 @@ export default function SettingsPage() {
                             )}
 
                             <div className="mt-6 pt-4 border-t border-surface-200 dark:border-surface-700">
-                                {user?.role === 'admin' ? (
-                                    <Link
-                                        to="/admin/marketplace"
-                                        className="text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 font-medium"
-                                    >
-                                        Esplora Marketplace →
-                                    </Link>
-                                ) : (
-                                    <p className="text-xs text-surface-400">
-                                        Contatta un amministratore per installare nuove skills dal marketplace.
-                                    </p>
-                                )}
+                                <Link
+                                    to="/marketplace"
+                                    className="text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 font-medium"
+                                >
+                                    Esplora Marketplace →
+                                </Link>
                             </div>
                         </div>
                     </div>
