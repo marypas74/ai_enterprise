@@ -37,7 +37,7 @@ export async function installRoutes(fastify: FastifyInstance): Promise<void> {
       });
     }
 
-    const userId = parseInt(request.user.sub, 10);
+    const userId = request.user.id;
 
     try {
       const result = await service.install(parsed.data.catalogItemId, userId);
@@ -72,7 +72,7 @@ export async function installRoutes(fastify: FastifyInstance): Promise<void> {
       });
     }
 
-    const userId = parseInt(request.user.sub, 10);
+    const userId = request.user.id;
 
     try {
       await service.uninstall(parsed.data.id, userId);
@@ -100,7 +100,7 @@ export async function installRoutes(fastify: FastifyInstance): Promise<void> {
       });
     }
 
-    const userId = parseInt(request.user.sub, 10);
+    const userId = request.user.id;
     const { page, limit } = parsed.data;
     const result = await service.listByUser(userId, page, limit);
 
