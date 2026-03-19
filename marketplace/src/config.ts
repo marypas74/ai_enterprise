@@ -13,5 +13,9 @@ export const config = {
   qdrantUrl: process.env.QDRANT_URL || 'http://localhost:6333',
   backendUrl: process.env.BACKEND_INTERNAL_URL || 'http://backend:3000',
   serviceToken: process.env.MARKETPLACE_SERVICE_TOKEN || '',
-  jwtSecret: process.env.JWT_SECRET || '',
+  jwtSecret: (() => {
+    const secret = process.env.JWT_SECRET;
+    if (!secret) throw new Error('JWT_SECRET environment variable is required');
+    return secret;
+  })(),
 } as const;

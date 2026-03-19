@@ -102,14 +102,19 @@ export async function installRoutes(fastify: FastifyInstance): Promise<void> {
 
     const userId = request.user.id;
     const { page, limit } = parsed.data;
-    const result = await service.listByUser(userId, page, limit);
 
-    return {
-      success: true,
-      data: result.items,
-      error: null,
-      meta: { total: result.total, page: result.page, limit: result.limit },
-    };
+    try {
+      const result = await service.listByUser(userId, page, limit);
+      return {
+        success: true,
+        data: result.items,
+        error: null,
+        meta: { total: result.total, page: result.page, limit: result.limit },
+      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to list installations';
+      return reply.status(500).send({ success: false, data: null, error: message });
+    }
   });
 
   fastify.get('/install/:id', {
@@ -124,8 +129,9 @@ export async function installRoutes(fastify: FastifyInstance): Promise<void> {
       });
     }
 
+    const userId = request.user.id;
     const installation = await service.getInstallation(parsed.data.id);
-    if (!installation) {
+    if (!installation || installation.installed_by !== userId) {
       return reply.status(404).send({
         success: false,
         data: null,

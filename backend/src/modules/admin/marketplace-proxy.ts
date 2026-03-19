@@ -67,7 +67,15 @@ export async function marketplaceProxyRoutes(fastify: FastifyInstance): Promise<
         }
 
         try {
-          const response = await fetch(targetUrl, fetchOptions);
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 15_000);
+          fetchOptions.signal = controller.signal;
+          let response: Response;
+          try {
+            response = await fetch(targetUrl, fetchOptions);
+          } finally {
+            clearTimeout(timeoutId);
+          }
 
           // Forward response status
           reply.status(response.status);
