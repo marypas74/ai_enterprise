@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   User,
   ChevronDown,
@@ -6,6 +6,7 @@ import {
   FileText,
   Loader2,
   Brain,
+  Edit3,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -17,7 +18,11 @@ import FeedbackButtons from '../FeedbackButtons';
 import SensitiveTopicWarning from '../SensitiveTopicWarning';
 import { downloadFile } from '../../utils/fileDownload';
 import { isNativePlatform } from '../../utils/platform';
+import { usePDFEditorStore } from '../../hooks/usePDFEditorStore';
 import type { Message } from '../../hooks/useChatMessages';
+
+const PDF_EDITOR_MARKER = /<!-- pdf_editor:attachmentId=(\d+),filename=(.+?) -->/;
+const PDF_ATTACHMENT_REF = /\[Allegato(?:\s+ID=(\d+))?:\s*([^\]]*?\.pdf)\s*(?:\([^)]*\))?\s*\]/gi;
 
 // Stable markdown components defined OUTSIDE the render function
 // to prevent React from re-creating DOM elements on each re-render
@@ -118,6 +123,19 @@ export default function ChatMessageList({
   onToggleThinking,
   onGenerateDocument,
 }: ChatMessageListProps) {
+  const openPdfEditor = usePDFEditorStore(s => s.openEditor);
+
+  // Auto-detect AI editor markers in assistant messages
+  useEffect(() => {
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg?.role === 'assistant' && !isStreaming) {
+      const match = PDF_EDITOR_MARKER.exec(lastMsg.content);
+      if (match) {
+        openPdfEditor(parseInt(match[1], 10), match[2]);
+      }
+    }
+  }, [messages, isStreaming, openPdfEditor]);
+
   if (messages.length === 0) {
     return (
       <div className="h-full flex flex-col items-center justify-center text-center px-4">
@@ -199,6 +217,31 @@ export default function ChatMessageList({
                   </ReactMarkdown>
                 )}
               </div>
+              {/* PDF Edit buttons for user messages with PDF attachments */}
+              {message.role === 'user' && message.content && (() => {
+                const pdfMatches: { id: string; name: string }[] = [];
+                let m;
+                const regex = new RegExp(PDF_ATTACHMENT_REF.source, PDF_ATTACHMENT_REF.flags);
+                while ((m = regex.exec(message.content)) !== null) {
+                  if (m[1]) pdfMatches.push({ id: m[1], name: m[2].trim() });
+                }
+                if (pdfMatches.length === 0) return null;
+                return (
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {pdfMatches.map(pdf => (
+                      <button
+                        key={pdf.id}
+                        onClick={() => openPdfEditor(parseInt(pdf.id, 10), pdf.name)}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs bg-amber-500/10 border border-amber-500/20 text-amber-400 hover:bg-amber-500/20 transition-colors"
+                        title={`Modifica ${pdf.name}`}
+                      >
+                        <Edit3 className="w-3 h-3" />
+                        Modifica PDF
+                      </button>
+                    ))}
+                  </div>
+                );
+              })()}
               {message.timestamp && (
                 <div className="mt-1 text-xs text-surface-400 flex items-center gap-3">
                   <span>{message.timestamp}</span>

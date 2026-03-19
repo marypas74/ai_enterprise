@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { useAuthStore } from '../hooks/useAuthStore';
 import { useChatConversations } from '../hooks/useChatConversations';
 import { useChatMessages } from '../hooks/useChatMessages';
 import { useFileAttachments } from '../hooks/useFileAttachments';
 import { useVoiceMode } from '../hooks/useVoiceMode';
+import { usePDFEditorStore } from '../hooks/usePDFEditorStore';
 import { useSelectedIcon } from '../components/IconSelector';
 import {
   Menu,
@@ -15,8 +16,11 @@ import {
   Brain,
   Database,
   Volume2,
+  Loader2,
 } from 'lucide-react';
 import clsx from 'clsx';
+
+const PDFEditorPanel = lazy(() => import('../components/chat/PDFEditorPanel'));
 import { IconSelector } from '../components/IconSelector';
 import ConversationalFormIndicator from '../components/ConversationalFormIndicator';
 import MemoryPanel from '../components/MemoryPanel';
@@ -36,6 +40,7 @@ export default function ChatPage() {
   const chatMessages = useChatMessages(conversations.currentConversationId);
   const fileAttachments = useFileAttachments();
   const voiceMode = useVoiceMode();
+  const pdfEditor = usePDFEditorStore();
   const prevStreamingRef = useRef(false);
 
   // Drive voice mode state machine from streaming state
@@ -152,7 +157,8 @@ export default function ChatPage() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col bg-white dark:bg-surface-950">
+      <main className="flex-1 flex bg-white dark:bg-surface-950 relative overflow-hidden">
+        <div className={clsx('flex-1 flex flex-col min-w-0 transition-all duration-300', pdfEditor.isOpen && 'md:w-[45%] md:flex-none')}>
         {/* Header */}
         <header className="flex items-center justify-between px-4 py-3 border-b border-surface-200 dark:border-surface-800">
           <div className="flex items-center gap-3">
@@ -386,6 +392,26 @@ export default function ChatPage() {
           voiceModeEnabled={voiceMode.voiceModeEnabled}
           onToggleVoiceMode={voiceMode.toggleVoiceMode}
         />
+        </div>
+
+        {/* PDF Editor Panel */}
+        {pdfEditor.isOpen && pdfEditor.attachmentId && (
+          <Suspense fallback={<div className="w-[55%] bg-surface-950 flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary-400" /></div>}>
+            <PDFEditorPanel
+              attachmentId={pdfEditor.attachmentId}
+              filename={pdfEditor.filename}
+              onClose={pdfEditor.closeEditor}
+              onSaved={(newId, newFilename) => {
+                pdfEditor.closeEditor();
+                chatMessages.setMessages(prev => [...prev, {
+                  role: 'assistant' as const,
+                  content: `PDF salvato con successo: **${newFilename}** (ID: ${newId})`,
+                  timestamp: new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }),
+                }]);
+              }}
+            />
+          </Suspense>
+        )}
       </main>
 
       {/* Vector Memory Sidebar */}
