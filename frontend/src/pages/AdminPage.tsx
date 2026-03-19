@@ -38,7 +38,8 @@ import {
   PieChart,
   Lock,
   Radio,
-  GitBranch
+  GitBranch,
+  Store
 } from 'lucide-react';
 import clsx from 'clsx';
 import { format } from 'date-fns';
@@ -63,6 +64,7 @@ import PermissionsPage from './admin/PermissionsPage';
 import HookTracePage from './admin/HookTracePage';
 import PluginGraphPage from './admin/PluginGraphPage';
 import ComplianceDashboardPage from './admin/ComplianceDashboardPage';
+import MarketplacePage from './admin/MarketplacePage';
 
 interface User {
   id: number;
@@ -108,6 +110,7 @@ const NAV_ITEMS = [
   { path: '/admin/agents', icon: Bot, label: 'Agents' },
   { path: '/admin/skills', icon: Brain, label: 'Skills' },
   { path: '/admin/plugins', icon: Puzzle, label: 'Plugins & MCP' },
+  { path: '/admin/marketplace', icon: Store, label: 'Marketplace' },
   { path: '/admin/plugin-graph', icon: GitBranch, label: 'Plugin Graph' },
   { path: '/admin/memory', icon: BookMarked, label: 'Memory' },
   { path: '/admin/vector-memory', icon: Database, label: 'Vector Memory' },
@@ -658,6 +661,7 @@ export default function AdminPage() {
           <Route path="/agents" element={<AgentsPage />} />
           <Route path="/skills" element={<SkillsPage />} />
           <Route path="/plugins" element={<PluginsPage />} />
+          <Route path="/marketplace" element={<MarketplacePage />} />
           <Route path="/plugin-graph" element={<PluginGraphPage />} />
           <Route path="/memory" element={<MemoryPage />} />
           <Route path="/vector-memory" element={<VectorMemoryPage />} />
