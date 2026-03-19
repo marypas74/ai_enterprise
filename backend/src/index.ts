@@ -36,6 +36,7 @@ import { parlantRoutes } from './modules/parlant/routes.js';
 import { ralphRoutes } from './modules/ralph/routes.js';
 import fileRoutes from './modules/files/routes.js';
 import attachmentRoutes from './modules/attachments/routes.js';
+import { documentRoutes } from './modules/documents/routes.js';
 import { toolsRoutes } from './modules/tools/routes.js';
 import { memoryRoutes } from './modules/memory/routes.js';
 import { vectorMemoryRoutes } from './modules/memory/vectorMemoryRoutes.js';
@@ -283,6 +284,7 @@ const appPlugin = fp(async function (fastify) {
   await fastify.register(ralphRoutes, { prefix: '/api/ralph' });
   await fastify.register(fileRoutes, { prefix: '/api/files' });
   await fastify.register(attachmentRoutes, { prefix: '/api/attachments' });
+  await fastify.register(documentRoutes, { prefix: '/api/documents' });
   await fastify.register(toolsRoutes, { prefix: '/api' });
   await fastify.register(memoryRoutes, { prefix: '/api/memory' });
   await fastify.register(vectorMemoryRoutes, { prefix: '/api/memory/vector' });
