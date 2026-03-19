@@ -588,12 +588,17 @@ function AuditLog() {
 }
 
 import { APP_VERSION } from '../version';
+import { useMarketplaceStore } from '../hooks/useMarketplaceStore';
+import { useHookPipelineStore } from '../hooks/useHookPipelineStore';
 
 const FRONTEND_VERSION = APP_VERSION;
 
 export default function AdminPage() {
   const location = useLocation();
   const [backendVersion, setBackendVersion] = useState<{ version: string; buildTime: string } | null>(null);
+  const notificationCount = useMarketplaceStore(s => s.notificationCount);
+  const pendingApprovals = useHookPipelineStore(s => s.pendingApprovals);
+  const pendingCount = pendingApprovals.length;
 
   useEffect(() => {
     // Fetch backend version
@@ -602,6 +607,16 @@ export default function AdminPage() {
     }).catch(() => {
       // Version endpoint might not exist yet
     });
+  }, []);
+
+  useEffect(() => {
+    const fetchNotifications = () => {
+      useMarketplaceStore.getState().fetchNotifications();
+      useHookPipelineStore.getState().fetchPendingApprovals();
+    };
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 5 * 60 * 1000);
+    return () => clearInterval(interval);
   }, []);
 
   return (
@@ -635,6 +650,16 @@ export default function AdminPage() {
                 >
                   <item.icon className="w-5 h-5" />
                   <span className="font-medium">{item.label}</span>
+                  {item.path === '/admin/marketplace' && notificationCount > 0 && (
+                    <span className="ml-auto bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[20px] text-center">
+                      {notificationCount}
+                    </span>
+                  )}
+                  {item.path === '/admin/hooks' && pendingCount > 0 && (
+                    <span className="ml-auto bg-orange-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[20px] text-center">
+                      {pendingCount}
+                    </span>
+                  )}
                 </Link>
               );
             })}
