@@ -29,6 +29,52 @@ export async function cleanupOldTempDirs(maxAgeMs: number = 1800000): Promise<vo
   }
 }
 
+/**
+ * Convert OCR-extracted text (markdown-ish) to basic HTML for the TipTap editor.
+ */
+function ocrTextToHtml(text: string): string {
+  const lines = text.split('\n');
+  const htmlLines: string[] = ['<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>'];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      htmlLines.push('<br>');
+      continue;
+    }
+    if (trimmed === '--- Page Break ---') {
+      htmlLines.push('<hr>');
+      continue;
+    }
+    // Markdown headers
+    if (trimmed.startsWith('### ')) {
+      htmlLines.push(`<h3>${escapeHtml(trimmed.slice(4))}</h3>`);
+    } else if (trimmed.startsWith('## ')) {
+      htmlLines.push(`<h2>${escapeHtml(trimmed.slice(3))}</h2>`);
+    } else if (trimmed.startsWith('# ')) {
+      htmlLines.push(`<h1>${escapeHtml(trimmed.slice(2))}</h1>`);
+    } else if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+      htmlLines.push(`<li>${escapeHtml(trimmed.slice(2))}</li>`);
+    } else if (/^\|/.test(trimmed)) {
+      // Simple markdown table row — pass through as text for now
+      htmlLines.push(`<p>${escapeHtml(trimmed)}</p>`);
+    } else {
+      htmlLines.push(`<p>${escapeHtml(trimmed)}</p>`);
+    }
+  }
+
+  htmlLines.push('</body></html>');
+  return htmlLines.join('\n');
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 export function isScannedPdf(html: string): boolean {
   const textOnly = html.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
   return textOnly.length < 50;
@@ -100,10 +146,29 @@ export async function convertPdfToHtml(
     }
 
     if (isScannedPdf(html)) {
-      await fs.rm(tempDir, { recursive: true, force: true });
-      const err = new Error('Il PDF sembra essere una scansione e non contiene testo editabile');
-      (err as Error & { statusCode: number }).statusCode = 422;
-      throw err;
+      // Scanned PDF detected — try Vision OCR via Ollama (DeepSeek V3 or similar)
+      console.log(`[PDFEditor] Scanned PDF detected for user ${userId}, attempting Vision OCR...`);
+      try {
+        const { VisionService } = await import('../../services/VisionService.js');
+        const pdfBuffer = await fs.readFile(pdfCopy);
+        const ocrResult = await VisionService.getInstance().analyzeDocument(pdfBuffer, 'application/pdf');
+
+        console.log(`[PDFEditor] Vision OCR completed: ${ocrResult.pages} pages, model=${ocrResult.model}`);
+
+        // Convert OCR text (markdown) to basic HTML for the editor
+        const ocrHtml = ocrTextToHtml(ocrResult.text);
+        // Write the OCR HTML so it can be edited
+        const ocrHtmlPath = path.join(tempDir, 'input.html');
+        await fs.writeFile(ocrHtmlPath, ocrHtml, 'utf-8');
+
+        return { html: ocrHtml, tempDir };
+      } catch (ocrError: unknown) {
+        console.error(`[PDFEditor] Vision OCR failed:`, ocrError instanceof Error ? ocrError.message : ocrError);
+        await fs.rm(tempDir, { recursive: true, force: true });
+        const err = new Error('Il PDF è una scansione e il servizio OCR non è disponibile. Verifica che Ollama sia attivo con un modello vision.');
+        (err as Error & { statusCode: number }).statusCode = 422;
+        throw err;
+      }
     }
 
     return { html, tempDir };
