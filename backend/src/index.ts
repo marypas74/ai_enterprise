@@ -57,6 +57,7 @@ import { LLMSyncWorker } from './services/LLMSyncWorker.js';
 import { MCPClientManager } from './services/MCPClientManager.js';
 import { MemoryDecayService } from './services/MemoryDecayService.js';
 import { ConversationCleanupService } from './services/ConversationCleanupService.js';
+import { registerAutoSuggestHook } from './services/MarketplaceAutoSuggestHook.js';
 import websocket from '@fastify/websocket';
 import { findAll, findOne } from './database/index.js';
 import { decryptSecret } from './utils/crypto.js';
@@ -668,6 +669,14 @@ async function bootstrap() {
       fastify.log.info('[Startup] HyDE service initialized');
     } catch (err) {
       fastify.log.warn('[Startup] HyDE service initialization failed: ' + err);
+    }
+
+    // Initialize Marketplace Auto-Suggest hook
+    try {
+      registerAutoSuggestHook(fastify.db, fastify.redis);
+      fastify.log.info('[Startup] Marketplace Auto-Suggest hook registered');
+    } catch (err) {
+      fastify.log.warn('[Startup] Marketplace Auto-Suggest hook registration failed: ' + err);
     }
 
     // Initialize Vision Service with DB for dynamic model resolution
