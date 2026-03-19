@@ -22,27 +22,24 @@ spec:
             - name: PORT
               value: "3100"
             - name: DB_HOST
-              valueFrom:
-                secretKeyRef:
-                  name: app-secrets
-                  key: DB_HOST
+              value: "mariadb"
             - name: DB_PORT
               value: "3306"
             - name: DB_USER
               valueFrom:
                 secretKeyRef:
-                  name: app-secrets
-                  key: DB_USER
+                  name: mariadb-secrets
+                  key: MYSQL_USER
             - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: app-secrets
-                  key: DB_PASSWORD
+                  name: mariadb-secrets
+                  key: MYSQL_PASSWORD
             - name: DB_NAME
               valueFrom:
                 secretKeyRef:
-                  name: app-secrets
-                  key: DB_NAME
+                  name: mariadb-secrets
+                  key: MYSQL_DATABASE
             - name: QDRANT_URL
               value: "http://qdrant:6333"
             - name: MARKETPLACE_SERVICE_TOKEN
