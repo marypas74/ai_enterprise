@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import DynamicForm from '../../components/DynamicForm';
+import { getMyInstallations, type Installation } from '../../services/marketplaceApi';
 import {
   Puzzle,
   Server,
@@ -22,7 +23,8 @@ import {
   ExternalLink,
   AlertCircle,
   CheckCircle,
-  XCircle
+  XCircle,
+  Clock
 } from 'lucide-react';
 
 interface Plugin {
@@ -99,6 +101,7 @@ export default function PluginsPage() {
   const [expandedPlugins, setExpandedPlugins] = useState<Set<number>>(new Set());
   const [testingMCP, setTestingMCP] = useState<number | null>(null);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [mcpApprovalStatus, setMcpApprovalStatus] = useState<Record<string, Installation['status']>>({});
 
   useEffect(() => {
     fetchData();
@@ -106,8 +109,24 @@ export default function PluginsPage() {
 
   const fetchData = async () => {
     setLoading(true);
-    await Promise.all([fetchPlugins(), fetchMCPServers(), fetchTools()]);
+    await Promise.all([fetchPlugins(), fetchMCPServers(), fetchTools(), fetchMcpMarketplaceStatus()]);
     setLoading(false);
+  };
+
+  const fetchMcpMarketplaceStatus = async () => {
+    try {
+      const response = await getMyInstallations({ limit: 200 });
+      const installations: Installation[] = response.data?.data ?? [];
+      const statusMap: Record<string, Installation['status']> = {};
+      for (const inst of installations) {
+        if (inst.catalogItem?.type === 'mcp' && inst.catalogItem.name) {
+          statusMap[inst.catalogItem.name] = inst.status;
+        }
+      }
+      setMcpApprovalStatus(statusMap);
+    } catch {
+      // Marketplace may not be available
+    }
   };
 
   const fetchPlugins = async () => {
@@ -467,7 +486,27 @@ export default function PluginsPage() {
                     <Server className={mcp.is_enabled ? 'text-green-600' : 'text-gray-400'} size={24} />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-gray-900">{mcp.display_name}</h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-gray-900">{mcp.display_name}</h3>
+                      {mcpApprovalStatus[mcp.name] && (() => {
+                        const status = mcpApprovalStatus[mcp.name];
+                        const badges: Record<string, { label: string; className: string; Icon: typeof CheckCircle }> = {
+                          pending_approval: { label: 'In attesa', className: 'bg-yellow-100 text-yellow-700', Icon: Clock },
+                          approved: { label: 'Approvato', className: 'bg-green-100 text-green-700', Icon: CheckCircle },
+                          installed: { label: 'Approvato', className: 'bg-green-100 text-green-700', Icon: CheckCircle },
+                          rejected: { label: 'Rifiutato', className: 'bg-red-100 text-red-700', Icon: XCircle },
+                          failed: { label: 'Rifiutato', className: 'bg-red-100 text-red-700', Icon: XCircle },
+                        };
+                        const badge = badges[status] || badges.pending_approval;
+                        const BadgeIcon = badge.Icon;
+                        return (
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full ${badge.className}`}>
+                            <BadgeIcon size={10} />
+                            {badge.label}
+                          </span>
+                        );
+                      })()}
+                    </div>
                     <p className="text-sm text-gray-500 mt-1">{mcp.description}</p>
                     <div className="flex items-center gap-4 mt-2 text-xs">
                       <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">

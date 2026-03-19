@@ -39,6 +39,7 @@ import {
   Lock,
   Radio,
   GitBranch,
+  GitMerge,
   Store
 } from 'lucide-react';
 import clsx from 'clsx';
@@ -65,6 +66,7 @@ import HookTracePage from './admin/HookTracePage';
 import PluginGraphPage from './admin/PluginGraphPage';
 import ComplianceDashboardPage from './admin/ComplianceDashboardPage';
 import MarketplacePage from './admin/MarketplacePage';
+import PipelineVisualizerPage from './admin/PipelineVisualizerPage';
 
 interface User {
   id: number;
@@ -117,6 +119,7 @@ const NAV_ITEMS = [
   { path: '/admin/memory-stats', icon: PieChart, label: 'Memory Stats' },
   { path: '/admin/hooks', icon: Zap, label: 'Hooks' },
   { path: '/admin/hook-trace', icon: Radio, label: 'Hook Trace' },
+  { path: '/admin/hooks/pipeline', icon: GitMerge, label: 'Hook Pipeline' },
   { path: '/admin/prompt-templates', icon: FileText, label: 'Prompt Templates' },
   { path: '/admin/forms', icon: ClipboardList, label: 'Forms' },
   { path: '/admin/scheduler', icon: Clock, label: 'Scheduler' },
@@ -668,6 +671,7 @@ export default function AdminPage() {
           <Route path="/memory-stats" element={<MemoryStatsPage />} />
           <Route path="/hooks" element={<HooksPage />} />
           <Route path="/hook-trace" element={<HookTracePage />} />
+          <Route path="/hooks/pipeline" element={<PipelineVisualizerPage />} />
           <Route path="/prompt-templates" element={<PromptTemplatesPage />} />
           <Route path="/forms" element={<FormsPage />} />
           <Route path="/scheduler" element={<SchedulerPage />} />
