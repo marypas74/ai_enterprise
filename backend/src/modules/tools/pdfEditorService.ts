@@ -70,17 +70,25 @@ export async function convertPdfToHtml(
 
     let html = await fs.readFile(htmlPath, 'utf-8');
 
+    // Collect all image matches first, then replace (avoid mutating string during regex iteration)
+    const imgMatches: { src: string; fullMatch: string }[] = [];
     const imgRegex = /src="([^"]+)"/g;
     let match;
     while ((match = imgRegex.exec(html)) !== null) {
       const imgSrc = match[1];
-      if (imgSrc.startsWith('data:')) continue;
-      const imgPath = path.resolve(tempDir, imgSrc);
+      if (!imgSrc.startsWith('data:')) {
+        imgMatches.push({ src: imgSrc, fullMatch: match[0] });
+      }
+    }
+    for (const img of imgMatches) {
+      const imgPath = path.resolve(tempDir, img.src);
+      // Prevent path traversal — image must be inside tempDir
+      if (!imgPath.startsWith(tempDir + path.sep)) continue;
       try {
         const imgBuffer = await fs.readFile(imgPath);
         const ext = path.extname(imgPath).slice(1) || 'png';
         const mimeType = ext === 'jpg' ? 'image/jpeg' : `image/${ext}`;
-        html = html.replace(imgSrc, `data:${mimeType};base64,${imgBuffer.toString('base64')}`);
+        html = html.replace(img.fullMatch, `src="data:${mimeType};base64,${imgBuffer.toString('base64')}"`);
       } catch {
         /* skip images that cannot be read */
       }
