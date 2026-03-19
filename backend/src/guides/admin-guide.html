@@ -66,7 +66,7 @@
 <body>
 <div class="container">
 
-<span class="version">v1.8.5 - ADMIN</span>
+<span class="version">v2.1.23 - ADMIN</span>
 <h1>Enterprise AI Chat</h1>
 <p class="subtitle">Guida Amministratore Completa - Configurazione, Gestione e Architettura del Sistema</p>
 
@@ -82,6 +82,8 @@
     <li><a href="#plugins">Plugin e Server MCP</a></li>
     <li><a href="#memoria-admin">Memoria e RAG</a></li>
     <li><a href="#hooks">Hooks e Automazione</a></li>
+    <li><a href="#marketplace">Marketplace Competenze</a></li>
+    <li><a href="#pipeline-visualizer">Hook Pipeline Visualizer</a></li>
     <li><a href="#templates">Template Prompt</a></li>
     <li><a href="#forms">Form Conversazionali</a></li>
     <li><a href="#scheduler-admin">Scheduler (White Rabbit)</a></li>
@@ -1512,8 +1514,104 @@ bash BUILD.sh    # Richiede sudo: npm install, Docker build, MicroK8s import, K8
   </ul>
 </div>
 
+<!-- SECTION: MARKETPLACE -->
+<h2 id="marketplace">Marketplace Competenze</h2>
+
+<p>Il Marketplace consente di sincronizzare, installare e gestire competenze AI (skills, agenti, plugin MCP, hooks) da un catalogo centralizzato. Accessibile dal pannello admin alla voce <strong>Marketplace</strong>.</p>
+
+<h3>Catalogo e Sincronizzazione</h3>
+
+<div class="card">
+  <div class="card-title">Sincronizzazione Catalogo</div>
+  <p>Il catalogo viene sincronizzato da fonti esterne. L'amministratore puo:</p>
+  <ul>
+    <li><strong>Sincronizzazione manuale</strong> - Premere il pulsante "Sincronizza" nella pagina Marketplace</li>
+    <li><strong>Stato sincronizzazione</strong> - Verificare data e stato dell'ultima sincronizzazione</li>
+    <li><strong>Sospensione automatica</strong> - Se la fonte non e raggiungibile per 3 tentativi consecutivi, la sincronizzazione viene sospesa</li>
+    <li><strong>Ripresa</strong> - Usare il pulsante "Riprendi" per riprendere la sincronizzazione dopo una sospensione</li>
+  </ul>
+</div>
+
+<h3>Classificazione Tier</h3>
+
+<div class="card">
+  <p>Le competenze sono classificate in tre livelli di sicurezza:</p>
+  <table>
+    <tr><th>Tier</th><th>Tipo</th><th>Approvazione</th></tr>
+    <tr><td><span class="badge badge-success">Tier 1</span></td><td>Skills, Prompt Templates</td><td>Self-service (installazione libera)</td></tr>
+    <tr><td><span class="badge badge-warning">Tier 2</span></td><td>Agenti, Automazioni</td><td>Self-service con limiti</td></tr>
+    <tr><td><span class="badge badge-danger">Tier 3</span></td><td>Plugin MCP, Hooks</td><td>Richiede approvazione admin</td></tr>
+  </table>
+</div>
+
+<h3>Workflow di Approvazione</h3>
+
+<div class="card">
+  <div class="card-title">Gestione Approvazioni</div>
+  <p>Quando un utente richiede l'installazione di una competenza Tier 3, viene creata una richiesta di approvazione:</p>
+  <ol>
+    <li>L'utente clicca "Installa" su un elemento Tier 3</li>
+    <li>Viene generata una richiesta di approvazione con stato <span class="badge badge-warning">pending</span></li>
+    <li>L'amministratore riceve una notifica (badge nel menu laterale)</li>
+    <li>Dalla sezione Marketplace, tab "Approvazioni", l'admin puo <span class="badge badge-success">Approvare</span> o <span class="badge badge-danger">Rifiutare</span></li>
+    <li>L'utente viene notificato della decisione</li>
+  </ol>
+</div>
+
+<h3>Ricerca Semantica</h3>
+
+<div class="card">
+  <p>Il marketplace integra la ricerca semantica tramite Qdrant:</p>
+  <ul>
+    <li><strong>Ricerca per testo</strong> - Filtra per nome, categoria o descrizione</li>
+    <li><strong>Ricerca semantica</strong> - Usa il campo ricerca per trovare competenze simili per significato</li>
+    <li><strong>Auto-suggerimento</strong> - Il sistema suggerisce automaticamente competenze rilevanti durante le conversazioni AI (se abilitato nelle impostazioni)</li>
+  </ul>
+</div>
+
+<h3>Notifiche</h3>
+
+<div class="card">
+  <p>Il pannello admin mostra notifiche in tempo reale:</p>
+  <ul>
+    <li><strong>Badge Marketplace</strong> - Indica nuove competenze aggiunte al catalogo dall'ultima sincronizzazione</li>
+    <li><strong>Badge Pipeline</strong> - Indica approvazioni in attesa per competenze Tier 3</li>
+  </ul>
+</div>
+
+<div class="tip">
+  <div class="tip-title">Suggerimento</div>
+  <p>Configura la sincronizzazione automatica del catalogo per mantenere aggiornate le competenze disponibili. Ogni installazione e limitata a un massimo di 50 per utente.</p>
+</div>
+
+<!-- SECTION: PIPELINE VISUALIZER -->
+<h2 id="pipeline-visualizer">Hook Pipeline Visualizer</h2>
+
+<p>Il Pipeline Visualizer offre una vista grafica della pipeline degli hook, mostrando come gli eventi fluiscono attraverso i vari handler registrati.</p>
+
+<div class="card">
+  <div class="card-title">Funzionalita</div>
+  <ul>
+    <li><strong>Vista Hook Points</strong> - Visualizza tutti i punti di aggancio disponibili (before_llm_call, after_llm_call, ecc.)</li>
+    <li><strong>Handler registrati</strong> - Per ogni hook point, mostra gli handler attivi con priorita e timeout</li>
+    <li><strong>Log di esecuzione</strong> - Pannello trace con log dettagliati delle esecuzioni degli handler</li>
+    <li><strong>Approvazioni pendenti</strong> - Badge con il numero di approvazioni in attesa</li>
+  </ul>
+</div>
+
+<div class="card">
+  <div class="card-title">Auto-Suggest Hook</div>
+  <p>Il Marketplace registra automaticamente un handler <code>marketplace-auto-suggest</code> nel hook point <code>before_llm_call</code>:</p>
+  <ul>
+    <li><strong>Priorita</strong>: 50 (esecuzione anticipata)</li>
+    <li><strong>Timeout</strong>: 100ms (non rallenta la risposta)</li>
+    <li><strong>Cache</strong>: Redis con TTL di 5 minuti per le query gia elaborate</li>
+    <li><strong>Funzione</strong>: Interroga Qdrant per suggerire competenze rilevanti al contesto della conversazione</li>
+  </ul>
+</div>
+
 <div class="footer">
-  <p>Enterprise AI Chat v1.8.5 - Guida Amministratore</p>
+  <p>Enterprise AI Chat v2.1.23 - Guida Amministratore</p>
   <p>Documento riservato - Solo per personale autorizzato</p>
   <p>Conforme al Regolamento Europeo sull'AI (AI Act) e GDPR</p>
   <p>Ultimo aggiornamento: Marzo 2026</p>
