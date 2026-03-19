@@ -3,6 +3,12 @@ import { api, streamChat, generateDocument } from '../services/api';
 import { downloadFile } from '../utils/fileDownload';
 import { useDocumentStore } from './useDocumentStore';
 
+export interface MessageAttachment {
+  id: number;
+  name: string;
+  mimeType: string;
+}
+
 export interface Message {
   id?: number;
   role: 'user' | 'assistant' | 'system';
@@ -14,6 +20,7 @@ export interface Message {
   safety_topics?: string[];
   thinking?: string;
   thinkingDone?: boolean;
+  attachments?: MessageAttachment[];
   vectorMemories?: {
     episodic: any[];
     declarative: any[];
@@ -299,10 +306,16 @@ export function useChatMessages(currentConversationId: number | null): UseChatMe
       ? `${userMessage}\n\n\u{1F4CE} Allegati: ${attachmentNames.join(', ')}`
       : userMessage;
 
+    // Build preliminary attachment metadata (IDs filled after upload)
+    const pendingAttachments: MessageAttachment[] = hasAttachments
+      ? attachments.map((a: any) => ({ id: 0, name: a.file.name, mimeType: a.file.type }))
+      : [];
+
     setMessages(prev => [...prev, {
       role: 'user',
       content: displayMessage,
       timestamp: new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      attachments: pendingAttachments.length > 0 ? pendingAttachments : undefined,
     }]);
     setIsStreaming(true);
 
@@ -319,6 +332,19 @@ export function useChatMessages(currentConversationId: number | null): UseChatMe
       let attachmentIds: number[] = [];
       if (hasAttachments) {
         attachmentIds = await uploadAttachments(convId || undefined);
+        // Update attachment IDs in the user message now that upload is complete
+        setMessages(prev => prev.map((msg, idx) => {
+          if (idx === prev.length - 2 && msg.role === 'user' && msg.attachments) {
+            return {
+              ...msg,
+              attachments: msg.attachments.map((att, i) => ({
+                ...att,
+                id: attachmentIds[i] ?? att.id,
+              })),
+            };
+          }
+          return msg;
+        }));
       }
 
       let messageToSend = userMessage;

@@ -21,7 +21,7 @@ import { downloadFile } from '../../utils/fileDownload';
 import { isNativePlatform } from '../../utils/platform';
 import { usePDFEditorStore } from '../../hooks/usePDFEditorStore';
 import { useDocumentStore } from '../../hooks/useDocumentStore';
-import type { Message } from '../../hooks/useChatMessages';
+import type { Message, MessageAttachment } from '../../hooks/useChatMessages';
 
 const PDF_EDITOR_MARKER = /<!-- pdf_editor:attachmentId=(\d+),filename=(.+?) -->/;
 const PDF_ATTACHMENT_REF = /\[Allegato(?:\s+ID=(\d+))?:\s*([^\]]*?\.pdf)\s*(?:\([^)]*\))?\s*\]/gi;
@@ -291,21 +291,29 @@ export default function ChatMessageList({
                   </ReactMarkdown>
                 )}
               </div>
-              {/* PDF Edit buttons for user messages with PDF attachments */}
-              {message.role === 'user' && message.content && (() => {
-                const pdfMatches: { id: string; name: string }[] = [];
-                let m;
-                const regex = new RegExp(PDF_ATTACHMENT_REF.source, PDF_ATTACHMENT_REF.flags);
-                while ((m = regex.exec(message.content)) !== null) {
-                  if (m[1]) pdfMatches.push({ id: m[1], name: m[2].trim() });
+              {/* PDF Edit buttons — from message attachments or regex fallback */}
+              {message.role === 'user' && (() => {
+                // Primary: use structured attachment data
+                const pdfFromAttachments = (message.attachments || [])
+                  .filter(a => a.mimeType === 'application/pdf' || a.mimeType === 'application/pdf')
+                  .filter(a => a.id > 0);
+
+                // Fallback: parse text for [Allegato ID=X: file.pdf] pattern
+                if (pdfFromAttachments.length === 0 && message.content) {
+                  const regex = new RegExp(PDF_ATTACHMENT_REF.source, PDF_ATTACHMENT_REF.flags);
+                  let m;
+                  while ((m = regex.exec(message.content)) !== null) {
+                    if (m[1]) pdfFromAttachments.push({ id: parseInt(m[1], 10), name: m[2].trim(), mimeType: 'application/pdf' });
+                  }
                 }
-                if (pdfMatches.length === 0) return null;
+
+                if (pdfFromAttachments.length === 0) return null;
                 return (
                   <div className="flex flex-wrap gap-1.5 mt-2">
-                    {pdfMatches.map(pdf => (
+                    {pdfFromAttachments.map(pdf => (
                       <button
                         key={pdf.id}
-                        onClick={() => openPdfEditor(parseInt(pdf.id, 10), pdf.name)}
+                        onClick={() => openPdfEditor(pdf.id, pdf.name)}
                         className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs bg-amber-500/10 border border-amber-500/20 text-amber-400 hover:bg-amber-500/20 transition-colors"
                         title={`Modifica ${pdf.name}`}
                       >

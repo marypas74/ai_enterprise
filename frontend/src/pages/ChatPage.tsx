@@ -79,8 +79,18 @@ export default function ChatPage() {
   // When a conversation is selected, load its messages
   const handleLoadConversation = async (id: number) => {
     try {
-      const { messages, conversation } = await conversations.loadConversation(id);
-      chatMessages.setMessages(messages);
+      const { messages, conversation, attachments } = await conversations.loadConversation(id);
+      // Enrich user messages with attachment metadata for PDF edit buttons
+      const pdfAttachments = (attachments || [])
+        .filter((a: any) => a.mime_type === 'application/pdf')
+        .map((a: any) => ({ id: a.id, name: a.original_name, mimeType: a.mime_type }));
+      const enrichedMessages = messages.map((msg: any) => {
+        if (msg.role === 'user' && pdfAttachments.length > 0 && msg.content?.includes('.pdf')) {
+          return { ...msg, attachments: pdfAttachments };
+        }
+        return msg;
+      });
+      chatMessages.setMessages(enrichedMessages);
       chatMessages.setSelectedModel(conversation.model);
 
       // Restore chat mode and selected documents

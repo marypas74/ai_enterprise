@@ -80,9 +80,17 @@ export async function conversationRoutes(fastify: FastifyInstance) {
       [params.id]
     );
 
+    // Load attachments for this conversation to include with messages
+    const attachments = await findMany<{ id: number; original_name: string; mime_type: string; file_size: number }>(
+      fastify.db,
+      'SELECT id, original_name, mime_type, file_size FROM chat_attachments WHERE conversation_id = ? AND user_id = ? ORDER BY created_at ASC',
+      [params.id, user.id]
+    );
+
     return {
       conversation,
-      messages
+      messages,
+      attachments,
     };
   });
 
