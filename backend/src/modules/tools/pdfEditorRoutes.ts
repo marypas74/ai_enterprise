@@ -36,7 +36,11 @@ export async function pdfEditorRoutes(fastify: FastifyInstance) {
     onRequest: [(fastify as any).authenticate],
   }, async (request, reply) => {
     const userId = (request as any).user.id;
-    const body = convertSchema.parse(request.body);
+    const parsed = convertSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.issues.map(i => i.message).join('; ') });
+    }
+    const body = parsed.data;
 
     const attachment = await findOne<AttachmentRow>(
       fastify.db,
@@ -78,7 +82,11 @@ export async function pdfEditorRoutes(fastify: FastifyInstance) {
     bodyLimit: 100 * 1024 * 1024,
   }, async (request, reply) => {
     const userId = (request as any).user.id;
-    const body = saveSchema.parse(request.body);
+    const parsed = saveSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.issues.map(i => i.message).join('; ') });
+    }
+    const body = parsed.data;
 
     const original = await findOne<AttachmentRow>(
       fastify.db,
