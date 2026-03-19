@@ -9,8 +9,6 @@ import {
   Download,
   Trash2,
   ArrowLeft,
-  CheckCircle2,
-  Clock,
 } from 'lucide-react';
 import { useMarketplaceStore } from '../hooks/useMarketplaceStore';
 import type { CatalogItem } from '../services/marketplaceApi';
@@ -67,10 +65,6 @@ export default function MarketplacePage() {
   } = useMarketplaceStore();
 
   const [searchInput, setSearchInput] = useState(filters.search ?? '');
-
-  useEffect(() => {
-    fetchCatalog();
-  }, [fetchCatalog]);
 
   useEffect(() => {
     fetchCatalog();

@@ -50,6 +50,7 @@ export async function marketplaceProxyRoutes(fastify: FastifyInstance): Promise<
     fastify.route({
       method,
       url: '/*',
+      onRequest: [(fastify as any).authenticate],
       handler: async (request: FastifyRequest, reply: FastifyReply) => {
         const targetUrl = buildTargetUrl(request.url);
         const headers = buildForwardHeaders(request);

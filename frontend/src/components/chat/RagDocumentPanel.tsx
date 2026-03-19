@@ -165,7 +165,7 @@ export default function RagDocumentPanel() {
 
   useEffect(() => {
     fetchDocuments();
-  }, []);
+  }, [fetchDocuments]);
 
   const readyDocs = documents.filter(d => d.status === 'ready');
   const allSelected = readyDocs.length > 0 && readyDocs.every(d => selectedDocumentIds.includes(d.id));

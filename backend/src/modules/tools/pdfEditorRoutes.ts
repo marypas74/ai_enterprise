@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import sanitizeHtml from 'sanitize-html';
 import { findOne, insertOne } from '../../database/index.js';
 import { convertPdfToHtml, convertHtmlToPdf } from './pdfEditorService.js';
 import fs from 'fs/promises';
@@ -101,10 +102,18 @@ export async function pdfEditorRoutes(fastify: FastifyInstance) {
     }
 
     try {
-      // Sanitize HTML: strip script tags and event handlers to prevent XSS
-      const sanitizedHtml = body.html
-        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-        .replace(/\bon\w+\s*=\s*["'][^"']*["']/gi, '');
+      // Sanitize HTML using sanitize-html library (regex-based approaches are bypassable)
+      const sanitizedHtml = sanitizeHtml(body.html, {
+        allowedTags: sanitizeHtml.defaults.allowedTags.concat(['img', 'h1', 'h2', 'span', 'div', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'br', 'hr', 'sup', 'sub', 'u', 's']),
+        allowedAttributes: {
+          ...sanitizeHtml.defaults.allowedAttributes,
+          '*': ['style', 'class', 'id'],
+          img: ['src', 'alt', 'width', 'height'],
+          td: ['colspan', 'rowspan'],
+          th: ['colspan', 'rowspan'],
+        },
+        allowedSchemes: ['data', 'https', 'http'],
+      });
 
       const { pdfBuffer, tempDir } = await convertHtmlToPdf(sanitizedHtml, userId);
       await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
