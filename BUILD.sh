@@ -110,6 +110,24 @@ else
     print_warning "Directory doc-processor non trovata, skip"
 fi
 
+# 4c. Build Docker Marketplace
+MARKETPLACE_VERSION="1.0.0"
+print_step "4c. Build immagine Docker Marketplace..."
+if [ -d "marketplace" ]; then
+    cd marketplace
+    if [ ! -d "node_modules" ]; then
+        npm ci
+        print_status "Dipendenze marketplace installate"
+    fi
+    npm run build
+    cd ..
+    docker build -t localhost:32000/enterprise-ai-chat/marketplace:latest ./marketplace
+    docker build -t localhost:32000/enterprise-ai-chat/marketplace:${MARKETPLACE_VERSION} ./marketplace
+    print_status "Immagine marketplace creata (latest e ${MARKETPLACE_VERSION})"
+else
+    print_warning "Directory marketplace non trovata, skip"
+fi
+
 # 5. Import in MicroK8s
 print_step "5. Import immagini in MicroK8s..."
 docker save localhost:32000/enterprise-ai-chat-backend:${BACKEND_VERSION} > /tmp/backend.tar
@@ -124,6 +142,14 @@ if docker image inspect localhost:32000/doc-processor:${DOC_PROCESSOR_VERSION} >
     microk8s ctr image import /tmp/doc-processor.tar
     rm /tmp/doc-processor.tar
     print_status "Immagine doc-processor importata in MicroK8s"
+fi
+
+# Import marketplace se disponibile
+if docker image inspect localhost:32000/enterprise-ai-chat/marketplace:${MARKETPLACE_VERSION} >/dev/null 2>&1; then
+    docker save localhost:32000/enterprise-ai-chat/marketplace:${MARKETPLACE_VERSION} > /tmp/marketplace.tar
+    microk8s ctr image import /tmp/marketplace.tar
+    rm /tmp/marketplace.tar
+    print_status "Immagine marketplace importata in MicroK8s"
 fi
 
 print_status "Immagini versionate importate in MicroK8s"
@@ -163,6 +189,12 @@ microk8s kubectl apply -f k8s/frontend/deployment.yaml
 if [ -f "k8s/doc-processor/deployment.yaml" ]; then
     microk8s kubectl apply -f k8s/doc-processor/deployment.yaml
     print_status "doc-processor deployato"
+fi
+
+# Deploy marketplace se i manifest esistono
+if [ -d "k8s/marketplace" ]; then
+    microk8s kubectl apply -f k8s/marketplace/
+    print_status "marketplace deployato"
 fi
 
 microk8s kubectl apply -f k8s/ingress.yaml
