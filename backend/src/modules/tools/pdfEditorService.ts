@@ -5,7 +5,7 @@ import path from 'path';
 import os from 'os';
 
 const execFileAsync = promisify(execFile);
-const SOFFICE_TIMEOUT = 60000;
+const SOFFICE_TIMEOUT = 180000; // 3 minutes — large PDFs (e.g. 1MB+) can take 100+ seconds per soffice step
 
 export async function cleanupOldTempDirs(maxAgeMs: number = 1800000): Promise<void> {
   const tmpBase = os.tmpdir();
