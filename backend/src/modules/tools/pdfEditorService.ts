@@ -34,8 +34,13 @@ export function isScannedPdf(html: string): boolean {
   return textOnly.length < 50;
 }
 
-async function runSoffice(args: readonly string[], timeout: number = SOFFICE_TIMEOUT): Promise<void> {
-  await execFileAsync('soffice', [...args], { timeout });
+async function runSoffice(args: readonly string[], tempDir: string, timeout: number = SOFFICE_TIMEOUT): Promise<void> {
+  // Each conversion gets its own user profile to prevent parallel execution conflicts
+  const profileDir = path.join(tempDir, '.soffice-profile');
+  await execFileAsync('soffice', [
+    `-env:UserInstallation=file://${profileDir}`,
+    ...args,
+  ], { timeout });
 }
 
 export async function convertPdfToHtml(
@@ -55,7 +60,7 @@ export async function convertPdfToHtml(
       '--convert-to', 'docx',
       '--outdir', tempDir,
       pdfCopy,
-    ]);
+    ], tempDir);
     const docxPath = path.join(tempDir, 'input.docx');
     await fs.access(docxPath);
 
@@ -64,7 +69,7 @@ export async function convertPdfToHtml(
       '--convert-to', 'html',
       '--outdir', tempDir,
       docxPath,
-    ]);
+    ], tempDir);
     const htmlPath = path.join(tempDir, 'input.html');
     await fs.access(htmlPath);
 
@@ -126,7 +131,7 @@ export async function convertHtmlToPdf(
       '--convert-to', 'docx',
       '--outdir', tempDir,
       htmlPath,
-    ]);
+    ], tempDir);
     const docxPath = path.join(tempDir, 'edited.docx');
     await fs.access(docxPath);
 
@@ -135,7 +140,7 @@ export async function convertHtmlToPdf(
       '--convert-to', 'pdf',
       '--outdir', tempDir,
       docxPath,
-    ]);
+    ], tempDir);
     const pdfPath = path.join(tempDir, 'edited.pdf');
     await fs.access(pdfPath);
 

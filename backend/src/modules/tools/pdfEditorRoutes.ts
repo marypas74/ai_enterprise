@@ -53,7 +53,7 @@ export async function pdfEditorRoutes(fastify: FastifyInstance) {
     if (!attachment) {
       return reply.status(404).send({ error: 'Allegato non trovato' });
     }
-    if (attachment.mime_type !== 'application/pdf' && attachment.content_type !== 'document') {
+    if (attachment.mime_type !== 'application/pdf') {
       return reply.status(400).send({ error: 'Il file non e un PDF' });
     }
 
