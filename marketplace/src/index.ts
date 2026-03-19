@@ -4,6 +4,7 @@ import rateLimit from '@fastify/rate-limit';
 import { config } from './config.js';
 import { jwtPlugin } from './auth/jwtPlugin.js';
 import { getPool, runMigrations, closePool } from './database/connection.js';
+import { registerRoutes } from './routes.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
   const fastify = Fastify({ logger: true });
@@ -17,6 +18,8 @@ export async function buildApp(): Promise<FastifyInstance> {
     service: 'marketplace',
     timestamp: new Date().toISOString(),
   }));
+
+  await registerRoutes(fastify);
 
   return fastify;
 }
