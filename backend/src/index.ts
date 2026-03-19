@@ -46,6 +46,7 @@ import { schedulerRoutes } from './modules/scheduler/routes.js';
 import { batchRoutes } from './modules/batch/routes.js';
 import { permissionRoutes } from './modules/admin/permissions.js';
 import { complianceRoutes } from './modules/compliance/routes.js';
+import { marketplaceProxyRoutes } from './modules/admin/marketplace-proxy.js';
 import { BiasMonitorService } from './modules/compliance/biasMonitorService.js';
 import { eventBus } from './services/EventBusService.js';
 import { HyDEService } from './services/HyDEService.js';
@@ -292,6 +293,7 @@ const appPlugin = fp(async function (fastify) {
   await fastify.register(batchRoutes, { prefix: '/api/batch' });
   await fastify.register(permissionRoutes, { prefix: '/api/permissions' });
   await fastify.register(complianceRoutes, { prefix: '/api' });
+  await fastify.register(marketplaceProxyRoutes, { prefix: '/api/marketplace' });
 
   // Debug WebSocket clients set (defined early so addHook can reference it)
   const debugClients = new Set<any>();
