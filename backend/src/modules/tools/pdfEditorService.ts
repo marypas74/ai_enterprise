@@ -5,7 +5,7 @@ import path from 'path';
 import os from 'os';
 
 const execFileAsync = promisify(execFile);
-const SOFFICE_TIMEOUT = 180000; // 3 minutes — large PDFs (e.g. 1MB+) can take 100+ seconds per soffice step
+const SOFFICE_TIMEOUT = 180000; // 3 minutes — large documents can take 100+ seconds per soffice step
 
 export async function cleanupOldTempDirs(maxAgeMs: number = 1800000): Promise<void> {
   const tmpBase = os.tmpdir();
@@ -118,80 +118,35 @@ export async function convertPdfToHtml(
     const pdfCopy = path.join(tempDir, 'input.pdf');
     await fs.copyFile(pdfPath, pdfCopy);
 
-    await runSoffice([
-      '--headless',
-      '--infilter=writer_pdf_import',
-      '--convert-to', 'docx',
-      '--outdir', tempDir,
-      pdfCopy,
-    ], tempDir);
-    const docxPath = path.join(tempDir, 'input.docx');
-    await fs.access(docxPath);
+    // Use Ollama Vision OCR for ALL PDF conversion (no LibreOffice for PDF→HTML)
+    console.log(`[PDFEditor] Converting PDF via Ollama Vision OCR for user ${userId}...`);
+    const { VisionService } = await import('../../services/VisionService.js');
+    const visionService = VisionService.getInstance();
 
-    await runSoffice([
-      '--headless',
-      '--convert-to', 'html',
-      '--outdir', tempDir,
-      docxPath,
-    ], tempDir);
+    // Check Ollama availability before starting
+    const available = await visionService.isAvailable();
+    if (!available) {
+      await fs.rm(tempDir, { recursive: true, force: true });
+      const err = new Error('Ollama non è disponibile. Verifica che Ollama sia attivo con un modello vision (es. qwen2.5vl).');
+      (err as Error & { statusCode: number }).statusCode = 503;
+      throw err;
+    }
+
+    const pdfBuffer = await fs.readFile(pdfCopy);
+    const ocrResult = await visionService.analyzeDocument(pdfBuffer, 'application/pdf');
+
+    console.log(`[PDFEditor] Vision OCR completed: ${ocrResult.pages} pages, model=${ocrResult.model}`);
+
+    // Convert OCR text (markdown) to HTML for the TipTap editor
+    const html = ocrTextToHtml(ocrResult.text);
+
+    // Write HTML for reference
     const htmlPath = path.join(tempDir, 'input.html');
-    await fs.access(htmlPath);
-
-    let html = await fs.readFile(htmlPath, 'utf-8');
-
-    // Collect all image matches first, then replace (avoid mutating string during regex iteration)
-    const imgMatches: { src: string; fullMatch: string }[] = [];
-    const imgRegex = /src="([^"]+)"/g;
-    let match;
-    while ((match = imgRegex.exec(html)) !== null) {
-      const imgSrc = match[1];
-      if (!imgSrc.startsWith('data:')) {
-        imgMatches.push({ src: imgSrc, fullMatch: match[0] });
-      }
-    }
-    for (const img of imgMatches) {
-      const imgPath = path.resolve(tempDir, img.src);
-      // Prevent path traversal — image must be inside tempDir
-      if (!imgPath.startsWith(tempDir + path.sep)) continue;
-      try {
-        const imgBuffer = await fs.readFile(imgPath);
-        const ext = path.extname(imgPath).slice(1) || 'png';
-        const mimeType = ext === 'jpg' ? 'image/jpeg' : `image/${ext}`;
-        html = html.replace(img.fullMatch, `src="data:${mimeType};base64,${imgBuffer.toString('base64')}"`);
-      } catch {
-        /* skip images that cannot be read */
-      }
-    }
-
-    if (isScannedPdf(html)) {
-      // Scanned PDF detected — try Vision OCR via Ollama (DeepSeek V3 or similar)
-      console.log(`[PDFEditor] Scanned PDF detected for user ${userId}, attempting Vision OCR...`);
-      try {
-        const { VisionService } = await import('../../services/VisionService.js');
-        const pdfBuffer = await fs.readFile(pdfCopy);
-        const ocrResult = await VisionService.getInstance().analyzeDocument(pdfBuffer, 'application/pdf');
-
-        console.log(`[PDFEditor] Vision OCR completed: ${ocrResult.pages} pages, model=${ocrResult.model}`);
-
-        // Convert OCR text (markdown) to basic HTML for the editor
-        const ocrHtml = ocrTextToHtml(ocrResult.text);
-        // Write the OCR HTML so it can be edited
-        const ocrHtmlPath = path.join(tempDir, 'input.html');
-        await fs.writeFile(ocrHtmlPath, ocrHtml, 'utf-8');
-
-        return { html: ocrHtml, tempDir };
-      } catch (ocrError: unknown) {
-        console.error(`[PDFEditor] Vision OCR failed:`, ocrError instanceof Error ? ocrError.message : ocrError);
-        await fs.rm(tempDir, { recursive: true, force: true });
-        const err = new Error('Il PDF è una scansione e il servizio OCR non è disponibile. Verifica che Ollama sia attivo con un modello vision.');
-        (err as Error & { statusCode: number }).statusCode = 422;
-        throw err;
-      }
-    }
+    await fs.writeFile(htmlPath, html, 'utf-8');
 
     return { html, tempDir };
   } catch (error: unknown) {
-    if (error instanceof Error && (error as Error & { statusCode?: number }).statusCode === 422) {
+    if (error instanceof Error && (error as Error & { statusCode?: number }).statusCode) {
       throw error;
     }
     await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
