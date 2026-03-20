@@ -24,6 +24,7 @@ export default function PDFEditorPanel({ attachmentId, filename, onClose, onSave
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [conversionMethod, setConversionMethod] = useState<string | null>(null);
 
   const editor = useEditor({
     extensions: [
@@ -53,11 +54,28 @@ export default function PDFEditorPanel({ attachmentId, filename, onClose, onSave
         const result = await convertPdfToHtml(attachmentId);
         if (!cancelled && editorRef.current) {
           editorRef.current.commands.setContent(result.html);
+          setConversionMethod(result.method || null);
           setDirty(false);
         }
       } catch (err: any) {
         if (!cancelled) {
-          setError(err.response?.data?.error || err.message || 'Errore di conversione');
+          const serverMsg = err.response?.data?.error;
+          const status = err.response?.status;
+          let userMsg: string;
+          if (serverMsg) {
+            userMsg = serverMsg;
+          } else if (status === 413) {
+            userMsg = 'Il PDF ha troppe pagine per essere elaborato.';
+          } else if (status === 503) {
+            userMsg = 'Il servizio OCR non è disponibile al momento. Riprova tra qualche minuto.';
+          } else if (status === 422) {
+            userMsg = 'Impossibile estrarre testo dal PDF. Il file potrebbe essere troppo complesso o il servizio OCR è sovraccarico.';
+          } else if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+            userMsg = 'La conversione ha impiegato troppo tempo. Prova con un PDF più piccolo.';
+          } else {
+            userMsg = 'Errore durante la conversione del PDF. Riprova.';
+          }
+          setError(userMsg);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -152,7 +170,7 @@ export default function PDFEditorPanel({ attachmentId, filename, onClose, onSave
       {/* Status bar */}
       <div className="flex items-center justify-between px-4 py-1.5 border-t border-surface-700 text-[10px] text-surface-500">
         <span>{dirty ? 'Modificato' : 'Nessuna modifica'}</span>
-        <span>Formato originale: PDF (convertito via LibreOffice)</span>
+        <span>Formato originale: PDF {conversionMethod === 'vision-ocr' ? '(OCR via Ollama)' : conversionMethod === 'pdf-parse' ? '(estrazione testo)' : ''}</span>
       </div>
     </div>
   );

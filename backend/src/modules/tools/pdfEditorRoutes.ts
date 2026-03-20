@@ -70,12 +70,13 @@ export async function pdfEditorRoutes(fastify: FastifyInstance) {
     }
 
     try {
-      const { html, tempDir } = await convertPdfToHtml(attachment.file_path, userId);
+      const { html, tempDir, method } = await convertPdfToHtml(attachment.file_path, userId);
       await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
-      return { html, filename: attachment.original_name };
+      return { html, filename: attachment.original_name, method };
     } catch (error: unknown) {
       const status = (error instanceof Error && (error as Error & { statusCode?: number }).statusCode) || 500;
       const message = error instanceof Error ? error.message : 'Errore di conversione';
+      fastify.log.error(`[PDFEditor] Convert failed (${status}): ${message}`);
       return reply.status(status).send({ error: message });
     }
   });

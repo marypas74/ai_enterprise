@@ -1,7 +1,9 @@
 import { api } from './api';
 
-export async function convertPdfToHtml(attachmentId: number): Promise<{ html: string; filename: string }> {
-  const response = await api.post('/tools/pdf-editor/convert', { attachmentId });
+export async function convertPdfToHtml(attachmentId: number): Promise<{ html: string; filename: string; method?: string }> {
+  const response = await api.post('/tools/pdf-editor/convert', { attachmentId }, {
+    timeout: 20 * 60 * 1000, // 20 min — Vision OCR can be slow for multi-page PDFs
+  });
   return response.data;
 }
 
