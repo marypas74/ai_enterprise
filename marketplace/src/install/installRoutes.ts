@@ -130,19 +130,25 @@ export async function installRoutes(fastify: FastifyInstance): Promise<void> {
     }
 
     const userId = request.user.id;
-    const installation = await service.getInstallation(parsed.data.id);
-    if (!installation || installation.installed_by !== userId) {
-      return reply.status(404).send({
-        success: false,
-        data: null,
-        error: 'Installation not found',
-      });
-    }
 
-    return {
-      success: true,
-      data: installation,
-      error: null,
-    };
+    try {
+      const installation = await service.getInstallation(parsed.data.id);
+      if (!installation || installation.installed_by !== userId) {
+        return reply.status(404).send({
+          success: false,
+          data: null,
+          error: 'Installation not found',
+        });
+      }
+
+      return {
+        success: true,
+        data: installation,
+        error: null,
+      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to get installation';
+      return reply.status(500).send({ success: false, data: null, error: message });
+    }
   });
 }

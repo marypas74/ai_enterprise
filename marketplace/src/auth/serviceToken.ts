@@ -24,7 +24,9 @@ export function generateServiceToken(secret: string): string {
 
   const payload = base64UrlEncode(
     JSON.stringify({
+      id: 0,
       sub: 'marketplace-service',
+      role: 'service',
       iat: now,
       exp: now + fiveMinutes,
     }),
