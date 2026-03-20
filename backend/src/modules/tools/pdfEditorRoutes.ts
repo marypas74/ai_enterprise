@@ -35,7 +35,10 @@ export async function pdfEditorRoutes(fastify: FastifyInstance) {
   // POST /tools/pdf-editor/convert
   fastify.post('/tools/pdf-editor/convert', {
     onRequest: [(fastify as any).authenticate],
+    config: { requestTimeout: 20 * 60 * 1000 }, // 20 min — Vision OCR processes pages sequentially
   }, async (request, reply) => {
+    // Extend connection timeout for long OCR processing
+    request.raw.socket.setTimeout(20 * 60 * 1000);
     const userId = (request as any).user.id;
     const parsed = convertSchema.safeParse(request.body);
     if (!parsed.success) {

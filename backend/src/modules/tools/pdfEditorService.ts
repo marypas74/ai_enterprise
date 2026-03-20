@@ -107,6 +107,8 @@ async function runSoffice(args: readonly string[], tempDir: string, timeout: num
   await Promise.race([execPromise, timeoutPromise]);
 }
 
+const MAX_OCR_PAGES = 30; // Limit pages processed by Vision OCR to avoid long timeouts
+
 export async function convertPdfToHtml(
   pdfPath: string,
   userId: number
@@ -132,6 +134,15 @@ export async function convertPdfToHtml(
       throw err;
     }
 
+    // Count PDF pages first to enforce limit
+    const pageCount = await countPdfPages(pdfCopy);
+    if (pageCount > MAX_OCR_PAGES) {
+      await fs.rm(tempDir, { recursive: true, force: true });
+      const err = new Error(`Il PDF ha ${pageCount} pagine. Il limite per la modifica è ${MAX_OCR_PAGES} pagine.`);
+      (err as Error & { statusCode: number }).statusCode = 413;
+      throw err;
+    }
+
     const pdfBuffer = await fs.readFile(pdfCopy);
     const ocrResult = await visionService.analyzeDocument(pdfBuffer, 'application/pdf');
 
@@ -151,6 +162,17 @@ export async function convertPdfToHtml(
     }
     await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
     throw new Error(`Conversione PDF fallita: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+async function countPdfPages(pdfPath: string): Promise<number> {
+  try {
+    const { stdout } = await execFileAsync('pdfinfo', [pdfPath], { timeout: 10000 });
+    const match = stdout.match(/Pages:\s+(\d+)/);
+    return match ? parseInt(match[1], 10) : 0;
+  } catch {
+    // pdfinfo not available — fall back to pdftoppm dry-run or assume within limit
+    return 0;
   }
 }
 
