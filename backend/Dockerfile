@@ -25,8 +25,10 @@ WORKDIR /app
 RUN groupadd -g 1001 nodejs && \
     useradd -u 1001 --create-home --shell /bin/bash -g nodejs nodejs
 
-# Install LibreOffice, poppler-utils, fonts, and Python sandbox
+# Install tini (init process to reap zombie child processes like soffice),
+# LibreOffice, poppler-utils, fonts, and Python sandbox
 RUN apt-get update && apt-get install -y \
+    tini \
     libreoffice \
     fonts-dejavu \
     fonts-droid-fallback \
@@ -74,6 +76,9 @@ EXPOSE 3000
 # Health check (wget is in the debian image now)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
+
+# Use tini as init process to reap zombie child processes (soffice, python, etc.)
+ENTRYPOINT ["/usr/bin/tini", "--"]
 
 # Start application
 CMD ["node", "dist/index.js"]

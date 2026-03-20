@@ -83,10 +83,28 @@ export function isScannedPdf(html: string): boolean {
 async function runSoffice(args: readonly string[], tempDir: string, timeout: number = SOFFICE_TIMEOUT): Promise<void> {
   // Each conversion gets its own user profile to prevent parallel execution conflicts
   const profileDir = path.join(tempDir, '.soffice-profile');
-  await execFileAsync('soffice', [
+  // Wrap execFile in a race with a hard timeout to prevent zombie processes from hanging forever
+  const execPromise = execFileAsync('soffice', [
     `-env:UserInstallation=file://${profileDir}`,
     ...args,
   ], { timeout });
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    const timer = setTimeout(() => {
+      // Kill the child process if still running
+      try {
+        const child = (execPromise as any).child;
+        if (child && !child.killed) {
+          child.kill('SIGKILL');
+        }
+      } catch { /* ignore */ }
+      reject(new Error(`soffice timed out after ${timeout}ms`));
+    }, timeout + 5000); // 5s grace period after execFile's own timeout
+    // Prevent timer from keeping Node alive
+    timer.unref();
+  });
+
+  await Promise.race([execPromise, timeoutPromise]);
 }
 
 export async function convertPdfToHtml(
