@@ -67,7 +67,7 @@ export async function approvalRoutes(fastify: FastifyInstance): Promise<void> {
       });
     }
 
-    const adminId = parseInt(request.user.sub, 10);
+    const adminId = request.user.id;
 
     try {
       await service.approve(paramsParsed.data.id, adminId, bodyParsed.data.notes);
@@ -106,7 +106,7 @@ export async function approvalRoutes(fastify: FastifyInstance): Promise<void> {
       });
     }
 
-    const adminId = parseInt(request.user.sub, 10);
+    const adminId = request.user.id;
 
     try {
       await service.reject(paramsParsed.data.id, adminId, bodyParsed.data.notes);

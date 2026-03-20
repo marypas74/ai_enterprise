@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: marketplace
-          image: localhost:32000/enterprise-ai-chat/marketplace:1.0.0
+          image: localhost:32000/enterprise-ai-chat/marketplace:1.0.2
           ports:
             - containerPort: 3100
           env:

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { Image as ImageExtension } from '@tiptap/extension-image';
@@ -41,6 +41,9 @@ export default function PDFEditorPanel({ attachmentId, filename, onClose, onSave
     editable: true,
   });
 
+  const editorRef = useRef(editor);
+  editorRef.current = editor;
+
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
@@ -48,8 +51,8 @@ export default function PDFEditorPanel({ attachmentId, filename, onClose, onSave
         setLoading(true);
         setError(null);
         const result = await convertPdfToHtml(attachmentId);
-        if (!cancelled && editor) {
-          editor.commands.setContent(result.html);
+        if (!cancelled && editorRef.current) {
+          editorRef.current.commands.setContent(result.html);
           setDirty(false);
         }
       } catch (err: any) {
@@ -60,9 +63,9 @@ export default function PDFEditorPanel({ attachmentId, filename, onClose, onSave
         if (!cancelled) setLoading(false);
       }
     };
-    if (editor) load();
+    load();
     return () => { cancelled = true; };
-  }, [attachmentId, editor]);
+  }, [attachmentId]);
 
   const handleSave = useCallback(async () => {
     if (!editor || saving) return;

@@ -6,7 +6,15 @@ const FORWARDED_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const;
 
 function buildTargetUrl(requestUrl: string): string {
   const base = MARKETPLACE_SERVICE_URL.replace(/\/+$/, '');
-  return `${base}${requestUrl}`;
+  // Fastify wildcard routes receive the full path including the prefix,
+  // and the marketplace service expects routes under /api/marketplace/*
+  const prefix = '/api/marketplace';
+  if (requestUrl.startsWith(prefix)) {
+    // URL already contains the prefix — forward as-is
+    return `${base}${requestUrl}`;
+  }
+  // Fallback: prepend prefix if stripped
+  return `${base}${prefix}${requestUrl}`;
 }
 
 function buildForwardHeaders(request: FastifyRequest): Record<string, string> {
@@ -65,7 +73,15 @@ export async function marketplaceProxyRoutes(fastify: FastifyInstance): Promise<
         }
 
         try {
-          const response = await fetch(targetUrl, fetchOptions);
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 15_000);
+          fetchOptions.signal = controller.signal;
+          let response: Response;
+          try {
+            response = await fetch(targetUrl, fetchOptions);
+          } finally {
+            clearTimeout(timeoutId);
+          }
 
           // Forward response status
           reply.status(response.status);

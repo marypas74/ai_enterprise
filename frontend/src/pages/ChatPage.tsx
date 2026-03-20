@@ -46,6 +46,20 @@ export default function ChatPage() {
   const voiceMode = useVoiceMode();
   const pdfEditor = usePDFEditorStore();
   const prevStreamingRef = useRef(false);
+  const prevConversationIdRef = useRef<number | null>(conversations.currentConversationId);
+
+  // Clear frontend state when conversation is deleted (id goes from non-null to null)
+  useEffect(() => {
+    const prevId = prevConversationIdRef.current;
+    const currId = conversations.currentConversationId;
+    prevConversationIdRef.current = currId;
+
+    if (prevId !== null && currId === null) {
+      chatMessages.setMessages([]);
+      fileAttachments.clearAttachments();
+      useDocumentStore.getState().clearSelection();
+    }
+  }, [conversations.currentConversationId]);
 
   // Drive voice mode state machine from streaming state
   useEffect(() => {
