@@ -16,7 +16,7 @@ spec:
       containers:
         - name: backend
           image: localhost:32000/enterprise-ai-chat-backend:2.1.27
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           ports:
             - containerPort: 3000
           envFrom:
