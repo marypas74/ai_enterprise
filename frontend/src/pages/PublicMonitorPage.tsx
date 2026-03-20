@@ -131,7 +131,7 @@ export default function PublicMonitorPage() {
                         <Activity className="w-6 h-6 text-green-500" />
                         VITAL_SIGNS_OS
                     </h1>
-                    <span className="text-surface-500 text-[10px]">FE: 2.1.26_STABLE | BE: 2.1.26_STABLE | NODE: {data?.hostname}</span>
+                    <span className="text-surface-500 text-[10px]">FE: 2.1.27_STABLE | BE: 2.1.27_STABLE | NODE: {data?.hostname}</span>
                 </div>
                 <div className="text-right">
                     <div className="text-green-500 animate-pulse text-xs font-bold font-mono">● LIVE_STREAM_ACTIVE</div>
