@@ -255,7 +255,7 @@ export async function convertHtmlToPdf(
 
     await runSoffice([
       '--headless',
-      '--convert-to', 'docx',
+      '--convert-to', 'docx:MS Word 2007 XML',
       '--outdir', tempDir,
       htmlPath,
     ], tempDir);
@@ -264,7 +264,7 @@ export async function convertHtmlToPdf(
 
     await runSoffice([
       '--headless',
-      '--convert-to', 'pdf',
+      '--convert-to', 'pdf:writer_pdf_Export',
       '--outdir', tempDir,
       docxPath,
     ], tempDir);
