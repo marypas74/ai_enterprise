@@ -75,6 +75,10 @@ function textToHtml(text: string): string {
   return htmlLines.join('\n');
 }
 
+/**
+ * Run soffice with a unique profile dir and timeout protection.
+ * Uses execFile (not exec) to prevent shell injection.
+ */
 async function runSoffice(args: readonly string[], tempDir: string, timeout: number = SOFFICE_TIMEOUT): Promise<void> {
   const profileDir = path.join(tempDir, '.soffice-profile');
   const execPromise = execFileAsync('soffice', [
@@ -106,6 +110,140 @@ async function countPdfPages(pdfPath: string): Promise<number> {
   } catch {
     return 0;
   }
+}
+
+/**
+ * Convert PDF to HTML using pdftohtml (poppler-utils).
+ * Uses execFile to prevent shell injection.
+ * Produces positional HTML which is then cleaned into semantic HTML for TipTap.
+ */
+async function convertWithPdftohtml(pdfPath: string, tempDir: string): Promise<string | null> {
+  const outputPath = path.join(tempDir, 'pdftohtml-output.html');
+  try {
+    await execFileAsync('pdftohtml', [
+      '-s',           // single HTML file
+      '-noframes',    // no frames
+      '-i',           // ignore images (cleaner output)
+      '-enc', 'UTF-8',
+      pdfPath,
+      outputPath,
+    ], { timeout: 60000 });
+
+    const rawHtml = await fs.readFile(outputPath, 'utf-8');
+    const cleaned = cleanPdftohtmlOutput(rawHtml);
+    return cleaned;
+  } catch (err) {
+    console.warn(`[PDFEditor] pdftohtml failed: ${err instanceof Error ? err.message : err}`);
+    return null;
+  }
+}
+
+/**
+ * Clean pdftohtml output into semantic HTML suitable for TipTap editor.
+ * - Detects headings by font-size (>= 24px -> h1, >= 20px -> h2)
+ * - Removes absolute positioning
+ * - Cleans HTML entities
+ * - Removes background page divs
+ * - Strips Document Outline section
+ */
+function cleanPdftohtmlOutput(rawHtml: string): string {
+  const bodyMatch = rawHtml.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+  if (!bodyMatch) return '';
+
+  let body = bodyMatch[1];
+
+  // Remove Document Outline section at the end
+  body = body.replace(/<a\s+name="outline"[\s\S]*$/i, '');
+  body = body.replace(/<hr\s*\/?>\s*$/i, '');
+
+  // Extract font-size classes from style blocks
+  const fontSizeMap = new Map<string, number>();
+  const styleRegex = /\.(ft\d+)\{[^}]*font-size:(\d+)px[^}]*\}/g;
+  let match: RegExpExecArray | null;
+  while ((match = styleRegex.exec(rawHtml)) !== null) {
+    fontSizeMap.set(match[1], parseInt(match[2], 10));
+  }
+
+  // Process paragraphs: convert to semantic HTML
+  const outputLines: string[] = ['<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>'];
+  let lastWasPageBreak = false;
+
+  // Split by page divs
+  const pageRegex = /<div\s+id="page\d+-div"[^>]*>([\s\S]*?)<\/div>/gi;
+  let pageMatch: RegExpExecArray | null;
+  let pageNum = 0;
+
+  while ((pageMatch = pageRegex.exec(body)) !== null) {
+    pageNum++;
+    if (pageNum > 1 && !lastWasPageBreak) {
+      outputLines.push('<hr>');
+      lastWasPageBreak = true;
+    }
+
+    const pageContent = pageMatch[1];
+
+    // Extract paragraphs with their classes
+    const pRegex = /<p[^>]*class="(ft\d+)"[^>]*>([\s\S]*?)<\/p>/gi;
+    let pMatch: RegExpExecArray | null;
+
+    while ((pMatch = pRegex.exec(pageContent)) !== null) {
+      const cssClass = pMatch[1];
+      let textContent = pMatch[2];
+
+      // Clean text content
+      const hasBoldTag = textContent.includes('<b>');
+      textContent = textContent
+        .replace(/&#160;/g, ' ')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/?b>/gi, '')
+        .replace(/<\/?i>/gi, '')
+        .replace(/<[^>]*>/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      if (!textContent) continue;
+      lastWasPageBreak = false;
+
+      const fontSize = fontSizeMap.get(cssClass) || 0;
+      const isBold = hasBoldTag;
+
+      // Determine element type based on font-size
+      if (fontSize >= 24) {
+        outputLines.push(`<h1>${escapeHtml(textContent)}</h1>`);
+      } else if (fontSize >= 20 || (fontSize >= 16 && isBold)) {
+        outputLines.push(`<h2>${escapeHtml(textContent)}</h2>`);
+      } else if (isBold && textContent.length < 100) {
+        outputLines.push(`<h3>${escapeHtml(textContent)}</h3>`);
+      } else {
+        const lines = textContent.split('\n').filter(l => l.trim());
+        for (const line of lines) {
+          outputLines.push(`<p>${escapeHtml(line.trim())}</p>`);
+        }
+      }
+    }
+  }
+
+  // If no page divs found, fall back to extracting all text
+  if (pageNum === 0) {
+    const allText = body
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/&#160;/g, ' ')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (allText.length >= MIN_TEXT_CHARS) {
+      outputLines.push(`<p>${escapeHtml(allText)}</p>`);
+    }
+  }
+
+  outputLines.push('</body></html>');
+
+  // Check we got meaningful content
+  const totalText = outputLines.join('').replace(/<[^>]*>/g, '').trim();
+  if (totalText.length < MIN_TEXT_CHARS) return '';
+
+  return outputLines.join('\n');
 }
 
 /**
@@ -149,11 +287,10 @@ async function extractTextWithVisionOCR(
 /**
  * Convert PDF to editable HTML.
  *
- * Strategy:
- *   1. Try LibreOffice direct conversion (PDF → HTML via Draw)
- *   2. If LO yields insufficient text → try pdf-parse (text extraction)
- *   3. If pdf-parse yields insufficient text → try Vision OCR via Ollama
- *   4. If all fail → return error
+ * Strategy (ordered by quality):
+ *   1. pdftohtml (poppler-utils) — best text fidelity, semantic heading detection
+ *   2. pdf-parse — fast text extraction for native PDFs
+ *   3. Vision OCR via Ollama — for scanned/image-only PDFs
  */
 export async function convertPdfToHtml(
   pdfPath: string,
@@ -169,33 +306,14 @@ export async function convertPdfToHtml(
     const pageCount = await countPdfPages(pdfCopy);
     console.log(`[PDFEditor] PDF has ${pageCount || '?'} pages for user ${userId}`);
 
-    // --- Step 1: Try LibreOffice direct PDF → HTML ---
-    console.log(`[PDFEditor] Trying LibreOffice PDF→HTML for user ${userId}...`);
-    try {
-      await runSoffice([
-        '--headless',
-        '--infilter=draw_pdf_import',
-        '--convert-to', 'html',
-        '--outdir', tempDir,
-        pdfCopy,
-      ], tempDir);
-
-      const htmlOutputPath = path.join(tempDir, 'input.html');
-      const htmlStat = await fs.stat(htmlOutputPath).catch(() => null);
-      if (htmlStat && htmlStat.size > 0) {
-        const html = await fs.readFile(htmlOutputPath, 'utf-8');
-        // Check if LO produced meaningful content (not just empty tags)
-        const textContent = html.replace(/<[^>]*>/g, '').trim();
-        if (textContent.length >= MIN_TEXT_CHARS) {
-          console.log(`[PDFEditor] LibreOffice conversion succeeded: ${textContent.length} chars of text`);
-          return { html, tempDir, method: 'libreoffice' };
-        }
-        console.log(`[PDFEditor] LibreOffice produced insufficient text (${textContent.length} chars), trying fallbacks...`);
-      } else {
-        console.log(`[PDFEditor] LibreOffice produced no HTML output, trying fallbacks...`);
-      }
-    } catch (loErr) {
-      console.warn(`[PDFEditor] LibreOffice conversion failed: ${loErr instanceof Error ? loErr.message : loErr}`);
+    // --- Step 1: Try pdftohtml (poppler-utils) ---
+    console.log(`[PDFEditor] Trying pdftohtml for user ${userId}...`);
+    const pdftohtmlResult = await convertWithPdftohtml(pdfCopy, tempDir);
+    if (pdftohtmlResult) {
+      const textLen = pdftohtmlResult.replace(/<[^>]*>/g, '').trim().length;
+      console.log(`[PDFEditor] pdftohtml succeeded: ${textLen} chars of text`);
+      await fs.writeFile(path.join(tempDir, 'input.html'), pdftohtmlResult, 'utf-8');
+      return { html: pdftohtmlResult, tempDir, method: 'pdftohtml' };
     }
 
     // --- Step 2: Try pdf-parse (text extraction for native PDFs) ---
@@ -243,8 +361,8 @@ export async function convertPdfToHtml(
     await fs.rm(tempDir, { recursive: true, force: true });
     const err = new Error(
       'Impossibile estrarre testo dal PDF. ' +
-      'LibreOffice, pdf-parse e Vision OCR non hanno prodotto risultati. ' +
-      'Il file potrebbe essere un formato non supportato.'
+      'Il documento potrebbe essere una scansione non leggibile o un formato non supportato. ' +
+      'Prova con un PDF diverso.'
     );
     (err as Error & { statusCode: number }).statusCode = 422;
     throw err;
@@ -257,6 +375,10 @@ export async function convertPdfToHtml(
   }
 }
 
+/**
+ * Convert HTML to PDF.
+ * Uses LibreOffice Writer for direct HTML -> PDF conversion (no intermediate DOCX).
+ */
 export async function convertHtmlToPdf(
   html: string,
   userId: number
@@ -267,20 +389,12 @@ export async function convertHtmlToPdf(
     const htmlPath = path.join(tempDir, 'edited.html');
     await fs.writeFile(htmlPath, html, 'utf-8');
 
-    await runSoffice([
-      '--headless',
-      '--convert-to', 'docx:MS Word 2007 XML',
-      '--outdir', tempDir,
-      htmlPath,
-    ], tempDir);
-    const docxPath = path.join(tempDir, 'edited.docx');
-    await fs.access(docxPath);
-
+    // Direct HTML -> PDF via LibreOffice Writer (no intermediate DOCX needed)
     await runSoffice([
       '--headless',
       '--convert-to', 'pdf:writer_pdf_Export',
       '--outdir', tempDir,
-      docxPath,
+      htmlPath,
     ], tempDir);
     const pdfPath = path.join(tempDir, 'edited.pdf');
     await fs.access(pdfPath);
