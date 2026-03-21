@@ -188,11 +188,48 @@ function cleanPdftohtmlOutput(rawHtml: string): string {
 
     while ((pMatch = pRegex.exec(pageContent)) !== null) {
       const cssClass = pMatch[1];
-      let textContent = pMatch[2];
+      const rawContent = pMatch[2];
 
-      // Clean text content
-      const hasBoldTag = textContent.includes('<b>');
-      textContent = textContent
+      // Check if content has mixed bold + non-bold parts (e.g. "<b>Heading</b>text")
+      const hasBoldTag = rawContent.includes('<b>');
+      const boldParts = rawContent.match(/<b>([\s\S]*?)<\/b>/gi);
+      const hasNonBoldText = rawContent.replace(/<b>[\s\S]*?<\/b>/gi, '').replace(/<[^>]*>/g, '').replace(/&#160;/g, ' ').replace(/&nbsp;/g, ' ').trim().length > 0;
+
+      // If mixed bold + text, split into heading + paragraph
+      if (hasBoldTag && hasNonBoldText && boldParts) {
+        lastWasPageBreak = false;
+        for (const bp of boldParts) {
+          const boldText = bp.replace(/<\/?b>/gi, '').replace(/&#160;/g, ' ').replace(/&nbsp;/g, ' ').replace(/<br\s*\/?>/gi, '').replace(/<[^>]*>/g, '').trim();
+          if (boldText) {
+            const fontSize = fontSizeMap.get(cssClass) || 0;
+            if (fontSize >= 24) {
+              outputLines.push(`<h1>${escapeHtml(boldText)}</h1>`);
+            } else if (fontSize >= 20) {
+              outputLines.push(`<h2>${escapeHtml(boldText)}</h2>`);
+            } else {
+              outputLines.push(`<h3>${escapeHtml(boldText)}</h3>`);
+            }
+          }
+        }
+        const nonBoldText = rawContent
+          .replace(/<b>[\s\S]*?<\/b>/gi, '')
+          .replace(/&#160;/g, ' ')
+          .replace(/&nbsp;/g, ' ')
+          .replace(/<br\s*\/?>/gi, '\n')
+          .replace(/<[^>]*>/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+        if (nonBoldText) {
+          const lines = nonBoldText.split('\n').filter(l => l.trim());
+          for (const line of lines) {
+            outputLines.push(`<p>${escapeHtml(line.trim())}</p>`);
+          }
+        }
+        continue;
+      }
+
+      // Standard case: entire paragraph is one type
+      let textContent = rawContent
         .replace(/&#160;/g, ' ')
         .replace(/&nbsp;/g, ' ')
         .replace(/<br\s*\/?>/gi, '\n')
@@ -206,14 +243,13 @@ function cleanPdftohtmlOutput(rawHtml: string): string {
       lastWasPageBreak = false;
 
       const fontSize = fontSizeMap.get(cssClass) || 0;
-      const isBold = hasBoldTag;
 
       // Determine element type based on font-size
       if (fontSize >= 24) {
         outputLines.push(`<h1>${escapeHtml(textContent)}</h1>`);
-      } else if (fontSize >= 20 || (fontSize >= 16 && isBold)) {
+      } else if (fontSize >= 20 || (fontSize >= 16 && hasBoldTag)) {
         outputLines.push(`<h2>${escapeHtml(textContent)}</h2>`);
-      } else if (isBold && textContent.length < 100) {
+      } else if (hasBoldTag && textContent.length < 100) {
         outputLines.push(`<h3>${escapeHtml(textContent)}</h3>`);
       } else {
         const lines = textContent.split('\n').filter(l => l.trim());
