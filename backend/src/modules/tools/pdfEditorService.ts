@@ -9,7 +9,7 @@ const SOFFICE_TIMEOUT = 180000;
 const MAX_OCR_PAGES = 30;
 const OCR_MAX_RETRIES = 3;
 const OCR_BASE_DELAY_MS = 2000;
-const MIN_TEXT_CHARS = 50; // Below this, PDF is considered scanned/image-only
+const MIN_TEXT_CHARS = 50;
 
 export async function cleanupOldTempDirs(maxAgeMs: number = 1800000): Promise<void> {
   const tmpBase = os.tmpdir();
@@ -33,9 +33,16 @@ export async function cleanupOldTempDirs(maxAgeMs: number = 1800000): Promise<vo
   }
 }
 
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 /**
  * Convert plain text to basic HTML for the TipTap editor.
- * Handles markdown-ish formatting from OCR or raw PDF text.
  */
 function textToHtml(text: string): string {
   const lines = text.split('\n');
@@ -59,8 +66,6 @@ function textToHtml(text: string): string {
       htmlLines.push(`<h1>${escapeHtml(trimmed.slice(2))}</h1>`);
     } else if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
       htmlLines.push(`<li>${escapeHtml(trimmed.slice(2))}</li>`);
-    } else if (/^\|/.test(trimmed)) {
-      htmlLines.push(`<p>${escapeHtml(trimmed)}</p>`);
     } else {
       htmlLines.push(`<p>${escapeHtml(trimmed)}</p>`);
     }
@@ -68,14 +73,6 @@ function textToHtml(text: string): string {
 
   htmlLines.push('</body></html>');
   return htmlLines.join('\n');
-}
-
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }
 
 async function runSoffice(args: readonly string[], tempDir: string, timeout: number = SOFFICE_TIMEOUT): Promise<void> {
@@ -112,29 +109,7 @@ async function countPdfPages(pdfPath: string): Promise<number> {
 }
 
 /**
- * Extract text from PDF using pdf-parse (works for native/text PDFs).
- * Returns null if extraction fails or yields too little text.
- */
-async function extractTextWithPdfParse(pdfBuffer: Buffer): Promise<string | null> {
-  try {
-    const { PDFParse } = await import('pdf-parse');
-    const parser = new PDFParse({ data: new Uint8Array(pdfBuffer) });
-    const result = await parser.getText();
-    const text = (result.text || '').trim();
-    await parser.destroy().catch(() => {});
-    if (text.length < MIN_TEXT_CHARS) {
-      return null; // Too little text — likely a scanned PDF
-    }
-    return text;
-  } catch (err) {
-    console.error('[PDFEditor] pdf-parse extraction failed:', err instanceof Error ? err.message : err);
-    return null;
-  }
-}
-
-/**
  * Try Vision OCR via Ollama with exponential backoff retry.
- * Returns null if all attempts fail.
  */
 async function extractTextWithVisionOCR(
   pdfBuffer: Buffer,
@@ -157,7 +132,7 @@ async function extractTextWithVisionOCR(
         return { text: result.text, model: result.model, pages: result.pages };
       }
       console.warn(`[PDFEditor] Vision OCR returned insufficient text (${result.text.length} chars)`);
-      return null; // No point retrying if model returned empty
+      return null;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error(`[PDFEditor] Vision OCR attempt ${attempt} failed: ${msg}`);
@@ -175,9 +150,10 @@ async function extractTextWithVisionOCR(
  * Convert PDF to editable HTML.
  *
  * Strategy:
- *   1. Try pdf-parse (instant, works for native/text PDFs)
- *   2. If pdf-parse yields little text → try Vision OCR via Ollama (with retry)
- *   3. If both fail → return error with specific cause
+ *   1. Try LibreOffice direct conversion (PDF → HTML via Draw)
+ *   2. If LO yields insufficient text → try pdf-parse (text extraction)
+ *   3. If pdf-parse yields insufficient text → try Vision OCR via Ollama
+ *   4. If all fail → return error
  */
 export async function convertPdfToHtml(
   pdfPath: string,
@@ -189,23 +165,60 @@ export async function convertPdfToHtml(
   try {
     const pdfCopy = path.join(tempDir, 'input.pdf');
     await fs.copyFile(pdfPath, pdfCopy);
-    const pdfBuffer = await fs.readFile(pdfCopy);
 
-    // Check page count for OCR limit
     const pageCount = await countPdfPages(pdfCopy);
     console.log(`[PDFEditor] PDF has ${pageCount || '?'} pages for user ${userId}`);
 
-    // --- Step 1: Try pdf-parse (instant, native text PDFs) ---
-    console.log(`[PDFEditor] Trying pdf-parse for user ${userId}...`);
-    const parsedText = await extractTextWithPdfParse(pdfBuffer);
-    if (parsedText) {
-      console.log(`[PDFEditor] pdf-parse succeeded: ${parsedText.length} chars`);
-      const html = textToHtml(parsedText);
-      await fs.writeFile(path.join(tempDir, 'input.html'), html, 'utf-8');
-      return { html, tempDir, method: 'pdf-parse' };
+    // --- Step 1: Try LibreOffice direct PDF → HTML ---
+    console.log(`[PDFEditor] Trying LibreOffice PDF→HTML for user ${userId}...`);
+    try {
+      await runSoffice([
+        '--headless',
+        '--infilter=draw_pdf_import',
+        '--convert-to', 'html',
+        '--outdir', tempDir,
+        pdfCopy,
+      ], tempDir);
+
+      const htmlOutputPath = path.join(tempDir, 'input.html');
+      const htmlStat = await fs.stat(htmlOutputPath).catch(() => null);
+      if (htmlStat && htmlStat.size > 0) {
+        const html = await fs.readFile(htmlOutputPath, 'utf-8');
+        // Check if LO produced meaningful content (not just empty tags)
+        const textContent = html.replace(/<[^>]*>/g, '').trim();
+        if (textContent.length >= MIN_TEXT_CHARS) {
+          console.log(`[PDFEditor] LibreOffice conversion succeeded: ${textContent.length} chars of text`);
+          return { html, tempDir, method: 'libreoffice' };
+        }
+        console.log(`[PDFEditor] LibreOffice produced insufficient text (${textContent.length} chars), trying fallbacks...`);
+      } else {
+        console.log(`[PDFEditor] LibreOffice produced no HTML output, trying fallbacks...`);
+      }
+    } catch (loErr) {
+      console.warn(`[PDFEditor] LibreOffice conversion failed: ${loErr instanceof Error ? loErr.message : loErr}`);
     }
 
-    // --- Step 2: Try Vision OCR (for scanned/image PDFs) ---
+    // --- Step 2: Try pdf-parse (text extraction for native PDFs) ---
+    console.log(`[PDFEditor] Trying pdf-parse for user ${userId}...`);
+    try {
+      const pdfBuffer = await fs.readFile(pdfCopy);
+      const { PDFParse } = await import('pdf-parse');
+      const parser = new PDFParse({ data: new Uint8Array(pdfBuffer) });
+      const result = await parser.getText();
+      const text = (result.text || '').trim();
+      await parser.destroy().catch(() => {});
+      if (text.length >= MIN_TEXT_CHARS) {
+        console.log(`[PDFEditor] pdf-parse succeeded: ${text.length} chars`);
+        const html = textToHtml(text);
+        await fs.writeFile(path.join(tempDir, 'input.html'), html, 'utf-8');
+        return { html, tempDir, method: 'pdf-parse' };
+      }
+      console.log(`[PDFEditor] pdf-parse yielded insufficient text (${text.length} chars)`);
+    } catch (parseErr) {
+      console.warn(`[PDFEditor] pdf-parse failed: ${parseErr instanceof Error ? parseErr.message : parseErr}`);
+    }
+
+    // --- Step 3: Try Vision OCR (for scanned/image PDFs) ---
     if (pageCount > MAX_OCR_PAGES) {
       await fs.rm(tempDir, { recursive: true, force: true });
       const err = new Error(
@@ -216,7 +229,8 @@ export async function convertPdfToHtml(
       throw err;
     }
 
-    console.log(`[PDFEditor] pdf-parse insufficiente, trying Vision OCR...`);
+    console.log(`[PDFEditor] Trying Vision OCR for user ${userId}...`);
+    const pdfBuffer = await fs.readFile(pdfCopy);
     const ocrResult = await extractTextWithVisionOCR(pdfBuffer, userId);
     if (ocrResult) {
       console.log(`[PDFEditor] Vision OCR completed: ${ocrResult.pages} pages, model=${ocrResult.model}`);
@@ -225,12 +239,12 @@ export async function convertPdfToHtml(
       return { html, tempDir, method: 'vision-ocr' };
     }
 
-    // --- Both methods failed ---
+    // --- All methods failed ---
     await fs.rm(tempDir, { recursive: true, force: true });
     const err = new Error(
       'Impossibile estrarre testo dal PDF. ' +
-      'Il documento potrebbe essere una scansione e il servizio OCR (Ollama) non è disponibile o è sovraccarico. ' +
-      'Riprova tra qualche minuto.'
+      'LibreOffice, pdf-parse e Vision OCR non hanno prodotto risultati. ' +
+      'Il file potrebbe essere un formato non supportato.'
     );
     (err as Error & { statusCode: number }).statusCode = 422;
     throw err;

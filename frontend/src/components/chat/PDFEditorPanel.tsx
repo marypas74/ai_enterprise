@@ -170,7 +170,7 @@ export default function PDFEditorPanel({ attachmentId, filename, onClose, onSave
       {/* Status bar */}
       <div className="flex items-center justify-between px-4 py-1.5 border-t border-surface-700 text-[10px] text-surface-500">
         <span>{dirty ? 'Modificato' : 'Nessuna modifica'}</span>
-        <span>Formato originale: PDF {conversionMethod === 'vision-ocr' ? '(OCR via Ollama)' : conversionMethod === 'pdf-parse' ? '(estrazione testo)' : ''}</span>
+        <span>Formato originale: PDF {conversionMethod === 'libreoffice' ? '(convertito via LibreOffice)' : conversionMethod === 'vision-ocr' ? '(OCR via Ollama)' : conversionMethod === 'pdf-parse' ? '(estrazione testo)' : ''}</span>
       </div>
     </div>
   );
