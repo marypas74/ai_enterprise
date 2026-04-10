@@ -1,104 +1,90 @@
 # Enterprise AI Chat
 
-Enterprise-grade AI chat platform with multi-provider support, intelligent model orchestration, autonomous AI agents, project management, and VS Code extension.
+Enterprise-grade AI chat platform with multi-provider support, intelligent model orchestration, autonomous AI agents, document studio, marketplace, and VS Code extension.
 
-**Current version: 2.1.5**
+**Current version: 2.1.53**
 
 ## Features
 
-- **Intelligent Model Orchestrator**: Automatic model selection based on query complexity — routes to fast/balanced/powerful tiers (Haiku, Sonnet, Opus + OpenAI + Gemini + Ollama). Rule-based + semantic routing with feedback loop.
-- **Multi-Provider AI**: OpenAI, Anthropic Claude, Google Gemini, Ollama (local models) with automatic failover and circuit breaker
-- **Autonomous AI Agents**: Claude Agent SDK integration with terminal orchestration, task management, and iterative execution
-- **Project Management**: Kanban boards with AI-powered cards, agent linking, and real-time collaboration
-- **Vector Memory**: RAG pipeline with embeddings, semantic search, HyDE, and 4-tier memory (episodic/declarative/procedural/working)
-- **Document Processing**: OCR (Tesseract), PDF parsing, DOCX/XLSX/PPTX generation, chunking with overlap
-- **Plugin System**: File-based plugins with EventBus hooks, MCP server support
-- **EU AI Act Compliance**: Art. 50.1/50.2 disclosure, consent management, bias monitoring, audit logging
-- **VS Code Extension**: Full IDE integration with chat, code actions, agent sessions, inline editing
-- **Voice Interface**: Speech-to-text (OpenAI Whisper) + text-to-speech (OpenAI TTS / local Piper TTS fallback) with animated Avatar Orb overlay
-- **Image Generation**: OllamaDiffuser integration for text-to-image (FLUX.1 schnell) inline in chat
-- **Android APK**: Capacitor 6 wrapper with native SSE streaming, camera, haptics — direct APK download
-- **iOS (PWA)**: Progressive Web App with manifest, service worker, and Apple meta tags — installable from Safari
-- **Real-time Chat**: SSE streaming with markdown rendering, file attachments, conversation management, session persistence
-- **Admin Dashboard**: User/group management, provider configuration, orchestrator dashboard, system monitoring
-- **Security**: JWT + MFA (TOTP), Zod input validation, rate limiting, OWASP hardening
-- **Kubernetes Ready**: Production deployment with MicroK8s, auto-scaling, backup CronJobs
+- **Intelligent Model Orchestrator** — Automatic model selection via rule-based scoring + semantic embedding routing. Routes queries to Fast/Balanced/Powerful tiers with circuit breaker, cascade escalation, and feedback loop.
+- **Multi-Provider AI** — OpenAI, Anthropic Claude, Google Gemini, Ollama (local models) with automatic failover. LiteLLM proxy support.
+- **Autonomous AI Agents** — Claude Agent SDK integration with terminal orchestration, worktree isolation, task management, and iterative execution via Auto-Claude dashboard.
+- **Document Studio** — PDF editor (pdftohtml + LibreOffice + Ollama Vision OCR), PAdES-B-B digital signatures, DOCX/XLSX/PPTX generation, OnlyOffice integration.
+- **Marketplace** — Plugin/skill catalog with approval workflow, catalog service, KB integration, Qdrant vector search, and backend client for automated installs.
+- **Vector Memory** — 4-tier RAG pipeline (episodic/declarative/procedural/working) with HyDE, embeddings, semantic search, and memory stats dashboard.
+- **Plugin System** — File-based plugins with EventBus hooks, MCP server support, skill management, prompt templates.
+- **EU AI Act Compliance** — Art. 50.1/50.2 disclosure, consent management, bias monitoring, audit logging, AI transparency page, DPIA documentation.
+- **VS Code Extension** — 19 commands: chat, code explain/fix/improve/document, agent sessions, inline editing, provider switching.
+- **Voice Interface** — OpenAI Whisper STT + OpenAI TTS / local Piper TTS fallback with animated Avatar Orb overlay.
+- **Image Generation** — OllamaDiffuser integration (FLUX.1 schnell) inline in chat.
+- **Admin Dashboard** — User/group management, provider config, orchestrator dashboard, pipeline visualizer, plugin graph, hooks, guides, kanban.
+- **Security** — JWT + MFA (TOTP), Google OAuth, Zod input validation, OWASP hardening, rate limiting, network policies.
+- **Kubernetes Ready** — Production deployment on MicroK8s with auto-scaling, backup CronJobs, Cloudflare Tunnel, OnlyOffice, Open-WebUI, Parlant.
+- **Mobile** — Android APK (Capacitor 6) with native SSE + PWA for iOS (installable from Safari).
 
 ## Architecture
 
 ```
                      ┌──────────────────────────────────────────────────────┐
                      │              Frontend (React 18 + Vite)              │
-                     │  Chat UI │ Admin Panel │ Projects/Kanban │ Agents    │
-                     │  Zustand stores │ Tailwind CSS │ Code splitting      │
+                     │  Chat │ Admin │ Projects/Kanban │ Agents │ Documents │
+                     │  Zustand stores │ Tailwind CSS │ Playwright E2E      │
                      └───────────────────────┬──────────────────────────────┘
                                              │ Nginx reverse proxy
 ┌────────────────────────────────────────────▼──────────────────────────────────┐
 │                      Backend (Fastify 5 + TypeScript)                         │
-│  20+ modules │ JWT/MFA auth │ WebSocket │ SSE streaming │ Zod validation      │
+│  25 modules │ JWT/MFA/OAuth │ WebSocket │ SSE streaming │ Zod validation      │
 ├──────────────────────────────────────────────────────────────────────────────┤
-│                         Model Orchestrator (v2.0.0)                           │
-│                                                                              │
-│  User Query ──▶ ModelRouter ──▶ Tier Selection ──▶ Provider                  │
+│                         Model Orchestrator                                    │
+│                                                                               │
+│  User Query ──▶ ModelRouter ──▶ Tier Selection ──▶ Provider                   │
 │                    │                │                  │                      │
 │              Rule-based        Semantic          Circuit Breaker              │
-│              scoring          embedding           + Fallback                  │
-│                    │            similarity              │                     │
-│                    ▼                ▼                    ▼                     │
-│              ┌─────────┐    ┌───────────┐    ┌──────────────────┐            │
-│              │  FAST    │    │ BALANCED  │    │    POWERFUL       │            │
-│              │Haiku 4.5 │    │Sonnet 4.6 │    │  Opus 4.6        │            │
-│              │GPT-4.1m  │    │GPT-4.1    │    │  o3-mini          │            │
-│              │Gem Flash │    │Gem Pro    │    │                   │            │
-│              │Ollama    │    │           │    │                   │            │
-│              └─────────┘    └───────────┘    └──────────────────┘            │
-├──────────┬──────────┬──────────┬──────────┬─────────┬──────────┬─────────────┤
-│  Auth    │   Chat   │  Agents  │ Projects │  Admin  │  Tools   │ Compliance  │
-│  MFA     │ Complete │ Sessions │  Kanban  │ Users   │ DOCX/PDF │ AI Act      │
-│  OAuth   │ Stream   │ Orchestr │  Boards  │ Provid  │ PPTX     │ Consent     │
-│  Sessions│ Memory   │ Terminal │  Cards   │ Plugins │ Sandbox  │ Audit       │
-└──────────┴────┬─────┴──────────┴──────────┴─────────┴──────────┴─────────────┘
-                │
-   ┌────────────┼────────────┬──────────────┬──────────────┐
-   │            │            │              │              │
- ┌─▼──────┐ ┌──▼─────┐ ┌────▼─────┐ ┌─────▼────┐ ┌──────▼──────┐
- │MariaDB │ │ Redis  │ │  Qdrant  │ │ Parlant  │ │   Ollama    │
- │Users   │ │Sessions│ │ Vectors  │ │ Agents   │ │ Local LLMs  │
- │Chat    │ │Cache   │ │Embeddings│ │Guidelines│ │ GPU Accel.  │
- │Routing │ │Tokens  │ │ RAG      │ │ Sessions │ │             │
- └────────┘ └────────┘ └──────────┘ └──────────┘ └─────────────┘
+│              scoring          embedding           + Cascade Fallback          │
+│                    ▼                ▼                   ▼                     │
+│         ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐            │
+│         │    FAST      │  │   BALANCED   │  │    POWERFUL      │            │
+│         │ Haiku 4.5    │  │ Sonnet 4.6   │  │ Opus 4.6         │            │
+│         │ GPT-4.1-mini │  │ GPT-4.1      │  │ o3-mini          │            │
+│         │ Gemini Flash │  │ Gemini Pro   │  │                  │            │
+│         │ Ollama       │  │              │  │                  │            │
+│         └──────────────┘  └──────────────┘  └──────────────────┘            │
+├────────┬──────────┬────────┬──────────┬──────────┬──────────┬───────────────┤
+│  Auth  │   Chat   │ Agents │ Projects │  Tools   │ Docs     │ Compliance    │
+│  MFA   │ Complete │ SDK    │  Kanban  │ PDF/DOCX │ Studio   │ EU AI Act     │
+│  OAuth │ Stream   │ Orchst │  Boards  │ PPTX/XLS │ OnlyOff  │ Consent/Audit │
+│  Sessi │ Memory   │ Worktr │  Cards   │ Sandbox  │ PAdES-BB │ Bias Monitor  │
+└────────┴────┬─────┴────────┴──────────┴──────────┴──────────┴───────────────┘
+              │
+ ┌────────────┼────────────┬──────────────┬──────────────┬────────────────┐
+ │            │            │              │              │                │
+┌▼───────┐ ┌──▼─────┐ ┌────▼─────┐ ┌─────▼────┐ ┌──────▼──────┐ ┌──────▼──┐
+│MariaDB │ │ Redis  │ │  Qdrant  │ │ Parlant  │ │   Ollama    │ │LiteLLM  │
+│Users   │ │Session │ │ Vectors  │ │ Agents   │ │ Local LLMs  │ │ Proxy   │
+│Chat    │ │Cache   │ │Embeddings│ │Guidlines │ │ GPU/Docker  │ │ Router  │
+│History │ │Tokens  │ │ RAG/KB   │ │ Sessions │ │             │ │         │
+└────────┘ └────────┘ └──────────┘ └──────────┘ └─────────────┘ └─────────┘
 ```
 
 ## Model Orchestrator
 
-The Model Orchestrator (v2.0.0) automatically selects the optimal AI model for each query, similar to how Perplexity and Gemini CLI work.
+Automatically selects the optimal AI model for each query without user intervention.
 
 ### How It Works
 
-1. **Rule-Based Router** — Analyzes query length, keywords, attachments, conversation depth, and tool usage to compute a complexity score. Routes to fast/balanced/powerful tier.
-2. **Semantic Router** — Uses embedding similarity against pre-computed route examples for sub-millisecond task classification (greeting, coding, analysis, complex reasoning, etc.)
-3. **Response Quality Checker** — Evaluates response quality without LLM calls (refusal detection, truncation, uncertainty). Supports cascade escalation.
-4. **Feedback Loop** — Records all routing decisions with latency, cost, and user overrides. Admin dashboard shows routing distribution, cost savings, and accuracy trends.
+1. **Rule-Based Router** — Analyzes query length, keywords, attachments, conversation depth, and tool usage to compute a complexity score.
+2. **Semantic Router** — Uses embedding similarity against pre-computed route examples for sub-millisecond task classification (greeting, coding, analysis, complex reasoning, etc.).
+3. **Response Quality Checker** — Evaluates response quality without LLM calls (refusal detection, truncation, uncertainty). Supports cascade escalation to a more powerful model.
+4. **Circuit Breaker** — Tracks provider health, opens circuit on consecutive failures, auto-recovers.
+5. **Feedback Loop** — Records routing decisions with latency, cost, and user overrides. Admin dashboard shows routing distribution and cost savings.
 
-### Routing Tiers (configurable via Admin)
+### Routing Tiers
 
-| Tier | Models (default) | Use Case |
-|------|-----------------|----------|
-| **Fast** | Haiku 4.5, GPT-4.1-mini, Gemini Flash | Greetings, simple questions, formatting |
-| **Balanced** | Sonnet 4.6, GPT-4.1, Gemini Pro | Coding, analysis, writing, standard work |
+| Tier | Default Models | Use Case |
+|------|---------------|----------|
+| **Fast** | Haiku 4.5, GPT-4.1-mini, Gemini Flash, Ollama | Greetings, simple questions, formatting |
+| **Balanced** | Sonnet 4.6, GPT-4.1, Gemini Pro | Coding, analysis, writing, standard tasks |
 | **Powerful** | Opus 4.6, o3-mini | Architecture, complex reasoning, multi-step agents |
-
-### Admin API
-
-| Endpoint | Description |
-|----------|-------------|
-| `GET /api/admin/orchestrator/stats` | Routing distribution, cost savings, quality metrics |
-| `GET /api/admin/orchestrator/tiers` | Current tier configuration |
-| `POST /api/admin/orchestrator/tiers` | Add model to a tier |
-| `PUT /api/admin/orchestrator/tiers/:id` | Update tier priority/enabled |
-| `DELETE /api/admin/orchestrator/tiers/:id` | Remove model from tier |
-| `GET /api/admin/orchestrator/settings` | Routing settings |
-| `PUT /api/admin/orchestrator/settings` | Update settings (auto_routing_enabled, cascade_enabled, etc.) |
 
 ## Quick Start
 
@@ -106,7 +92,7 @@ The Model Orchestrator (v2.0.0) automatically selects the optimal AI model for e
 
 - Node.js 20+
 - Docker
-- MicroK8s (for Kubernetes deployment)
+- MicroK8s (Kubernetes deployment)
 
 ### Local Development
 
@@ -115,23 +101,28 @@ The Model Orchestrator (v2.0.0) automatically selects the optimal AI model for e
 cd backend
 npm install
 cp .env.example .env    # Configure API keys, DB, Redis, JWT secrets
-npm run dev             # Dev server with hot reload (port 3000)
+npm run dev             # Hot reload on port 3000
 
 # Frontend
 cd frontend
 npm install
-npm run dev             # Vite dev server (port 5173, proxies /api to :3000)
+npm run dev             # Vite dev server on port 5173 (proxies /api → :3000)
 
-# Run tests
-cd backend && npm test          # Vitest (backend)
-cd frontend && npm test         # Vitest + Testing Library (frontend)
-cd frontend && npm run test:e2e # Playwright E2E tests
+# Tests
+cd backend && npm test              # Vitest unit tests
+cd frontend && npm test             # Vitest + Testing Library
+cd frontend && npm run test:e2e     # Playwright E2E
+
+# VS Code Extension
+cd vscode-extension
+npm run build:all   # Build webview + compile extension
+npm run package     # Create .vsix
 ```
 
 ### Kubernetes Deployment
 
 ```bash
-bash BUILD.sh       # Docker build + MicroK8s import + K8s deploy (requires sudo)
+bash BUILD.sh       # Full build: npm install + Docker + MicroK8s import + K8s deploy
 sudo bash DEPLOY.sh # Quick deploy: import pre-built images + restart pods
 ```
 
@@ -140,59 +131,83 @@ sudo bash DEPLOY.sh # Quick deploy: import pre-built images + restart pods
 ```
 enterprise-ai-chat/
 ├── backend/                    # Fastify 5 API server (TypeScript)
-│   ├── src/
-│   │   ├── modules/
-│   │   │   ├── auth/           # JWT + MFA (TOTP) + Google OAuth
-│   │   │   ├── chat/           # Completions, conversations, models, streaming
-│   │   │   ├── admin/          # Users, providers, plugins, settings, orchestrator
-│   │   │   ├── agents/         # AI agent sessions + SDK routes
-│   │   │   ├── projects/       # Kanban boards, cards, access control
-│   │   │   ├── memory/         # Vector memory + observations
-│   │   │   ├── tools/          # DOCX/XLSX/PPTX/PDF generation
-│   │   │   ├── attachments/    # File upload + processing
-│   │   │   ├── documents/      # Document management routes
-│   │   │   ├── compliance/     # EU AI Act (consent, feedback, audit)
-│   │   │   ├── orchestrator/   # Terminal slot management
-│   │   │   ├── parlant/        # Parlant AI proxy
-│   │   │   ├── ingestion/      # URL/text/memory import
-│   │   │   ├── forms/          # Conversational forms
-│   │   │   ├── scheduler/      # Job scheduling (WhiteRabbit)
-│   │   │   └── activity/       # Activity logging
-│   │   ├── services/           # Business logic services
-│   │   │   ├── ModelRouter.ts        # Intelligent model selection (rule-based)
-│   │   │   ├── SemanticRouter.ts     # Embedding-based task classification
-│   │   │   ├── ResponseQualityChecker.ts  # Cascade quality assessment
-│   │   │   ├── CircuitBreakerService.ts   # Provider health tracking
-│   │   │   ├── tools/                # FileTools, DocumentTools, WebTools
-│   │   │   ├── agent/                # AgentSessionManager, AgentExecutor
-│   │   │   └── ...                   # 20+ services
-│   │   └── database/           # Connection pool + auto-migrations
-│   └── Dockerfile
-├── frontend/                   # React 18 + Vite + Tailwind
-│   ├── src/
-│   │   ├── pages/              # 12 route pages (incl. Documents, Transparency)
-│   │   ├── hooks/              # Zustand stores (auth, agents, parlant, documents)
-│   │   ├── components/         # Reusable UI components
-│   │   ├── utils/              # Utilities (TTS preprocessing)
-│   │   └── services/           # API client (axios + SSE with routing events)
-│   ├── public/                 # PWA manifest, icons, service worker
-│   ├── android/                # Capacitor Android project
-│   ├── ios/                    # Capacitor iOS project
-│   ├── nginx.conf              # Production config (gzip, cache, CSP)
-│   └── Dockerfile
+│   └── src/
+│       ├── modules/            # 25 feature modules
+│       │   ├── auth/           # JWT + MFA (TOTP) + Google OAuth
+│       │   ├── chat/           # Completions, conversations, models, SSE streaming
+│       │   ├── admin/          # Users, providers, plugins, settings, orchestrator, guides
+│       │   ├── agents/         # AI agent sessions + Claude Agent SDK routes
+│       │   ├── projects/       # Kanban boards, cards, access control
+│       │   ├── memory/         # Vector memory + observations (4-tier RAG)
+│       │   ├── tools/          # DOCX/XLSX/PPTX/PDF/OnlyOffice generation
+│       │   ├── documents/      # Document studio management
+│       │   ├── attachments/    # File upload + OCR processing
+│       │   ├── compliance/     # EU AI Act (consent, feedback, bias monitor, audit)
+│       │   ├── orchestrator/   # Terminal slot management (Auto-Claude)
+│       │   ├── parlant/        # Parlant AI agent proxy
+│       │   ├── ingestion/      # URL/text/memory import pipeline
+│       │   ├── forms/          # Conversational forms engine
+│       │   ├── scheduler/      # Job scheduling (WhiteRabbit)
+│       │   ├── marketplace/    # Plugin/skill catalog routes (via marketplace service)
+│       │   └── activity/       # Activity logging
+│       ├── services/           # Business logic (30+ services)
+│       │   ├── ModelRouter.ts              # Rule-based model selection
+│       │   ├── SemanticRouter.ts           # Embedding task classification
+│       │   ├── ResponseQualityChecker.ts   # Cascade quality assessment
+│       │   ├── CircuitBreakerService.ts    # Provider health tracking
+│       │   ├── HyDEService.ts              # Hypothetical Document Embeddings
+│       │   ├── LLMSyncWorker.ts            # Background LLM sync
+│       │   ├── MCPClientManager.ts         # MCP protocol manager
+│       │   ├── ParlantProvider.ts          # Parlant integration
+│       │   ├── VisionService.ts            # Ollama Vision OCR
+│       │   ├── WebSearchService.ts         # Web search integration
+│       │   └── document-processing/        # PDF edit session manager
+│       └── database/                       # Connection pool + auto-migrations
+├── frontend/                   # React 18 + Vite + Tailwind CSS
+│   └── src/
+│       ├── pages/              # Route pages
+│       │   ├── ChatPage.tsx            # Main chat interface
+│       │   ├── DocumentsPage.tsx       # Document studio
+│       │   ├── ProjectsPage.tsx        # Kanban project management
+│       │   ├── AutoClaudePage.tsx      # Autonomous agent dashboard
+│       │   ├── MarketplacePage.tsx     # Plugin/skill marketplace
+│       │   ├── ParlantPage.tsx         # Parlant agent management
+│       │   ├── AITransparencyPage.tsx  # EU AI Act transparency
+│       │   ├── SettingsPage.tsx        # User settings + voice config
+│       │   └── admin/                  # 20+ admin pages
+│       ├── components/         # Reusable UI components
+│       ├── hooks/              # Zustand stores (auth, agents, parlant, documents)
+│       └── services/           # API client (axios + SSE with routing events)
+├── marketplace/                # Standalone marketplace service (Fastify + SQLite)
+│   └── src/
+│       ├── catalog/            # Catalog service + routes
+│       ├── install/            # Install service
+│       ├── approval/           # Approval workflow
+│       ├── backend/            # Backend client for automated installs
+│       ├── kb/                 # Knowledge base integration
+│       ├── qdrant/             # Vector search
+│       └── database/           # SQLite connection + migrations
 ├── vscode-extension/           # VS Code companion extension
-│   ├── src/                    # Extension entry + modules
-│   └── webview-ui/             # React webview bundles
-├── k8s/                        # Kubernetes manifests
-│   ├── backend/                # Deployment + Service
+│   ├── src/                    # Extension entry + 19 commands
+│   └── webview-ui/             # React webview bundles (webpack + esbuild)
+├── doc-processor/              # Document processing microservice
+├── k8s/                        # Kubernetes manifests (Kustomize)
+│   ├── backend/                # Deployment + Service + HPA
 │   ├── frontend/               # Deployment + Service (Nginx)
-│   ├── mariadb/                # StatefulSet + init ConfigMap
+│   ├── mariadb/                # StatefulSet + init ConfigMap + schema
 │   ├── redis/                  # StatefulSet
+│   ├── litellm/                # LiteLLM proxy deployment + configmap
 │   ├── parlant/                # Parlant AI service
-│   └── kustomization.yaml      # Kustomize overlay
-├── ROADMAP.md                  # Development roadmap (Phases 0-8)
+│   ├── qdrant/                 # Qdrant vector DB
+│   ├── marketplace/            # Marketplace service deployment
+│   ├── onlyoffice/             # OnlyOffice document server
+│   ├── open-webui/             # Open-WebUI deployment
+│   ├── tls/                    # TLS certificates
+│   ├── storage/                # PersistentVolumes
+│   └── kustomization.yaml
 ├── BUILD.sh                    # Full build pipeline
-└── DEPLOY.sh                   # Quick deploy script
+├── DEPLOY.sh                   # Quick deploy script
+└── ROADMAP.md                  # Development roadmap
 ```
 
 ## Configuration
@@ -224,198 +239,103 @@ JWT_REFRESH_SECRET=your_refresh_secret
 
 # MFA
 MFA_BYPASS_EMAILS=                      # comma-separated emails exempt from MFA
-TRUSTED_IPS=217.198.133.248             # comma-separated trusted IPs
+TRUSTED_IPS=                            # comma-separated trusted IPs (bypass rate limit)
 
 # AI Providers (or configure via Admin Panel)
 OPENAI_API_KEY=sk-...
 ANTHROPIC_API_KEY=sk-ant-...
 GOOGLE_API_KEY=...
 
-# Ollama (via proxy)
+# Ollama (Docker host, NOT Kubernetes)
 OLLAMA_BASE_URL=http://10.0.1.1:8086/ollama
-OLLAMA_AUTH_KEY=your_ollama_key
-
-# Vector Memory (Qdrant)
-QDRANT_URL=http://qdrant:6333
-
-# Rate Limiting
-RATE_LIMIT_MAX=100
-RATE_LIMIT_WINDOW_MS=60000
+OLLAMA_AUTH_KEY=your_ollama_auth_key
 
 # Storage
-STORAGE_ROOT=/app/storage
-ENCRYPTION_KEY=your_encryption_key
+STORAGE_ROOT=/data/projects
+EXTENSION_DIR=/data/projects/extensions
+
+# Encryption (for stored secrets)
+ENCRYPTION_KEY=your_32_char_hex_key
+
+# CORS
+CORS_ORIGIN=https://your-domain.com
 ```
 
-## API Documentation
+## Kubernetes Infrastructure
 
-Swagger UI is available at `/docs` when the server is running.
+Deployed on MicroK8s in namespace `enterprise-ai-chat`:
 
-### Key Endpoints
+| Service | Type | Notes |
+|---------|------|-------|
+| backend | Deployment (2 replicas) | Fastify API, port 3000 |
+| frontend | Deployment (2 replicas) | Nginx, port 80 |
+| mariadb | StatefulSet | Port 3306, PVC 20Gi |
+| redis | StatefulSet | Port 6379, PVC 5Gi |
+| qdrant | Deployment | Vector DB, port 6333 |
+| litellm | Deployment | LLM proxy, port 4000 |
+| parlant | Deployment | AI agent framework, port 8800 |
+| marketplace | Deployment | Plugin catalog, port 3001 |
+| onlyoffice | Deployment | Document server, port 80 |
+| open-webui | Deployment | Alternative UI |
+| doc-processor | Deployment | Document processing microservice |
 
-| Module | Prefix | Description |
-|--------|--------|-------------|
-| Auth | `/api/auth` | Login, register, refresh, MFA setup/verify, Google OAuth |
-| Chat | `/api/chat` | Completions (SSE), conversations CRUD, models (with Auto routing) |
-| Agents | `/api/agents` | Sessions CRUD, start/pause/resume, templates |
-| Projects | `/api/projects` | Projects, boards, columns, cards, agent linking |
-| Admin | `/api/admin` | Users, providers, plugins, settings, skills, orchestrator |
-| Memory | `/api/memory` | Observations, vector search, working memory |
-| Tools | `/api/tools` | DOCX/XLSX/PPTX/PDF generation, downloads |
-| Compliance | `/api/compliance` | Consent, feedback, data export, model docs |
-| Parlant | `/api/parlant` | Agents, guidelines, sessions, messages |
+All external traffic goes through Cloudflare Tunnel. Ingress uses TLS with cert-manager.
 
-## Testing
+## Development Commands
 
 ```bash
-# Backend unit tests (Vitest)
+# Backend
 cd backend
-npm test                    # Run all tests
-npm run test:watch          # Watch mode
-npm run test:coverage       # Coverage report (target: 80%)
+npm run dev          # Dev server with tsx watch
+npm run build        # TypeScript compilation → dist/
+npm run lint         # ESLint
+npm run test         # Vitest unit tests
+npx vitest run path/to/test.ts  # Single test file
 
-# Frontend unit tests (Vitest + Testing Library)
+# Frontend
 cd frontend
-npm test                    # Run all tests
-npm run test:watch          # Watch mode
-npm run test:coverage       # Coverage report
+npm run dev          # Vite dev server (port 5173)
+npm run build        # tsc + vite build → dist/
+npm run lint         # ESLint
+npm run test:e2e     # Playwright E2E tests
+npm run test:e2e:prod  # E2E against production
 
-# E2E tests (Playwright)
-cd frontend
-npm run test:e2e
+# Marketplace
+cd marketplace
+npm run dev          # Dev server
+npm run build        # TypeScript compilation
+
+# VS Code Extension
+cd vscode-extension
+npm run build:all    # Build webview + compile extension
+npm run webpack      # Production webpack build
+npm run webpack:dev  # Dev build with watch
+npm run package      # Create .vsix with vsce
+npm run release      # Bump version + build + package
+
+# Kubernetes
+sudo microk8s kubectl get pods -n enterprise-ai-chat
+sudo microk8s kubectl logs -l app=backend -n enterprise-ai-chat
+sudo microk8s kubectl rollout status deployment/backend -n enterprise-ai-chat
 ```
 
 ## Security
 
-- **Authentication**: JWT with 15m access + 7d refresh tokens, single-session enforcement
-- **MFA**: TOTP with QR code setup, mandatory for external access
-- **Input Validation**: Zod schemas on all endpoints with strict type checking
-- **Rate Limiting**: Global 100/min + strict limits on login (10/min), register (5/5min)
-- **Headers**: Helmet security headers, CSP, X-Frame-Options, HSTS
-- **SQL**: Parameterized queries via mysql2 (zero raw string concatenation)
-- **Encryption**: bcrypt (passwords), AES-256 (sensitive data at rest)
-- **Audit**: Full audit logging with IP tracking, session management
+- **Authentication**: JWT (access 15m + refresh 7d) + MFA TOTP + Google OAuth
+- **Authorization**: Role-based (admin/user) with per-group permissions
+- **Input validation**: Zod schemas on all API endpoints
+- **Rate limiting**: Per-IP + per-user limits via @fastify/rate-limit
+- **Headers**: Helmet CSP, HSTS, X-Frame-Options
+- **Network**: K8s NetworkPolicy restricts pod-to-pod traffic
+- **Secrets**: Kubernetes secrets for API keys, never in source
+- **Cloudflare**: All traffic via Cloudflare Tunnel, IP restrictions via CF-Connecting-IP header
 
-## Deployment
+## EU AI Act Compliance
 
-### Infrastructure
-
-- **Domain**: Behind Cloudflare Tunnel (cloudflared)
-- **K8s**: MicroK8s with 2 backend replicas, 2 frontend replicas
-- **Database**: MariaDB StatefulSet with daily backup CronJob (30-day retention)
-- **Cache**: Redis StatefulSet for sessions and rate limiting
-- **Vector DB**: Qdrant for embeddings and semantic search
-- **Registry**: localhost:32000 (MicroK8s built-in)
-
-### Rollout Process
-
-```bash
-# 1. Build and push images
-bash BUILD.sh
-
-# 2. Scale down, apply, scale up (zero-downtime)
-kubectl scale deployment backend frontend --replicas=0 -n enterprise-ai-chat
-kubectl apply -f k8s/backend/deployment.yaml -f k8s/frontend/deployment.yaml
-kubectl scale deployment backend --replicas=2 frontend --replicas=2 -n enterprise-ai-chat
-```
-
-## Changelog
-
-### v2.1.1 (2026-03-05)
-- **Voice Mode Improvements**:
-  - Android microphone permissions (RECORD_AUDIO, MODIFY_AUDIO_SETTINGS) for WebView voice capture
-  - TTS text preprocessing pipeline: strips markdown, code blocks, URLs, HTML for natural speech output
-  - Backend TTS text cleaning (server-side safety net, same pipeline)
-  - Stop/interrupt button on AvatarOrb during speech playback
-  - Upgraded Piper TTS voice model to `it_IT-paola-medium` (higher quality)
-- **iOS Capacitor Project**: Initialized with microphone/camera/photo permissions, version 2.1.1
-- **PWA Support**: Web app manifest, service worker (network-first + cache fallback), Apple meta tags — installable from Safari on iOS
-- **Document Management**: New documents module with backend routes, frontend page, RAG mode toggle/badge components
-- **Qwen3 Thinking Fix** (ollama#10976/#11381):
-  - Always strip tools for qwen3 models when thinking is enabled (root cause: tools + think = empty content)
-  - 3-phase empty response recovery: retry without thinking → escalate to balanced tier → error message
-  - Track `hadThinkingContent` flag during streaming for smart recovery
-- **Transparency Page Fix**: Fixed React error #31 — `models_used` was rendered as object instead of computed stats
-- **Backend Core**: Enhanced AI providers (Anthropic/OpenAI) with thinking support, improved streaming, context builder, MCP client manager
-
-### v2.1.0 (2026-03-04)
-- **PDF-to-DOCX Conversion Fix**: System prompt now instructs AI to reproduce full content verbatim when converting formats (not summarize)
-- **Session Persistence**: `currentConversationId` persisted in localStorage — conversation restored after page reload
-- **New Chat Bug Fix**: Conversation ID now saved after backend creation, preventing new chat on every query
-- **Avatar Orb + Voice Mode**: Animated ChatGPT-style pulsating orb overlay during AI responses with TTS playback
-- **Local Piper TTS**: Fallback to local Piper TTS server when OpenAI API unavailable
-- **Android APK**: Capacitor 6 wrapper with native SSE streaming, camera capture, haptic feedback
-- **UX Cleanup**: Removed duplicate voice toggle button, removed VS Code Extension download from sidebar
-- **Attach Button Redesign**: Paperclip/camera buttons moved inline-left of textarea (ChatGPT-style)
-- **Security Fixes**:
-  - CRITICAL: Disabled `webContentsDebuggingEnabled` in production APK
-  - CRITICAL: Path traversal fix in extension download route (version validation + containment check)
-  - HIGH: StreamHttp listener leak on Android native streaming
-  - HIGH: Audio resource leak in voice mode (stop previous before new)
-  - HIGH: Sync file I/O blocking event loop in PDF generation → async `fs/promises`
-  - HIGH: Temp file leak on PDF conversion failure (try/finally cleanup)
-  - HIGH: Rate limiting on voice STT (15/min) and TTS (20/min) endpoints
-  - MEDIUM: Removed `http://` from image URL allowlist (anti-tracking)
-- **Dead Code Cleanup**: 11 orphaned files, 3 unused deps removed (knip analysis, -975 lines)
-- **K8s Cleanup**: Removed unused open-webui and litellm deployments
-
-### v2.0.0 (2026-03-02)
-- **Image Generation**: OllamaDiffuser integration via Docker container + nginx proxy
-  - DiffuserProvider: async REST client for text-to-image generation (FLUX.1 schnell)
-  - `POST /api/chat/image/generate`: SSE endpoint with conversation tracking
-  - ModelRouter: auto-detects image requests (IT/EN keywords) and routes to diffuser tier
-  - Orchestrator integration: image generation inline from chat completions endpoint
-  - Frontend: custom `<img>` renderer with download button for generated images
-  - SystemMonitor: OllamaDiffuser health status indicator
-- **Voice Interface** (Android APK, stile OpenAI):
-  - `POST /api/chat/voice/transcribe`: OpenAI Whisper STT with MIME/size validation
-  - `POST /api/chat/voice/synthesize`: OpenAI TTS (6 voices, 2 models)
-  - VoiceButton component: MediaRecorder capture, unmount cleanup, permission handling
-- Security: IDOR fix on conversation ownership, error message sanitization, strict Zod enums
-
-### v1.9.5 (2026-03-02)
-- Fix: admin user update `is_active` field — Zod coerces MariaDB tinyint to boolean
-- Fix: admin user update Zod schema accepts `null` for optional profile fields
-- Fix: `File` icon import shadowing DOM `File` constructor in ChatInputArea
-
-### v1.9.3 (2026-03-02)
-- Fix: file download route removed JWT auth requirement (capability URL pattern via unguessable filenames)
-- Fix: fast-tier models max_output_tokens increased from 1024 to 8192 (was causing truncated responses)
-- Router: added Italian coding keywords (programma, script, algoritmo, database, backend, frontend)
-- Router: document creation detection prevents fast-tier penalty when attachments present
-
-### v1.9.2 (2026-03-02)
-- Version bump
-
-### v1.9.1 (2026-03-02)
-- **Embedding Model Upgrade**: Switched from nomic-embed-text (768d, EN-only) to qwen3-embedding:0.6b (1024d, 100+ languages, MTEB 70.7)
-- EmbeddingService refactored: dynamic dimension probing, Ollama /api/embed batch support, fetch timeouts, race-condition guard
-- Qdrant collections migrated from 768d to 1024d (document_chunks, episodic_memory, declarative_memory, procedural_memory)
-- Cache key includes model ID to prevent stale hits on model switch
-- `clearEmbeddingCache()` wired into admin provider/model update routes
-- model-capabilities.ts: added qwen3-embedding, granite-embedding, embeddinggemma patterns
-
-### v1.9.0 (2026-03-01)
-- **Model Orchestrator**: Intelligent auto-routing across fast/balanced/powerful tiers
-- Rule-based router with complexity scoring (query length, keywords, attachments, conversation depth)
-- Semantic router using embedding similarity for task classification
-- Response quality checker for cascade escalation
-- Admin API for tier configuration and routing statistics
-- Frontend "Auto (Smart Routing)" model option with real-time routing info
-- Routing decisions tracked in DB for feedback loop and cost analysis
-- Fix: Chat scroll no longer locked to bottom during streaming
-- Fix: Black-on-black text in code blocks resolved
-- Fix: Nginx regex compatibility with pcre2
-
-### v1.8.10
-- Version bump, model pricing update (March 2026)
-
-### v1.8.9
-- Mobile UX responsive improvements
-
-### v1.8.8
-- Disable MFA for test accounts
-
-## License
-
-Apache 2.0
+- **Art. 50.1** — Mandatory AI disclosure banner on all AI-generated content
+- **Art. 50.2** — Synthetic media watermarking (images)
+- **Consent management** — Granular consent collection and audit trail
+- **Bias monitoring** — Automated bias detection on model responses
+- **Audit logging** — Immutable log of all AI interactions
+- **AI Transparency page** — User-facing explanation of AI system behavior
+- **DPIA** — Data Protection Impact Assessment documented in `DPIA.md`
