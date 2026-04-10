@@ -68,3 +68,4 @@ frontend/android/local.properties
 # Stress test artifacts
 stress-test-*.ts
 stress-test-*.json
+.superpowers/
