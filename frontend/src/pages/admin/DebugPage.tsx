@@ -391,10 +391,10 @@ export default function DebugPage() {
   return (
     <div className="p-6 h-full flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 flex-shrink-0">
         <div className="flex items-center gap-3">
           <Bug className="w-6 h-6 text-primary-500" />
-          <h1 className="text-2xl font-bold">Debug Console</h1>
+          <h1 className="text-2xl font-bold flex-shrink-0">Debug Console</h1>
           <span className={clsx(
             'flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium',
             wsConnected
@@ -437,7 +437,7 @@ export default function DebugPage() {
 
       {/* System Info Bar */}
       {systemInfo && (
-        <div className="card p-3 mb-4 flex items-center justify-between text-sm">
+        <div className="card p-3 mb-4 flex items-center justify-between text-sm flex-shrink-0">
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">
               <Server className="w-4 h-4 text-purple-500" />
@@ -459,7 +459,7 @@ export default function DebugPage() {
       )}
 
       {/* Tabs & Filters */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 flex-shrink-0">
         <div className="flex items-center gap-1 bg-surface-100 dark:bg-surface-800 p-1 rounded-lg">
           {[
             { key: 'all', label: 'All', icon: Bug },
@@ -534,7 +534,7 @@ export default function DebugPage() {
       </div>
 
       {/* Logs List */}
-      <div className="flex-1 card overflow-hidden flex flex-col">
+      <div className="flex-1 card overflow-auto flex flex-col min-h-0">
         <div className="flex-1 overflow-auto font-mono text-sm">
           {filteredLogs.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-surface-500">
@@ -544,7 +544,7 @@ export default function DebugPage() {
             </div>
           ) : (
             <table className="w-full">
-              <thead className="sticky top-0 bg-surface-50 dark:bg-surface-800">
+              <thead className="sticky top-0 z-10 bg-surface-50 dark:bg-surface-800">
                 <tr className="text-left text-xs text-surface-500 border-b border-surface-200 dark:border-surface-700">
                   <th className="px-3 py-2 w-8"></th>
                   <th className="px-3 py-2 w-24">Time</th>
@@ -634,7 +634,7 @@ export default function DebugPage() {
       </div>
 
       {/* Quick Stats Footer */}
-      <div className="mt-4 flex items-center justify-between text-xs text-surface-500">
+      <div className="mt-4 flex items-center justify-between text-xs text-surface-500 flex-shrink-0">
         <div className="flex items-center gap-4">
           <span className="flex items-center gap-1">
             <span className="w-2 h-2 rounded-full bg-red-500"></span>

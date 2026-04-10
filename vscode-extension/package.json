@@ -2,7 +2,7 @@
   "name": "enterprise-ai-chat",
   "displayName": "Enterprise AI Chat",
   "description": "Integrate with Enterprise AI Chat platform for AI-powered code assistance",
-  "version": "2.1.28",
+  "version": "2.1.53",
   "publisher": "enterprise-ai",
   "icon": "resources/icon.png",
   "engines": {
@@ -385,9 +385,6 @@
     "webpack-cli": "^6.0.1"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.71.2",
-    "ajv": "^8.18.0",
-    "axios": "^1.13.5",
-    "eventsource": "^2.0.2"
+    "axios": "^1.13.5"
   }
 }

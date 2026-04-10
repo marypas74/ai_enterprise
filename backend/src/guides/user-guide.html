@@ -55,7 +55,7 @@
 <body>
 <div class="container">
 
-<span class="version">v2.1.27</span>
+<span class="version">v2.1.52</span>
 <h1>Enterprise AI Chat</h1>
 <p class="subtitle">Guida Utente Completa - Piattaforma di Intelligenza Artificiale Conversazionale Enterprise</p>
 
@@ -65,12 +65,12 @@
     <li><a href="#intro">Introduzione alla Piattaforma</a></li>
     <li><a href="#login">Accesso e Autenticazione</a></li>
     <li><a href="#chat">Chat con l'AI</a></li>
+    <li><a href="#ricercaweb">Ricerca Web in Tempo Reale</a></li>
     <li><a href="#modelli">Modelli AI Disponibili</a></li>
     <li><a href="#allegati">Allegati e Documenti</a></li>
     <li><a href="#conversazioni">Gestione Conversazioni</a></li>
     <li><a href="#export">Esportazione Documenti</a></li>
     <li><a href="#memoria">Sistema di Memoria</a></li>
-    <li><a href="#progetti">Progetti e Kanban</a></li>
     <li><a href="#agenti">Agenti AI Autonomi</a></li>
     <li><a href="#parlant">Parlant - Framework Agenti</a></li>
     <li><a href="#scheduler">Programmazione Attivita</a></li>
@@ -138,7 +138,7 @@
 </div>
 <div class="step">
   <div class="step-num">3</div>
-  <div class="step-content">Se hai abilitato l'<strong>MFA (Multi-Factor Authentication)</strong>, inserisci il codice a 6 cifre dalla tua app di autenticazione</div>
+  <div class="step-content">Se l'<strong>MFA (Multi-Factor Authentication)</strong> e abilitata per il tuo account, inserisci il codice a 6 cifre dalla tua app di autenticazione. L'MFA e opzionale e configurabile dall'amministratore.</div>
 </div>
 <div class="step">
   <div class="step-num">4</div>
@@ -151,7 +151,9 @@
 </div>
 
 <h3>Autenticazione a Due Fattori (MFA)</h3>
-<p>Per proteggere il tuo account, puoi abilitare l'autenticazione TOTP:</p>
+<p>L'MFA (TOTP) e una misura di sicurezza opzionale. La sua disponibilita dipende dalla configurazione dell'amministratore: puo essere abilitata globalmente o lasciata a scelta dell'utente.</p>
+
+<p>Se disponibile, per configurare l'MFA:</p>
 
 <ol>
   <li>Vai su <strong>Impostazioni</strong> (icona ingranaggio nella sidebar)</li>
@@ -240,6 +242,24 @@
   <li><strong>Avviso Argomenti Sensibili</strong> - Se l'AI rileva temi sensibili (salute, legale, finanza) mostra un avviso di disclaimer</li>
 </ul>
 
+<h3>Modalita e Controlli dell'Area di Input</h3>
+<p>Sotto l'area di input sono presenti i controlli della modalita di chat:</p>
+
+<div class="card">
+  <div class="card-title">Toggle Modalita</div>
+  <ul>
+    <li><strong>Chat Libera (default)</strong> - Conversazione standard con il modello selezionato</li>
+    <li><strong>Documenti (RAG)</strong> - Interroga i tuoi documenti caricati con ricerca semantica. Appare un pannello laterale per selezionare i documenti. Il pannello e espandibile/comprimibile con il pulsante chevron.</li>
+    <li><strong>Brainstorm</strong> - Modalita ottimizzata per esplorare idee e problemi</li>
+    <li><strong>🌐 Web</strong> - Toggle ricerca web in tempo reale. Quando attivo (blu), il sistema interroga internet per integrare la risposta con informazioni aggiornate (es: notizie, prezzi, meteo). Clicca di nuovo per disattivare.</li>
+  </ul>
+</div>
+
+<div class="tip">
+  <div class="tip-title">Ricerca Web Automatica</div>
+  <p>Anche senza attivare il toggle 🌐 Web, il sistema rileva automaticamente domande su eventi recenti, notizie, meteo o prezzi e attiva la ricerca in background. Il toggle serve per forzare la ricerca in qualsiasi caso.</p>
+</div>
+
 <h3>Prompt di Sistema</h3>
 <p>Puoi opzionalmente impostare un <strong>system prompt</strong> per guidare il comportamento dell'AI in una conversazione specifica. Questo e utile per:</p>
 <ul>
@@ -248,8 +268,26 @@
   <li>Fornire contesto specifico per un progetto</li>
 </ul>
 
+<!-- SECTION: RICERCA WEB -->
+<h2 id="ricercaweb">4. Ricerca Web in Tempo Reale</h2>
+
+<p>La piattaforma puo consultare automaticamente internet per fornire risposte aggiornate su notizie, eventi, prezzi e informazioni che cambiano nel tempo.</p>
+
+<h3>Come Funziona</h3>
+<ul>
+  <li><strong>Rilevamento Automatico</strong> - Il sistema riconosce parole chiave come "notizie", "meteo", "prezzo", "oggi", "partita", "reddit", "github" e attiva la ricerca automaticamente</li>
+  <li><strong>Toggle Manuale 🌐 Web</strong> - Clicca il pulsante "Web" nell'area di input per forzare la ricerca su qualsiasi domanda</li>
+  <li><strong>Fonte</strong> - La ricerca usa DuckDuckGo (nessuna API key, no tracciamento)</li>
+  <li><strong>Risultati</strong> - Fino a 5 risultati rilevanti vengono iniettati nel contesto; l'AI cita le fonti nella risposta</li>
+</ul>
+
+<div class="tip">
+  <div class="tip-title">Quando Usare il Toggle Web</div>
+  <p>Usa il toggle 🌐 Web quando vuoi assicurarti che l'AI usi informazioni recenti anche per domande che normalmente non attiverebbero la ricerca automatica (es: "dimmi della versione X di una libreria", "notizie su un progetto specifico").</p>
+</div>
+
 <!-- SECTION 4: MODELLI -->
-<h2 id="modelli">4. Modelli AI Disponibili</h2>
+<h2 id="modelli">5. Modelli AI Disponibili</h2>
 
 <p>La piattaforma supporta molteplici provider e modelli AI. I modelli disponibili dipendono dalla configurazione dell'amministratore.</p>
 
@@ -261,20 +299,24 @@
     <tr><td><span class="badge badge-success">OpenAI</span></td><td>GPT-4o, GPT-4o-mini, GPT-4 Turbo, o1, o3-mini</td><td>Versatilita, velocita, tool use</td></tr>
     <tr><td><span class="badge badge-primary">Anthropic</span></td><td>Claude 3.5 Sonnet, Claude 3 Opus, Claude 3 Haiku</td><td>Ragionamento profondo, sicurezza, contesto lungo</td></tr>
     <tr><td><span class="badge badge-accent">Google</span></td><td>Gemini 2.0 Flash, Gemini 1.5 Pro, Gemini 2.5 Pro</td><td>Multimodale, velocita, costo ridotto</td></tr>
-    <tr><td><span class="badge badge-warning">Ollama</span></td><td>Llama 3, Qwen 2.5, Phi-3, Gemma 2</td><td>Privacy totale (locale), nessun costo API</td></tr>
+    <tr><td><span class="badge badge-warning">vLLM (Locale)</span></td><td>Qwen3.5 35B-A3B (modello principale locale)</td><td>Privacy totale, nessun costo API, GPU locale RTX 5090 — risposte molto rapide</td></tr>
+    <tr><td><span class="badge badge-success">Ollama (Locale)</span></td><td>Modelli vision, OCR, embedding (snowflake, llava, ecc.)</td><td>Privacy totale, specializzato per RAG, OCR e analisi immagini</td></tr>
   </tbody>
 </table>
 
 <div class="tip">
-  <div class="tip-title">Modello Consigliato</div>
-  <p>La piattaforma mostra un indicatore di carico in tempo reale. I modelli con carico basso (verde) offrono tempi di risposta piu rapidi. Il sistema suggerisce automaticamente il modello piu adatto in base all'utilizzo corrente.</p>
+  <div class="tip-title">Modello Locale: Qwen3.5 35B</div>
+  <p>Il modello <strong>Qwen3.5 35B-A3B</strong> gira localmente su GPU (RTX 5090, 32 GB VRAM) e offre risposte rapide con latenza di 165–300ms per il primo token. Supporta ragionamento esteso (chain-of-thought) e e ottimizzato per compiti complessi. E il modello predefinito consigliato per la maggior parte degli utilizzi.</p>
 </div>
+
+<h3>Selettore Modelli</h3>
+<p>Il menu a tendina nell'header mostra tutti i modelli disponibili. Al momento dell'apertura, la lista viene aggiornata automaticamente. I modelli di provider esterni (cloud) sono marcati con un avviso se il provider usa servizi fuori dalla rete locale. Il selettore in modalita RAG filtra automaticamente i modelli compatibili.</p>
 
 <h3>Cambio Modello durante la Chat</h3>
 <p>Puoi cambiare modello AI in qualsiasi momento durante una conversazione. Il modello selezionato verra utilizzato per il prossimo messaggio, mantenendo il contesto della conversazione.</p>
 
 <!-- SECTION 5: ALLEGATI -->
-<h2 id="allegati">5. Allegati e Documenti</h2>
+<h2 id="allegati">6. Allegati e Documenti</h2>
 
 <p>Puoi allegare file ai tuoi messaggi per farli analizzare dall'AI.</p>
 
@@ -404,54 +446,8 @@
   <li>Configurare i giorni di ritenzione</li>
 </ul>
 
-<!-- SECTION 9: PROGETTI -->
-<h2 id="progetti">9. Progetti e Kanban</h2>
-
-<p>La piattaforma include un sistema completo di gestione progetti con bacheche Kanban.</p>
-
-<h3>Creare un Progetto</h3>
-<div class="step">
-  <div class="step-num">1</div>
-  <div class="step-content">Vai alla pagina <strong>Progetti</strong> dal menu di navigazione</div>
-</div>
-<div class="step">
-  <div class="step-num">2</div>
-  <div class="step-content">Clicca su <strong>"Nuovo Progetto"</strong></div>
-</div>
-<div class="step">
-  <div class="step-num">3</div>
-  <div class="step-content">Inserisci nome, descrizione e colore del progetto</div>
-</div>
-<div class="step">
-  <div class="step-num">4</div>
-  <div class="step-content">Il progetto viene creato con una bacheca Kanban predefinita</div>
-</div>
-
-<h3>Bacheca Kanban</h3>
-<p>Ogni progetto ha una o piu bacheche Kanban con colonne personalizzabili:</p>
-<ul>
-  <li><strong>Colonne Standard</strong> - Backlog, Da Fare, In Corso, Revisione, Completato</li>
-  <li><strong>Colonne Personalizzate</strong> - Aggiungi, rinomina o elimina colonne</li>
-  <li><strong>Limiti WIP</strong> - Imposta limiti massimi di card per colonna</li>
-</ul>
-
-<h3>Gestione Card (Task)</h3>
-<p>Le card rappresentano i task da completare:</p>
-<ul>
-  <li><strong>Titolo e Descrizione</strong> - Descrivi il task in dettaglio</li>
-  <li><strong>Priorita</strong> - Bassa, Media, Alta, Urgente (con colori distinti)</li>
-  <li><strong>Scadenza</strong> - Imposta una data di scadenza</li>
-  <li><strong>Assegnazione</strong> - Assegna il task a un membro del progetto</li>
-  <li><strong>Etichette</strong> - Aggiungi tag colorati per categorizzare</li>
-  <li><strong>Drag &amp; Drop</strong> - Sposta le card tra le colonne trascinandole</li>
-  <li><strong>Registro Attivita</strong> - Ogni modifica viene tracciata automaticamente</li>
-</ul>
-
-<h3>Condivisione Progetti</h3>
-<p>Puoi condividere i tuoi progetti con altri utenti della piattaforma, permettendo la collaborazione sui task.</p>
-
-<!-- SECTION 10: AGENTI -->
-<h2 id="agenti">10. Agenti AI Autonomi (Auto-Claude)</h2>
+<!-- SECTION 9: AGENTI -->
+<h2 id="agenti">9. Agenti AI Autonomi (Auto-Claude)</h2>
 
 <p>Il sistema di agenti autonomi permette di delegare compiti complessi all'AI, che li eseguira in autonomia utilizzando tool, terminali e accesso al codice.</p>
 
@@ -511,8 +507,8 @@
   <li><span class="badge badge-primary">Automation</span> Automazione di processi</li>
 </ul>
 
-<!-- SECTION 11: PARLANT -->
-<h2 id="parlant">11. Parlant - Framework Agenti</h2>
+<!-- SECTION 10: PARLANT -->
+<h2 id="parlant">10. Parlant - Framework Agenti</h2>
 
 <p>Parlant e un framework Python per la creazione di agenti AI con comportamento guidato da linee guida.</p>
 
@@ -532,8 +528,8 @@
   <li>L'agente applica automaticamente le linee guida pertinenti</li>
 </ol>
 
-<!-- SECTION 12: SCHEDULER -->
-<h2 id="scheduler">12. Programmazione Attivita</h2>
+<!-- SECTION 11: SCHEDULER -->
+<h2 id="scheduler">11. Programmazione Attivita</h2>
 
 <p>Lo scheduler (White Rabbit Scheduler) permette di programmare azioni automatiche.</p>
 
@@ -552,8 +548,8 @@
   <li><strong>Plugin Action</strong> - Esegui un'azione di un plugin</li>
 </ul>
 
-<!-- SECTION 13: IMPOSTAZIONI -->
-<h2 id="impostazioni">13. Impostazioni e Sicurezza</h2>
+<!-- SECTION 12: IMPOSTAZIONI -->
+<h2 id="impostazioni">12. Impostazioni e Sicurezza</h2>
 
 <h3>Profilo Utente</h3>
 <p>La pagina impostazioni mostra il tuo profilo con avatar, nome, email e ruolo.</p>
@@ -576,8 +572,8 @@
   <p>La richiesta di eliminazione richiede una conferma via codice email. Una volta confermata, tutti i tuoi dati (conversazioni, memorie, progetti, documenti) verranno eliminati permanentemente.</p>
 </div>
 
-<!-- SECTION 14: COMPLIANCE -->
-<h2 id="compliance">14. Trasparenza e Conformita AI Act</h2>
+<!-- SECTION 13: COMPLIANCE -->
+<h2 id="compliance">13. Trasparenza e Conformita AI Act</h2>
 
 <p>La piattaforma e progettata per la conformita al <strong>Regolamento Europeo sull'Intelligenza Artificiale (AI Act)</strong>.</p>
 
@@ -599,8 +595,8 @@
   <li><strong>Nota Conformita nei Documenti</strong> - In calce a ogni documento generato</li>
 </ul>
 
-<!-- SECTION 15: ESTENSIONE -->
-<h2 id="estensione">15. Estensione VS Code</h2>
+<!-- SECTION 14: ESTENSIONE -->
+<h2 id="estensione">14. Estensione VS Code</h2>
 
 <p>La piattaforma include un'estensione companion per Visual Studio Code che integra le funzionalita AI direttamente nell'editor.</p>
 
@@ -624,8 +620,8 @@
   <li>Configura l'URL del server nelle impostazioni dell'estensione</li>
 </ol>
 
-<!-- SECTION 16: SHORTCUTS -->
-<h2 id="shortcuts">16. Scorciatoie e Suggerimenti</h2>
+<!-- SECTION 15: SHORTCUTS -->
+<h2 id="shortcuts">15. Scorciatoie e Suggerimenti</h2>
 
 <div class="card">
   <div class="card-title">Scorciatoie Utili</div>
@@ -707,9 +703,9 @@
 </div>
 
 <div class="footer">
-  <p>Enterprise AI Chat v2.1.27 - Guida Utente</p>
+  <p>Enterprise AI Chat v2.1.52 - Guida Utente</p>
   <p>Questa piattaforma e conforme al Regolamento Europeo sull'AI (AI Act) - Articolo 50</p>
-  <p>Documento generato automaticamente - Ultimo aggiornamento: Marzo 2026</p>
+  <p>Documento generato automaticamente - Ultimo aggiornamento: Aprile 2026</p>
 </div>
 
 </div>

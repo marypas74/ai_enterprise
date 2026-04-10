@@ -17,6 +17,7 @@ import {
   Database,
   Volume2,
   Loader2,
+  AlertTriangle,
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -233,7 +234,12 @@ export default function ChatPage() {
             {/* Model Selector */}
             <div className="relative">
               <button
-                onClick={() => chatMessages.setShowModelSelect(!chatMessages.showModelSelect)}
+                onClick={() => {
+                  if (!chatMessages.showModelSelect) {
+                    chatMessages.refreshModels();
+                  }
+                  chatMessages.setShowModelSelect(!chatMessages.showModelSelect);
+                }}
                 className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors"
               >
                 <Sparkles className="w-4 h-4 text-primary-500 shrink-0" />
@@ -255,24 +261,49 @@ export default function ChatPage() {
                           <span>Carico: <strong className={chatMessages.recommendedModel.load.tier === 'low' ? 'text-green-500' : chatMessages.recommendedModel.load.tier === 'medium' ? 'text-amber-500' : 'text-red-500'}>{chatMessages.recommendedModel.load.tierLabel}</strong> ({chatMessages.recommendedModel.load.activeUsers} utenti attivi)</span>
                         </div>
                       )}
-                      {chatMessages.models.map((model) => (
+                      {isRagMode && (
+                        <div className="px-3 py-2 mb-1 text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 border-b border-surface-200 dark:border-surface-700 flex items-center gap-2">
+                          <Database className="w-3 h-3" />
+                          <span>Modalità Documenti: {user?.role === 'admin' ? 'tutti i modelli disponibili' : 'solo modelli locali'}</span>
+                        </div>
+                      )}
+                      {chatMessages.models
+                        .filter(model => {
+                          // In RAG mode, non-admin users can only see local models
+                          if (isRagMode && user?.role !== 'admin') {
+                            return model.is_local !== false; // show if is_local is true or undefined
+                          }
+                          return true;
+                        })
+                        .map((model) => {
+                        const isExternal = model.is_local === false;
+                        const isDisabledInRag = isRagMode && isExternal && user?.role !== 'admin';
+                        return (
                         <button
                           key={model.id}
                           onClick={() => {
+                            if (isDisabledInRag) return;
                             chatMessages.setSelectedModel(model.id);
                             chatMessages.setShowModelSelect(false);
                           }}
                           className={clsx(
                             'w-full flex items-start justify-between px-3 py-2.5 rounded-lg text-left transition-colors',
+                            isDisabledInRag && 'opacity-40 cursor-not-allowed',
                             chatMessages.selectedModel === model.id
                               ? 'bg-primary-50 dark:bg-primary-900/20'
                               : 'hover:bg-surface-100 dark:hover:bg-surface-800'
                           )}
                         >
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <span className="font-medium">{model.name}</span>
                               <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-surface-100 dark:bg-surface-700 text-surface-500">{model.provider}</span>
+                              {isExternal && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 flex items-center gap-0.5">
+                                  <AlertTriangle className="w-2.5 h-2.5" />
+                                  Esterno
+                                </span>
+                              )}
                               {chatMessages.recommendedModel?.id === model.id && (
                                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">Consigliato</span>
                               )}
@@ -280,12 +311,25 @@ export default function ChatPage() {
                             {model.description && (
                               <p className="text-xs text-surface-500 dark:text-surface-400 mt-1 leading-relaxed">{model.description}</p>
                             )}
+                            {isExternal && chatMessages.selectedModel === model.id && !isRagMode && (
+                              <p className="text-[10px] text-orange-600 dark:text-orange-400 mt-1 flex items-center gap-1">
+                                <AlertTriangle className="w-3 h-3" />
+                                I dati verranno inviati a un servizio esterno
+                              </p>
+                            )}
+                            {isExternal && isRagMode && (
+                              <p className="text-[10px] text-red-600 dark:text-red-400 mt-1 flex items-center gap-1">
+                                <AlertTriangle className="w-3 h-3" />
+                                {user?.role === 'admin' ? 'Attenzione: i documenti verranno inviati a un servizio esterno' : 'Non disponibile in modalità documenti'}
+                              </p>
+                            )}
                           </div>
                           {chatMessages.selectedModel === model.id && (
                             <div className="w-2 h-2 rounded-full bg-primary-500 mt-1.5 ml-2 shrink-0" />
                           )}
                         </button>
-                      ))}
+                        );
+                      })}
                     </>
                   )}
                 </div>
@@ -466,6 +510,8 @@ export default function ChatPage() {
             // Keep attachments only when switching TO free mode (may be useful)
             // Clear document selection when leaving rag mode
           }}
+          forceWebSearch={chatMessages.forceWebSearch}
+          onWebSearchToggle={() => chatMessages.setForceWebSearch(!chatMessages.forceWebSearch)}
         />
         </div>
 

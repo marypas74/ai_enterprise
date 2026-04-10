@@ -13,9 +13,19 @@ spec:
       labels:
         app: litellm
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
       containers:
         - name: litellm
-          image: ghcr.io/berriai/litellm:main-latest
+          # SECURITY: Pinned to v1.82.6 — last verified safe release before
+          # CVE-2026-33634 supply chain attack (TeamPCP). DO NOT use :main-latest
+          # or any version >= 1.82.7 until BerriAI completes their security review.
+          # See: https://docs.litellm.ai/blog/security-update-march-2026
+          image: ghcr.io/berriai/litellm:main-v1.82.6
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 4000
           args:
@@ -23,27 +33,50 @@ spec:
             - "/app/config.yaml"
             - "--port"
             - "4000"
+          env:
+            - name: LITELLM_MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: litellm-secrets
+                  key: LITELLM_MASTER_KEY
           envFrom:
             - secretRef:
                 name: litellm-secrets
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /health/liveliness
+              port: 4000
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health/readiness
+              port: 4000
+            initialDelaySeconds: 10
+            periodSeconds: 10
           volumeMounts:
             - name: config-volume
               mountPath: /app/config.yaml
               subPath: config.yaml
+            - name: tmp-volume
+              mountPath: /tmp
       volumes:
         - name: config-volume
           configMap:
             name: litellm-config
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: litellm
-  namespace: enterprise-ai-chat
-spec:
-  selector:
-    app: litellm
-  ports:
-    - port: 4000
-      targetPort: 4000
-  type: ClusterIP
+        - name: tmp-volume
+          emptyDir:
+            sizeLimit: 100Mi

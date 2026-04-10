@@ -25,7 +25,6 @@ import {
   Brain,
   Puzzle,
   Bot,
-  LayoutDashboard,
   Activity,
   Bug,
   Wifi,
@@ -40,7 +39,8 @@ import {
   Radio,
   GitBranch,
   GitMerge,
-  Store
+  RotateCcw,
+  BookOpen
 } from 'lucide-react';
 import clsx from 'clsx';
 import { format } from 'date-fns';
@@ -65,8 +65,8 @@ import PermissionsPage from './admin/PermissionsPage';
 import HookTracePage from './admin/HookTracePage';
 import PluginGraphPage from './admin/PluginGraphPage';
 import ComplianceDashboardPage from './admin/ComplianceDashboardPage';
-import MarketplacePage from './admin/MarketplacePage';
 import PipelineVisualizerPage from './admin/PipelineVisualizerPage';
+import GuidesPage from './admin/GuidesPage';
 
 interface User {
   id: number;
@@ -112,7 +112,6 @@ const NAV_ITEMS = [
   { path: '/admin/agents', icon: Bot, label: 'Agents' },
   { path: '/admin/skills', icon: Brain, label: 'Skills' },
   { path: '/admin/plugins', icon: Puzzle, label: 'Plugins & MCP' },
-  { path: '/admin/marketplace', icon: Store, label: 'Marketplace' },
   { path: '/admin/plugin-graph', icon: GitBranch, label: 'Plugin Graph' },
   { path: '/admin/memory', icon: BookMarked, label: 'Memory' },
   { path: '/admin/vector-memory', icon: Database, label: 'Vector Memory' },
@@ -123,18 +122,21 @@ const NAV_ITEMS = [
   { path: '/admin/prompt-templates', icon: FileText, label: 'Prompt Templates' },
   { path: '/admin/forms', icon: ClipboardList, label: 'Forms' },
   { path: '/admin/scheduler', icon: Clock, label: 'Scheduler' },
-  { path: '/admin/kanban', icon: LayoutDashboard, label: 'Kanban' },
+  // Kanban rimosso dal menu admin
   { path: '/admin/permissions', icon: Lock, label: 'Permessi' },
   { path: '/admin/sessions', icon: Wifi, label: 'Sessioni Attive' },
   { path: '/admin/compliance', icon: Shield, label: 'AI Act Compliance' },
   { path: '/admin/audit', icon: Shield, label: 'Audit Log' },
   { path: '/admin/debug', icon: Bug, label: 'Debug Console' },
+  { path: '/admin/guides', icon: BookOpen, label: 'Guide' },
 ];
 
 function Overview() {
   const [stats, setStats] = useState<UsageStats | null>(null);
   const [systemStats, setSystemStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [resetting, setResetting] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   useEffect(() => {
     loadStats();
@@ -170,6 +172,19 @@ function Overview() {
     }
   };
 
+  const handleResetCounters = async () => {
+    setResetting(true);
+    try {
+      await api.post('/admin/reset-counters');
+      setShowResetConfirm(false);
+      await loadStats();
+    } catch (err) {
+      console.error('Failed to reset counters:', err);
+    } finally {
+      setResetting(false);
+    }
+  };
+
   if (loading) {
     return <div className="p-6 flex items-center justify-center"><div className="animate-spin h-8 w-8 border-4 border-primary-500 border-t-transparent rounded-full"></div></div>;
   }
@@ -186,7 +201,35 @@ function Overview() {
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">Dashboard KPI</h1>
-        <span className="text-sm text-surface-500">Ultimo aggiornamento: {new Date().toLocaleString()}</span>
+        <div className="flex items-center gap-4">
+          <span className="text-sm text-surface-500">Ultimo aggiornamento: {new Date().toLocaleString()}</span>
+          {!showResetConfirm ? (
+            <button
+              onClick={() => setShowResetConfirm(true)}
+              className="flex items-center gap-2 px-3 py-1.5 text-sm bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+            >
+              <RotateCcw className="w-4 h-4" />
+              Azzera Contatori
+            </button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-red-600 dark:text-red-400 font-medium">Confermi?</span>
+              <button
+                onClick={handleResetCounters}
+                disabled={resetting}
+                className="px-3 py-1.5 text-sm bg-red-600 text-white hover:bg-red-700 rounded-lg transition-colors disabled:opacity-50"
+              >
+                {resetting ? 'Azzeramento...' : 'Sì, azzera tutto'}
+              </button>
+              <button
+                onClick={() => setShowResetConfirm(false)}
+                className="px-3 py-1.5 text-sm bg-surface-200 dark:bg-surface-700 text-surface-700 dark:text-surface-300 hover:bg-surface-300 dark:hover:bg-surface-600 rounded-lg transition-colors"
+              >
+                Annulla
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Main KPI Cards */}
@@ -325,62 +368,63 @@ function Overview() {
         </div>
       </div>
 
-      {/* Provider Breakdown */}
-      <div className="card p-6 mb-8">
-        <h2 className="text-lg font-semibold mb-4">Usage by Provider</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="text-left text-sm text-surface-500 border-b border-surface-200 dark:border-surface-700">
-                <th className="pb-3 font-medium">Provider</th>
-                <th className="pb-3 font-medium">Requests</th>
-                <th className="pb-3 font-medium">Input Tokens</th>
-                <th className="pb-3 font-medium">Output Tokens</th>
-                <th className="pb-3 font-medium text-right">Cost</th>
-              </tr>
-            </thead>
-            <tbody>
-              {s.byProvider.map((p) => (
-                <tr key={p.provider} className="border-b border-surface-100 dark:border-surface-800">
-                  <td className="py-3 font-medium capitalize">{p.provider}</td>
-                  <td className="py-3">{p.requests?.toLocaleString()}</td>
-                  <td className="py-3">{p.tokens_input?.toLocaleString()}</td>
-                  <td className="py-3">{p.tokens_output?.toLocaleString()}</td>
-                  <td className="py-3 text-right">${safeFixed(p.cost, 4)}</td>
+      {/* Provider Breakdown + Top Users — side by side with independent scroll */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="card p-6 flex flex-col">
+          <h2 className="text-lg font-semibold mb-4">Usage by Provider</h2>
+          <div className="overflow-auto max-h-80 flex-1">
+            <table className="w-full">
+              <thead className="sticky top-0 bg-white dark:bg-surface-900">
+                <tr className="text-left text-sm text-surface-500 border-b border-surface-200 dark:border-surface-700">
+                  <th className="pb-3 font-medium">Provider</th>
+                  <th className="pb-3 font-medium">Requests</th>
+                  <th className="pb-3 font-medium">Input Tokens</th>
+                  <th className="pb-3 font-medium">Output Tokens</th>
+                  <th className="pb-3 font-medium text-right">Cost</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {s.byProvider.map((p) => (
+                  <tr key={p.provider} className="border-b border-surface-100 dark:border-surface-800">
+                    <td className="py-3 font-medium capitalize">{p.provider}</td>
+                    <td className="py-3">{p.requests?.toLocaleString()}</td>
+                    <td className="py-3">{p.tokens_input?.toLocaleString()}</td>
+                    <td className="py-3">{p.tokens_output?.toLocaleString()}</td>
+                    <td className="py-3 text-right">${safeFixed(p.cost, 4)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
 
-      {/* Top Users */}
-      <div className="card p-6">
-        <h2 className="text-lg font-semibold mb-4">Top Users by Usage</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="text-left text-sm text-surface-500 border-b border-surface-200 dark:border-surface-700">
-                <th className="pb-3 font-medium">User</th>
-                <th className="pb-3 font-medium">Requests</th>
-                <th className="pb-3 font-medium">Tokens</th>
-                <th className="pb-3 font-medium text-right">Cost</th>
-              </tr>
-            </thead>
-            <tbody>
-              {s.byUser.slice(0, 10).map((u) => (
-                <tr key={u.user_id} className="border-b border-surface-100 dark:border-surface-800">
-                  <td className="py-3">
-                    <p className="font-medium">{u.name}</p>
-                    <p className="text-sm text-surface-500">{u.email}</p>
-                  </td>
-                  <td className="py-3">{u.request_count?.toLocaleString()}</td>
-                  <td className="py-3">{u.total_tokens?.toLocaleString()}</td>
-                  <td className="py-3 text-right">${safeFixed(u.total_cost, 4)}</td>
+        <div className="card p-6 flex flex-col">
+          <h2 className="text-lg font-semibold mb-4">Top Users by Usage</h2>
+          <div className="overflow-auto max-h-80 flex-1">
+            <table className="w-full">
+              <thead className="sticky top-0 bg-white dark:bg-surface-900">
+                <tr className="text-left text-sm text-surface-500 border-b border-surface-200 dark:border-surface-700">
+                  <th className="pb-3 font-medium">User</th>
+                  <th className="pb-3 font-medium">Requests</th>
+                  <th className="pb-3 font-medium">Tokens</th>
+                  <th className="pb-3 font-medium text-right">Cost</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {s.byUser.slice(0, 10).map((u) => (
+                  <tr key={u.user_id} className="border-b border-surface-100 dark:border-surface-800">
+                    <td className="py-3">
+                      <p className="font-medium">{u.name}</p>
+                      <p className="text-sm text-surface-500">{u.email}</p>
+                    </td>
+                    <td className="py-3">{u.request_count?.toLocaleString()}</td>
+                    <td className="py-3">{u.total_tokens?.toLocaleString()}</td>
+                    <td className="py-3 text-right">${safeFixed(u.total_cost, 4)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -529,12 +573,12 @@ function AuditLog() {
   };
 
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold mb-6">Audit Log</h1>
+    <div className="p-6 flex flex-col h-full">
+      <h1 className="text-2xl font-bold mb-6 flex-shrink-0">Audit Log</h1>
 
-      <div className="card overflow-hidden">
+      <div className="card overflow-auto flex-1 min-h-0">
         <table className="w-full">
-          <thead>
+          <thead className="sticky top-0 z-10">
             <tr className="text-left text-sm text-surface-500 bg-surface-50 dark:bg-surface-900">
               <th className="px-6 py-3 font-medium">Time</th>
               <th className="px-6 py-3 font-medium">User</th>
@@ -588,7 +632,6 @@ function AuditLog() {
 }
 
 import { APP_VERSION } from '../version';
-import { useMarketplaceStore } from '../hooks/useMarketplaceStore';
 import { useHookPipelineStore } from '../hooks/useHookPipelineStore';
 
 const FRONTEND_VERSION = APP_VERSION;
@@ -596,7 +639,6 @@ const FRONTEND_VERSION = APP_VERSION;
 export default function AdminPage() {
   const location = useLocation();
   const [backendVersion, setBackendVersion] = useState<{ version: string; buildTime: string } | null>(null);
-  const notificationCount = useMarketplaceStore(s => s.notificationCount);
   const pendingApprovals = useHookPipelineStore(s => s.pendingApprovals);
   const pendingCount = pendingApprovals.length;
 
@@ -611,7 +653,6 @@ export default function AdminPage() {
 
   useEffect(() => {
     const fetchNotifications = () => {
-      useMarketplaceStore.getState().fetchNotifications();
       useHookPipelineStore.getState().fetchPendingApprovals();
     };
     fetchNotifications();
@@ -620,9 +661,9 @@ export default function AdminPage() {
   }, []);
 
   return (
-    <div className="min-h-screen flex">
+    <div className="h-screen flex overflow-hidden">
       {/* Sidebar */}
-      <aside className="w-64 bg-white dark:bg-surface-900 border-r border-surface-200 dark:border-surface-800">
+      <aside className="w-64 flex-shrink-0 bg-white dark:bg-surface-900 border-r border-surface-200 dark:border-surface-800 h-screen overflow-y-auto">
         <div className="p-4">
           <Link
             to="/"
@@ -650,11 +691,6 @@ export default function AdminPage() {
                 >
                   <item.icon className="w-5 h-5" />
                   <span className="font-medium">{item.label}</span>
-                  {item.path === '/admin/marketplace' && notificationCount > 0 && (
-                    <span className="ml-auto bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[20px] text-center">
-                      {notificationCount}
-                    </span>
-                  )}
                   {item.path === '/admin/hooks' && pendingCount > 0 && (
                     <span className="ml-auto bg-orange-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[20px] text-center">
                       {pendingCount}
@@ -680,7 +716,7 @@ export default function AdminPage() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 bg-surface-50 dark:bg-surface-950 overflow-auto">
+      <main className="flex-1 bg-surface-50 dark:bg-surface-950 h-screen overflow-y-auto">
         <Routes>
           <Route path="/" element={<Overview />} />
           <Route path="/monitor" element={<SystemMonitorPage />} />
@@ -689,7 +725,6 @@ export default function AdminPage() {
           <Route path="/agents" element={<AgentsPage />} />
           <Route path="/skills" element={<SkillsPage />} />
           <Route path="/plugins" element={<PluginsPage />} />
-          <Route path="/marketplace" element={<MarketplacePage />} />
           <Route path="/plugin-graph" element={<PluginGraphPage />} />
           <Route path="/memory" element={<MemoryPage />} />
           <Route path="/vector-memory" element={<VectorMemoryPage />} />
@@ -707,6 +742,7 @@ export default function AdminPage() {
           <Route path="/compliance" element={<ComplianceDashboardPage />} />
           <Route path="/audit" element={<AuditLog />} />
           <Route path="/debug" element={<DebugPage />} />
+          <Route path="/guides" element={<GuidesPage />} />
         </Routes>
       </main>
     </div>

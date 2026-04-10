@@ -171,7 +171,7 @@ export class LLMSyncWorker {
                 providerConfigs.push(config);
                 this.fastify.log.info(`[LLMSyncWorker] Provider "${p.provider_type}" has apiKey=${!!config.apiKey}, baseUrl=${config.baseUrl || 'default'}`);
             } else {
-                this.fastify.log.warn(`[LLMSyncWorker] Provider "${p.provider_type}" has no apiKey or baseUrl configured, skipping`);
+                this.fastify.log.debug(`[LLMSyncWorker] Provider "${p.provider_type}" has no apiKey or baseUrl configured, skipping`);
             }
         }
 

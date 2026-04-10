@@ -1,6 +1,21 @@
 import OpenAI from 'openai';
 import type { AIProvider, CompletionOptions, CompletionResult, StreamChunk } from '../types.js';
 
+// Models that use max_completion_tokens and don't support temperature
+const REASONING_MODELS = /^(o1|o3|o4|gpt-5|gpt-4\.5)/i;
+
+function isReasoningModel(model: string): boolean {
+  return REASONING_MODELS.test(model);
+}
+
+function buildTokenParam(model: string, maxTokens?: number): Record<string, number> {
+  const tokens = maxTokens || 4096;
+  if (isReasoningModel(model)) {
+    return { max_completion_tokens: tokens };
+  }
+  return { max_tokens: tokens };
+}
+
 // OpenAI Provider
 export class OpenAIProvider implements AIProvider {
   name: 'openai' = 'openai';
@@ -11,17 +26,22 @@ export class OpenAIProvider implements AIProvider {
     if (!apiKey) {
       throw new Error('OpenAI API key not configured');
     }
-    this.client = new OpenAI({ apiKey });
+    // 120s timeout to prevent hanging on slow/new models
+    this.client = new OpenAI({ apiKey, timeout: 120000 });
   }
 
   async complete(options: CompletionOptions): Promise<CompletionResult> {
+    const reasoning = isReasoningModel(options.model);
     const createOpts: any = {
       model: options.model,
       messages: options.messages as any,
-      max_tokens: options.maxTokens || 4096,
-      temperature: options.temperature || 0.7,
+      ...buildTokenParam(options.model, options.maxTokens),
       tools: options.tools as any
     };
+    // temperature not supported by reasoning models
+    if (!reasoning) {
+      createOpts.temperature = options.temperature || 0.7;
+    }
     // tool_choice enforcement for OpenAI
     if (options.toolChoice && createOpts.tools) {
       if (options.toolChoice === 'required' || options.toolChoice === 'any') {
@@ -45,14 +65,18 @@ export class OpenAIProvider implements AIProvider {
   }
 
   async * streamComplete(options: CompletionOptions): AsyncGenerator<StreamChunk> {
+    const reasoning = isReasoningModel(options.model);
     const createOpts: any = {
       model: options.model,
       messages: options.messages as any,
-      max_tokens: options.maxTokens || 4096,
-      temperature: options.temperature || 0.7,
+      ...buildTokenParam(options.model, options.maxTokens),
       stream: true,
       tools: options.tools as any
     };
+    // temperature not supported by reasoning models
+    if (!reasoning) {
+      createOpts.temperature = options.temperature || 0.7;
+    }
     // tool_choice enforcement for OpenAI
     if (options.toolChoice && createOpts.tools) {
       if (options.toolChoice === 'required' || options.toolChoice === 'any') {

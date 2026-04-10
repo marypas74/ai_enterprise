@@ -306,13 +306,13 @@ export function formatSearchResultsForContext(searchResponse: WebSearchResponse)
 /**
  * Main entry point: check message and perform search if needed
  */
-export async function enhanceWithWebSearch(message: string): Promise<{
+export async function enhanceWithWebSearch(message: string, force?: boolean): Promise<{
   shouldSearch: boolean;
   searchContext: string;
   searchResponse?: WebSearchResponse;
 }> {
-  // Check if search is needed
-  const shouldSearch = shouldPerformWebSearch(message);
+  // Check if search is needed (auto-detect by keywords, or forced by user toggle)
+  const shouldSearch = force || shouldPerformWebSearch(message);
 
   if (!shouldSearch) {
     return {

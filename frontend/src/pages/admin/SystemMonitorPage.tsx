@@ -97,7 +97,7 @@ function ProgressBar({ value, color = 'blue', showLabel = true }: { value: numbe
       <div className="flex-1 h-2 bg-surface-200 dark:bg-surface-700 rounded-full overflow-hidden">
         <div className={`h-full ${getColorClass()} transition-all`} style={{ width: `${Math.min(value, 100)}%` }} />
       </div>
-      {showLabel && <span className="text-xs font-mono w-12 text-right">{value.toFixed(1)}%</span>}
+      {showLabel && <span className="text-xs font-mono w-12 text-right text-surface-700 dark:text-surface-300">{value.toFixed(1)}%</span>}
     </div>
   );
 }
@@ -150,28 +150,28 @@ export default function SystemMonitorPage() {
   }
 
   return (
-    <div className="p-4 bg-surface-950 min-h-screen text-surface-100 font-mono text-sm">
+    <div className="p-6 flex flex-col h-full text-sm">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4 pb-2 border-b border-surface-700">
+      <div className="flex items-center justify-between mb-4 pb-2 border-b border-surface-200 dark:border-surface-700 flex-shrink-0">
         <div className="flex items-center gap-4">
-          <h1 className="text-lg font-bold text-green-400 flex items-center gap-2">
-            <Activity className="w-5 h-5" />
+          <h1 className="text-lg font-bold text-surface-900 dark:text-surface-100 flex items-center gap-2 flex-shrink-0">
+            <Activity className="w-5 h-5 text-primary-500" />
             System Monitor
           </h1>
-          <span className="text-surface-400">
+          <span className="text-surface-500 dark:text-surface-400 font-mono text-xs">
             {data?.hostname} | {data?.platform} {data?.arch}
           </span>
         </div>
         <div className="flex items-center gap-4">
           <span className="text-surface-500 flex items-center gap-1">
             <Clock className="w-4 h-4" />
-            Uptime: {data?.uptime.days}d {data?.uptime.hours}h {data?.uptime.minutes}m
+            Uptime: <span className="font-mono">{data?.uptime.days}d {data?.uptime.hours}h {data?.uptime.minutes}m</span>
           </span>
           <div className="flex items-center gap-2">
             <select
               value={refreshInterval}
               onChange={(e) => setRefreshInterval(Number(e.target.value))}
-              className="bg-surface-800 border border-surface-600 rounded px-2 py-1 text-xs"
+              className="bg-white dark:bg-surface-800 border border-surface-300 dark:border-surface-600 rounded px-2 py-1 text-xs text-surface-700 dark:text-surface-300"
             >
               <option value={2000}>2s</option>
               <option value={5000}>5s</option>
@@ -180,13 +180,13 @@ export default function SystemMonitorPage() {
             </select>
             <button
               onClick={() => setAutoRefresh(!autoRefresh)}
-              className={`px-2 py-1 rounded text-xs ${autoRefresh ? 'bg-green-600' : 'bg-surface-700'}`}
+              className={`px-2 py-1 rounded text-xs ${autoRefresh ? 'bg-green-600 dark:bg-green-700 text-white' : 'bg-surface-200 dark:bg-surface-700 text-surface-700 dark:text-surface-300'}`}
             >
               {autoRefresh ? 'Auto' : 'Manual'}
             </button>
             <button
               onClick={fetchData}
-              className="p-1 hover:bg-surface-700 rounded"
+              className="p-1 hover:bg-surface-200 dark:hover:bg-surface-700 rounded text-surface-600 dark:text-surface-400"
               title="Refresh"
             >
               <RefreshCw className="w-4 h-4" />
@@ -199,11 +199,11 @@ export default function SystemMonitorPage() {
         {/* CPU & Memory Section */}
         <div className="col-span-4 space-y-4">
           {/* CPU - Enhanced */}
-          <div className="bg-surface-900 rounded-lg p-3 border border-surface-700">
+          <div className="card p-4">
             <div className="flex items-center gap-2 mb-3">
-              <Cpu className="w-4 h-4 text-blue-400" />
-              <span className="text-blue-400 font-semibold">CPU</span>
-              <span className="text-surface-500 text-xs ml-auto">{data?.cpu.cores} cores @ {data?.cpu.speed}MHz</span>
+              <Cpu className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              <span className="text-surface-900 dark:text-surface-100 font-semibold">CPU</span>
+              <span className="text-surface-500 text-xs ml-auto font-mono">{data?.cpu.cores} cores @ {data?.cpu.speed}MHz</span>
             </div>
 
             {/* CPU Gauge */}
@@ -216,7 +216,7 @@ export default function SystemMonitorPage() {
                     fill="none"
                     stroke="currentColor"
                     strokeWidth="8"
-                    className="text-surface-700"
+                    className="text-surface-200 dark:text-surface-700"
                   />
                   <path
                     d="M 5 50 A 45 45 0 0 1 95 50"
@@ -233,7 +233,9 @@ export default function SystemMonitorPage() {
                 </svg>
                 {/* Usage percentage in center */}
                 <div className="absolute inset-0 flex items-end justify-center pb-1">
-                  <span className={`text-2xl font-bold ${(data?.cpu.usage || 0) > 80 ? 'text-red-400' : 'text-green-400'
+                  <span className={`text-2xl font-bold font-mono ${(data?.cpu.usage || 0) > 80
+                    ? 'text-red-600 dark:text-red-400'
+                    : 'text-green-600 dark:text-green-400'
                     }`}>
                     {data?.cpu.usage?.toFixed(1) || '0'}%
                   </span>
@@ -242,7 +244,7 @@ export default function SystemMonitorPage() {
             </div>
 
             {/* CPU Model */}
-            <div className="text-center text-xs text-surface-400 mb-3 truncate" title={data?.cpu.model}>
+            <div className="text-center text-xs text-surface-500 mb-3 truncate" title={data?.cpu.model}>
               {data?.cpu.model?.substring(0, 40)}
             </div>
 
@@ -251,9 +253,9 @@ export default function SystemMonitorPage() {
               <div className="text-xs text-surface-500 mb-1">Load Average</div>
               <div className="grid grid-cols-3 gap-2">
                 <div className="text-center">
-                  <div className="text-lg font-mono text-blue-300">{data?.cpu.loadAvg['1m'].toFixed(2)}</div>
+                  <div className="text-lg font-mono text-blue-600 dark:text-blue-300">{data?.cpu.loadAvg['1m'].toFixed(2)}</div>
                   <div className="text-[10px] text-surface-500">1 min</div>
-                  <div className="h-1 bg-surface-700 rounded mt-1">
+                  <div className="h-1 bg-surface-200 dark:bg-surface-700 rounded mt-1">
                     <div
                       className="h-full bg-blue-500 rounded"
                       style={{ width: `${Math.min((data?.cpu.loadAvg['1m'] || 0) / (data?.cpu.cores || 1) * 100, 100)}%` }}
@@ -261,9 +263,9 @@ export default function SystemMonitorPage() {
                   </div>
                 </div>
                 <div className="text-center">
-                  <div className="text-lg font-mono text-cyan-300">{data?.cpu.loadAvg['5m'].toFixed(2)}</div>
+                  <div className="text-lg font-mono text-cyan-600 dark:text-cyan-300">{data?.cpu.loadAvg['5m'].toFixed(2)}</div>
                   <div className="text-[10px] text-surface-500">5 min</div>
-                  <div className="h-1 bg-surface-700 rounded mt-1">
+                  <div className="h-1 bg-surface-200 dark:bg-surface-700 rounded mt-1">
                     <div
                       className="h-full bg-cyan-500 rounded"
                       style={{ width: `${Math.min((data?.cpu.loadAvg['5m'] || 0) / (data?.cpu.cores || 1) * 100, 100)}%` }}
@@ -271,9 +273,9 @@ export default function SystemMonitorPage() {
                   </div>
                 </div>
                 <div className="text-center">
-                  <div className="text-lg font-mono text-teal-300">{data?.cpu.loadAvg['15m'].toFixed(2)}</div>
+                  <div className="text-lg font-mono text-teal-600 dark:text-teal-300">{data?.cpu.loadAvg['15m'].toFixed(2)}</div>
                   <div className="text-[10px] text-surface-500">15 min</div>
-                  <div className="h-1 bg-surface-700 rounded mt-1">
+                  <div className="h-1 bg-surface-200 dark:bg-surface-700 rounded mt-1">
                     <div
                       className="h-full bg-teal-500 rounded"
                       style={{ width: `${Math.min((data?.cpu.loadAvg['15m'] || 0) / (data?.cpu.cores || 1) * 100, 100)}%` }}
@@ -284,13 +286,13 @@ export default function SystemMonitorPage() {
             </div>
 
             {/* Usage bar */}
-            <div className="mt-3 pt-3 border-t border-surface-700">
+            <div className="mt-3 pt-3 border-t border-surface-200 dark:border-surface-700">
               <div className="flex justify-between text-xs mb-1">
-                <span>Current Usage</span>
-                <span className={
-                  (data?.cpu.usage || 0) > 90 ? 'text-red-400 animate-pulse' :
-                    (data?.cpu.usage || 0) > 70 ? 'text-amber-400' : 'text-green-400'
-                }>
+                <span className="text-surface-700 dark:text-surface-300">Current Usage</span>
+                <span className={`font-mono ${
+                  (data?.cpu.usage || 0) > 90 ? 'text-red-600 dark:text-red-400 animate-pulse' :
+                    (data?.cpu.usage || 0) > 70 ? 'text-amber-600 dark:text-amber-400' : 'text-green-600 dark:text-green-400'
+                }`}>
                   {data?.cpu.usage?.toFixed(1) || '0'}%
                 </span>
               </div>
@@ -299,40 +301,40 @@ export default function SystemMonitorPage() {
           </div>
 
           {/* Memory */}
-          <div className="bg-surface-900 rounded-lg p-3 border border-surface-700">
+          <div className="card p-4">
             <div className="flex items-center gap-2 mb-3">
-              <MemoryStick className="w-4 h-4 text-green-400" />
-              <span className="text-green-400 font-semibold">MEM</span>
-              <span className="text-surface-500 text-xs ml-auto">{formatBytes(data?.memory.total || 0)}</span>
+              <MemoryStick className="w-4 h-4 text-green-600 dark:text-green-400" />
+              <span className="text-surface-900 dark:text-surface-100 font-semibold">Memory</span>
+              <span className="text-surface-500 text-xs ml-auto font-mono">{formatBytes(data?.memory.total || 0)}</span>
             </div>
             <div className="space-y-2">
               <div className="flex justify-between text-xs">
-                <span>Used: {formatBytes(data?.memory.used || 0)}</span>
-                <span className={data?.memory.usagePercent && data.memory.usagePercent > 80 ? 'text-red-400' : 'text-green-400'}>
+                <span className="text-surface-700 dark:text-surface-300">Used: <span className="font-mono">{formatBytes(data?.memory.used || 0)}</span></span>
+                <span className={`font-mono ${data?.memory.usagePercent && data.memory.usagePercent > 80 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
                   {data?.memory.usagePercent}%
                 </span>
               </div>
               <ProgressBar value={data?.memory.usagePercent || 0} color="green" showLabel={false} />
-              <div className="text-xs text-surface-400">
-                Free: {formatBytes(data?.memory.free || 0)}
+              <div className="text-xs text-surface-500">
+                Free: <span className="font-mono">{formatBytes(data?.memory.free || 0)}</span>
               </div>
             </div>
           </div>
 
           {/* Disk */}
-          <div className="bg-surface-900 rounded-lg p-3 border border-surface-700">
+          <div className="card p-4">
             <div className="flex items-center gap-2 mb-3">
-              <HardDrive className="w-4 h-4 text-amber-400" />
-              <span className="text-amber-400 font-semibold">DISK</span>
+              <HardDrive className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+              <span className="text-surface-900 dark:text-surface-100 font-semibold">Disk</span>
             </div>
             <div className="space-y-3">
               {data?.disk?.slice(0, 4).map((d, i) => (
                 <div key={i}>
                   <div className="flex justify-between text-xs mb-1">
-                    <span className="text-surface-400 truncate max-w-[120px]" title={d.mountPoint}>
+                    <span className="text-surface-500 truncate max-w-[120px] font-mono" title={d.mountPoint}>
                       {d.mountPoint}
                     </span>
-                    <span>{d.used}/{d.size}</span>
+                    <span className="text-surface-700 dark:text-surface-300 font-mono">{d.used}/{d.size}</span>
                   </div>
                   <ProgressBar value={d.usePercent} color="amber" />
                 </div>
@@ -341,22 +343,22 @@ export default function SystemMonitorPage() {
           </div>
 
           {/* Network */}
-          <div className="bg-surface-900 rounded-lg p-3 border border-surface-700">
+          <div className="card p-4">
             <div className="flex items-center gap-2 mb-3">
-              <Network className="w-4 h-4 text-cyan-400" />
-              <span className="text-cyan-400 font-semibold">NETWORK</span>
+              <Network className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
+              <span className="text-surface-900 dark:text-surface-100 font-semibold">Network</span>
             </div>
             <div className="space-y-2 text-xs">
               {data?.network?.interfaces?.slice(0, 4).map((iface, i) => (
                 <div key={i} className="flex justify-between">
-                  <span className="text-surface-400">{iface.name}</span>
-                  <span>{iface.address}</span>
+                  <span className="text-surface-500">{iface.name}</span>
+                  <span className="text-surface-700 dark:text-surface-300 font-mono">{iface.address}</span>
                 </div>
               ))}
               {data?.network?.stats?.slice(0, 4).map((stat, i) => (
                 <div key={i} className="flex justify-between text-surface-500">
                   <span>{stat.interface}</span>
-                  <span>RX: {formatBytes(stat.rxBytesPerSec)}/s TX: {formatBytes(stat.txBytesPerSec)}/s</span>
+                  <span className="font-mono">RX: {formatBytes(stat.rxBytesPerSec)}/s TX: {formatBytes(stat.txBytesPerSec)}/s</span>
                 </div>
               ))}
             </div>
@@ -366,30 +368,30 @@ export default function SystemMonitorPage() {
         {/* GPU Section */}
         <div className="col-span-4 space-y-4">
           {/* GPU Monitoring */}
-          <div className="bg-surface-900 rounded-lg p-3 border border-surface-700">
+          <div className="card p-4">
             <div className="flex items-center gap-2 mb-3">
-              <Zap className="w-4 h-4 text-yellow-400" />
-              <span className="text-yellow-400 font-semibold">GPU (RTX 5090)</span>
+              <Zap className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
+              <span className="text-surface-900 dark:text-surface-100 font-semibold">GPU (RTX 5090)</span>
             </div>
             {data?.gpu && data.gpu.length > 0 ? (
               <div className="space-y-4">
                 {data.gpu.map((gpu, i) => (
                   <div key={i} className="space-y-2">
                     <div className="flex justify-between text-xs">
-                      <span className="text-surface-400">{gpu.name}</span>
-                      <span className="text-yellow-400">{gpu.utilization}% Util</span>
+                      <span className="text-surface-500">{gpu.name}</span>
+                      <span className="text-yellow-600 dark:text-yellow-400 font-mono">{gpu.utilization}% Util</span>
                     </div>
                     <ProgressBar value={gpu.utilization} color="yellow" showLabel={false} />
 
                     <div className="flex justify-between text-[10px] text-surface-500 mt-1">
-                      <span>Temp: {gpu.temperature}°C</span>
-                      <span>Power: {gpu.powerDraw}W</span>
+                      <span>Temp: <span className="font-mono">{gpu.temperature}°C</span></span>
+                      <span>Power: <span className="font-mono">{gpu.powerDraw}W</span></span>
                     </div>
 
                     <div className="pt-2">
                       <div className="flex justify-between text-xs mb-1">
-                        <span className="text-surface-400">VRAM Usage</span>
-                        <span className={gpu.memoryUsagePercent > 80 ? 'text-red-400' : 'text-green-400'}>
+                        <span className="text-surface-500">VRAM Usage</span>
+                        <span className={`font-mono ${gpu.memoryUsagePercent > 80 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
                           {formatBytes(gpu.memoryUsed)} / {formatBytes(gpu.memoryTotal)}
                         </span>
                       </div>
@@ -408,15 +410,15 @@ export default function SystemMonitorPage() {
         {/* Containers & Pods */}
         <div className="col-span-4 space-y-4">
           {/* Containers with CPU/Memory */}
-          <div className="bg-surface-900 rounded-lg p-3 border border-surface-700">
+          <div className="card p-4">
             <div className="flex items-center gap-2 mb-3">
-              <Container className="w-4 h-4 text-purple-400" />
-              <span className="text-purple-400 font-semibold">CONTAINERS (Real-time)</span>
+              <Container className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+              <span className="text-surface-900 dark:text-surface-100 font-semibold">Containers (Real-time)</span>
               <span className="text-surface-500 text-xs ml-auto">{data?.containers.length || 0}</span>
             </div>
             <div className="overflow-x-auto max-h-[280px] overflow-y-auto">
               <table className="w-full text-xs">
-                <thead className="text-surface-500 sticky top-0 bg-surface-900">
+                <thead className="text-surface-500 sticky top-0 bg-white dark:bg-surface-900">
                   <tr>
                     <th className="text-left py-1">Container</th>
                     <th className="text-right py-1">CPU%</th>
@@ -425,9 +427,9 @@ export default function SystemMonitorPage() {
                 </thead>
                 <tbody>
                   {data?.containers.map((c: any, i: number) => (
-                    <tr key={i} className="border-t border-surface-800 hover:bg-surface-800">
+                    <tr key={i} className="border-t border-surface-200 dark:border-surface-800 hover:bg-surface-50 dark:hover:bg-surface-800">
                       <td className="py-1.5">
-                        <div className="text-cyan-300 truncate max-w-[140px]" title={c.name}>
+                        <div className="text-surface-900 dark:text-surface-100 truncate max-w-[140px]" title={c.name}>
                           {c.name.split('/').pop()}
                         </div>
                         <div className="text-[10px] text-surface-500 truncate max-w-[140px]">
@@ -436,7 +438,7 @@ export default function SystemMonitorPage() {
                       </td>
                       <td className="py-1.5 text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <div className="w-12 h-1.5 bg-surface-700 rounded overflow-hidden">
+                          <div className="w-12 h-1.5 bg-surface-200 dark:bg-surface-700 rounded overflow-hidden">
                             <div
                               className={`h-full rounded ${(c.cpu || 0) > 80 ? 'bg-red-500' :
                                   (c.cpu || 0) > 50 ? 'bg-amber-500' : 'bg-green-500'
@@ -444,15 +446,15 @@ export default function SystemMonitorPage() {
                               style={{ width: `${Math.min(c.cpu || 0, 100)}%` }}
                             />
                           </div>
-                          <span className={
-                            (c.cpu || 0) > 80 ? 'text-red-400' :
-                              (c.cpu || 0) > 50 ? 'text-amber-400' : 'text-green-400'
-                          }>
+                          <span className={`font-mono ${
+                            (c.cpu || 0) > 80 ? 'text-red-600 dark:text-red-400' :
+                              (c.cpu || 0) > 50 ? 'text-amber-600 dark:text-amber-400' : 'text-green-600 dark:text-green-400'
+                          }`}>
                             {(c.cpu || 0).toFixed(1)}%
                           </span>
                         </div>
                       </td>
-                      <td className="py-1.5 text-right text-surface-300">
+                      <td className="py-1.5 text-right text-surface-700 dark:text-surface-300 font-mono">
                         {c.memory || '-'}
                       </td>
                     </tr>
@@ -466,37 +468,37 @@ export default function SystemMonitorPage() {
           </div>
 
           {/* Kubernetes Pods */}
-          <div className="bg-surface-900 rounded-lg p-3 border border-surface-700">
+          <div className="card p-4">
             <div className="flex items-center gap-2 mb-3">
-              <Server className="w-4 h-4 text-blue-400" />
-              <span className="text-blue-400 font-semibold">K8S PODS</span>
+              <Server className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              <span className="text-surface-900 dark:text-surface-100 font-semibold">K8s Pods</span>
               <span className="text-surface-500 text-xs ml-auto">{data?.k8sPods.length || 0}</span>
             </div>
             <div className="overflow-x-auto max-h-[300px] overflow-y-auto">
               <div className="space-y-2">
                 {data?.k8sPods.map((pod, i) => (
-                  <div key={i} className="bg-surface-800 rounded p-2 hover:bg-surface-750">
+                  <div key={i} className="bg-surface-50 dark:bg-surface-800 rounded p-2 hover:bg-surface-100 dark:hover:bg-surface-750">
                     <div className="flex items-center justify-between mb-1">
                       <div className="flex items-center gap-2">
                         <span className={`w-2 h-2 rounded-full ${pod.status === 'Running' ? 'bg-green-500' :
                             pod.status === 'Pending' ? 'bg-yellow-500 animate-pulse' : 'bg-red-500'
                           }`} />
-                        <span className="text-cyan-300 font-medium">{pod.name}</span>
+                        <span className="text-surface-900 dark:text-surface-100 font-medium">{pod.name}</span>
                       </div>
                       <span className="text-surface-500 text-[10px]">{pod.age}</span>
                     </div>
                     <div className="flex items-center justify-between text-[10px]">
-                      <span className="text-purple-400">{pod.namespace}</span>
+                      <span className="text-purple-600 dark:text-purple-400">{pod.namespace}</span>
                       <div className="flex items-center gap-2">
-                        <span className="text-surface-400">Ready: {pod.ready}</span>
+                        <span className="text-surface-500">Ready: {pod.ready}</span>
                         <span className={
-                          pod.status === 'Running' ? 'text-green-400' :
-                            pod.status === 'Pending' ? 'text-yellow-400' : 'text-red-400'
+                          pod.status === 'Running' ? 'text-green-600 dark:text-green-400' :
+                            pod.status === 'Pending' ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'
                         }>
                           {pod.status}
                         </span>
                         {pod.restarts && Number(pod.restarts) > 0 && (
-                          <span className="text-amber-400">Restarts: {pod.restarts}</span>
+                          <span className="text-amber-600 dark:text-amber-400">Restarts: {pod.restarts}</span>
                         )}
                       </div>
                     </div>
@@ -512,15 +514,15 @@ export default function SystemMonitorPage() {
 
         {/* Processes */}
         <div className="col-span-4">
-          <div className="bg-surface-900 rounded-lg p-3 border border-surface-700 h-full">
+          <div className="card p-4 h-full">
             <div className="flex items-center gap-2 mb-3">
-              <Gauge className="w-4 h-4 text-orange-400" />
-              <span className="text-orange-400 font-semibold">TOP PROCESSES</span>
+              <Gauge className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+              <span className="text-surface-900 dark:text-surface-100 font-semibold">Top Processes</span>
               <span className="text-surface-500 text-xs ml-auto">by CPU</span>
             </div>
             <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
               <table className="w-full text-xs">
-                <thead className="text-surface-500 sticky top-0 bg-surface-900">
+                <thead className="text-surface-500 sticky top-0 bg-white dark:bg-surface-900">
                   <tr>
                     <th className="text-left py-1">PID</th>
                     <th className="text-left py-1">USER</th>
@@ -531,20 +533,20 @@ export default function SystemMonitorPage() {
                 </thead>
                 <tbody>
                   {data?.processes.map((p, i) => (
-                    <tr key={i} className="border-t border-surface-800 hover:bg-surface-800">
-                      <td className="py-1 text-surface-400">{p.pid}</td>
-                      <td className="py-1 text-cyan-300">{p.user}</td>
+                    <tr key={i} className="border-t border-surface-200 dark:border-surface-800 hover:bg-surface-50 dark:hover:bg-surface-800">
+                      <td className="py-1 text-surface-500 font-mono">{p.pid}</td>
+                      <td className="py-1 text-surface-700 dark:text-surface-300">{p.user}</td>
                       <td className="py-1 text-right">
-                        <span className={p.cpu > 50 ? 'text-red-400' : p.cpu > 20 ? 'text-yellow-400' : 'text-green-400'}>
+                        <span className={`font-mono ${p.cpu > 50 ? 'text-red-600 dark:text-red-400' : p.cpu > 20 ? 'text-yellow-600 dark:text-yellow-400' : 'text-green-600 dark:text-green-400'}`}>
                           {p.cpu.toFixed(1)}
                         </span>
                       </td>
                       <td className="py-1 text-right">
-                        <span className={p.mem > 50 ? 'text-red-400' : p.mem > 20 ? 'text-yellow-400' : 'text-green-400'}>
+                        <span className={`font-mono ${p.mem > 50 ? 'text-red-600 dark:text-red-400' : p.mem > 20 ? 'text-yellow-600 dark:text-yellow-400' : 'text-green-600 dark:text-green-400'}`}>
                           {p.mem.toFixed(1)}
                         </span>
                       </td>
-                      <td className="py-1 text-surface-300 truncate max-w-[150px]" title={p.command}>
+                      <td className="py-1 text-surface-700 dark:text-surface-300 truncate max-w-[150px] font-mono" title={p.command}>
                         {p.command}
                       </td>
                     </tr>
@@ -557,7 +559,7 @@ export default function SystemMonitorPage() {
       </div>
 
       {/* Footer */}
-      <div className="mt-4 pt-2 border-t border-surface-700 text-xs text-surface-500 flex justify-between">
+      <div className="mt-4 pt-2 border-t border-surface-200 dark:border-surface-700 text-xs text-surface-500 flex justify-between">
         <span>Last update: {data?.timestamp ? new Date(data.timestamp).toLocaleString() : '-'}</span>
         <span>Enterprise AI Chat - System Monitor</span>
       </div>

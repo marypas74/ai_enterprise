@@ -3,6 +3,8 @@ import {
   Users,
   UserCog,
   Shield,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 
 export interface User {
@@ -67,8 +69,18 @@ export default function UserForm({ user, groups, onSave, onCancel }: UserFormPro
     notes: user?.notes || '',
   });
 
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (formData.password && formData.password !== confirmPassword) {
+      setPasswordError('Le password non coincidono');
+      return;
+    }
+    setPasswordError('');
     onSave(formData);
   };
 
@@ -104,19 +116,60 @@ export default function UserForm({ user, groups, onSave, onCancel }: UserFormPro
               disabled={!!user}
             />
           </div>
-          <div>
+          <div className="md:col-span-2">
             <label className="block text-sm font-medium mb-1">
               Password {user ? '(lascia vuoto per non modificare)' : '*'}
             </label>
-            <input
-              type="password"
-              value={formData.password}
-              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-              className="input w-full"
-              placeholder={user ? '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022' : 'Minimo 8 caratteri'}
-              required={!user}
-              minLength={8}
-            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={formData.password}
+                  onChange={(e) => {
+                    setFormData({ ...formData, password: e.target.value });
+                    if (passwordError) setPasswordError('');
+                  }}
+                  className="input w-full pr-10"
+                  placeholder={user ? '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022' : 'Minimo 8 caratteri'}
+                  required={!user}
+                  minLength={8}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-surface-400 hover:text-surface-600 dark:hover:text-surface-300"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              {(formData.password || !user) && (
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={(e) => {
+                      setConfirmPassword(e.target.value);
+                      if (passwordError) setPasswordError('');
+                    }}
+                    className={`input w-full pr-10 ${passwordError ? 'border-red-500 focus:ring-red-500' : ''}`}
+                    placeholder="Conferma password"
+                    required={!user || !!formData.password}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-surface-400 hover:text-surface-600 dark:hover:text-surface-300"
+                    tabIndex={-1}
+                  >
+                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              )}
+            </div>
+            {passwordError && (
+              <p className="mt-1 text-sm text-red-500">{passwordError}</p>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">Ruolo *</label>

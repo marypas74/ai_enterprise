@@ -119,6 +119,14 @@ export default function ProvidersPage() {
     try {
       await api.put(`/admin/providers/${selectedProvider.id}/settings`, values);
       setTestResult({ success: true, message: 'Settings saved successfully' });
+      // Auto-sync models for OpenAI when settings are saved
+      if (selectedProvider.name === 'openai') {
+        try {
+          await api.post('/admin/providers/openai/sync');
+        } catch {
+          // Non-blocking — sync failure doesn't affect save success
+        }
+      }
     } catch (err) {
       console.error('Failed to save settings:', err);
       setTestResult({ success: false, message: 'Failed to save settings' });
@@ -149,6 +157,18 @@ export default function ProvidersPage() {
     try {
       const response = await api.post('/admin/providers/ollama/sync');
       alert(`Synced ${response.data.models?.length || 0} models from Ollama`);
+    } catch (err: any) {
+      alert('Failed to sync: ' + (err.response?.data?.error || 'Unknown error'));
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const syncOpenAIModels = async () => {
+    setSyncing(true);
+    try {
+      const response = await api.post('/admin/providers/openai/sync');
+      alert(`Synced ${response.data.models?.length || 0} OpenAI models`);
     } catch (err: any) {
       alert('Failed to sync: ' + (err.response?.data?.error || 'Unknown error'));
     } finally {
@@ -241,15 +261,15 @@ export default function ProvidersPage() {
   }
 
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
+    <div className="p-6 flex flex-col h-full">
+      <div className="flex items-center justify-between mb-6 flex-shrink-0">
         <div>
           <h1 className="text-2xl font-bold">AI Providers</h1>
           <p className="text-surface-500 mt-1">Configure your AI service providers and their API credentials</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0 overflow-y-auto">
         {/* Provider List */}
         <div className="lg:col-span-1 space-y-3">
           {providers.map(provider => (
@@ -320,6 +340,16 @@ export default function ProvidersPage() {
                   {selectedProvider.name === 'ollama' && (
                     <button
                       onClick={syncOllamaModels}
+                      disabled={syncing}
+                      className="btn btn-secondary flex items-center gap-2"
+                    >
+                      <RefreshCw className={clsx('w-4 h-4', syncing && 'animate-spin')} />
+                      Sync Models
+                    </button>
+                  )}
+                  {selectedProvider.name === 'openai' && (
+                    <button
+                      onClick={syncOpenAIModels}
                       disabled={syncing}
                       className="btn btn-secondary flex items-center gap-2"
                     >

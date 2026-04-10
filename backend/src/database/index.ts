@@ -1,6 +1,12 @@
 import { FastifyInstance } from 'fastify';
 import mysql from 'mysql2/promise';
 import fp from 'fastify-plugin';
+import { readFileSync, existsSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname_db = dirname(__filename);
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -603,6 +609,21 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
         ('max_escalation_rate', '0.25')`
     },
     {
+      name: 'guide_pages',
+      sql: `CREATE TABLE IF NOT EXISTS guide_pages (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        slug VARCHAR(100) NOT NULL UNIQUE,
+        title VARCHAR(255) NOT NULL,
+        description VARCHAR(500) NULL,
+        content LONGTEXT NOT NULL,
+        updated_by_user_id BIGINT UNSIGNED NULL,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL,
+        INDEX idx_slug (slug)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+    },
+    {
       name: 'user_certificates',
       sql: `CREATE TABLE IF NOT EXISTS user_certificates (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -670,6 +691,9 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
     { name: 'conversations_add_document_ids', sql: `ALTER TABLE conversations ADD COLUMN document_ids JSON NULL` },
     // v4.1: Brainstorming mode
     { name: 'conversations_chat_mode_add_brainstorm', sql: `ALTER TABLE conversations MODIFY COLUMN chat_mode ENUM('free', 'rag', 'brainstorm') DEFAULT 'free'` },
+    // v4.2: Hidden and local-only users
+    { name: 'users_add_is_hidden', sql: `ALTER TABLE users ADD COLUMN is_hidden BOOLEAN NOT NULL DEFAULT FALSE` },
+    { name: 'users_add_local_only', sql: `ALTER TABLE users ADD COLUMN local_only BOOLEAN NOT NULL DEFAULT FALSE` },
   ];
 
   for (const migration of alterMigrations) {
@@ -720,6 +744,9 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
 
   // Seed default prompt templates
   await seedPromptTemplates(pool, fastify);
+
+  // Seed guide pages from static HTML files (only if table is empty)
+  await seedGuidePages(pool, fastify);
 }
 
 async function seedAIActSettings(pool: mysql.Pool, fastify: FastifyInstance): Promise<void> {
@@ -735,6 +762,7 @@ async function seedAIActSettings(pool: mysql.Pool, fastify: FastifyInstance): Pr
     { key: 'bias_monitoring_enabled', value: 'true', type: 'boolean', desc: 'Enable periodic bias monitoring', pub: false },
     { key: 'human_oversight_topics', value: '["medical","legal","financial","hiring"]', type: 'json', desc: 'Topics requiring human oversight warning', pub: false },
     { key: 'feedback_enabled', value: 'true', type: 'boolean', desc: 'Enable thumbs up/down feedback on AI responses', pub: true },
+    { key: 'mfa_enforced', value: 'false', type: 'boolean', desc: 'Richiedi autenticazione a due fattori (MFA) per accesso esterno', pub: true },
   ];
 
   for (const s of aiActSettings) {
@@ -797,5 +825,46 @@ async function seedPromptTemplates(pool: mysql.Pool, fastify: FastifyInstance): 
     fastify.log.info(`[Migration] Seeded ${DEFAULT_TEMPLATES.length} default prompt templates`);
   } catch (err) {
     fastify.log.warn({ err }, '[Migration] Prompt templates seeding skipped');
+  }
+}
+
+async function seedGuidePages(pool: mysql.Pool, fastify: FastifyInstance): Promise<void> {
+  try {
+    const [rows] = await pool.execute('SELECT COUNT(*) as cnt FROM guide_pages');
+    const count = (rows as any[])[0]?.cnt || 0;
+    if (count > 0) return; // Already seeded
+
+    const guidesDir = join(__dirname_db, '..', 'guides');
+    const guides = [
+      {
+        slug: 'user',
+        title: 'Guida Utente',
+        description: 'Guida completa per gli utenti della piattaforma Enterprise AI Chat',
+        file: join(guidesDir, 'user-guide.html'),
+      },
+      {
+        slug: 'admin',
+        title: 'Guida Amministratore',
+        description: 'Guida completa per la configurazione e gestione del sistema',
+        file: join(guidesDir, 'admin-guide.html'),
+      },
+    ];
+
+    let seeded = 0;
+    for (const g of guides) {
+      if (!existsSync(g.file)) {
+        fastify.log.warn(`[Guides] File not found, skipping seed for slug "${g.slug}": ${g.file}`);
+        continue;
+      }
+      const content = readFileSync(g.file, 'utf-8');
+      await pool.execute(
+        `INSERT INTO guide_pages (slug, title, description, content) VALUES (?, ?, ?, ?)`,
+        [g.slug, g.title, g.description, content]
+      );
+      seeded++;
+    }
+    fastify.log.info(`[Guides] Seeded ${seeded} guide pages from static HTML files`);
+  } catch (err) {
+    fastify.log.warn({ err }, '[Guides] Guide pages seeding skipped');
   }
 }

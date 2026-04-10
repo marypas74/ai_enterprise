@@ -323,7 +323,10 @@ export async function providerCrudRoutes(fastify: FastifyInstance) {
           if (testResp.status === 403) {
             throw new Error('API key non autorizzata (403 Forbidden)');
           }
-          // Any other response (200, 400, 429) means the key is accepted
+          if (testResp.status >= 500) {
+            throw new Error(`Errore server Anthropic (${testResp.status})`);
+          }
+          // 200 = success, 400 = bad request (key ok but request issue), 429 = rate limit (key ok)
           break;
         }
         case 'google':

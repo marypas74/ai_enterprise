@@ -183,8 +183,8 @@ export default function AgentsPage() {
   };
 
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
+    <div className="p-6 flex flex-col h-full">
+      <div className="flex items-center justify-between mb-6 flex-shrink-0">
         <div>
           <h1 className="text-2xl font-bold">Agents</h1>
           <p className="text-surface-500 mt-1">Gestisci gli agenti AI autonomi e assistenti</p>
@@ -199,7 +199,7 @@ export default function AgentsPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex gap-4 mb-6">
+      <div className="flex gap-4 mb-6 flex-shrink-0">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-surface-400" />
           <input
@@ -222,6 +222,7 @@ export default function AgentsPage() {
         </select>
       </div>
 
+      <div className="flex-1 min-h-0 overflow-y-auto">
       {/* Stats Cards */}
       <div className="grid grid-cols-4 gap-4 mb-6">
         <div className="card p-4">
@@ -373,6 +374,8 @@ export default function AgentsPage() {
           })}
         </div>
       )}
+
+      </div>
 
       {/* Modal per nuovo/modifica agent */}
       {showModal && (

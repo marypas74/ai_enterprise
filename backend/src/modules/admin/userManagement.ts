@@ -5,28 +5,38 @@ import { findOne, findMany, insertOne, updateOne } from '../../database/index.js
 
 // Validation schemas
 const createUserSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8),
-  name: z.string().min(1),
-  role: z.enum(['admin', 'user']).optional(),
-  groupIds: z.array(z.number()).optional(),
-  phone: z.string().optional(),
-  company: z.string().optional(),
-  department: z.string().optional(),
-  job_title: z.string().optional(),
-  notes: z.string().optional(),
+  email: z.string({ required_error: 'Email è obbligatoria' })
+    .min(1, 'Email è obbligatoria')
+    .email('Formato email non valido (es. nome@dominio.com)'),
+  password: z.string({ required_error: 'Password è obbligatoria' })
+    .min(8, 'La password deve contenere almeno 8 caratteri')
+    .max(128, 'La password non può superare 128 caratteri'),
+  name: z.string({ required_error: 'Nome è obbligatorio' })
+    .min(1, 'Nome è obbligatorio')
+    .max(100, 'Il nome non può superare 100 caratteri'),
+  role: z.enum(['admin', 'user'], { message: 'Ruolo non valido: deve essere "admin" o "user"' }).optional(),
+  groupIds: z.array(z.number({ message: 'Ogni ID gruppo deve essere un numero' }), { message: 'groupIds deve essere un array di numeri' }).optional(),
+  phone: z.string().max(20, 'Il numero di telefono non può superare 20 caratteri').optional(),
+  company: z.string().max(100, 'Il nome azienda non può superare 100 caratteri').optional(),
+  department: z.string().max(100, 'Il reparto non può superare 100 caratteri').optional(),
+  job_title: z.string().max(100, 'La qualifica non può superare 100 caratteri').optional(),
+  notes: z.string().max(2000, 'Le note non possono superare 2000 caratteri').optional(),
+  is_hidden: z.boolean().optional(),
+  local_only: z.boolean().optional(),
 });
 
 const updateUserSchema = z.object({
-  name: z.string().min(1).optional(),
-  role: z.enum(['admin', 'user']).optional(),
-  is_active: z.preprocess((val) => val === 1 || val === true, z.boolean()).optional(),
-  password: z.string().min(8).optional(),
-  phone: z.string().nullable().optional(),
-  company: z.string().nullable().optional(),
-  department: z.string().nullable().optional(),
-  job_title: z.string().nullable().optional(),
-  notes: z.string().nullable().optional(),
+  name: z.string().min(1, 'Nome è obbligatorio').max(100, 'Il nome non può superare 100 caratteri').optional(),
+  role: z.enum(['admin', 'user'], { message: 'Ruolo non valido: deve essere "admin" o "user"' }).optional(),
+  is_active: z.preprocess((val) => val === undefined ? undefined : (val === 1 || val === true), z.boolean().optional()),
+  password: z.string().min(8, 'La password deve contenere almeno 8 caratteri').max(128, 'La password non può superare 128 caratteri').optional(),
+  phone: z.string().max(20, 'Il numero di telefono non può superare 20 caratteri').nullable().optional(),
+  company: z.string().max(100, 'Il nome azienda non può superare 100 caratteri').nullable().optional(),
+  department: z.string().max(100, 'Il reparto non può superare 100 caratteri').nullable().optional(),
+  job_title: z.string().max(100, 'La qualifica non può superare 100 caratteri').nullable().optional(),
+  notes: z.string().max(2000, 'Le note non possono superare 2000 caratteri').nullable().optional(),
+  is_hidden: z.boolean().optional(),
+  local_only: z.boolean().optional(),
 });
 
 // Types
@@ -73,12 +83,13 @@ export async function userManagementRoutes(fastify: FastifyInstance) {
       FROM users u
       LEFT JOIN user_groups ug ON u.id = ug.user_id
       LEFT JOIN \`groups\` g ON ug.group_id = g.id
+      WHERE (u.is_hidden IS NULL OR u.is_hidden = FALSE)
     `;
 
     const params: any[] = [];
 
     if (search) {
-      sql += ' WHERE u.email LIKE ? OR u.name LIKE ?';
+      sql += ' AND (u.email LIKE ? OR u.name LIKE ?)';
       params.push(`%${search}%`, `%${search}%`);
     }
 
@@ -130,7 +141,16 @@ export async function userManagementRoutes(fastify: FastifyInstance) {
       body = createUserSchema.parse(request.body);
     } catch (err) {
       if (err instanceof z.ZodError) {
-        return reply.status(400).send({ error: 'Validation failed', details: err.errors });
+        const fieldErrors = err.errors.map(e => ({
+          campo: e.path.join('.') || '(root)',
+          messaggio: e.message,
+        }));
+        fastify.log.warn({ validationErrors: fieldErrors, reqId: request.id }, '[Admin] Creazione utente: validazione fallita');
+        return reply.status(400).send({
+          error: 'Errori di validazione',
+          message: fieldErrors.map(e => e.messaggio).join('; '),
+          details: fieldErrors,
+        });
       }
       throw err;
     }
@@ -145,8 +165,8 @@ export async function userManagementRoutes(fastify: FastifyInstance) {
 
     const userId = await insertOne(
       fastify.db,
-      'INSERT INTO users (email, password_hash, name, role, phone, company, department, job_title, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [body.email, passwordHash, body.name, body.role || 'user', body.phone || null, body.company || null, body.department || null, body.job_title || null, body.notes || null]
+      'INSERT INTO users (email, password_hash, name, role, phone, company, department, job_title, notes, is_hidden, local_only) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [body.email, passwordHash, body.name, body.role || 'user', body.phone || null, body.company || null, body.department || null, body.job_title || null, body.notes || null, body.is_hidden ? 1 : 0, body.local_only ? 1 : 0]
     );
 
     // Add to groups
@@ -188,7 +208,16 @@ export async function userManagementRoutes(fastify: FastifyInstance) {
       body = updateUserSchema.parse(request.body);
     } catch (err) {
       if (err instanceof z.ZodError) {
-        return reply.status(400).send({ error: 'Validation failed', details: err.errors });
+        const fieldErrors = err.errors.map(e => ({
+          campo: e.path.join('.') || '(root)',
+          messaggio: e.message,
+        }));
+        fastify.log.warn({ validationErrors: fieldErrors, reqId: request.id }, '[Admin] Aggiornamento utente: validazione fallita');
+        return reply.status(400).send({
+          error: 'Errori di validazione',
+          message: fieldErrors.map(e => e.messaggio).join('; '),
+          details: fieldErrors,
+        });
       }
       throw err;
     }
@@ -232,6 +261,14 @@ export async function userManagementRoutes(fastify: FastifyInstance) {
     if (body.notes !== undefined) {
       updates.push('notes = ?');
       values.push(body.notes || null);
+    }
+    if (body.is_hidden !== undefined) {
+      updates.push('is_hidden = ?');
+      values.push(body.is_hidden ? 1 : 0);
+    }
+    if (body.local_only !== undefined) {
+      updates.push('local_only = ?');
+      values.push(body.local_only ? 1 : 0);
     }
 
     if (updates.length === 0) {

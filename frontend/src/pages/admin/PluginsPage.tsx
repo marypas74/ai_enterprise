@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '../../hooks/useAuth';
+import { api } from '../../services/api';
 import DynamicForm from '../../components/DynamicForm';
 import { getMyInstallations, type Installation } from '../../services/marketplaceApi';
 import {
@@ -89,7 +89,6 @@ const PLUGIN_ICONS: Record<string, any> = {
 };
 
 export default function PluginsPage() {
-  const { token } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>('plugins');
   const [plugins, setPlugins] = useState<Plugin[]>([]);
   const [mcpServers, setMcpServers] = useState<MCPServer[]>([]);
@@ -131,12 +130,8 @@ export default function PluginsPage() {
 
   const fetchPlugins = async () => {
     try {
-      const response = await fetch('/api/plugins', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (response.ok) {
-        setPlugins(await response.json());
-      }
+      const response = await api.get('/plugins');
+      setPlugins(response.data);
     } catch (error) {
       console.error('Error fetching plugins:', error);
     }
@@ -144,12 +139,8 @@ export default function PluginsPage() {
 
   const fetchMCPServers = async () => {
     try {
-      const response = await fetch('/api/mcp-servers', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (response.ok) {
-        setMcpServers(await response.json());
-      }
+      const response = await api.get('/mcp-servers');
+      setMcpServers(response.data);
     } catch (error) {
       console.error('Error fetching MCP servers:', error);
     }
@@ -157,12 +148,8 @@ export default function PluginsPage() {
 
   const fetchTools = async () => {
     try {
-      const response = await fetch('/api/tools', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (response.ok) {
-        setTools(await response.json());
-      }
+      const response = await api.get('/tools');
+      setTools(response.data);
     } catch (error) {
       console.error('Error fetching tools:', error);
     }
@@ -172,18 +159,8 @@ export default function PluginsPage() {
     if (plugin.is_system) return;
 
     try {
-      const response = await fetch(`/api/plugins/${plugin.id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ is_enabled: !plugin.is_enabled })
-      });
-
-      if (response.ok) {
-        fetchPlugins();
-      }
+      await api.patch(`/plugins/${plugin.id}`, { is_enabled: !plugin.is_enabled });
+      fetchPlugins();
     } catch (error) {
       console.error('Error toggling plugin:', error);
     }
@@ -191,18 +168,8 @@ export default function PluginsPage() {
 
   const handleToggleMCP = async (mcp: MCPServer) => {
     try {
-      const response = await fetch(`/api/mcp-servers/${mcp.id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ is_enabled: !mcp.is_enabled })
-      });
-
-      if (response.ok) {
-        fetchMCPServers();
-      }
+      await api.patch(`/mcp-servers/${mcp.id}`, { is_enabled: !mcp.is_enabled });
+      fetchMCPServers();
     } catch (error) {
       console.error('Error toggling MCP:', error);
     }
@@ -210,18 +177,8 @@ export default function PluginsPage() {
 
   const handleToggleTool = async (tool: Tool) => {
     try {
-      const response = await fetch(`/api/tools/${tool.id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ is_enabled: !tool.is_enabled })
-      });
-
-      if (response.ok) {
-        fetchTools();
-      }
+      await api.patch(`/tools/${tool.id}`, { is_enabled: !tool.is_enabled });
+      fetchTools();
     } catch (error) {
       console.error('Error toggling tool:', error);
     }
@@ -232,13 +189,8 @@ export default function PluginsPage() {
     setTestResult(null);
 
     try {
-      const response = await fetch(`/api/mcp-servers/${mcp.id}/test`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      const result = await response.json();
-      setTestResult(result);
+      const response = await api.post(`/mcp-servers/${mcp.id}/test`);
+      setTestResult(response.data);
     } catch (error) {
       setTestResult({ success: false, message: 'Connection error' });
     } finally {
@@ -250,19 +202,9 @@ export default function PluginsPage() {
     if (!selectedPlugin) return;
 
     try {
-      const response = await fetch(`/api/plugins/${selectedPlugin.id}/settings`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify(values)
-      });
-
-      if (response.ok) {
-        setShowSettings(false);
-        setSelectedPlugin(null);
-      }
+      await api.put(`/plugins/${selectedPlugin.id}/settings`, values);
+      setShowSettings(false);
+      setSelectedPlugin(null);
     } catch (error) {
       console.error('Error saving plugin settings:', error);
     }
@@ -297,8 +239,8 @@ export default function PluginsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-6 flex flex-col h-full">
+      <div className="flex items-center justify-between flex-shrink-0">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Plugins & MCP</h2>
           <p className="text-gray-500 mt-1">Gestisci plugins, MCP servers e tools</p>
@@ -306,7 +248,7 @@ export default function PluginsPage() {
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-gray-200">
+      <div className="border-b border-gray-200 mt-6 flex-shrink-0">
         <nav className="flex gap-4">
           {tabs.map(tab => {
             const Icon = tab.icon;
@@ -331,6 +273,7 @@ export default function PluginsPage() {
         </nav>
       </div>
 
+      <div className="flex-1 min-h-0 overflow-y-auto mt-6">
       {/* Plugins Tab */}
       {activeTab === 'plugins' && (
         <div className="space-y-4">
@@ -743,6 +686,7 @@ export default function PluginsPage() {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

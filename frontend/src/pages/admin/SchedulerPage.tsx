@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '../../hooks/useAuth';
+import { api } from '../../services/api';
 import { Clock, Play, Pause, Trash2, Plus, RefreshCw, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 
 interface ScheduledJob {
@@ -36,7 +36,6 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function SchedulerPage() {
-  const { token } = useAuth();
   const [jobs, setJobs] = useState<ScheduledJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -58,13 +57,10 @@ export default function SchedulerPage() {
     conversation_id: '',
   });
 
-  const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
-
   const loadJobs = async () => {
     try {
-      const res = await fetch('/api/scheduler/jobs', { headers });
-      const data = await res.json();
-      setJobs(data.jobs || []);
+      const res = await api.get('/scheduler/jobs');
+      setJobs(res.data.jobs || []);
     } catch (err) {
       console.error('Failed to load jobs:', err);
     } finally {
@@ -74,9 +70,8 @@ export default function SchedulerPage() {
 
   const loadExecutions = async (jobId: number) => {
     try {
-      const res = await fetch(`/api/scheduler/jobs/${jobId}/executions`, { headers });
-      const data = await res.json();
-      setExecutions(data.executions || []);
+      const res = await api.get(`/scheduler/jobs/${jobId}/executions`);
+      setExecutions(res.data.executions || []);
       setSelectedJob(jobId);
     } catch (err) {
       console.error('Failed to load executions:', err);
@@ -99,17 +94,13 @@ export default function SchedulerPage() {
       actionConfig.conversation_id = parseInt(newJob.conversation_id) || 0;
     }
 
-    await fetch('/api/scheduler/jobs', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        name: newJob.name,
-        description: newJob.description,
-        job_type: newJob.job_type,
-        action_type: newJob.action_type,
-        action_config: actionConfig,
-        schedule_config: scheduleConfig,
-      }),
+    await api.post('/scheduler/jobs', {
+      name: newJob.name,
+      description: newJob.description,
+      job_type: newJob.job_type,
+      action_type: newJob.action_type,
+      action_config: actionConfig,
+      schedule_config: scheduleConfig,
     });
 
     setShowCreate(false);
@@ -117,18 +108,18 @@ export default function SchedulerPage() {
   };
 
   const pauseJob = async (id: number) => {
-    await fetch(`/api/scheduler/jobs/${id}/pause`, { method: 'PATCH', headers });
+    await api.patch(`/scheduler/jobs/${id}/pause`);
     loadJobs();
   };
 
   const resumeJob = async (id: number) => {
-    await fetch(`/api/scheduler/jobs/${id}/resume`, { method: 'PATCH', headers });
+    await api.patch(`/scheduler/jobs/${id}/resume`);
     loadJobs();
   };
 
   const cancelJob = async (id: number) => {
     if (!confirm('Sei sicuro di voler cancellare questo job?')) return;
-    await fetch(`/api/scheduler/jobs/${id}`, { method: 'DELETE', headers });
+    await api.delete(`/scheduler/jobs/${id}`);
     loadJobs();
   };
 
@@ -141,11 +132,11 @@ export default function SchedulerPage() {
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-6 flex flex-col h-full gap-6">
+      <div className="flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-3">
           <Clock className="w-6 h-6 text-primary-500" />
-          <h1 className="text-2xl font-bold">Scheduler (White Rabbit)</h1>
+          <h1 className="text-2xl font-bold flex-shrink-0">Scheduler (White Rabbit)</h1>
         </div>
         <div className="flex gap-2">
           <button onClick={loadJobs} className="btn btn-secondary flex items-center gap-2">
@@ -159,7 +150,7 @@ export default function SchedulerPage() {
 
       {/* Create Job Modal */}
       {showCreate && (
-        <div className="card p-6 border-2 border-primary-300 dark:border-primary-700">
+        <div className="card p-6 border-2 border-primary-300 dark:border-primary-700 flex-shrink-0">
           <h2 className="text-lg font-semibold mb-4">Crea Nuovo Job</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -245,9 +236,9 @@ export default function SchedulerPage() {
       )}
 
       {/* Jobs Table */}
-      <div className="card overflow-hidden">
+      <div className="card overflow-auto flex-1 min-h-0">
         <table className="w-full">
-          <thead>
+          <thead className="sticky top-0 z-10">
             <tr className="text-left text-sm text-surface-500 bg-surface-50 dark:bg-surface-900">
               <th className="px-4 py-3">ID</th>
               <th className="px-4 py-3">Nome</th>
@@ -311,7 +302,7 @@ export default function SchedulerPage() {
 
       {/* Execution History */}
       {selectedJob && (
-        <div className="card p-6">
+        <div className="card p-6 flex-shrink-0">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold">Cronologia Esecuzioni - Job #{selectedJob}</h2>
             <button onClick={() => setSelectedJob(null)} className="text-sm text-surface-500 hover:text-surface-700">&times; Chiudi</button>

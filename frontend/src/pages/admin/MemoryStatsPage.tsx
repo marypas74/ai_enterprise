@@ -114,16 +114,16 @@ export default function MemoryStatsPage() {
   const totalPoints = collections.reduce((acc, c) => acc + c.points_count, 0);
 
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Statistiche Memoria</h1>
+    <div className="p-6 flex flex-col h-full">
+      <div className="flex items-center justify-between mb-6 flex-shrink-0">
+        <h1 className="text-2xl font-bold flex-shrink-0">Statistiche Memoria</h1>
         <button onClick={loadAll} className="btn btn-secondary flex items-center gap-2">
           <RefreshCw className="w-4 h-4" /> Aggiorna
         </button>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 flex-shrink-0">
         <div className="card p-5">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-lg bg-indigo-100 dark:bg-indigo-900/30">
@@ -184,8 +184,8 @@ export default function MemoryStatsPage() {
         <h2 className="text-lg font-semibold mb-4">Collezioni Vettoriali</h2>
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead>
-              <tr className="text-left text-sm text-surface-500 border-b border-surface-200 dark:border-surface-700">
+            <thead className="sticky top-0 z-10">
+              <tr className="text-left text-sm text-surface-500 border-b border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900">
                 <th className="pb-3 font-medium">Collezione</th>
                 <th className="pb-3 font-medium">Punti</th>
                 <th className="pb-3 font-medium">Stato</th>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../../hooks/useAuth';
+import { api } from '../../services/api';
 import {
   FileText, Plus, Save, Trash2, Eye, ToggleLeft, ToggleRight,
   RefreshCw, AlertCircle, CheckCircle, ChevronDown, ChevronRight, X,
@@ -34,7 +34,6 @@ const TEMPLATE_TYPE_COLORS: Record<string, string> = {
 };
 
 export default function PromptTemplatesPage() {
-  const { token } = useAuth();
   const [templates, setTemplates] = useState<PromptTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -53,8 +52,6 @@ export default function PromptTemplatesPage() {
   const [newContent, setNewContent] = useState('');
   const [newDescription, setNewDescription] = useState('');
 
-  const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
-
   const showNotification = (type: 'success' | 'error', message: string) => {
     setNotification({ type, message });
     setTimeout(() => setNotification(null), 3000);
@@ -63,15 +60,14 @@ export default function PromptTemplatesPage() {
   const fetchTemplates = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/admin/prompt-templates', { headers });
-      const data = await res.json();
-      setTemplates(data.templates || []);
+      const res = await api.get('/admin/prompt-templates');
+      setTemplates(res.data.templates || []);
     } catch (err) {
       showNotification('error', 'Errore nel caricamento dei template');
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, []);
 
   useEffect(() => { fetchTemplates(); }, []);
 
@@ -101,22 +97,14 @@ export default function PromptTemplatesPage() {
   const saveEdit = async () => {
     if (!editingId) return;
     try {
-      const res = await fetch(`/api/admin/prompt-templates/${editingId}`, {
-        method: 'PATCH',
-        headers,
-        body: JSON.stringify({
-          content: editContent,
-          display_name: editDisplayName,
-          description: editDescription || null,
-        }),
+      await api.patch(`/admin/prompt-templates/${editingId}`, {
+        content: editContent,
+        display_name: editDisplayName,
+        description: editDescription || null,
       });
-      if (res.ok) {
-        showNotification('success', 'Template salvato');
-        cancelEdit();
-        fetchTemplates();
-      } else {
-        showNotification('error', 'Errore nel salvataggio');
-      }
+      showNotification('success', 'Template salvato');
+      cancelEdit();
+      fetchTemplates();
     } catch {
       showNotification('error', 'Errore di rete');
     }
@@ -124,15 +112,9 @@ export default function PromptTemplatesPage() {
 
   const toggleActive = async (id: number, isActive: boolean) => {
     try {
-      const res = await fetch(`/api/admin/prompt-templates/${id}`, {
-        method: 'PATCH',
-        headers,
-        body: JSON.stringify({ is_active: !isActive }),
-      });
-      if (res.ok) {
-        showNotification('success', isActive ? 'Template disattivato' : 'Template attivato');
-        fetchTemplates();
-      }
+      await api.patch(`/admin/prompt-templates/${id}`, { is_active: !isActive });
+      showNotification('success', isActive ? 'Template disattivato' : 'Template attivato');
+      fetchTemplates();
     } catch {
       showNotification('error', 'Errore di rete');
     }
@@ -141,31 +123,19 @@ export default function PromptTemplatesPage() {
   const deleteTemplate = async (id: number) => {
     if (!confirm('Eliminare questo template?')) return;
     try {
-      const res = await fetch(`/api/admin/prompt-templates/${id}`, {
-        method: 'DELETE',
-        headers,
-      });
-      if (res.ok) {
-        showNotification('success', 'Template eliminato');
-        fetchTemplates();
-      } else {
-        const data = await res.json();
-        showNotification('error', data.error || 'Errore nella eliminazione');
-      }
-    } catch {
-      showNotification('error', 'Errore di rete');
+      await api.delete(`/admin/prompt-templates/${id}`);
+      showNotification('success', 'Template eliminato');
+      fetchTemplates();
+    } catch (err: any) {
+      const message = err.response?.data?.error || 'Errore nella eliminazione';
+      showNotification('error', message);
     }
   };
 
   const previewTemplate = async (content: string) => {
     try {
-      const res = await fetch('/api/admin/prompt-templates/preview', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ content }),
-      });
-      const data = await res.json();
-      setPreviewContent(data.rendered);
+      const res = await api.post('/admin/prompt-templates/preview', { content });
+      setPreviewContent(res.data.rendered);
     } catch {
       showNotification('error', 'Errore nel preview');
     }
@@ -177,34 +147,26 @@ export default function PromptTemplatesPage() {
       return;
     }
     try {
-      const res = await fetch('/api/admin/prompt-templates', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          name: newName,
-          display_name: newDisplayName,
-          template_type: newType,
-          content: newContent,
-          description: newDescription || null,
-          is_default: false,
-          is_active: true,
-          variables: extractVariables(newContent),
-        }),
+      await api.post('/admin/prompt-templates', {
+        name: newName,
+        display_name: newDisplayName,
+        template_type: newType,
+        content: newContent,
+        description: newDescription || null,
+        is_default: false,
+        is_active: true,
+        variables: extractVariables(newContent),
       });
-      if (res.ok) {
-        showNotification('success', 'Template creato');
-        setShowCreate(false);
-        setNewName('');
-        setNewDisplayName('');
-        setNewContent('');
-        setNewDescription('');
-        fetchTemplates();
-      } else {
-        const data = await res.json();
-        showNotification('error', data.error || 'Errore nella creazione');
-      }
-    } catch {
-      showNotification('error', 'Errore di rete');
+      showNotification('success', 'Template creato');
+      setShowCreate(false);
+      setNewName('');
+      setNewDisplayName('');
+      setNewContent('');
+      setNewDescription('');
+      fetchTemplates();
+    } catch (err: any) {
+      const message = err.response?.data?.error || 'Errore nella creazione';
+      showNotification('error', message);
     }
   };
 
@@ -233,7 +195,7 @@ export default function PromptTemplatesPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="p-6 flex flex-col h-full">
       {/* Notification */}
       {notification && (
         <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 ${
@@ -245,7 +207,7 @@ export default function PromptTemplatesPage() {
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-shrink-0">
         <div>
           <h1 className="text-2xl font-bold text-surface-900 dark:text-white flex items-center gap-2">
             <FileText className="w-6 h-6" />
@@ -273,7 +235,7 @@ export default function PromptTemplatesPage() {
       </div>
 
       {/* Pipeline visualization */}
-      <div className="bg-surface-50 dark:bg-surface-800/50 rounded-lg p-4">
+      <div className="bg-surface-50 dark:bg-surface-800/50 rounded-lg p-4 mt-6 flex-shrink-0">
         <h3 className="text-sm font-semibold text-surface-700 dark:text-surface-300 mb-2">Pipeline Prompt</h3>
         <div className="flex items-center gap-2 text-sm flex-wrap">
           <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400 rounded font-mono">Prefix</span>
@@ -373,6 +335,7 @@ export default function PromptTemplatesPage() {
       )}
 
       {/* Templates grouped by type */}
+      <div className="flex-1 min-h-0 overflow-y-auto mt-6 space-y-4">
       {typeOrder.map(type => {
         const items = grouped[type];
         if (!items || items.length === 0) return null;
@@ -499,6 +462,7 @@ export default function PromptTemplatesPage() {
           <p>Nessun template trovato. I template predefiniti verranno creati al prossimo avvio del server.</p>
         </div>
       )}
+      </div>
     </div>
   );
 }

@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../hooks/useAuthStore';
-import { useUserSkillsStore } from '../hooks/useUserSkillsStore';
 import { api } from '../services/api';
 import { downloadBlob } from '../utils/fileDownload';
 import {
@@ -23,16 +22,9 @@ import {
     Eye,
     XCircle,
     RefreshCw,
-    Brain,
-    Bot,
-    Plug,
-    Zap,
-    Package,
-    Loader2,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import clsx from 'clsx';
-import type { Installation } from '../services/marketplaceApi';
 
 interface MfaSetupResponse {
     secret: string;
@@ -43,7 +35,6 @@ interface MfaSetupResponse {
 
 export default function SettingsPage() {
     const { user, logout } = useAuthStore();
-    const { installedSkills, loading: skillsLoading, error: skillsError, fetchMySkills } = useUserSkillsStore();
     const [loading, setLoading] = useState(false);
     const [mfaSetup, setMfaSetup] = useState<MfaSetupResponse | null>(null);
     const [totpCode, setTotpCode] = useState('');
@@ -57,18 +48,24 @@ export default function SettingsPage() {
     const [deletionPending, setDeletionPending] = useState(false);
     const [showMfaDisableModal, setShowMfaDisableModal] = useState(false);
     const [mfaDisableCode, setMfaDisableCode] = useState('');
+    const [mfaGloballyEnforced, setMfaGloballyEnforced] = useState(false);
 
-    // Load latest user status + deletion status
+    // Load latest user status + deletion status + MFA global setting
     useEffect(() => {
         const loadStatus = async () => {
             try {
-                const [meRes, consentRes] = await Promise.all([
+                const [meRes, consentRes, settingsRes] = await Promise.all([
                     api.get('/auth/me'),
                     api.get('/compliance/consent/status').catch(() => null),
+                    api.get('/admin/settings').catch(() => null),
                 ]);
                 setMfaEnabled(!!meRes.data.mfa_enabled);
                 if (consentRes?.data?.deletion_pending) {
                     setDeletionPending(true);
+                }
+                const mfaSetting = settingsRes?.data?.mfa_enforced;
+                if (mfaSetting) {
+                    setMfaGloballyEnforced(mfaSetting.value === true || mfaSetting.value === 'true');
                 }
             } catch (err) {
                 console.error('Failed to load user status:', err);
@@ -76,11 +73,6 @@ export default function SettingsPage() {
         };
         loadStatus();
     }, []);
-
-    // Load installed skills
-    useEffect(() => {
-        fetchMySkills();
-    }, [fetchMySkills]);
 
     const handleStartMfaSetup = async () => {
         setLoading(true);
@@ -141,38 +133,6 @@ export default function SettingsPage() {
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
         }
-    };
-
-    const getTypeIcon = (type: string | undefined) => {
-        switch (type) {
-            case 'skill': return <Brain className="w-5 h-5" />;
-            case 'agent': return <Bot className="w-5 h-5" />;
-            case 'mcp': return <Plug className="w-5 h-5" />;
-            case 'hook': return <Zap className="w-5 h-5" />;
-            default: return <Package className="w-5 h-5" />;
-        }
-    };
-
-    const getStatusBadge = (status: Installation['status']) => {
-        const styles: Record<string, string> = {
-            installed: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-            approved: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-            pending_approval: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
-            rejected: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-            failed: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-        };
-        const labels: Record<string, string> = {
-            installed: 'Installato',
-            approved: 'Approvato',
-            pending_approval: 'In attesa',
-            rejected: 'Rifiutato',
-            failed: 'Errore',
-        };
-        return (
-            <span className={clsx('px-2 py-0.5 rounded-full text-xs font-medium', styles[status] || 'bg-surface-100 text-surface-500')}>
-                {labels[status] || status}
-            </span>
-        );
     };
 
     return (
@@ -246,13 +206,23 @@ export default function SettingsPage() {
                                         <p className="text-sm text-surface-500">Aggiungi un livello di sicurezza extra al tuo account</p>
                                     </div>
                                 </div>
-                                <div className={clsx(
-                                    "px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider",
-                                    mfaEnabled
-                                        ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                                        : "bg-surface-100 text-surface-500 dark:bg-surface-800"
-                                )}>
-                                    {mfaEnabled ? 'Attivata' : 'Disattivata'}
+                                <div className="flex items-center gap-2">
+                                    <span className={clsx(
+                                        "px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider",
+                                        mfaGloballyEnforced
+                                            ? "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400"
+                                            : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                                    )}>
+                                        {mfaGloballyEnforced ? 'Obbligatoria' : 'Opzionale'}
+                                    </span>
+                                    <div className={clsx(
+                                        "px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider",
+                                        mfaEnabled
+                                            ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                                            : "bg-surface-100 text-surface-500 dark:bg-surface-800"
+                                    )}>
+                                        {mfaEnabled ? 'Attivata' : 'Disattivata'}
+                                    </div>
                                 </div>
                             </div>
 
@@ -593,93 +563,6 @@ export default function SettingsPage() {
                             </div>
                         </div>
 
-                        {/* My Skills Section */}
-                        <div className="card p-6">
-                            <div className="flex items-center gap-3 mb-6">
-                                <div className="p-2 rounded-lg bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600">
-                                    <Brain className="w-6 h-6" />
-                                </div>
-                                <div>
-                                    <h3 className="text-lg font-bold">Le Mie Skills</h3>
-                                    <p className="text-sm text-surface-500">Competenze e integrazioni installate</p>
-                                </div>
-                            </div>
-
-                            {skillsLoading ? (
-                                <div className="flex items-center justify-center py-8">
-                                    <Loader2 className="w-6 h-6 animate-spin text-surface-400" />
-                                    <span className="ml-2 text-sm text-surface-500">Caricamento...</span>
-                                </div>
-                            ) : skillsError ? (
-                                <div className="flex items-center gap-3 p-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded-xl border border-red-100 dark:border-red-900/30">
-                                    <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                                    <p className="text-sm">{skillsError}</p>
-                                </div>
-                            ) : installedSkills.length === 0 ? (
-                                <div className="text-center py-8">
-                                    <Package className="w-12 h-12 text-surface-300 mx-auto mb-3" />
-                                    <p className="text-sm text-surface-500 mb-1">Nessuna skill installata</p>
-                                    <p className="text-xs text-surface-400">Esplora il marketplace per aggiungere nuove competenze.</p>
-                                </div>
-                            ) : (
-                                <div className="space-y-3">
-                                    {installedSkills.map((skill) => (
-                                        <div
-                                            key={skill.id}
-                                            className="flex items-center justify-between p-4 bg-surface-50 dark:bg-surface-800/50 rounded-lg"
-                                        >
-                                            <div className="flex items-center gap-3">
-                                                <div className="p-2 rounded-lg bg-surface-100 dark:bg-surface-700 text-surface-600 dark:text-surface-300">
-                                                    {getTypeIcon(skill.catalogItem?.type)}
-                                                </div>
-                                                <div>
-                                                    <p className="font-medium text-sm">
-                                                        {skill.catalogItem?.name || `Item #${skill.catalogItemId}`}
-                                                    </p>
-                                                    <div className="flex items-center gap-2 mt-1">
-                                                        {getStatusBadge(skill.status)}
-                                                        {skill.installedVersion && (
-                                                            <span className="text-xs text-surface-400">
-                                                                v{skill.installedVersion}
-                                                            </span>
-                                                        )}
-                                                        {skill.catalogItem?.type && (
-                                                            <span className="text-xs text-surface-400 capitalize">
-                                                                {skill.catalogItem.type}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            {(skill.status === 'installed' || skill.status === 'approved') && (
-                                                <button
-                                                    onClick={async () => {
-                                                        try {
-                                                            await api.delete(`/marketplace/install/${skill.id}`);
-                                                            await fetchMySkills();
-                                                        } catch {
-                                                            // Error handled by store refresh
-                                                        }
-                                                    }}
-                                                    className="btn bg-red-50 dark:bg-red-900/20 text-red-600 hover:bg-red-100 dark:hover:bg-red-900/30 px-3 py-1.5 text-xs font-medium"
-                                                >
-                                                    Disinstalla
-                                                </button>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-
-                            <div className="mt-6 pt-4 border-t border-surface-200 dark:border-surface-700">
-                                <Link
-                                    to="/marketplace"
-                                    className="text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 font-medium"
-                                >
-                                    Esplora Marketplace →
-                                </Link>
-                            </div>
-                        </div>
                     </div>
                 </div>
             </div>

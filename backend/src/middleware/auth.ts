@@ -8,7 +8,7 @@ interface UserPayload {
 
 export async function requireAdmin(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   const user = request.user as UserPayload;
-  if (user.role !== 'admin') {
+  if (user.role !== 'admin' && user.role !== 'service') {
     return reply.status(403).send({ error: 'Admin access required' });
   }
 }

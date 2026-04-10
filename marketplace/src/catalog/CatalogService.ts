@@ -9,6 +9,7 @@ interface CatalogListOptions {
   readonly search?: string;
   readonly page?: number;
   readonly limit?: number;
+  readonly userId?: number;
 }
 
 interface CatalogListResult {
@@ -37,14 +38,34 @@ export class CatalogService {
 
     const countRow = await findOne<{ total: number }>(
       this.pool,
-      `SELECT COUNT(*) AS total FROM marketplace_catalog_items ${whereClause}`,
+      `SELECT COUNT(*) AS total FROM marketplace_catalog_items c ${whereClause}`,
       whereParams,
     );
     const total = countRow?.total ?? 0;
 
+    if (opts.userId) {
+      const items = await findMany<Record<string, unknown>>(
+        this.pool,
+        `SELECT c.*,
+                CASE WHEN i.id IS NOT NULL AND i.status = 'installed' THEN 1 ELSE 0 END AS isActive,
+                i.id AS installationId,
+                i.status AS installationStatus
+         FROM marketplace_catalog_items c
+         LEFT JOIN marketplace_installations i
+           ON i.catalog_item_id = c.id AND i.installed_by = ?
+         ${whereClause}
+         ORDER BY c.id ASC LIMIT ? OFFSET ?`,
+        [opts.userId, ...whereParams, limit, offset],
+      );
+
+      return { items, total, page, limit };
+    }
+
     const items = await findMany<Record<string, unknown>>(
       this.pool,
-      `SELECT * FROM marketplace_catalog_items ${whereClause} ORDER BY id ASC LIMIT ? OFFSET ?`,
+      `SELECT c.*, 0 AS isActive, NULL AS installationId
+       FROM marketplace_catalog_items c ${whereClause}
+       ORDER BY c.id ASC LIMIT ? OFFSET ?`,
       [...whereParams, limit, offset],
     );
 
@@ -138,22 +159,22 @@ export class CatalogService {
     const params: unknown[] = [];
 
     if (opts.type) {
-      conditions.push('type = ?');
+      conditions.push('c.type = ?');
       params.push(opts.type);
     }
 
     if (opts.tier) {
-      conditions.push('tier = ?');
+      conditions.push('c.tier = ?');
       params.push(opts.tier);
     }
 
     if (opts.category) {
-      conditions.push('category = ?');
+      conditions.push('c.category = ?');
       params.push(opts.category);
     }
 
     if (opts.search) {
-      conditions.push('(name LIKE ? OR description LIKE ?)');
+      conditions.push('(c.name LIKE ? OR c.description LIKE ?)');
       const searchTerm = `%${opts.search}%`;
       params.push(searchTerm, searchTerm);
     }

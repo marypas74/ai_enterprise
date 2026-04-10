@@ -1,6 +1,6 @@
 {
   "name": "enterprise-ai-chat-marketplace",
-  "version": "1.0.0",
+  "version": "1.0.4",
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",

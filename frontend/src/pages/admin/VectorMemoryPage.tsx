@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../../hooks/useAuth';
+import { api } from '../../services/api';
 import {
   Database,
   RefreshCw,
@@ -53,7 +53,6 @@ interface IngestionItem {
 type TabType = 'collections' | 'recall' | 'ingest' | 'settings';
 
 export default function VectorMemoryPage() {
-  const { token } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>('collections');
   const [collections, setCollections] = useState<CollectionInfo[]>([]);
   const [recallSettings, setRecallSettings] = useState<RecallSettings | null>(null);
@@ -70,8 +69,6 @@ export default function VectorMemoryPage() {
   const [ingesting, setIngesting] = useState(false);
   const [ingestionHistory, setIngestionHistory] = useState<IngestionItem[]>([]);
 
-  const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
-
   const showNotification = (type: 'success' | 'error', message: string) => {
     setNotification({ type, message });
     setTimeout(() => setNotification(null), 3000);
@@ -79,27 +76,24 @@ export default function VectorMemoryPage() {
 
   const fetchCollections = useCallback(async () => {
     try {
-      const res = await fetch('/api/memory/vector/collections', { headers });
-      const data = await res.json();
-      setCollections(data.collections || []);
+      const res = await api.get('/memory/vector/collections');
+      setCollections(res.data.collections || []);
     } catch { /* empty */ }
-  }, [token]);
+  }, []);
 
   const fetchSettings = useCallback(async () => {
     try {
-      const res = await fetch('/api/memory/vector/recall-settings', { headers });
-      const data = await res.json();
-      setRecallSettings(data.settings ?? data);
+      const res = await api.get('/memory/vector/recall-settings');
+      setRecallSettings(res.data.settings ?? res.data);
     } catch { /* empty */ }
-  }, [token]);
+  }, []);
 
   const fetchIngestionHistory = useCallback(async () => {
     try {
-      const res = await fetch('/api/ingestion/history?limit=50', { headers });
-      const data = await res.json();
-      setIngestionHistory(Array.isArray(data) ? data : []);
+      const res = await api.get('/ingestion/history?limit=50');
+      setIngestionHistory(Array.isArray(res.data) ? res.data : []);
     } catch { /* empty */ }
-  }, [token]);
+  }, []);
 
   useEffect(() => {
     const load = async () => {
@@ -117,15 +111,11 @@ export default function VectorMemoryPage() {
   const handleWipe = async (name: string) => {
     if (!confirm(`Are you sure you want to wipe the "${name}" collection? This cannot be undone.`)) return;
     try {
-      const res = await fetch(`/api/memory/vector/collections/${name}`, { method: 'DELETE', headers });
-      if (res.ok) {
-        showNotification('success', `Collection "${name}" wiped`);
-        fetchCollections();
-      } else {
-        showNotification('error', 'Failed to wipe collection');
-      }
+      await api.delete(`/memory/vector/collections/${name}`);
+      showNotification('success', `Collection "${name}" wiped`);
+      fetchCollections();
     } catch {
-      showNotification('error', 'Network error');
+      showNotification('error', 'Failed to wipe collection');
     }
   };
 
@@ -133,9 +123,8 @@ export default function VectorMemoryPage() {
     if (!recallQuery.trim()) return;
     setRecalling(true);
     try {
-      const res = await fetch(`/api/memory/vector/recall?text=${encodeURIComponent(recallQuery)}`, { headers });
-      const data = await res.json();
-      setRecallResults(data.results ?? data);
+      const res = await api.get(`/memory/vector/recall?text=${encodeURIComponent(recallQuery)}`);
+      setRecallResults(res.data.results ?? res.data);
     } catch {
       showNotification('error', 'Recall failed');
     } finally {
@@ -147,19 +136,14 @@ export default function VectorMemoryPage() {
     if (!ingestUrl.trim()) return;
     setIngesting(true);
     try {
-      const res = await fetch('/api/ingestion/url', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ url: ingestUrl }),
-      });
-      const data = await res.json();
-      if (data.status === 'completed') {
-        showNotification('success', `Ingested ${data.chunksCount} chunks from "${data.title}"`);
+      const res = await api.post('/ingestion/url', { url: ingestUrl });
+      if (res.data.status === 'completed') {
+        showNotification('success', `Ingested ${res.data.chunksCount} chunks from "${res.data.title}"`);
         setIngestUrl('');
         fetchIngestionHistory();
         fetchCollections();
       } else {
-        showNotification('error', data.error || 'Ingestion failed');
+        showNotification('error', res.data.error || 'Ingestion failed');
       }
     } catch {
       showNotification('error', 'Network error');
@@ -170,16 +154,9 @@ export default function VectorMemoryPage() {
 
   const handleUpdateSettings = async (updates: Partial<RecallSettings>) => {
     try {
-      const res = await fetch('/api/memory/vector/recall-settings', {
-        method: 'PATCH',
-        headers,
-        body: JSON.stringify(updates),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setRecallSettings(data.settings ?? data);
-        showNotification('success', 'Settings updated');
-      }
+      const res = await api.patch('/memory/vector/recall-settings', updates);
+      setRecallSettings(res.data.settings ?? res.data);
+      showNotification('success', 'Settings updated');
     } catch {
       showNotification('error', 'Failed to update settings');
     }

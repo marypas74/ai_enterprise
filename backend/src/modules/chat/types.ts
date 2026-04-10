@@ -10,6 +10,7 @@ export const completionSchema = z.object({
   use_rag: z.boolean().optional(),
   document_ids: z.array(z.number()).optional(),
   chat_mode: z.enum(['free', 'rag', 'brainstorm']).optional(),
+  force_web_search: z.boolean().optional(),
 });
 
 export const agenticSchema = z.object({

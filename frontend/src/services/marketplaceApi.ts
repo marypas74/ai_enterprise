@@ -17,6 +17,8 @@ export interface CatalogItem {
   tags: string[];
   metadata: Record<string, unknown>;
   isActive: boolean;
+  installationId: number | null;
+  installationStatus: 'installed' | 'pending_approval' | null;
   lastSyncedAt: string;
   createdAt: string;
   updatedAt: string;

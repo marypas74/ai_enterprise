@@ -212,8 +212,8 @@ export class VisionService {
       const fs = await import('fs/promises');
       const path = await import('path');
       const { promisify } = await import('util');
-      const { exec: execCb } = await import('child_process');
-      const execAsync = promisify(execCb);
+      const { execFile: execFileCb } = await import('child_process');
+      const execFileAsync = promisify(execFileCb);
 
       const tmpId = crypto.randomBytes(8).toString('hex');
       const tmpDir = path.join(os.tmpdir(), `vision_ocr_${tmpId}`);
@@ -223,8 +223,8 @@ export class VisionService {
       await fs.writeFile(tmpPdf, buffer);
 
       try {
-        // Convert PDF to images at 300 DPI
-        await execAsync(`pdftoppm -png -r 300 "${tmpPdf}" "${tmpDir}/page"`, { timeout: 120000 });
+        // Convert PDF to images at 300 DPI (use execFile to avoid shell injection)
+        await execFileAsync('pdftoppm', ['-png', '-r', '300', tmpPdf, path.join(tmpDir, 'page')], { timeout: 120000 });
 
         const files = await fs.readdir(tmpDir);
         const pageImages = files.filter(f => f.startsWith('page-') && f.endsWith('.png')).sort();

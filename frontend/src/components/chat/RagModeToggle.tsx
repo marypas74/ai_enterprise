@@ -16,7 +16,6 @@ export function RagModeToggle({ onModeChange }: RagModeToggleProps) {
     const modes: { value: ChatMode; label: string; Icon: React.FC<any> }[] = [
         { value: 'free', label: 'Chat Libera', Icon: MessageSquare },
         { value: 'rag', label: 'Documenti', Icon: Library },
-        { value: 'brainstorm', label: 'Brainstorming', Icon: Lightbulb },
     ];
 
     const getActiveStyle = (value: ChatMode): string => {

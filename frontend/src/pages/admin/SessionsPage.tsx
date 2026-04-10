@@ -70,10 +70,10 @@ export default function SessionsPage() {
     };
 
     return (
-        <div className="p-6">
-            <div className="flex items-center justify-between mb-6">
+        <div className="p-6 flex flex-col h-full">
+            <div className="flex items-center justify-between mb-6 flex-shrink-0">
                 <div>
-                    <h1 className="text-2xl font-bold flex items-center gap-2">
+                    <h1 className="text-2xl font-bold flex items-center gap-2 flex-shrink-0">
                         <Wifi className="w-6 h-6 text-green-500" />
                         Sessioni Attive
                     </h1>
@@ -91,14 +91,14 @@ export default function SessionsPage() {
             </div>
 
             {error && (
-                <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-300">
+                <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-300 flex-shrink-0">
                     {error}
                 </div>
             )}
 
-            <div className="card overflow-hidden">
+            <div className="card overflow-auto flex-1 min-h-0">
                 <table className="w-full">
-                    <thead>
+                    <thead className="sticky top-0 z-10">
                         <tr className="text-left text-sm text-surface-500 bg-surface-50 dark:bg-surface-900">
                             <th className="px-6 py-3 font-medium">Utente</th>
                             <th className="px-6 py-3 font-medium">
@@ -173,7 +173,7 @@ export default function SessionsPage() {
             </div>
 
             {/* Legend */}
-            <div className="mt-4 text-xs text-surface-500 flex items-center gap-4">
+            <div className="mt-4 text-xs text-surface-500 flex items-center gap-4 flex-shrink-0">
                 <span>⟳ Auto-aggiornamento ogni 30 secondi</span>
                 <span>• Single-session: un solo accesso per utente</span>
             </div>

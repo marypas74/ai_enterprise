@@ -132,7 +132,8 @@ async function makeStreamRequest(
   attachmentIds?: number[],
   useRag?: boolean,
   documentIds?: number[],
-  chatMode?: string
+  chatMode?: string,
+  forceWebSearch?: boolean,
 ): Promise<Response> {
   return fetch(`${API_BASE_URL}/chat/completions`, {
     method: 'POST',
@@ -150,6 +151,7 @@ async function makeStreamRequest(
       use_rag: useRag,
       document_ids: documentIds,
       chat_mode: chatMode,
+      force_web_search: forceWebSearch || undefined,
     })
   });
 }
@@ -195,6 +197,7 @@ async function streamChatNative(
   useRag?: boolean,
   documentIds?: number[],
   chatMode?: string,
+  forceWebSearch?: boolean,
 ): Promise<void> {
   const token = useAuthStore.getState().accessToken || '';
   const { StreamHttp } = await import('capacitor-stream-http');
@@ -237,7 +240,7 @@ async function streamChatNative(
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
       },
-      body: JSON.stringify({ model, message, conversationId, systemPrompt, attachmentIds, use_rag: useRag, document_ids: documentIds, chat_mode: chatMode }),
+      body: JSON.stringify({ model, message, conversationId, systemPrompt, attachmentIds, use_rag: useRag, document_ids: documentIds, chat_mode: chatMode, force_web_search: forceWebSearch || undefined }),
     }).catch((err: any) => {
       onError(err?.message || 'Failed to start stream');
       done();
@@ -261,15 +264,16 @@ export async function streamChat(
   useRag?: boolean,
   documentIds?: number[],
   chatMode?: string,
+  forceWebSearch?: boolean,
 ): Promise<void> {
   // On native platforms, use capacitor-stream-http for real native streaming
   if (isNativePlatform()) {
-    return streamChatNative(model, message, onChunk, onDone, onError, conversationId, systemPrompt, attachmentIds, onThinking, onVectorMemories, onRouting, useRag, documentIds, chatMode);
+    return streamChatNative(model, message, onChunk, onDone, onError, conversationId, systemPrompt, attachmentIds, onThinking, onVectorMemories, onRouting, useRag, documentIds, chatMode, forceWebSearch);
   }
 
   // Desktop: standard fetch + ReadableStream
   let token = useAuthStore.getState().accessToken || '';
-  let response = await makeStreamRequest(token, model, message, conversationId, systemPrompt, attachmentIds, useRag, documentIds, chatMode);
+  let response = await makeStreamRequest(token, model, message, conversationId, systemPrompt, attachmentIds, useRag, documentIds, chatMode, forceWebSearch);
 
   // Handle 401 - try to refresh token first before logging out
   if (response.status === 401) {
@@ -278,7 +282,7 @@ export async function streamChat(
       const { accessToken } = refreshResponse.data;
       useAuthStore.setState({ accessToken });
       token = accessToken;
-      response = await makeStreamRequest(token, model, message, conversationId, systemPrompt, attachmentIds, useRag, documentIds, chatMode);
+      response = await makeStreamRequest(token, model, message, conversationId, systemPrompt, attachmentIds, useRag, documentIds, chatMode, forceWebSearch);
       if (response.status === 401) { forceLogout(); onError('Session expired. Please login again.'); return; }
     } catch {
       forceLogout(); onError('Session expired. Please login again.'); return;
@@ -322,7 +326,7 @@ export async function generateDocument(
   format: 'docx' | 'xlsx' | 'pptx' | 'pdf',
   content?: string,
   title?: string
-): Promise<{ success: boolean; url: string; filename: string }> {
+): Promise<{ success: boolean; url: string; filename: string; attachmentId?: number }> {
   const response = await api.post('/tools/generate-from-chat', {
     conversationId,
     format,

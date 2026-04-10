@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '../../hooks/useAuth';
+import { api } from '../../services/api';
 import { getMyInstallations, type Installation } from '../../services/marketplaceApi';
 import {
   Brain,
@@ -65,7 +65,6 @@ const CATEGORY_COLORS: Record<string, string> = {
 };
 
 export default function SkillsPage() {
-  const { token } = useAuth();
   const [skills, setSkills] = useState<Skill[]>([]);
   const [templates, setTemplates] = useState<SkillTemplate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -111,13 +110,8 @@ export default function SkillsPage() {
 
   const fetchSkills = async () => {
     try {
-      const response = await fetch('/api/skills', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setSkills(data);
-      }
+      const response = await api.get('/skills');
+      setSkills(response.data);
     } catch (error) {
       console.error('Error fetching skills:', error);
     } finally {
@@ -127,13 +121,8 @@ export default function SkillsPage() {
 
   const fetchTemplates = async () => {
     try {
-      const response = await fetch('/api/skill-templates', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setTemplates(data);
-      }
+      const response = await api.get('/skill-templates');
+      setTemplates(response.data);
     } catch (error) {
       console.error('Error fetching templates:', error);
     }
@@ -141,29 +130,21 @@ export default function SkillsPage() {
 
   const handleSaveSkill = async () => {
     try {
-      const url = selectedSkill ? `/api/skills/${selectedSkill.id}` : '/api/skills';
-      const method = selectedSkill ? 'PATCH' : 'POST';
-
       const payload = {
         ...formData,
         example_prompts: formData.example_prompts.filter(p => p.trim())
       };
 
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify(payload)
-      });
-
-      if (response.ok) {
-        fetchSkills();
-        setIsEditing(false);
-        setSelectedSkill(null);
-        resetForm();
+      if (selectedSkill) {
+        await api.patch(`/skills/${selectedSkill.id}`, payload);
+      } else {
+        await api.post('/skills', payload);
       }
+
+      fetchSkills();
+      setIsEditing(false);
+      setSelectedSkill(null);
+      resetForm();
     } catch (error) {
       console.error('Error saving skill:', error);
     }
@@ -173,16 +154,10 @@ export default function SkillsPage() {
     if (!confirm('Sei sicuro di voler eliminare questa skill?')) return;
 
     try {
-      const response = await fetch(`/api/skills/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      if (response.ok) {
-        fetchSkills();
-        if (selectedSkill?.id === id) {
-          setSelectedSkill(null);
-        }
+      await api.delete(`/skills/${id}`);
+      fetchSkills();
+      if (selectedSkill?.id === id) {
+        setSelectedSkill(null);
       }
     } catch (error) {
       console.error('Error deleting skill:', error);
@@ -191,18 +166,8 @@ export default function SkillsPage() {
 
   const handleToggleActive = async (skill: Skill) => {
     try {
-      const response = await fetch(`/api/skills/${skill.id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ is_active: !skill.is_active })
-      });
-
-      if (response.ok) {
-        fetchSkills();
-      }
+      await api.patch(`/skills/${skill.id}`, { is_active: !skill.is_active });
+      fetchSkills();
     } catch (error) {
       console.error('Error toggling skill:', error);
     }
@@ -278,8 +243,8 @@ export default function SkillsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-6 flex flex-col h-full">
+      <div className="flex items-center justify-between flex-shrink-0">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Skills Management</h2>
           <p className="text-gray-500 mt-1">Gestisci le competenze AI disponibili per gli utenti</p>
@@ -298,7 +263,7 @@ export default function SkillsPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex gap-4">
+      <div className="flex gap-4 mt-6 flex-shrink-0">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
           <input
@@ -322,6 +287,7 @@ export default function SkillsPage() {
         </select>
       </div>
 
+      <div className="flex-1 min-h-0 overflow-y-auto mt-6">
       {/* Skills Grid */}
       {Object.keys(groupedSkills).length === 0 ? (
         <div className="flex items-center justify-center h-64 bg-white rounded-lg border-2 border-dashed border-gray-300">
@@ -462,6 +428,8 @@ export default function SkillsPage() {
           </div>
         </div>
       )}
+
+      </div>
 
       {/* Edit Modal */}
       {isEditing && (

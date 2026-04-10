@@ -56,3 +56,15 @@ frontend/android/local.properties
 *.apk
 *.aab
 .worktrees/
+
+# Claude Code / AI tools (local config, not for repo)
+.claude/
+.serena/
+.superpowers/
+
+# VS Code Extension binaries
+*.vsix
+
+# Stress test artifacts
+stress-test-*.ts
+stress-test-*.json

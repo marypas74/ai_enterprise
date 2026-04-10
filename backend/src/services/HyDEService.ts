@@ -124,18 +124,28 @@ export class HyDEService {
    * would look like, without needing actual context.
    */
   private async generateHypotheticalAnswer(query: string): Promise<string | null> {
-    // Find the default chat provider from DB
+    // Find the default chat provider from DB (api_key and base_url are in ai_provider_settings)
     const provider = await findOne<any>(
       this.db,
-      `SELECT p.type, p.base_url, p.api_key, m.model_id
+      `SELECT p.provider_type AS type,
+              MAX(CASE WHEN ps.setting_key = 'base_url' THEN ps.setting_value END) AS base_url,
+              MAX(CASE WHEN ps.setting_key = 'api_key' THEN ps.setting_value END) AS api_key,
+              m.model_id
        FROM ai_providers p
        JOIN ai_models m ON m.provider_id = p.id
+       LEFT JOIN ai_provider_settings ps ON ps.provider_id = p.id
        WHERE p.is_enabled = 1 AND m.is_enabled = 1 AND m.capabilities LIKE '%chat%'
+       GROUP BY p.id, p.provider_type, m.model_id
        ORDER BY p.id ASC LIMIT 1`,
       [],
     );
 
     if (!provider) return null;
+
+    if (!provider.base_url) {
+      console.warn('[HyDE] Provider found but base_url is missing — skipping hypothetical answer generation');
+      return null;
+    }
 
     const systemPrompt = `You are a helpful assistant. Given the user's question, write a brief, informative passage that directly answers the question. Write as if you are a relevant document that contains the answer. Be concise and factual. Do not say "I" or reference being an AI. Just provide the information directly.`;
 

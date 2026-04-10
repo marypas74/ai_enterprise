@@ -353,10 +353,10 @@ export async function checkParlantHealth(): Promise<boolean> {
     const { status, data } = await parlantFetch('GET', '/agents', undefined, 5000);
     // Parlant is healthy if it returns 200 and a valid array
     const healthy = status === 200 && Array.isArray(data);
-    console.log(`[Parlant] Health check: status=${status}, healthy=${healthy}`);
+    if (healthy) console.log(`[Parlant] Health check: status=${status}, healthy=true`);
     return healthy;
-  } catch (error: any) {
-    console.error(`[Parlant] Health check failed: ${error.message}`);
+  } catch {
+    // Parlant not deployed — silently return false (not an error condition)
     return false;
   }
 }

@@ -10,6 +10,7 @@ import {
   Trash2,
   AlertTriangle,
   Bell,
+  Clock,
 } from 'lucide-react';
 import { useMarketplaceStore } from '../../hooks/useMarketplaceStore';
 import type { CatalogItem } from '../../services/marketplaceApi';
@@ -131,7 +132,8 @@ export default function MarketplacePage() {
 
   const handleUninstall = useCallback(
     async (item: CatalogItem) => {
-      await uninstallItem(item.id);
+      if (!item.installationId) return;
+      await uninstallItem(item.installationId);
     },
     [uninstallItem]
   );
@@ -343,6 +345,14 @@ function CatalogCard({ item, onInstall, onUninstall, loading }: CatalogCardProps
           >
             <Trash2 className="w-4 h-4" />
             Disinstalla
+          </button>
+        ) : item.installationStatus === 'pending_approval' ? (
+          <button
+            disabled
+            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-yellow-50 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400 cursor-not-allowed opacity-70"
+          >
+            <Clock className="w-4 h-4" />
+            In attesa di approvazione
           </button>
         ) : (
           <button

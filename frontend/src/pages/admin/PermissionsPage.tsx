@@ -121,23 +121,23 @@ export default function PermissionsPage() {
   }
 
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
+    <div className="p-6 flex flex-col h-full">
+      <div className="flex items-center justify-between mb-6 flex-shrink-0">
         <div className="flex items-center gap-3">
           <Shield className="w-6 h-6 text-primary-500" />
-          <h1 className="text-2xl font-bold">Permessi Risorse</h1>
+          <h1 className="text-2xl font-bold flex-shrink-0">Permessi Risorse</h1>
         </div>
         <button onClick={loadUsers} className="btn btn-secondary flex items-center gap-2">
           <RefreshCw className="w-4 h-4" /> Aggiorna
         </button>
       </div>
 
-      <p className="text-sm text-surface-500 mb-6">
+      <p className="text-sm text-surface-500 mb-6 flex-shrink-0">
         Configura i permessi per risorsa per ogni utente. Gli amministratori hanno automaticamente accesso completo a tutte le risorse.
         I permessi mostrati qui si applicano solo agli utenti con ruolo "user".
       </p>
 
-      <div className="space-y-2">
+      <div className="space-y-2 flex-1 min-h-0 overflow-auto">
         {users.map(user => (
           <div key={user.id} className="card overflow-hidden">
             <button
@@ -167,8 +167,8 @@ export default function PermissionsPage() {
               <div className="border-t border-surface-200 dark:border-surface-700 p-4">
                 <div className="overflow-x-auto">
                   <table className="w-full">
-                    <thead>
-                      <tr className="text-left text-sm text-surface-500 border-b border-surface-200 dark:border-surface-700">
+                    <thead className="sticky top-0 z-10">
+                      <tr className="text-left text-sm text-surface-500 border-b border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900">
                         <th className="pb-2 font-medium">Risorsa</th>
                         {Object.entries(PERMISSION_LABELS).map(([key, label]) => (
                           <th key={key} className="pb-2 font-medium text-center">{label}</th>

@@ -31,6 +31,7 @@ interface RoutingContext {
   readonly hasVisionAttachments: boolean;
   readonly toolsRequested: boolean;
   readonly userId: number;
+  readonly hasDocuments?: boolean;
 }
 
 interface TierModel {
@@ -107,6 +108,9 @@ function computeComplexityScore(ctx: RoutingContext): number {
   // Document creation with attachments → balanced minimum
   if (isDocCreation) score += 2;
   if (isDocCreation && ctx.hasAttachments) score += 1;
+
+  // RAG / Document mode — requires deeper reasoning to synthesize document chunks
+  if (ctx.hasDocuments) score += 3;
 
   // Multi-part queries
   const questionCount = (ctx.query.match(/\?/g) || []).length;

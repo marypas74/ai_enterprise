@@ -20,7 +20,9 @@ model_list:
 
 router_settings:
   routing_strategy: simple-shuffle
-  set_verbose: true
+  set_verbose: false  # SECURITY: verbose logging can leak API keys and sensitive data
 
 general_settings:
-  master_key: sk-1234 # Placeholder, change later if needed
+  # SECURITY: master_key is now read from LITELLM_MASTER_KEY env var (K8s secret).
+  # Generate a strong key: openssl rand -hex 32
+  master_key: os.environ/LITELLM_MASTER_KEY

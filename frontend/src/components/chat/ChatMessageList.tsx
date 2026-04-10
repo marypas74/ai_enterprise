@@ -19,6 +19,7 @@ import FeedbackButtons from '../FeedbackButtons';
 import SensitiveTopicWarning from '../SensitiveTopicWarning';
 import { downloadFile } from '../../utils/fileDownload';
 import { isNativePlatform } from '../../utils/platform';
+import { useAuthStore } from '../../hooks/useAuthStore';
 import { usePDFEditorStore } from '../../hooks/usePDFEditorStore';
 import { useDocumentStore } from '../../hooks/useDocumentStore';
 import type { Message, MessageAttachment } from '../../hooks/useChatMessages';
@@ -62,7 +63,7 @@ const MarkdownImg = ({ src, alt, ...props }: any) => {
           <a
             href={src}
             download
-            onClick={async (e: React.MouseEvent) => { e.preventDefault(); await downloadFile(src!, safeFilename); }}
+            onClick={async (e: React.MouseEvent) => { e.preventDefault(); await downloadFile(src!, safeFilename, useAuthStore.getState().accessToken || undefined); }}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary-600 hover:bg-primary-700 text-white no-underline transition-colors text-xs font-medium cursor-pointer"
           >
             <Download className="w-3.5 h-3.5" />
@@ -78,7 +79,7 @@ const MarkdownLink = ({ href, children, ...props }: any) => {
   if (href && href.includes('/api/tools/download/')) {
     const handleDownload = async (e: React.MouseEvent) => {
       e.preventDefault();
-      await downloadFile(href, String(children));
+      await downloadFile(href, String(children), useAuthStore.getState().accessToken || undefined);
     };
     return (
       <a href={href} onClick={handleDownload}

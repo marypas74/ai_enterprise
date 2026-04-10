@@ -12,7 +12,6 @@ import {
     Gauge,
     Users,
     Container,
-    ImagePlus,
 } from 'lucide-react';
 
 // Using direct axios for public route to bypass intercepted auth logic if necessary
@@ -131,7 +130,7 @@ export default function PublicMonitorPage() {
                         <Activity className="w-6 h-6 text-green-500" />
                         VITAL_SIGNS_OS
                     </h1>
-                    <span className="text-surface-500 text-[10px]">FE: 2.1.28_STABLE | BE: 2.1.28_STABLE | NODE: {data?.hostname}</span>
+                    <span className="text-surface-500 text-[10px]">FE: 2.1.53_STABLE | BE: 2.1.53_STABLE | NODE: {data?.hostname}</span>
                 </div>
                 <div className="text-right">
                     <div className="text-green-500 animate-pulse text-xs font-bold font-mono">● LIVE_STREAM_ACTIVE</div>
@@ -320,19 +319,6 @@ export default function PublicMonitorPage() {
                     </div>
                 </GridCard>
 
-                {/* IMAGE_GENERATION_ENGINE */}
-                <GridCard title="IMG_GEN_ENGINE" icon={ImagePlus} color="pink">
-                    <div className="flex items-center gap-2 mb-2">
-                        <div className={`w-2 h-2 rounded-full ${data?.diffuser?.status === 'ok' ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
-                        <span className={`font-bold ${data?.diffuser?.status === 'ok' ? 'text-green-400' : 'text-red-400'}`}>
-                            {data?.diffuser?.status === 'ok' ? 'ONLINE' : 'OFFLINE'}
-                        </span>
-                    </div>
-                    <StatItem label="SERVICE" value="OllamaDiffuser" color="text-pink-400" />
-                    <StatItem label="MODEL" value="stable-diffusion-1.5" color="text-cyan-400" />
-                    <StatItem label="PROTOCOL" value="REST/HTTP" color="text-surface-400" />
-                    <StatItem label="ENDPOINT" value="/api/generate" color="text-surface-400" />
-                </GridCard>
 
                 {/* K8S_CLUSTER_STATE */}
                 <GridCard title="K8S_POD_ECOSYSTEM" icon={Server} color="blue">

@@ -48,6 +48,7 @@ import { batchRoutes } from './modules/batch/routes.js';
 import { permissionRoutes } from './modules/admin/permissions.js';
 import { complianceRoutes } from './modules/compliance/routes.js';
 import { marketplaceProxyRoutes } from './modules/admin/marketplace-proxy.js';
+import { guideRoutes } from './modules/admin/guides.js';
 import { BiasMonitorService } from './modules/compliance/biasMonitorService.js';
 import { eventBus } from './services/EventBusService.js';
 import { HyDEService } from './services/HyDEService.js';
@@ -176,13 +177,25 @@ const appPlugin = fp(async function (fastify) {
       await request.jwtVerify();
       fastify.log.debug(`[Auth] OK for ${url} - User: ${request.user?.id}`);
 
-      // CRITICAL: Enforce mfa_verified — setup tokens can only access MFA routes
+      // Enforce mfa_verified — setup tokens can only access MFA routes (only when MFA is globally enforced)
       const mfaVerified = request.user?.mfa_verified;
       if (mfaVerified === false) {
-        const isMfaRoute = url.startsWith('/api/auth/mfa/') || url === '/api/auth/me';
-        if (!isMfaRoute) {
-          fastify.log.warn(`[Auth] MFA setup token used on non-MFA route: ${url}`);
-          return reply.status(403).send({ error: 'MFA setup required', reason: 'Complete MFA setup before accessing the application' });
+        // Check if MFA is globally enforced before blocking
+        let mfaEnforced = false;
+        try {
+          const [mfaRows] = await fastify.db.execute(
+            'SELECT setting_value FROM system_settings WHERE setting_key = ?',
+            ['mfa_enforced']
+          ) as any;
+          mfaEnforced = mfaRows?.[0]?.setting_value === 'true';
+        } catch { /* setting may not exist */ }
+
+        if (mfaEnforced) {
+          const isMfaRoute = url.startsWith('/api/auth/mfa/') || url === '/api/auth/me';
+          if (!isMfaRoute) {
+            fastify.log.warn(`[Auth] MFA setup token used on non-MFA route: ${url}`);
+            return reply.status(403).send({ error: 'MFA setup required', reason: 'Complete MFA setup before accessing the application' });
+          }
         }
       }
 
@@ -223,37 +236,9 @@ const appPlugin = fp(async function (fastify) {
             [session.id]
           ).catch(() => { /* non-critical */ });
         } else {
-          // Legacy JWT without session ID — fallback to any active session check
-          const [sessions] = await fastify.db.execute(
-            `SELECT id, last_activity_at FROM user_sessions
-             WHERE user_id = ? AND revoked_at IS NULL AND logged_out_at IS NULL AND expires_at > NOW()
-             ORDER BY created_at DESC LIMIT 1`,
-            [userId]
-          ) as any;
-
-          if (!sessions || sessions.length === 0) {
-            fastify.log.warn(`[Auth] No active session found for user ${userId}`);
-            return reply.status(401).send({ error: 'Unauthorized', reason: 'Session expired' });
-          }
-
-          const session = sessions[0];
-          const lastActivity = session.last_activity_at ? new Date(session.last_activity_at).getTime() : 0;
-          const fifteenMinMs = 15 * 60 * 1000;
-
-          if (Date.now() - lastActivity > fifteenMinMs) {
-            await fastify.db.execute(
-              'UPDATE user_sessions SET revoked_at = NOW(), logged_out_at = NOW() WHERE id = ?',
-              [session.id]
-            );
-            fastify.log.warn(`[Auth] Session expired due to inactivity for user ${userId}`);
-            return reply.status(401).send({ error: 'Unauthorized', reason: 'Session expired due to inactivity' });
-          }
-
-          // Update last_activity_at (fire & forget)
-          fastify.db.execute(
-            'UPDATE user_sessions SET last_activity_at = NOW() WHERE id = ?',
-            [session.id]
-          ).catch(() => { /* non-critical */ });
+          // Legacy JWT without session ID — reject for security (no fallback to arbitrary session)
+          fastify.log.warn(`[Auth] Rejected legacy JWT without session ID for user ${userId}. User must re-login.`);
+          return reply.status(401).send({ error: 'Unauthorized', reason: 'Session expired — please login again' });
         }
       }
     } catch (err: any) {
@@ -297,6 +282,7 @@ const appPlugin = fp(async function (fastify) {
   await fastify.register(permissionRoutes, { prefix: '/api/permissions' });
   await fastify.register(complianceRoutes, { prefix: '/api' });
   await fastify.register(marketplaceProxyRoutes, { prefix: '/api/marketplace' });
+  await fastify.register(guideRoutes, { prefix: '/api/admin' });
 
   // Debug WebSocket clients set (defined early so addHook can reference it)
   const debugClients = new Set<any>();
@@ -481,13 +467,19 @@ const appPlugin = fp(async function (fastify) {
 });
 
 async function bootstrap() {
-  // CORS - support multiple origins (comma-separated in env var)
+  // CORS - support multiple origins (comma-separated in env var) + LAN auto-whitelist
   const corsOriginEnv = process.env.CORS_ORIGIN || 'http://localhost:5173';
   const corsOrigins = corsOriginEnv.includes(',')
     ? corsOriginEnv.split(',').map(o => o.trim())
-    : corsOriginEnv;
+    : [corsOriginEnv];
+  const LAN_ORIGIN_RE = /^https?:\/\/192\.168\.\d{1,3}\.\d{1,3}(:\d+)?$/;
   await fastify.register(cors, {
-    origin: corsOrigins,
+    origin: (origin, cb) => {
+      if (!origin) return cb(null, true);                         // non-browser / same-origin
+      if (corsOrigins.includes(origin)) return cb(null, true);    // explicit whitelist
+      if (LAN_ORIGIN_RE.test(origin)) return cb(null, true);     // any 192.168.x.x LAN IP
+      cb(null, false);
+    },
     credentials: true
   });
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../../hooks/useAuth';
+import { api } from '../../services/api';
 import {
   FileText,
   RefreshCw,
@@ -30,7 +30,6 @@ interface FormDefinition {
 }
 
 export default function FormsPage() {
-  const { token } = useAuth();
   const [forms, setForms] = useState<FormDefinition[]>([]);
   const [loading, setLoading] = useState(true);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -47,8 +46,6 @@ export default function FormsPage() {
     on_complete_action: 'log',
   });
 
-  const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
-
   const showNotification = (type: 'success' | 'error', message: string) => {
     setNotification({ type, message });
     setTimeout(() => setNotification(null), 3000);
@@ -56,49 +53,38 @@ export default function FormsPage() {
 
   const fetchForms = useCallback(async () => {
     try {
-      const res = await fetch('/api/forms/definitions', { headers });
-      const data = await res.json();
-      setForms(Array.isArray(data.forms) ? data.forms : []);
+      const res = await api.get('/forms/definitions');
+      setForms(Array.isArray(res.data.forms) ? res.data.forms : []);
     } catch { /* empty */ } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, []);
 
   useEffect(() => { fetchForms(); }, []);
 
   const handleCreate = async () => {
     try {
       const schema = JSON.parse(newForm.json_schema);
-      const res = await fetch('/api/forms/definitions', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          ...newForm,
-          json_schema: schema,
-        }),
+      await api.post('/forms/definitions', {
+        ...newForm,
+        json_schema: schema,
       });
-      if (res.ok) {
-        showNotification('success', 'Form created');
-        setShowCreateForm(false);
-        setNewForm({ name: '', display_name: '', description: '', json_schema: newForm.json_schema, ask_confirm: true, on_complete_action: 'log' });
-        fetchForms();
-      } else {
-        const err = await res.json();
-        showNotification('error', err.error || 'Failed to create form');
-      }
+      showNotification('success', 'Form created');
+      setShowCreateForm(false);
+      setNewForm({ name: '', display_name: '', description: '', json_schema: newForm.json_schema, ask_confirm: true, on_complete_action: 'log' });
+      fetchForms();
     } catch (e: any) {
-      showNotification('error', e.message || 'Invalid JSON schema');
+      const message = e.response?.data?.error || e.message || 'Invalid JSON schema';
+      showNotification('error', message);
     }
   };
 
   const handleDelete = async (id: number) => {
     if (!confirm('Delete this form definition?')) return;
     try {
-      const res = await fetch(`/api/forms/definitions/${id}`, { method: 'DELETE', headers });
-      if (res.ok) {
-        showNotification('success', 'Form deleted');
-        fetchForms();
-      }
+      await api.delete(`/forms/definitions/${id}`);
+      showNotification('success', 'Form deleted');
+      fetchForms();
     } catch {
       showNotification('error', 'Failed to delete');
     }
@@ -106,15 +92,9 @@ export default function FormsPage() {
 
   const handleToggle = async (id: number, enabled: boolean) => {
     try {
-      const res = await fetch(`/api/forms/definitions/${id}`, {
-        method: 'PATCH',
-        headers,
-        body: JSON.stringify({ is_enabled: enabled }),
-      });
-      if (res.ok) {
-        showNotification('success', enabled ? 'Form enabled' : 'Form disabled');
-        fetchForms();
-      }
+      await api.patch(`/forms/definitions/${id}`, { is_enabled: enabled });
+      showNotification('success', enabled ? 'Form enabled' : 'Form disabled');
+      fetchForms();
     } catch {
       showNotification('error', 'Failed to update');
     }
@@ -129,7 +109,7 @@ export default function FormsPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 flex flex-col h-full">
       {notification && (
         <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 ${
           notification.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
@@ -140,7 +120,7 @@ export default function FormsPage() {
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-3">
           <ClipboardList className="w-8 h-8 text-emerald-400" />
           <div>
@@ -161,6 +141,7 @@ export default function FormsPage() {
         </div>
       </div>
 
+      <div className="flex-1 min-h-0 overflow-y-auto mt-6">
       {/* Create Form */}
       {showCreateForm && (
         <div className="card p-6 space-y-4">
@@ -345,6 +326,7 @@ export default function FormsPage() {
           })}
         </div>
       )}
+      </div>
     </div>
   );
 }

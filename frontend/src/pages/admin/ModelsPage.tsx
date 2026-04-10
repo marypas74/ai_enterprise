@@ -120,8 +120,8 @@ export default function ModelsPage() {
   }
 
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
+    <div className="p-6 flex flex-col h-full">
+      <div className="flex items-center justify-between mb-6 flex-shrink-0">
         <div>
           <h1 className="text-2xl font-bold">AI Models</h1>
           <p className="text-surface-500 mt-1">Manage available models and their settings</p>
@@ -129,7 +129,7 @@ export default function ModelsPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex gap-4 mb-6">
+      <div className="flex gap-4 mb-6 flex-shrink-0">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-surface-400" />
           <input
@@ -153,7 +153,7 @@ export default function ModelsPage() {
       </div>
 
       {/* Models by Provider */}
-      <div className="space-y-8">
+      <div className="space-y-8 flex-1 min-h-0 overflow-y-auto">
         {Object.entries(groupedModels).map(([providerName, providerModels]) => (
           <div key={providerName}>
             <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">

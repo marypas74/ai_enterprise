@@ -1,19 +1,14 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { readdir, stat, createReadStream } from 'fs';
-import { join, dirname, resolve, sep } from 'path';
+import { join, resolve, sep } from 'path';
 import { promisify } from 'util';
-import { fileURLToPath } from 'url';
+import { findOne } from '../../database/index.js';
 
 const readdirAsync = promisify(readdir);
 const statAsync = promisify(stat);
 
 // Path to vscode-extension directory - uses EXTENSION_DIR env var or shared projects path
 const EXTENSION_DIR = process.env.EXTENSION_DIR || join(process.env.PROJECTS_PATH || '/data/projects', 'extensions');
-
-// Path to guides directory (relative to source)
-const __filename_local = fileURLToPath(import.meta.url);
-const __dirname_local = dirname(__filename_local);
-const GUIDES_DIR = join(__dirname_local, '..', '..', 'guides');
 
 export async function downloadRoutes(fastify: FastifyInstance) {
   // Helper: Check if user is authenticated
@@ -77,7 +72,7 @@ export async function downloadRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // View user guide (HTML - inline in browser)
+  // View user guide (HTML - from DB)
   fastify.get('/downloads/guides/user', {
     onRequest: [requireAuth],
     schema: {
@@ -86,20 +81,16 @@ export async function downloadRoutes(fastify: FastifyInstance) {
       security: [{ bearerAuth: [] }]
     }
   }, async (_request: FastifyRequest, reply: FastifyReply) => {
-    try {
-      const filepath = join(GUIDES_DIR, 'user-guide.html');
-      await statAsync(filepath);
-      const stream = createReadStream(filepath);
-      return reply
-        .header('Content-Type', 'text/html; charset=utf-8')
-        .send(stream);
-    } catch (err) {
-      fastify.log.error('Failed to serve user guide: ' + String(err));
-      return reply.status(404).send({ error: 'User guide not found' });
-    }
+    const guide = await findOne<{ content: string }>(
+      fastify.db,
+      'SELECT content FROM guide_pages WHERE slug = ?',
+      ['user']
+    );
+    if (!guide) return reply.status(404).send({ error: 'User guide not found' });
+    return reply.header('Content-Type', 'text/html; charset=utf-8').send(guide.content);
   });
 
-  // View admin guide (HTML - inline in browser)
+  // View admin guide (HTML - from DB)
   fastify.get('/downloads/guides/admin', {
     onRequest: [requireAuth],
     schema: {
@@ -107,18 +98,16 @@ export async function downloadRoutes(fastify: FastifyInstance) {
       tags: ['downloads'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (_request: FastifyRequest, reply: FastifyReply) => {
-    try {
-      const filepath = join(GUIDES_DIR, 'admin-guide.html');
-      await statAsync(filepath);
-      const stream = createReadStream(filepath);
-      return reply
-        .header('Content-Type', 'text/html; charset=utf-8')
-        .send(stream);
-    } catch (err) {
-      fastify.log.error('Failed to serve admin guide: ' + String(err));
-      return reply.status(404).send({ error: 'Admin guide not found' });
-    }
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const user = (request as any).user;
+    if (user?.role !== 'admin') return reply.status(403).send({ error: 'Admin access required' });
+    const guide = await findOne<{ content: string }>(
+      fastify.db,
+      'SELECT content FROM guide_pages WHERE slug = ?',
+      ['admin']
+    );
+    if (!guide) return reply.status(404).send({ error: 'Admin guide not found' });
+    return reply.header('Content-Type', 'text/html; charset=utf-8').send(guide.content);
   });
 
   // List available guides

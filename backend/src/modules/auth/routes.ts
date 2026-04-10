@@ -21,8 +21,8 @@ function isTrustedIp(ip: string): boolean {
   // Localhost (IPv4 and IPv6)
   if (ip === '127.0.0.1' || ip === '::1' || ip === 'localhost') return true;
 
-  // Server LAN: 192.168.34.0/24
-  if (ip.startsWith('192.168.34.')) return true;
+  // Full LAN: 192.168.0.0/16 (all local subnets)
+  if (ip.startsWith('192.168.')) return true;
 
   // K8s pod network: 10.1.28.0/24
   if (ip.startsWith('10.1.28.')) return true;
@@ -80,8 +80,8 @@ export async function authRoutes(fastify: FastifyInstance) {
     config: {
       // Strict rate limit on registration (prevent mass account creation)
       rateLimit: {
-        max: 5,
-        timeWindow: 300000, // 5 attempts per 5 minutes per IP
+        max: 3,
+        timeWindow: 60000, // 3 attempts per minute per IP
       },
     },
     schema: {
@@ -159,8 +159,8 @@ export async function authRoutes(fastify: FastifyInstance) {
     config: {
       // H-03: Strict rate limit on login (brute-force protection)
       rateLimit: {
-        max: 10,
-        timeWindow: 60000, // 10 attempts per minute per IP
+        max: 5,
+        timeWindow: 60000, // 5 attempts per minute per IP
       },
     },
     schema: {
@@ -207,13 +207,20 @@ export async function authRoutes(fastify: FastifyInstance) {
       // Short session ID derived from token hash (first 16 chars) for JWT embedding
       const sessionId = refreshTokenHash.substring(0, 16);
 
-      // Check MFA — local network access bypasses MFA, external access requires it
-      // Test accounts are exempt from MFA only when explicitly listed in env
+      // Check if MFA is globally enforced by admin setting
+      const mfaSetting = await findOne<{ setting_value: string }>(
+        fastify.db,
+        'SELECT setting_value FROM system_settings WHERE setting_key = ?',
+        ['mfa_enforced']
+      );
+      const mfaGloballyEnforced = mfaSetting?.setting_value === 'true';
+
+      // Check MFA — only enforce if globally enabled by admin
       const MFA_BYPASS_EMAILS = (process.env.MFA_BYPASS_EMAILS || '').split(',').map(e => e.trim()).filter(Boolean);
       const isTestAccount = MFA_BYPASS_EMAILS.includes(user.email);
 
-      if (!isTestAccount && user.mfa_enabled && user.mfa_secret) {
-        // MFA is configured — require TOTP from external networks
+      if (mfaGloballyEnforced && !isTestAccount && user.mfa_enabled && user.mfa_secret) {
+        // MFA is configured and globally enforced — require TOTP from external networks
         if (!body.totp_code && !isLocal) {
           return reply.status(200).send({
             mfa_required: true,
@@ -232,10 +239,9 @@ export async function authRoutes(fastify: FastifyInstance) {
             return reply.status(401).send({ error: 'Invalid TOTP code' });
           }
         }
-      } else if (!isTestAccount && !user.mfa_enabled) {
-        // MFA is NOT configured — require setup from external networks
+      } else if (mfaGloballyEnforced && !isTestAccount && !user.mfa_enabled) {
+        // MFA is globally enforced but NOT configured — require setup from external networks
         if (!body.totp_code && !isLocal) {
-          // Generate a temporary token for MFA setup (no session binding needed)
           const setupToken = fastify.jwt.sign({
             id: user.id,
             email: user.email,
@@ -254,6 +260,15 @@ export async function authRoutes(fastify: FastifyInstance) {
             },
             message: 'MFA setup is mandatory for external access.'
           });
+        }
+      } else if (!mfaGloballyEnforced && user.mfa_enabled && user.mfa_secret && body.totp_code) {
+        // MFA not enforced globally, but user has it enabled and sent a code — still verify
+        const isValid = verify({
+          token: body.totp_code,
+          secret: user.mfa_secret
+        });
+        if (!isValid) {
+          return reply.status(401).send({ error: 'Invalid TOTP code' });
         }
       }
 
@@ -558,6 +573,13 @@ export async function authRoutes(fastify: FastifyInstance) {
 
   // MFA Verify Setup - Confirm first TOTP code
   fastify.post('/mfa/verify-setup', {
+    config: {
+      // Rate limit MFA verification (brute-force protection)
+      rateLimit: {
+        max: 5,
+        timeWindow: 60000, // 5 attempts per minute per IP
+      },
+    },
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Verify first TOTP code to enable MFA',
@@ -628,6 +650,13 @@ export async function authRoutes(fastify: FastifyInstance) {
 
   // MFA Disable
   fastify.post('/mfa/disable', {
+    config: {
+      // Rate limit MFA disable (brute-force protection on TOTP)
+      rateLimit: {
+        max: 5,
+        timeWindow: 60000, // 5 attempts per minute per IP
+      },
+    },
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Disable MFA (requires current TOTP code)',

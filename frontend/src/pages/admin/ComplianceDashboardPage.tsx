@@ -115,13 +115,13 @@ export default function ComplianceDashboardPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="p-6 flex flex-col h-full gap-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-3">
           <Shield className="w-8 h-8 text-primary-600" />
           <div>
-            <h1 className="text-2xl font-bold">AI Act Compliance</h1>
+            <h1 className="text-2xl font-bold flex-shrink-0">AI Act Compliance</h1>
             <p className="text-sm text-surface-500">Reg. UE 2024/1689 — Dashboard di conformità</p>
           </div>
         </div>
@@ -135,14 +135,14 @@ export default function ComplianceDashboardPage() {
       </div>
 
       {/* Info Card */}
-      <div className="card p-6 text-center">
+      <div className="card p-6 text-center flex-shrink-0">
         <p className="text-sm text-surface-500 mb-2">AI Act Compliance Status</p>
         <p className="text-lg font-bold text-primary-600">Reg. UE 2024/1689</p>
         <p className="text-sm text-surface-500 mt-2">Scadenza: 2 Agosto 2026</p>
       </div>
 
       {/* Metric Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 flex-shrink-0">
         <div className="card p-4 text-center">
           <Users className="w-5 h-5 text-blue-500 mx-auto mb-1" />
           <p className="text-xl font-bold">{dashboard?.users?.with_all_consents || 0}/{dashboard?.users?.total || 0}</p>
@@ -170,7 +170,7 @@ export default function ComplianceDashboardPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-surface-200 dark:border-surface-700" role="tablist" aria-label="Sezioni conformità">
+      <div className="flex gap-1 border-b border-surface-200 dark:border-surface-700 flex-shrink-0" role="tablist" aria-label="Sezioni conformità">
         {(['overview', 'decisions', 'feedback', 'exports'] as const).map(tab => (
           <button
             key={tab}
@@ -191,9 +191,9 @@ export default function ComplianceDashboardPage() {
 
       {/* Tab Content */}
       {activeTab === 'overview' && (
-        <div className="card overflow-hidden" role="tabpanel" id="tabpanel-overview" aria-labelledby="tab-overview">
+        <div className="card overflow-auto flex-1 min-h-0" role="tabpanel" id="tabpanel-overview" aria-labelledby="tab-overview">
           <table className="w-full">
-            <thead>
+            <thead className="sticky top-0 z-10">
               <tr className="bg-surface-50 dark:bg-surface-800 text-left">
                 <th className="px-4 py-3 text-xs font-medium text-surface-500 uppercase">GAP</th>
                 <th className="px-4 py-3 text-xs font-medium text-surface-500 uppercase">Descrizione</th>
@@ -214,7 +214,7 @@ export default function ComplianceDashboardPage() {
       )}
 
       {activeTab === 'decisions' && (
-        <div className="card overflow-hidden" role="tabpanel" id="tabpanel-decisions" aria-labelledby="tab-decisions">
+        <div className="card overflow-auto flex-1 min-h-0" role="tabpanel" id="tabpanel-decisions" aria-labelledby="tab-decisions">
           {decisionLogsError && (
             <div className="p-4 text-center">
               <p className="text-red-500 mb-2">{decisionLogsError}</p>
@@ -222,7 +222,7 @@ export default function ComplianceDashboardPage() {
             </div>
           )}
           <table className="w-full">
-            <thead>
+            <thead className="sticky top-0 z-10">
               <tr className="bg-surface-50 dark:bg-surface-800 text-left">
                 <th className="px-4 py-3 text-xs font-medium text-surface-500 uppercase">ID</th>
                 <th className="px-4 py-3 text-xs font-medium text-surface-500 uppercase">Modello</th>

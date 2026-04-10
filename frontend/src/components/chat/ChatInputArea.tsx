@@ -11,6 +11,7 @@ import {
   Camera,
   CheckCircle,
   AlertCircle,
+  Globe,
 } from 'lucide-react';
 import clsx from 'clsx';
 import type { Attachment } from '../../hooks/useFileAttachments';
@@ -46,6 +47,8 @@ interface ChatInputAreaProps {
   onAddFile?: (file: File) => void;
   onVoiceTranscription?: (text: string) => void;
   onModeChange?: (mode: ChatMode) => void;
+  forceWebSearch?: boolean;
+  onWebSearchToggle?: () => void;
 }
 
 export default function ChatInputArea({
@@ -65,6 +68,8 @@ export default function ChatInputArea({
   onAddFile,
   onVoiceTranscription,
   onModeChange,
+  forceWebSearch,
+  onWebSearchToggle,
 }: ChatInputAreaProps) {
   const { chatMode, selectedDocumentIds } = useDocumentStore();
   const isRagMode = chatMode === 'rag';
@@ -147,9 +152,24 @@ export default function ChatInputArea({
           accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.json,.xml,.yaml,.yml,.js,.ts,.jsx,.tsx,.py,.java,.c,.cpp,.h,.html,.css,.jpg,.jpeg,.png,.gif,.webp,.svg,.mp3,.wav,.ogg,.zip,.tar,.gz"
         />
 
-        {/* RAG Mode Toggle */}
-        <div className="flex items-center mb-4">
+        {/* RAG Mode Toggle + Web Search Toggle */}
+        <div className="flex items-center gap-3 mb-4">
           <RagModeToggle onModeChange={onModeChange} />
+          {!isRagMode && onWebSearchToggle && (
+            <button
+              onClick={onWebSearchToggle}
+              title={forceWebSearch ? 'Ricerca web attiva — clicca per disattivare' : 'Attiva ricerca web su internet'}
+              className={clsx(
+                'flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors',
+                forceWebSearch
+                  ? 'bg-blue-50 border-blue-400 text-blue-700 dark:bg-blue-900/30 dark:border-blue-500 dark:text-blue-300'
+                  : 'bg-surface-100 border-surface-300 text-surface-500 hover:border-blue-400 hover:text-blue-600 dark:bg-surface-800 dark:border-surface-600 dark:text-surface-400 dark:hover:border-blue-500'
+              )}
+            >
+              <Globe className="w-3.5 h-3.5" />
+              <span>Web</span>
+            </button>
+          )}
         </div>
 
         {/* RAG Document Panel — shown when Documents mode is active */}

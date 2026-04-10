@@ -1,7 +1,6 @@
 import type mysql from 'mysql2/promise';
 import { findOne, findMany, execute } from '../database/helpers.js';
-import { generateServiceToken } from '../auth/serviceToken.js';
-import { config } from '../config.js';
+import { createSkillInBackend } from '../backend/BackendClient.js';
 
 interface ApprovalRequest {
   readonly id: number;
@@ -39,36 +38,6 @@ interface Installation {
 interface PendingListResult {
   readonly items: readonly Record<string, unknown>[];
   readonly total: number;
-}
-
-async function callBackendCreateResource(
-  catalogItem: CatalogItem,
-  userId: number,
-): Promise<number | null> {
-  const token = generateServiceToken(config.jwtSecret);
-  const response = await fetch(`${config.backendUrl}/api/skills`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({
-      name: catalogItem.name,
-      display_name: catalogItem.display_name,
-      description: catalogItem.description,
-      category: catalogItem.category,
-      type: catalogItem.type,
-      metadata: catalogItem.metadata,
-      installed_by: userId,
-    }),
-  });
-
-  if (!response.ok) {
-    return null;
-  }
-
-  const body = await response.json();
-  return body?.data?.id ?? null;
 }
 
 function assertPending(request: ApprovalRequest | null, requestId: number): asserts request is ApprovalRequest {
@@ -116,15 +85,27 @@ export class ApprovalService {
       return;
     }
 
-    const targetId = await callBackendCreateResource(catalogItem, request.requested_by);
+    try {
+      const targetId = await createSkillInBackend(catalogItem);
 
-    await execute(
-      this.pool,
-      `UPDATE marketplace_installations
-       SET status = 'installed', approved_by = ?, target_id = ?
-       WHERE id = ?`,
-      [adminId, targetId, installation.id],
-    );
+      await execute(
+        this.pool,
+        `UPDATE marketplace_installations
+         SET status = 'installed', approved_by = ?, target_id = ?
+         WHERE id = ?`,
+        [adminId, targetId, installation.id],
+      );
+    } catch (error) {
+      // Mark installation as failed if backend call fails
+      await execute(
+        this.pool,
+        `UPDATE marketplace_installations SET status = 'failed' WHERE id = ?`,
+        [installation.id],
+      );
+      throw new Error(
+        `Approval succeeded but skill creation failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
 
   async reject(requestId: number, adminId: number, notes: string): Promise<void> {

@@ -13,8 +13,9 @@ const docGenRateLimit = {
     }
 };
 import { generateDocxBuffer, generateExcelBuffer, generatePptxBuffer, convertOfficeToPdf } from '../../services/DocumentProcessorService.js';
-import { findOne, findMany } from '../../database/index.js';
+import { findOne, findMany, insertOne } from '../../database/index.js';
 import { pdfEditorRoutes } from './pdfEditorRoutes.js';
+import { onlyofficeRoutes } from './onlyofficeRoutes.js';
 import fs from 'fs/promises';
 import { existsSync, mkdirSync } from 'fs';
 import path from 'path';
@@ -36,6 +37,7 @@ if (!existsSync(GENERATED_DIR)) {
 
 export async function toolsRoutes(fastify: FastifyInstance) {
     await fastify.register(pdfEditorRoutes);
+    await fastify.register(onlyofficeRoutes);
 
     // POST: Generate and save file
     fastify.post('/tools/generate-docx', {
@@ -318,13 +320,11 @@ export async function toolsRoutes(fastify: FastifyInstance) {
                 case 'pdf': {
                     // Generate DOCX first, then convert to PDF via LibreOffice
                     const docxBuffer = await generateDocxBuffer(cleanContent, body.title);
-                    const tmpDocx = path.join(GENERATED_DIR, `_tmp_${Date.now()}_${randomUUID().slice(0, 8)}.docx`);
-                    await fs.writeFile(tmpDocx, docxBuffer);
-                    const pdfPath = await convertOfficeToPdf(docxBuffer, GENERATED_DIR, `_tmp_${Date.now()}_${randomUUID().slice(0, 8)}.docx`);
+                    const tmpDocxName = `_tmp_${Date.now()}_${randomUUID().slice(0, 8)}.docx`;
+                    const pdfPath = await convertOfficeToPdf(docxBuffer, GENERATED_DIR, tmpDocxName);
                     buffer = await fs.readFile(pdfPath);
-                    filename = `${body.title.replace(/[^a-z0-9]/gi, '_')}_${Date.now()}_${randomUUID().slice(0, 8)}.pdf`;
-                    // Clean up temp files
-                    await fs.unlink(tmpDocx).catch(() => {});
+                    filename = `${body.title.replace(/[^a-z0-9]/gi, '_')}_${Date.now()}.pdf`;
+                    // Clean up intermediate PDF (will be saved with final filename at line 360)
                     await fs.unlink(pdfPath).catch(() => {});
                     break;
                 }
@@ -359,6 +359,20 @@ export async function toolsRoutes(fastify: FastifyInstance) {
             await fs.writeFile(filePath, buffer);
 
             const downloadUrl = `/api/tools/download/${filename}`;
+
+            // For PDF format: also save as attachment so the PDF editor can open it
+            if (body.format === 'pdf' && body.conversationId) {
+                const attachmentId = await insertOne(
+                    fastify.db,
+                    `INSERT INTO chat_attachments
+                     (conversation_id, user_id, file_name, original_name, file_path, file_size, mime_type, content_type, processing_status)
+                     VALUES (?, ?, ?, ?, ?, ?, 'application/pdf', 'document', 'completed')`,
+                    [body.conversationId, user.id, filename, filename, filePath, buffer.length]
+                );
+                fastify.log.info(`[Tools] PDF saved as attachment ${attachmentId} for editor support`);
+                return { success: true, url: downloadUrl, filename, format: body.format, attachmentId };
+            }
+
             return { success: true, url: downloadUrl, filename, format: body.format };
 
         } catch (error: any) {

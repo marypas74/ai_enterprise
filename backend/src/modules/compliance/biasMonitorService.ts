@@ -55,6 +55,17 @@ export class BiasMonitorService {
     const periodEnd = new Date();
     const periodStart = new Date(periodEnd.getTime() - this.INTERVAL_MS);
 
+    // Format dates as MySQL DATETIME (MariaDB rejects ISO 8601 with 'T' and 'Z')
+    const toMySQLDatetime = (d: Date) =>
+      d.getFullYear() + '-' +
+      String(d.getMonth() + 1).padStart(2, '0') + '-' +
+      String(d.getDate()).padStart(2, '0') + ' ' +
+      String(d.getHours()).padStart(2, '0') + ':' +
+      String(d.getMinutes()).padStart(2, '0') + ':' +
+      String(d.getSeconds()).padStart(2, '0');
+    const periodStartStr = toMySQLDatetime(periodStart);
+    const periodEndStr = toMySQLDatetime(periodEnd);
+
     // Aggregate decision log stats per model (includes refusal/error counts)
     const modelStats = await findMany<{
       ai_model: string;
@@ -75,7 +86,7 @@ export class BiasMonitorService {
        FROM ai_decision_log
        WHERE created_at BETWEEN ? AND ?
        GROUP BY ai_model, ai_provider`,
-      [periodStart.toISOString(), periodEnd.toISOString()]
+      [periodStartStr, periodEndStr]
     );
 
     // Batch feedback query — single query for all models (eliminates N+1)
@@ -88,7 +99,7 @@ export class BiasMonitorService {
        JOIN messages m ON rf.message_id = m.id
        WHERE m.ai_model IS NOT NULL AND rf.created_at BETWEEN ? AND ?
        GROUP BY m.ai_model`,
-      [periodStart.toISOString(), periodEnd.toISOString()]
+      [periodStartStr, periodEndStr]
     );
     const feedbackMap = new Map(feedbackByModel.map(f => [f.ai_model, f]));
 
@@ -102,7 +113,7 @@ export class BiasMonitorService {
          (period_start, period_end, ai_model, ai_provider, total_requests, refusal_count, error_count,
           avg_latency_ms, negative_feedback_count, positive_feedback_count, flagged_content_count)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [periodStart.toISOString(), periodEnd.toISOString(),
+        [periodStartStr, periodEndStr,
          stat.ai_model, stat.ai_provider, stat.total_requests,
          stat.refusal_count || 0, stat.error_count || 0,
          stat.avg_latency_ms, negative, positive, stat.flagged_count]

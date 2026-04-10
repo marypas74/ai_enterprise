@@ -66,7 +66,7 @@
 <body>
 <div class="container">
 
-<span class="version">v2.1.27 - ADMIN</span>
+<span class="version">v2.1.52 - ADMIN</span>
 <h1>Enterprise AI Chat</h1>
 <p class="subtitle">Guida Amministratore Completa - Configurazione, Gestione e Architettura del Sistema</p>
 
@@ -125,13 +125,17 @@
          (Nginx+React)  (Fastify 5)   (Real-time)
          2 repliche      2 repliche
                |              |
-               +--------------+----------+--------+
-                              |          |        |
-                          MariaDB     Redis    Ollama
-                        (StatefulSet)  (Cache)  (Docker Host)
+               +--------------+----------+--------+--------+
+                              |          |        |        |
+                          MariaDB     Redis    Ollama    vLLM
+                        (StatefulSet) (Cache) (Docker)  (Docker)
+                                               Host      Host
                               |
                          Parlant
-                      (Python Agent, port 8800)</code></pre>
+                      (Python Agent, port 8800)
+
+  GPU (RTX 5090 32GB): vLLM → Qwen3.5 35B-A3B-GPTQ-Int4
+  Ollama:              RAG embeddings, vision, OCR</code></pre>
 </div>
 
 <h3>Stack Tecnologico</h3>
@@ -212,9 +216,14 @@
   <li><strong>Eliminazione</strong> - Rimozione permanente dell'utente e dei dati associati</li>
 </ul>
 
+<div class="info">
+  <div class="info-title">MFA: Controllo Globale</div>
+  <p>L'MFA e opzionale e controllata tramite un <strong>toggle globale nelle impostazioni di sistema</strong>. Quando disabilitata a livello sistema, nessun utente sara obbligato ad usarla. Quando abilitata, ogni utente puo configurarla autonomamente. Il reset MFA individuale rimane sempre disponibile come azione admin.</p>
+</div>
+
 <h4>Gestione Gruppi</h4>
 <ul>
-  <li><strong>Creazione gruppo</strong> - Nome, descrizione, limite token mensili, abilitazione Kanban</li>
+  <li><strong>Creazione gruppo</strong> - Nome, descrizione, limite token mensili</li>
   <li><strong>Assegnazione utenti</strong> - Aggiungi/rimuovi utenti dai gruppi</li>
   <li><strong>Quote</strong> - Limite massimo di token per mese per gruppo</li>
   <li><strong>Modifica/Eliminazione</strong> - Aggiornamento impostazioni o rimozione gruppo</li>
@@ -279,6 +288,32 @@
   <li>Pulsante "Sincronizza da Ollama" per aggiornare la lista</li>
 </ul>
 
+<h4>vLLM - Configurazione Modello Locale</h4>
+<div class="info">
+  <div class="info-title">vLLM su GPU locale</div>
+  <p>vLLM gira come <strong>container Docker sull'host</strong> con accesso diretto alla GPU RTX 5090. E accessibile dal backend K8s tramite il proxy Antigravity. Il provider e configurato come "Custom" (compatibile OpenAI API).</p>
+</div>
+<ul>
+  <li><strong>URL base</strong>: <code>http://10.0.1.1:8086/vllm/v1</code> (via proxy)</li>
+  <li><strong>Modello attuale</strong>: <code>Qwen/Qwen3.5-35B-A3B-GPTQ-Int4</code></li>
+  <li><strong>Immagine Docker</strong>: <code>vllm/vllm-openai:cu130-nightly</code> (CUDA 13.0, Blackwell SM120)</li>
+  <li><strong>Quantizzazione</strong>: gptq_marlin (ottimizzata per velocita su NVIDIA)</li>
+  <li><strong>KV Cache</strong>: fp8 + prefix caching abilitato</li>
+  <li><strong>Latenza tipica (TTFT)</strong>: 165–300ms per query normali</li>
+  <li><strong>GPU Memory</strong>: ~28.8 GB / 32 GB VRAM (90% utilization)</li>
+  <li><strong>enforce-eager</strong>: True (CUDA graphs disabilitati per vincoli VRAM)</li>
+</ul>
+
+<div class="warning">
+  <div class="warning-title">Gestione vLLM</div>
+  <ul>
+    <li>Gestisci vLLM via <code>docker-compose</code> in <code>~/vllm/</code> sull'host</li>
+    <li>Per aggiornare modello: modifica <code>VLLM_MODEL</code> in <code>.env</code> e riavvia</li>
+    <li>Se il container crasha dopo aggiornamenti K8s, fare rolling restart backend pods</li>
+    <li>MAI creare CronJob o pod Kubernetes per vLLM</li>
+  </ul>
+</div>
+
 <h3>AIProviderFactory</h3>
 <p>Il servizio <code>AIProviderFactory</code> gestisce la creazione dei client AI per ogni provider. Supporta:</p>
 <ul>
@@ -320,6 +355,26 @@
   <li>Validazione delle configurazioni</li>
   <li>Filtraggio per capacita (streaming, tool use, vision)</li>
 </ul>
+
+<h4>Model Orchestrator v2.0 — Routing Tier-Based</h4>
+<p>Il sistema usa un orchestratore per instradare automaticamente le richieste al modello piu appropriato in base al carico:</p>
+<table>
+  <thead><tr><th>Tier</th><th>Descrizione</th><th>Modelli Tipici</th></tr></thead>
+  <tbody>
+    <tr><td><span class="badge badge-success">FAST</span></td><td>Risposte rapide, carico leggero</td><td>GPT-4o-mini, Gemini Flash, Haiku</td></tr>
+    <tr><td><span class="badge badge-primary">BALANCED</span></td><td>Bilanciamento qualita/velocita</td><td>Qwen3.5 35B (locale), GPT-4o</td></tr>
+    <tr><td><span class="badge badge-danger">POWERFUL</span></td><td>Massima capacita di ragionamento</td><td>Claude Opus, Gemini Pro, o3</td></tr>
+  </tbody>
+</table>
+
+<h4>Catalogo Modelli Ollama</h4>
+<p>I modelli Ollama presenti nel DB rappresentano il <strong>catalogo completo</strong>. Alcuni modelli potrebbero non essere fisicamente scaricati sul disco (pull su richiesta). I modelli attualmente caricati sono esclusivamente per:</p>
+<ul>
+  <li><strong>RAG Embeddings</strong>: <code>snowflake-arctic-embed:110m</code> (sempre attivo, 279 MB, essenziale)</li>
+  <li><strong>Vision/OCR</strong>: <code>llava</code>, <code>moondream</code> e similari per analisi immagini</li>
+  <li><strong>Chat models</strong>: rimossi dal disco (sostituiti da vLLM), ma rimangono nel catalogo DB per eventuale ripristino</li>
+</ul>
+<p>Per aggiungere un modello: <code>docker exec ollama ollama pull &lt;nome-modello&gt;</code></p>
 
 <!-- SECTION 5: AGENTI -->
 <h2 id="agenti">5. Agenti e Orchestratore</h2>
@@ -678,7 +733,7 @@
     <tr><td>JWT</td><td>Token con session ID embedded, scadenza configurabile</td></tr>
     <tr><td>Refresh Token</td><td>HTTP-only cookie, rotazione automatica, 7 giorni</td></tr>
     <tr><td>Sessione Singola</td><td>Nuovo login revoca sessioni precedenti</td></tr>
-    <tr><td>MFA (TOTP)</td><td>Autenticazione a due fattori opzionale</td></tr>
+    <tr><td>MFA (TOTP)</td><td>Autenticazione a due fattori — opzionale, controllata globalmente dall'admin tramite impostazioni sistema</td></tr>
     <tr><td>MFA Bypass</td><td>Bypass per reti locali trusted (192.168.34.0/24, 10.1.28.0/24)</td></tr>
     <tr><td>Rate Limiting</td><td>10 tentativi login/minuto per IP</td></tr>
     <tr><td>Password Hash</td><td>bcrypt con costo 10</td></tr>
@@ -725,11 +780,15 @@
   </div>
   <div class="card">
     <div class="card-title">GPU</div>
-    <p>Per-GPU: utilizzo %, memoria, temperatura, potenza</p>
+    <p>Per-GPU: utilizzo %, memoria VRAM usata/totale, temperatura, potenza. La RTX 5090 dovrebbe mostrare ~28-29 GB VRAM usata quando vLLM e attivo.</p>
   </div>
   <div class="card">
     <div class="card-title">Ollama</div>
-    <p>Modelli attivi, coda richieste, req/sec</p>
+    <p>Modelli attivi, coda richieste, req/sec. Solo modelli embedding/vision; chat models su vLLM.</p>
+  </div>
+  <div class="card">
+    <div class="card-title">vLLM</div>
+    <p>Container Docker sull'host. Verificare stato con: <code>docker logs vllm --tail 50</code>. Accessibile da K8s tramite proxy Antigravity su <code>http://10.0.1.1:8086/vllm</code>.</p>
   </div>
 </div>
 
@@ -868,19 +927,6 @@
   </tbody>
 </table>
 
-<h4>Progetti e Kanban</h4>
-<table>
-  <thead><tr><th>Tabella</th><th>Descrizione</th></tr></thead>
-  <tbody>
-    <tr><td><code>projects</code></td><td>Progetti utente</td></tr>
-    <tr><td><code>project_members</code></td><td>Membri del progetto</td></tr>
-    <tr><td><code>kanban_boards</code></td><td>Bacheche Kanban</td></tr>
-    <tr><td><code>kanban_columns</code></td><td>Colonne delle bacheche</td></tr>
-    <tr><td><code>kanban_cards</code></td><td>Card/Task con priorita e assegnazione</td></tr>
-    <tr><td><code>kanban_card_activity</code></td><td>Registro attivita card</td></tr>
-  </tbody>
-</table>
-
 <h4>Admin e Audit</h4>
 <table>
   <thead><tr><th>Tabella</th><th>Descrizione</th></tr></thead>
@@ -908,7 +954,6 @@
     <tr><td><code>/api/memory</code></td><td>Osservazioni e ricerca</td><td>Si</td></tr>
     <tr><td><code>/api/ingestion</code></td><td>Ingestione URL e documenti</td><td>Si</td></tr>
     <tr><td><code>/api/attachments</code></td><td>Upload e elaborazione file</td><td>Si</td></tr>
-    <tr><td><code>/api/projects</code></td><td>Progetti e Kanban</td><td>Si</td></tr>
     <tr><td><code>/api/agents</code></td><td>Sessioni agente</td><td>Si</td></tr>
     <tr><td><code>/api/orchestrator</code></td><td>Dashboard orchestratore</td><td>Si</td></tr>
     <tr><td><code>/api/tools</code></td><td>Generazione documenti</td><td>Si</td></tr>
@@ -1019,6 +1064,17 @@ bash BUILD.sh    # Richiede sudo: npm install, Docker build, MicroK8s import, K8
 <div class="card">
   <div class="card-title">Ollama non risponde</div>
   <p>Verifica che il container Docker sia attivo: <code>docker ps | grep ollama</code>. Verifica il proxy: <code>curl http://10.0.1.1:8086/ollama/api/tags -H "X-Ollama-Key: mTLS-k8s-backend-2026"</code></p>
+</div>
+
+<div class="card">
+  <div class="card-title">vLLM lento o non risponde</div>
+  <p>Verifica lo stato del container: <code>docker logs vllm --tail 50</code>. Se le risposte alternano 45s di timeout, fare rolling restart del backend: <code>kubectl rollout restart deployment/backend -n enterprise-ai-chat</code>. Il problema e causato da connessioni stale al vLLM dopo riavvii del container.</p>
+  <p>Verifica GPU: <code>nvidia-smi</code> — la GPU dovrebbe mostrare ~28-29 GB VRAM usata quando il modello e caricato.</p>
+</div>
+
+<div class="card">
+  <div class="card-title">Risposta lenta dalla chat (TTFT elevato)</div>
+  <p>Possibili cause: (1) vLLM non ha ancora caricato il modello in GPU — attendere 2-3 minuti dopo il riavvio; (2) Prefill di un contesto molto lungo; (3) Il modello sta elaborando reasoning chain-of-thought. Latenze normali: 165-300ms per il primo token in query semplici.</p>
 </div>
 
 <div class="card">
@@ -1611,10 +1667,10 @@ bash BUILD.sh    # Richiede sudo: npm install, Docker build, MicroK8s import, K8
 </div>
 
 <div class="footer">
-  <p>Enterprise AI Chat v2.1.27 - Guida Amministratore</p>
+  <p>Enterprise AI Chat v2.1.52 - Guida Amministratore</p>
   <p>Documento riservato - Solo per personale autorizzato</p>
   <p>Conforme al Regolamento Europeo sull'AI (AI Act) e GDPR</p>
-  <p>Ultimo aggiornamento: Marzo 2026</p>
+  <p>Ultimo aggiornamento: Aprile 2026</p>
 </div>
 
 </div>

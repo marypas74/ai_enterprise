@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../../hooks/useAuth';
+import { api } from '../../services/api';
 import { useHookPipelineStore } from '../../hooks/useHookPipelineStore';
 import {
   GitMerge,
@@ -39,7 +39,6 @@ interface TraceEntry {
 }
 
 export default function PipelineVisualizerPage() {
-  const { token } = useAuth();
   const { pendingApprovals, fetchPendingApprovals } = useHookPipelineStore();
   const [handlers, setHandlers] = useState<Record<string, HookHandler[]>>({});
   const [availableHooks, setAvailableHooks] = useState<HookInfo[]>([]);
@@ -48,30 +47,24 @@ export default function PipelineVisualizerPage() {
   const [expandedHooks, setExpandedHooks] = useState<Set<string>>(new Set());
   const [traceExpanded, setTraceExpanded] = useState(false);
 
-  const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
-
   const fetchHooks = useCallback(async () => {
     try {
-      const res = await fetch('/api/admin/hooks', { headers });
-      const data = await res.json();
-      setHandlers(data.registered_handlers || {});
-      setAvailableHooks(data.available_hooks || []);
+      const res = await api.get('/admin/hooks');
+      setHandlers(res.data.registered_handlers || {});
+      setAvailableHooks(res.data.available_hooks || []);
     } catch (err) {
       console.error('Error fetching hooks:', err);
     }
-  }, [token]);
+  }, []);
 
   const fetchTrace = useCallback(async () => {
     try {
-      const res = await fetch('/api/admin/hooks/trace', { headers });
-      if (res.ok) {
-        const data = await res.json();
-        setTraceEntries(Array.isArray(data) ? data : data.entries || []);
-      }
+      const res = await api.get('/admin/hooks/trace');
+      setTraceEntries(Array.isArray(res.data) ? res.data : res.data.entries || []);
     } catch (err) {
       console.error('Error fetching trace:', err);
     }
-  }, [token]);
+  }, []);
 
   useEffect(() => {
     const load = async () => {
@@ -84,11 +77,7 @@ export default function PipelineVisualizerPage() {
 
   const handleToggleHandler = async (hookName: string, handlerId: string, currentEnabled: boolean) => {
     try {
-      await fetch(`/api/admin/hooks/${hookName}/handlers/${handlerId}`, {
-        method: 'PATCH',
-        headers,
-        body: JSON.stringify({ enabled: !currentEnabled }),
-      });
+      await api.patch(`/admin/hooks/${hookName}/handlers/${handlerId}`, { enabled: !currentEnabled });
       await fetchHooks();
     } catch (err) {
       console.error('Error toggling handler:', err);

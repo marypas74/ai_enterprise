@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Upload,
   FileText,
@@ -10,6 +10,8 @@ import {
   X,
   Check,
   FolderOpen,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { useDocumentStore, UserDocument } from '../../hooks/useDocumentStore';
 
@@ -163,6 +165,8 @@ export default function RagDocumentPanel() {
     uploadError,
   } = useDocumentStore();
 
+  const [collapsed, setCollapsed] = useState(false);
+
   useEffect(() => {
     fetchDocuments();
   }, [fetchDocuments]);
@@ -171,10 +175,13 @@ export default function RagDocumentPanel() {
   const allSelected = readyDocs.length > 0 && readyDocs.every(d => selectedDocumentIds.includes(d.id));
 
   return (
-    <div className="bg-surface-900/80 border border-surface-700 rounded-xl p-3 mb-3 space-y-3 animate-fade-in">
+    <div className="bg-surface-900/80 border border-surface-700 rounded-xl p-3 mb-3 space-y-0 animate-fade-in">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
+        <button
+          onClick={() => setCollapsed(prev => !prev)}
+          className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+        >
           <FolderOpen className="w-4 h-4 text-indigo-400" />
           <span className="text-xs font-semibold text-surface-300 uppercase tracking-wider">
             Documenti
@@ -184,7 +191,11 @@ export default function RagDocumentPanel() {
               {selectedDocumentIds.length}/{readyDocs.length} selezionati
             </span>
           )}
-        </div>
+          {collapsed
+            ? <ChevronDown className="w-3.5 h-3.5 text-surface-500" />
+            : <ChevronUp className="w-3.5 h-3.5 text-surface-500" />
+          }
+        </button>
         <div className="flex items-center gap-1">
           {readyDocs.length > 0 && (
             <button
@@ -205,32 +216,37 @@ export default function RagDocumentPanel() {
         </div>
       </div>
 
-      {/* Upload zone */}
-      <CompactUploadZone />
+      {/* Collapsible content */}
+      {!collapsed && (
+        <div className="space-y-3 mt-3">
+          {/* Upload zone */}
+          <CompactUploadZone />
 
-      {uploadError && (
-        <div className="flex items-center gap-1.5 text-xs text-red-400 bg-red-900/20 border border-red-800/50 rounded-lg px-2.5 py-1.5">
-          <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
-          {uploadError}
-        </div>
-      )}
+          {uploadError && (
+            <div className="flex items-center gap-1.5 text-xs text-red-400 bg-red-900/20 border border-red-800/50 rounded-lg px-2.5 py-1.5">
+              <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+              {uploadError}
+            </div>
+          )}
 
-      {/* Document list */}
-      {isLoading && documents.length === 0 ? (
-        <div className="flex justify-center py-4">
-          <RefreshCw className="w-5 h-5 text-surface-600 animate-spin" />
-        </div>
-      ) : documents.length === 0 ? (
-        <div className="text-center py-4">
-          <FileText className="w-6 h-6 text-surface-700 mx-auto mb-1.5" />
-          <p className="text-xs text-surface-500">Nessun documento</p>
-          <p className="text-[10px] text-surface-600 mt-0.5">Carica PDF, DOCX o TXT per iniziare</p>
-        </div>
-      ) : (
-        <div className="space-y-1 max-h-48 overflow-y-auto">
-          {documents.map(doc => (
-            <DocItem key={doc.id} doc={doc} />
-          ))}
+          {/* Document list */}
+          {isLoading && documents.length === 0 ? (
+            <div className="flex justify-center py-4">
+              <RefreshCw className="w-5 h-5 text-surface-600 animate-spin" />
+            </div>
+          ) : documents.length === 0 ? (
+            <div className="text-center py-4">
+              <FileText className="w-6 h-6 text-surface-700 mx-auto mb-1.5" />
+              <p className="text-xs text-surface-500">Nessun documento</p>
+              <p className="text-[10px] text-surface-600 mt-0.5">Carica PDF, DOCX o TXT per iniziare</p>
+            </div>
+          ) : (
+            <div className="space-y-1 max-h-48 overflow-y-auto">
+              {documents.map(doc => (
+                <DocItem key={doc.id} doc={doc} />
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

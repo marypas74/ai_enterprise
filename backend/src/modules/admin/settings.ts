@@ -132,7 +132,7 @@ export async function settingsRoutes(fastify: FastifyInstance) {
     await updateOne(
       fastify.db,
       'UPDATE system_settings SET setting_value = ?, description = COALESCE(?, description) WHERE setting_key = ?',
-      [body.setting_value, body.description, key]
+      [body.setting_value, body.description ?? null, key]
     );
 
     // Log audit

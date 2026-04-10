@@ -1,16 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useEditor, EditorContent } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
-import { Image as ImageExtension } from '@tiptap/extension-image';
-import { Table as TableExtension } from '@tiptap/extension-table';
-import { TableRow } from '@tiptap/extension-table-row';
-import { TableCell } from '@tiptap/extension-table-cell';
-import { TableHeader } from '@tiptap/extension-table-header';
-import { Underline as UnderlineExtension } from '@tiptap/extension-underline';
-import { TextAlign } from '@tiptap/extension-text-align';
-import { X, Save, Loader2, FileText, AlertTriangle } from 'lucide-react';
-import PDFEditorToolbar from './PDFEditorToolbar';
-import { convertPdfToHtml, saveEditedPdf } from '../../services/pdfEditorApi';
+import { X, Loader2, FileText, AlertTriangle, CheckCircle, Download } from 'lucide-react';
+import { createOnlyOfficeSession, getOnlyOfficeSessionStatus } from '../../services/pdfEditorApi';
+import type { OnlyOfficeSessionResponse } from '../../services/pdfEditorApi';
+import { PDFEditorWidget } from './PDFEditorWidget/PDFEditorWidget';
+import { downloadFile } from '../../utils/fileDownload';
+import { useAuthStore } from '../../hooks/useAuthStore';
 
 interface PDFEditorPanelProps {
   attachmentId: number;
@@ -21,90 +15,154 @@ interface PDFEditorPanelProps {
 
 export default function PDFEditorPanel({ attachmentId, filename, onClose, onSaved }: PDFEditorPanelProps) {
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [dirty, setDirty] = useState(false);
-  const [conversionMethod, setConversionMethod] = useState<string | null>(null);
+  const [session, setSession] = useState<OnlyOfficeSessionResponse | null>(null);
+  const [saveStatus, setSaveStatus] = useState<'editing' | 'saved' | 'error'>('editing');
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const scriptLoadedRef = useRef(false);
 
-  const editor = useEditor({
-    extensions: [
-      StarterKit,
-      UnderlineExtension,
-      ImageExtension.configure({ inline: false, allowBase64: true }),
-      TableExtension.configure({ resizable: true }),
-      TableRow,
-      TableCell,
-      TableHeader,
-      TextAlign.configure({ types: ['heading', 'paragraph'] }),
-    ],
-    content: '<p>Caricamento...</p>',
-    onUpdate: () => setDirty(true),
-    editable: true,
-  });
-
-  const editorRef = useRef(editor);
-  editorRef.current = editor;
-
+  // Create OnlyOffice session on mount
   useEffect(() => {
     let cancelled = false;
-    const load = async () => {
+    const init = async () => {
       try {
         setLoading(true);
         setError(null);
-        const result = await convertPdfToHtml(attachmentId);
-        if (!cancelled && editorRef.current) {
-          editorRef.current.commands.setContent(result.html);
-          setConversionMethod(result.method || null);
-          setDirty(false);
+        const sessionData = await createOnlyOfficeSession(attachmentId);
+        if (!cancelled) {
+          setSession(sessionData);
         }
       } catch (err: any) {
         if (!cancelled) {
-          const serverMsg = err.response?.data?.error;
           const status = err.response?.status;
-          let userMsg: string;
-          if (serverMsg) {
-            userMsg = serverMsg;
+          const serverMsg = err.response?.data?.error;
+          if (status === 503) {
+            setError('OnlyOffice non è configurato sul server.');
+          } else if (status === 404) {
+            setError(serverMsg || 'Allegato non trovato.');
           } else if (status === 413) {
-            userMsg = 'Il PDF ha troppe pagine per essere elaborato.';
-          } else if (status === 503) {
-            userMsg = 'Il servizio OCR non è disponibile al momento. Riprova tra qualche minuto.';
-          } else if (status === 422) {
-            userMsg = 'Impossibile estrarre testo dal PDF. Il file potrebbe essere troppo complesso o il servizio OCR è sovraccarico.';
-          } else if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
-            userMsg = 'La conversione ha impiegato troppo tempo. Prova con un PDF più piccolo.';
+            setError(serverMsg || 'Il file è troppo grande (max 50MB).');
+          } else if (status === 400) {
+            setError(serverMsg || 'Il file non è un PDF.');
           } else {
-            userMsg = 'Errore durante la conversione del PDF. Riprova.';
+            setError(serverMsg || 'Errore durante la creazione della sessione di editing.');
           }
-          setError(userMsg);
         }
       } finally {
         if (!cancelled) setLoading(false);
       }
     };
-    load();
+    init();
     return () => { cancelled = true; };
   }, [attachmentId]);
 
-  const handleSave = useCallback(async () => {
-    if (!editor || saving) return;
-    try {
-      setSaving(true);
-      setError(null);
-      const html = editor.getHTML();
-      const result = await saveEditedPdf(attachmentId, html, filename);
-      setDirty(false);
-      onSaved(result.attachmentId, result.filename);
-    } catch (err: any) {
-      setError(err.response?.data?.error || err.message || 'Errore di salvataggio');
-    } finally {
-      setSaving(false);
+  // Load OnlyOffice editor script and initialize when session is ready
+  useEffect(() => {
+    if (!session) return;
+
+    const publicUrl = session.publicUrl;
+    const scriptUrl = `${publicUrl}/web-apps/apps/api/documents/api.js`;
+
+    const initEditor = () => {
+      try {
+        const editorContainer = document.getElementById('onlyoffice-editor-container');
+        if (!editorContainer) return;
+
+        // Clear previous editor instance safely (no untrusted content)
+        while (editorContainer.firstChild) {
+          editorContainer.removeChild(editorContainer.firstChild);
+        }
+
+        const config = {
+          ...session.editorConfig,
+          events: {
+            onDocumentStateChange: (event: { data: boolean }) => {
+              // data === true means document has unsaved changes
+              if (!event.data) {
+                // Document was saved, start polling for save status
+                startPolling();
+              }
+            },
+            onError: (event: { data: string }) => {
+              console.error('[OnlyOffice] Editor error:', event.data);
+            },
+          },
+        };
+
+        // @ts-expect-error DocsAPI is loaded from external script
+        new window.DocsAPI.DocEditor('onlyoffice-editor-container', config);
+      } catch (err) {
+        console.error('[OnlyOffice] Failed to initialize editor:', err);
+        setError('Errore durante l\'inizializzazione dell\'editor OnlyOffice.');
+      }
+    };
+
+    // Check if script is already loaded
+    // @ts-expect-error DocsAPI is loaded from external script
+    if (window.DocsAPI) {
+      initEditor();
+      return;
     }
-  }, [editor, attachmentId, filename, saving, onSaved]);
+
+    // Load the OnlyOffice API script
+    if (!scriptLoadedRef.current) {
+      const script = document.createElement('script');
+      script.src = scriptUrl;
+      script.async = true;
+      script.onload = () => {
+        scriptLoadedRef.current = true;
+        initEditor();
+      };
+      script.onerror = () => {
+        setError('Impossibile caricare lo script di OnlyOffice. Verifica che il server sia raggiungibile.');
+      };
+      document.head.appendChild(script);
+    }
+  }, [session]);
+
+  // Poll for save status
+  const startPolling = useCallback(() => {
+    if (!session || pollRef.current) return;
+
+    pollRef.current = setInterval(async () => {
+      try {
+        const status = await getOnlyOfficeSessionStatus(session.documentKey);
+        if (status.status === 'saved' && status.newAttachmentId && status.newFilename) {
+          setSaveStatus('saved');
+          if (pollRef.current) {
+            clearInterval(pollRef.current);
+            pollRef.current = null;
+          }
+          onSaved(status.newAttachmentId, status.newFilename);
+        } else if (status.status === 'error') {
+          setSaveStatus('error');
+          if (pollRef.current) {
+            clearInterval(pollRef.current);
+            pollRef.current = null;
+          }
+        }
+      } catch {
+        // Polling error, will retry on next interval
+      }
+    }, 2000);
+  }, [session, onSaved]);
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+    };
+  }, []);
 
   const handleClose = useCallback(() => {
-    if (dirty && !window.confirm('Hai modifiche non salvate. Vuoi chiudere comunque?')) return;
+    if (saveStatus === 'editing') {
+      if (!window.confirm('Se chiudi ora, le modifiche non salvate andranno perse. Vuoi chiudere?')) return;
+    }
     onClose();
-  }, [dirty, onClose]);
+  }, [saveStatus, onClose]);
 
   return (
     <div className="flex flex-col h-full bg-surface-950 border-l border-surface-700 w-full md:w-[55%] absolute md:relative right-0 top-0 bottom-0 z-30">
@@ -116,14 +174,12 @@ export default function PDFEditorPanel({ attachmentId, filename, onClose, onSave
           <span className="text-xs text-surface-400 truncate">{filename}</span>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={handleSave}
-            disabled={!dirty || saving || loading}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-xs font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-            Salva PDF
-          </button>
+          {saveStatus === 'saved' && (
+            <span className="flex items-center gap-1 text-xs text-green-400">
+              <CheckCircle className="w-3.5 h-3.5" />
+              Salvato
+            </span>
+          )}
           <button onClick={handleClose} className="p-1.5 rounded-lg bg-surface-700 hover:bg-surface-600 text-surface-300 transition-colors" title="Chiudi editor">
             <X className="w-4 h-4" />
           </button>
@@ -139,38 +195,48 @@ export default function PDFEditorPanel({ attachmentId, filename, onClose, onSave
         </div>
       )}
 
-      {/* Toolbar */}
-      {!loading && !error && <PDFEditorToolbar editor={editor} />}
-
       {/* Editor content */}
-      <div className="flex-1 overflow-y-auto p-6 bg-surface-900">
+      <div className="flex-1 overflow-hidden">
         {loading ? (
           <div className="flex flex-col items-center justify-center h-full gap-3">
             <Loader2 className="w-8 h-8 animate-spin text-primary-400" />
-            <p className="text-sm text-surface-400">Conversione PDF in corso...</p>
+            <p className="text-sm text-surface-400">Preparazione editor PDF...</p>
           </div>
-        ) : error ? (
-          <div className="flex flex-col items-center justify-center h-full gap-3">
-            <AlertTriangle className="w-8 h-8 text-red-400" />
-            <p className="text-sm text-surface-400">{error}</p>
+        ) : error && !session ? (
+          /* Fallback: use inline PDF viewer/editor when OnlyOffice is unavailable */
+          <div className="flex flex-col h-full">
+            <div className="flex items-center gap-2 px-4 py-2 bg-amber-900/20 border-b border-amber-800/30 text-amber-300 text-xs">
+              <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+              <span>Editor avanzato non disponibile — visualizzazione PDF con annotazioni</span>
+              <button
+                onClick={() => downloadFile(`/api/tools/download/${filename}`, filename, useAuthStore.getState().accessToken || undefined)}
+                className="ml-auto flex items-center gap-1 px-2 py-1 rounded bg-primary-600 hover:bg-primary-500 text-white text-xs transition-colors"
+                title="Scarica PDF"
+              >
+                <Download className="w-3 h-3" />
+                Scarica
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto p-4">
+              <PDFEditorWidget attachmentId={attachmentId} filename={filename} />
+            </div>
           </div>
         ) : (
-          <div className="max-w-[800px] mx-auto bg-white rounded shadow-lg p-10 min-h-[600px] prose prose-sm max-w-none
-                          [&_.ProseMirror]:outline-none [&_.ProseMirror]:min-h-[500px]
-                          [&_.ProseMirror_p]:text-gray-800 [&_.ProseMirror_p]:leading-relaxed
-                          [&_.ProseMirror_h1]:text-gray-900 [&_.ProseMirror_h2]:text-gray-900 [&_.ProseMirror_h3]:text-gray-900
-                          [&_.ProseMirror_img]:max-w-full [&_.ProseMirror_img]:rounded
-                          [&_.ProseMirror_table]:border-collapse [&_.ProseMirror_td]:border [&_.ProseMirror_td]:border-gray-300 [&_.ProseMirror_td]:p-2
-                          [&_.ProseMirror_th]:border [&_.ProseMirror_th]:border-gray-300 [&_.ProseMirror_th]:p-2 [&_.ProseMirror_th]:bg-gray-100">
-            <EditorContent editor={editor} />
-          </div>
+          <div
+            id="onlyoffice-editor-container"
+            className="w-full h-full"
+          />
         )}
       </div>
 
       {/* Status bar */}
       <div className="flex items-center justify-between px-4 py-1.5 border-t border-surface-700 text-[10px] text-surface-500">
-        <span>{dirty ? 'Modificato' : 'Nessuna modifica'}</span>
-        <span>Formato originale: PDF {conversionMethod === 'pdftohtml' ? '(conversione strutturale)' : conversionMethod === 'libreoffice' ? '(convertito via LibreOffice)' : conversionMethod === 'vision-ocr' ? '(OCR via Ollama)' : conversionMethod === 'pdf-parse' ? '(estrazione testo)' : ''}</span>
+        <span>
+          {saveStatus === 'editing' && 'In modifica'}
+          {saveStatus === 'saved' && 'PDF salvato con successo'}
+          {saveStatus === 'error' && 'Errore durante il salvataggio'}
+        </span>
+        <span>{session ? 'OnlyOffice Document Editor' : 'PDF Viewer'}</span>
       </div>
     </div>
   );

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../../hooks/useAuth';
+import { api } from '../../services/api';
 import {
   Zap,
   RefreshCw,
@@ -27,14 +27,11 @@ interface HookInfo {
 }
 
 export default function HooksPage() {
-  const { token } = useAuth();
   const [handlers, setHandlers] = useState<Record<string, HookHandler[]>>({});
   const [availableHooks, setAvailableHooks] = useState<HookInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedHooks, setExpandedHooks] = useState<Set<string>>(new Set());
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-
-  const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 
   const showNotification = (type: 'success' | 'error', message: string) => {
     setNotification({ type, message });
@@ -43,34 +40,25 @@ export default function HooksPage() {
 
   const fetchHooks = useCallback(async () => {
     try {
-      const res = await fetch('/api/admin/hooks', { headers });
-      const data = await res.json();
-      setHandlers(data.registered_handlers || {});
-      setAvailableHooks(data.available_hooks || []);
+      const res = await api.get('/admin/hooks');
+      setHandlers(res.data.registered_handlers || {});
+      setAvailableHooks(res.data.available_hooks || []);
     } catch (err) {
       console.error('Failed to fetch hooks:', err);
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, []);
 
   useEffect(() => { fetchHooks(); }, []);
 
   const toggleHandler = async (handlerId: string, enabled: boolean) => {
     try {
-      const res = await fetch(`/api/admin/hooks/handlers/${encodeURIComponent(handlerId)}/toggle`, {
-        method: 'PATCH',
-        headers,
-        body: JSON.stringify({ enabled }),
-      });
-      if (res.ok) {
-        showNotification('success', `Handler ${enabled ? 'enabled' : 'disabled'}`);
-        fetchHooks();
-      } else {
-        showNotification('error', 'Failed to toggle handler');
-      }
+      await api.patch(`/admin/hooks/handlers/${encodeURIComponent(handlerId)}/toggle`, { enabled });
+      showNotification('success', `Handler ${enabled ? 'enabled' : 'disabled'}`);
+      fetchHooks();
     } catch {
-      showNotification('error', 'Network error');
+      showNotification('error', 'Failed to toggle handler');
     }
   };
 

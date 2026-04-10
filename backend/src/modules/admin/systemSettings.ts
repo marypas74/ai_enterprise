@@ -266,6 +266,45 @@ export async function systemSettingsRoutes(fastify: FastifyInstance) {
     };
   });
 
+  // ==================== RESET COUNTERS ====================
+
+  // Reset usage counters (monthly_usage + usage_log)
+  fastify.post('/reset-counters', {
+    schema: {
+      description: 'Reset all usage counters (admin)',
+      tags: ['admin'],
+      security: [{ bearerAuth: [] }]
+    }
+  }, async (request: FastifyRequest) => {
+    const query = (request.query as { month?: string });
+    const month = query.month; // optional: reset only a specific month
+
+    if (month) {
+      await fastify.db.execute(
+        'DELETE FROM monthly_usage WHERE `year_month` = ?',
+        [month]
+      );
+      await fastify.db.execute(
+        'DELETE FROM usage_log WHERE DATE_FORMAT(created_at, "%Y-%m") = ?',
+        [month]
+      );
+    } else {
+      await fastify.db.execute('TRUNCATE TABLE monthly_usage');
+      await fastify.db.execute('TRUNCATE TABLE usage_log');
+    }
+
+    // Audit log
+    try {
+      const user = (request as any).user;
+      await fastify.db.execute(
+        'INSERT INTO audit_log (user_id, action, entity_type, entity_id, details, ip_address) VALUES (?, ?, ?, ?, ?, ?)',
+        [user?.id || 0, 'reset_counters', 'system', 0, month ? `Reset counters for ${month}` : 'Reset all counters', request.ip]
+      );
+    } catch { /* audit_log may not exist */ }
+
+    return { message: month ? `Contatori azzerati per ${month}` : 'Tutti i contatori sono stati azzerati' };
+  });
+
   // ==================== AUDIT LOG ====================
 
   // Get audit log

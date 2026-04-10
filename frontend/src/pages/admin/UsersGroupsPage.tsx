@@ -72,10 +72,40 @@ export default function UsersGroupsPage() {
   const [editingUser, setEditingUser] = useState<User | undefined>();
   const [editingGroup, setEditingGroup] = useState<Group | undefined>();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<{ type: 'user' | 'group'; id: number; name: string } | null>(null);
+  const [mfaEnforced, setMfaEnforced] = useState(false);
+  const [mfaLoading, setMfaLoading] = useState(false);
 
   useEffect(() => {
     loadData();
+    loadMfaSetting();
   }, []);
+
+  const loadMfaSetting = async () => {
+    try {
+      const res = await api.get('/admin/settings');
+      const mfa = res.data?.mfa_enforced;
+      if (mfa) {
+        setMfaEnforced(mfa.value === true || mfa.value === 'true');
+      }
+    } catch {
+      // Setting may not exist yet
+    }
+  };
+
+  const toggleMfaEnforced = async () => {
+    setMfaLoading(true);
+    try {
+      const newValue = !mfaEnforced;
+      await api.put('/admin/settings/mfa_enforced', {
+        setting_value: String(newValue),
+      });
+      setMfaEnforced(newValue);
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Errore nel salvataggio impostazione MFA');
+    } finally {
+      setMfaLoading(false);
+    }
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -205,10 +235,10 @@ export default function UsersGroupsPage() {
   );
 
   return (
-    <div className="p-6">
+    <div className="p-6 flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Gestione Utenti e Gruppi</h1>
+      <div className="flex items-center justify-between mb-6 flex-shrink-0">
+        <h1 className="text-2xl font-bold flex-shrink-0">Gestione Utenti e Gruppi</h1>
         <button
           onClick={() => {
             if (activeTab === 'users') {
@@ -227,7 +257,7 @@ export default function UsersGroupsPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 mb-6">
+      <div className="flex gap-2 mb-6 flex-shrink-0">
         <button
           onClick={() => setActiveTab('users')}
           className={clsx(
@@ -254,16 +284,45 @@ export default function UsersGroupsPage() {
         </button>
       </div>
 
-      {/* Search */}
-      <div className="relative mb-6">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-surface-400" />
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder={activeTab === 'users' ? 'Cerca utenti...' : 'Cerca gruppi...'}
-          className="input pl-11 w-full max-w-md"
-        />
+      {/* Search + MFA Toggle */}
+      <div className="flex items-center justify-between mb-6 gap-4 flex-shrink-0">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-surface-400" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={activeTab === 'users' ? 'Cerca utenti...' : 'Cerca gruppi...'}
+            className="input pl-11 w-full"
+          />
+        </div>
+        {activeTab === 'users' && (
+          <div className="flex items-center gap-3 bg-surface-50 dark:bg-surface-800 rounded-lg px-4 py-2.5">
+            <Shield className="w-4 h-4 text-surface-500" />
+            <span className="text-sm font-medium whitespace-nowrap">MFA Obbligatorio</span>
+            <button
+              onClick={toggleMfaEnforced}
+              disabled={mfaLoading}
+              className={clsx(
+                'relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
+                mfaEnforced ? 'bg-green-500' : 'bg-surface-300 dark:bg-surface-600'
+              )}
+            >
+              <span
+                className={clsx(
+                  'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
+                  mfaEnforced ? 'translate-x-6' : 'translate-x-1'
+                )}
+              />
+            </button>
+            <span className={clsx(
+              'text-xs font-medium',
+              mfaEnforced ? 'text-green-600 dark:text-green-400' : 'text-surface-400'
+            )}>
+              {mfaEnforced ? 'Attivo' : 'Disattivo'}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Content */}
@@ -273,9 +332,9 @@ export default function UsersGroupsPage() {
         </div>
       ) : activeTab === 'users' ? (
         /* Users Table */
-        <div className="card overflow-hidden">
+        <div className="card overflow-auto flex-1 min-h-0">
           <table className="w-full">
-            <thead>
+            <thead className="sticky top-0 z-10">
               <tr className="text-left text-sm text-surface-500 bg-surface-50 dark:bg-surface-900">
                 <th className="px-6 py-3 font-medium">Utente</th>
                 <th className="px-6 py-3 font-medium">Ruolo</th>
@@ -403,9 +462,9 @@ export default function UsersGroupsPage() {
         </div>
       ) : (
         /* Groups Table */
-        <div className="card overflow-hidden">
+        <div className="card overflow-auto flex-1 min-h-0">
           <table className="w-full">
-            <thead>
+            <thead className="sticky top-0 z-10">
               <tr className="text-left text-sm text-surface-500 bg-surface-50 dark:bg-surface-900">
                 <th className="px-6 py-3 font-medium">Gruppo</th>
                 <th className="px-6 py-3 font-medium">Descrizione</th>

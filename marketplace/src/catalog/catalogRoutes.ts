@@ -39,7 +39,8 @@ export async function catalogRoutes(fastify: FastifyInstance): Promise<void> {
     }
 
     const { page, limit, ...filters } = parsed.data;
-    const result = await service.list({ ...filters, page, limit });
+    const userId = request.user.id;
+    const result = await service.list({ ...filters, page, limit, userId });
 
     return {
       success: true,

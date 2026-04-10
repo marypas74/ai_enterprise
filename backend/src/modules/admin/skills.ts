@@ -143,10 +143,19 @@ export async function skillRoutes(fastify: FastifyInstance) {
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const body = createSkillSchema.parse(request.body);
 
-    const skillId = await insertOne(
-      fastify.db,
+    // Use upsert to handle re-installation of existing skills gracefully
+    const [upsertResult]: any = await fastify.db.execute(
       `INSERT INTO skills (name, display_name, description, category, system_prompt, example_prompts, required_tools, is_default, is_active)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         display_name = VALUES(display_name),
+         description = VALUES(description),
+         category = VALUES(category),
+         system_prompt = VALUES(system_prompt),
+         example_prompts = VALUES(example_prompts),
+         required_tools = VALUES(required_tools),
+         is_default = VALUES(is_default),
+         is_active = VALUES(is_active)`,
       [
         body.name,
         body.display_name,
@@ -159,11 +168,18 @@ export async function skillRoutes(fastify: FastifyInstance) {
         body.is_active
       ]
     );
+    // insertId is 0 on update, so fetch the existing id
+    let skillId = upsertResult.insertId;
+    if (!skillId) {
+      const existing = await findOne<{ id: number }>(fastify.db,
+        'SELECT id FROM skills WHERE name = ?', [body.name]);
+      skillId = existing!.id;
+    }
 
-    // If default, assign to all existing users
+    // If default, assign to all existing users (ignore duplicates)
     if (body.is_default) {
       await fastify.db.execute(
-        `INSERT INTO user_skills (user_id, skill_id, is_enabled, proficiency_level)
+        `INSERT IGNORE INTO user_skills (user_id, skill_id, is_enabled, proficiency_level)
          SELECT id, ?, TRUE, 'intermediate' FROM users`,
         [skillId]
       );

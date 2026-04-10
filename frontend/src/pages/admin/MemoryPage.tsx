@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../../hooks/useAuth';
+import { api } from '../../services/api';
 import {
   Brain,
   Search,
@@ -73,7 +73,6 @@ const TYPE_COLORS: Record<string, string> = {
 const TYPE_OPTIONS = ['insight', 'decision', 'pattern', 'error', 'preference', 'fact', 'manual'];
 
 export default function MemoryPage() {
-  const { token } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>('observations');
   const [observations, setObservations] = useState<Observation[]>([]);
   const [summaries, setSummaries] = useState<Summary[]>([]);
@@ -91,8 +90,6 @@ export default function MemoryPage() {
   const [newTags, setNewTags] = useState('');
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
-
   const showNotification = (type: 'success' | 'error', message: string) => {
     setNotification({ type, message });
     setTimeout(() => setNotification(null), 3000);
@@ -105,47 +102,43 @@ export default function MemoryPage() {
       params.set('archived', showArchived.toString());
       params.set('limit', '100');
 
-      let url = searchQuery.trim()
-        ? `/api/memory/search?q=${encodeURIComponent(searchQuery)}&limit=100`
-        : `/api/memory/observations?${params.toString()}`;
+      const url = searchQuery.trim()
+        ? `/memory/search?q=${encodeURIComponent(searchQuery)}&limit=100`
+        : `/memory/observations?${params.toString()}`;
 
-      const res = await fetch(url, { headers });
-      const data = await res.json();
-      setObservations(data.observations || data.results || []);
+      const res = await api.get(url);
+      setObservations(res.data.observations || res.data.results || []);
     } catch (err) {
       console.error('Failed to fetch observations:', err);
     }
-  }, [token, searchQuery, filterType, showArchived]);
+  }, [searchQuery, filterType, showArchived]);
 
   const fetchSummaries = useCallback(async () => {
     try {
-      const res = await fetch('/api/memory/summaries?limit=50', { headers });
-      const data = await res.json();
-      setSummaries(data.summaries || []);
+      const res = await api.get('/memory/summaries?limit=50');
+      setSummaries(res.data.summaries || []);
     } catch (err) {
       console.error('Failed to fetch summaries:', err);
     }
-  }, [token]);
+  }, []);
 
   const fetchSettings = useCallback(async () => {
     try {
-      const res = await fetch('/api/memory/settings', { headers });
-      const data = await res.json();
-      setSettings(data.settings);
+      const res = await api.get('/memory/settings');
+      setSettings(res.data.settings);
     } catch (err) {
       console.error('Failed to fetch settings:', err);
     }
-  }, [token]);
+  }, []);
 
   const fetchStats = useCallback(async () => {
     try {
-      const res = await fetch('/api/memory/stats', { headers });
-      const data = await res.json();
-      setStats(data.stats);
+      const res = await api.get('/memory/stats');
+      setStats(res.data.stats);
     } catch (err) {
       console.error('Failed to fetch stats:', err);
     }
-  }, [token]);
+  }, []);
 
   useEffect(() => {
     const loadData = async () => {
@@ -166,24 +159,18 @@ export default function MemoryPage() {
   const handleCreate = async () => {
     if (!newContent.trim()) return;
     try {
-      const res = await fetch('/api/memory/observations', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          content: newContent,
-          observation_type: newType,
-          importance: newImportance,
-          tags: newTags ? newTags.split(',').map(t => t.trim()).filter(Boolean) : undefined
-        })
+      await api.post('/memory/observations', {
+        content: newContent,
+        observation_type: newType,
+        importance: newImportance,
+        tags: newTags ? newTags.split(',').map(t => t.trim()).filter(Boolean) : undefined
       });
-      if (res.ok) {
-        showNotification('success', 'Observation saved');
-        setNewContent('');
-        setNewTags('');
-        setShowNewForm(false);
-        fetchObservations();
-        fetchStats();
-      }
+      showNotification('success', 'Observation saved');
+      setNewContent('');
+      setNewTags('');
+      setShowNewForm(false);
+      fetchObservations();
+      fetchStats();
     } catch (err) {
       showNotification('error', 'Failed to save observation');
     }
@@ -191,7 +178,7 @@ export default function MemoryPage() {
 
   const handleDelete = async (id: number) => {
     try {
-      await fetch(`/api/memory/observations/${id}`, { method: 'DELETE', headers });
+      await api.delete(`/memory/observations/${id}`);
       showNotification('success', 'Observation deleted');
       fetchObservations();
       fetchStats();
@@ -203,11 +190,7 @@ export default function MemoryPage() {
   const handleBulkAction = async (action: 'archive' | 'delete') => {
     if (selectedIds.size === 0) return;
     try {
-      await fetch('/api/memory/observations/bulk', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ ids: Array.from(selectedIds), action })
-      });
+      await api.post('/memory/observations/bulk', { ids: Array.from(selectedIds), action });
       showNotification('success', `${selectedIds.size} observations ${action}d`);
       setSelectedIds(new Set());
       fetchObservations();
@@ -219,13 +202,8 @@ export default function MemoryPage() {
 
   const handleUpdateSettings = async (updates: Partial<MemorySettings>) => {
     try {
-      const res = await fetch('/api/memory/settings', {
-        method: 'PATCH',
-        headers,
-        body: JSON.stringify(updates)
-      });
-      const data = await res.json();
-      setSettings(data.settings);
+      const res = await api.patch('/memory/settings', updates);
+      setSettings(res.data.settings);
       showNotification('success', 'Settings updated');
     } catch (err) {
       showNotification('error', 'Failed to update settings');
@@ -263,7 +241,7 @@ export default function MemoryPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="p-6 flex flex-col h-full">
       {/* Notification */}
       {notification && (
         <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 ${
@@ -275,7 +253,7 @@ export default function MemoryPage() {
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-3">
           <Brain className="w-8 h-8 text-purple-400" />
           <div>
@@ -292,7 +270,7 @@ export default function MemoryPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-gray-800 rounded-lg p-1">
+      <div className="flex gap-1 bg-gray-800 rounded-lg p-1 mt-6 flex-shrink-0">
         {tabs.map(tab => (
           <button
             key={tab.id}
@@ -312,6 +290,7 @@ export default function MemoryPage() {
         ))}
       </div>
 
+      <div className="flex-1 min-h-0 overflow-y-auto mt-6">
       {/* Tab Content */}
       {activeTab === 'observations' && (
         <div className="space-y-4">
@@ -644,6 +623,7 @@ export default function MemoryPage() {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

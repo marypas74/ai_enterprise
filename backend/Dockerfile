@@ -41,8 +41,9 @@ RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
     && python3 -m pip install --no-cache-dir \
-       requests beautifulsoup4 lxml trafilatura pandas pdf2docx \
+       requests beautifulsoup4 lxml trafilatura pandas \
        numpy matplotlib Pillow openpyxl sympy scipy tabulate \
+       python-docx PyMuPDF==1.23.26 pdf2docx==0.5.6 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy package files
@@ -59,6 +60,9 @@ COPY src/guides ./dist/guides
 
 # Copy sandbox Python files
 COPY src/sandbox ./sandbox
+
+# Copy conversion scripts
+COPY src/scripts ./dist/scripts
 
 # Set ownership
 RUN chown -R nodejs:nodejs /app

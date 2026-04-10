@@ -2,13 +2,14 @@ import mysql from 'mysql2/promise';
 import { config } from '../config.js';
 import { execute, findMany } from './helpers.js';
 import { initialSchema } from './migrations/001-initial-schema.js';
+import { uniqueInstallation } from './migrations/002-unique-installation.js';
 
 export interface Migration {
   readonly name: string;
   readonly up: (pool: mysql.Pool) => Promise<void>;
 }
 
-const migrations: readonly Migration[] = [initialSchema];
+const migrations: readonly Migration[] = [initialSchema, uniqueInstallation];
 
 function createPool(): mysql.Pool {
   return mysql.createPool({

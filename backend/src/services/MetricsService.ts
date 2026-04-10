@@ -153,6 +153,24 @@ export class MetricsService {
             } catch { /* ignore */ }
         }
 
+        // Ollama: fetch active (loaded) and installed models
+        let ollamaData: { version?: string; activeModels: any[]; installedModels: any[] } = { activeModels: [], installedModels: [] };
+        const ollamaBaseUrl = process.env.OLLAMA_BASE_URL || 'http://10.0.1.1:8086/ollama';
+        const ollamaAuthKey = process.env.OLLAMA_AUTH_KEY || 'mTLS-k8s-backend-2026';
+        try {
+            const headers = { 'X-Ollama-Key': ollamaAuthKey };
+            const [psRes, tagsRes, versionRes] = await Promise.all([
+                fetch(`${ollamaBaseUrl}/api/ps`, { headers, signal: AbortSignal.timeout(3000) }).then(r => r.json() as Promise<any>).catch(() => null),
+                fetch(`${ollamaBaseUrl}/api/tags`, { headers, signal: AbortSignal.timeout(3000) }).then(r => r.json() as Promise<any>).catch(() => null),
+                fetch(`${ollamaBaseUrl}/api/version`, { headers, signal: AbortSignal.timeout(3000) }).then(r => r.json() as Promise<any>).catch(() => null),
+            ]);
+            ollamaData = {
+                version: versionRes?.version,
+                activeModels: psRes?.models || [],
+                installedModels: tagsRes?.models || [],
+            };
+        } catch { /* ollama unreachable */ }
+
         const uptimeSeconds = nodeUptimeResult[0]?.value?.[1] ? parseFloat(nodeUptimeResult[0].value[1]) : os.uptime();
 
         return {
@@ -185,7 +203,8 @@ export class MetricsService {
             dockerContainers,
             processes: topProcesses,
             k8sPods,
-            activeUsers
+            activeUsers,
+            ollama: ollamaData
         };
     }
 }

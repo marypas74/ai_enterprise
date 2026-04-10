@@ -61,7 +61,10 @@ data:
           request_timeout: 300
 
     general_settings:
-      master_key: sk-1234
+      # SECURITY: master_key read from LITELLM_MASTER_KEY env var (K8s secret).
+      # Generate a strong key: openssl rand -hex 32
+      master_key: os.environ/LITELLM_MASTER_KEY
     litellm_settings:
       request_timeout: 300
-      set_verbose: true
+      set_verbose: false  # SECURITY: verbose logging can leak API keys and sensitive data
+      drop_params: true

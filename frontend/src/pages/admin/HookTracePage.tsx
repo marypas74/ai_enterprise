@@ -89,11 +89,11 @@ export default function HookTracePage() {
   }
 
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
+    <div className="p-6 flex flex-col h-full">
+      <div className="flex items-center justify-between mb-6 flex-shrink-0">
         <div className="flex items-center gap-3">
           <Activity className="w-6 h-6 text-primary-500" />
-          <h1 className="text-2xl font-bold">Hook Execution Trace</h1>
+          <h1 className="text-2xl font-bold flex-shrink-0">Hook Execution Trace</h1>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={toggleTracing} className={`btn flex items-center gap-2 ${enabled ? 'btn-primary' : 'btn-secondary'}`}>
@@ -110,7 +110,7 @@ export default function HookTracePage() {
       </div>
 
       {!enabled && (
-        <div className="card p-4 mb-6 flex items-center gap-3 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800">
+        <div className="card p-4 mb-6 flex items-center gap-3 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 flex-shrink-0">
           <AlertTriangle className="w-5 h-5 text-amber-500" />
           <span className="text-sm">Il tracing è disattivato. Attivalo per registrare le esecuzioni degli hook in tempo reale.</span>
         </div>
@@ -118,7 +118,7 @@ export default function HookTracePage() {
 
       {/* Stats Cards */}
       {stats && stats.totalExecutions > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 flex-shrink-0">
           <div className="card p-4">
             <p className="text-xs text-surface-500">Esecuzioni Totali</p>
             <p className="text-2xl font-bold">{stats.totalExecutions}</p>
@@ -136,7 +136,7 @@ export default function HookTracePage() {
 
       {/* Hook Breakdown */}
       {stats && stats.hookBreakdown && Object.keys(stats.hookBreakdown).length > 0 && (
-        <div className="card p-4 mb-6">
+        <div className="card p-4 mb-6 flex-shrink-0">
           <h3 className="text-sm font-semibold mb-3">Breakdown per Hook</h3>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
             {Object.entries(stats.hookBreakdown)
@@ -160,7 +160,7 @@ export default function HookTracePage() {
       )}
 
       {/* Filter */}
-      <div className="mb-4">
+      <div className="mb-4 flex-shrink-0">
         <input
           type="text"
           value={filter}
@@ -171,10 +171,10 @@ export default function HookTracePage() {
       </div>
 
       {/* Trace Log Table */}
-      <div className="card overflow-hidden">
-        <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+      <div className="card overflow-auto flex-1 min-h-0">
+        <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="sticky top-0 bg-surface-50 dark:bg-surface-900">
+            <thead className="sticky top-0 z-10 bg-surface-50 dark:bg-surface-900">
               <tr className="text-left text-xs text-surface-500 border-b border-surface-200 dark:border-surface-700">
                 <th className="px-3 py-2 font-medium w-8"></th>
                 <th className="px-3 py-2 font-medium">Timestamp</th>

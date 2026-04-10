@@ -2,6 +2,8 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { api, streamChat, generateDocument } from '../services/api';
 import { downloadFile } from '../utils/fileDownload';
 import { useDocumentStore } from './useDocumentStore';
+import { useAuthStore } from './useAuthStore';
+import { usePDFEditorStore } from './usePDFEditorStore';
 
 export interface MessageAttachment {
   id: number;
@@ -32,6 +34,8 @@ export interface Model {
   id: string;
   name: string;
   provider: string;
+  provider_type?: string;
+  is_local?: boolean;
   description?: string;
 }
 
@@ -76,6 +80,8 @@ interface UseChatMessagesReturn {
   activeFormSession: ActiveFormSession | null;
   showConsentModal: boolean;
   routingInfo: { tier: string; model: string; reason: string; confidence: number; effort: string } | null;
+  forceWebSearch: boolean;
+  setForceWebSearch: (v: boolean) => void;
   currentModel: Model;
   messagesEndRef: React.RefObject<HTMLDivElement>;
   inputRef: React.RefObject<HTMLTextAreaElement>;
@@ -94,6 +100,7 @@ interface UseChatMessagesReturn {
   loadMemoryObservations: () => Promise<void>;
   handleFormCancel: () => Promise<void>;
   handleFormConfirm: (confirmed: boolean) => Promise<void>;
+  refreshModels: () => Promise<void>;
 }
 
 export function useChatMessages(currentConversationId: number | null): UseChatMessagesReturn {
@@ -115,6 +122,7 @@ export function useChatMessages(currentConversationId: number | null): UseChatMe
   const [activeFormSession, setActiveFormSession] = useState<ActiveFormSession | null>(null);
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [routingInfo, setRoutingInfo] = useState<{ tier: string; model: string; reason: string; confidence: number; effort: string } | null>(null);
+  const [forceWebSearch, setForceWebSearch] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -150,35 +158,37 @@ export function useChatMessages(currentConversationId: number | null): UseChatMe
   }, [messages.length > 0]);
 
   // Load available models from configured providers
-  useEffect(() => {
-    const loadModels = async () => {
-      try {
-        const [modelsRes, recRes] = await Promise.all([
-          api.get('/chat/models'),
-          api.get('/chat/models/recommended').catch(() => null),
-        ]);
-        const availableModels = modelsRes.data as Model[];
-        setModels(availableModels);
+  const refreshModels = async () => {
+    setModelsLoading(true);
+    try {
+      const [modelsRes, recRes] = await Promise.all([
+        api.get('/chat/models'),
+        api.get('/chat/models/recommended').catch(() => null),
+      ]);
+      const availableModels = modelsRes.data as Model[];
+      setModels(availableModels);
 
-        // Auto (Smart Routing) is always default when available
-        const autoModel = availableModels.find(m => m.id === 'auto');
-        if (autoModel && !selectedModel) {
-          setSelectedModel('auto');
-        } else if (recRes?.data?.recommended && availableModels.some(m => m.id === recRes.data.recommended.id)) {
-          setRecommendedModel({ ...recRes.data.recommended, load: recRes.data.load });
-          if (!selectedModel) {
-            setSelectedModel(recRes.data.recommended.id);
-          }
-        } else if (availableModels.length > 0 && !selectedModel) {
-          setSelectedModel(availableModels[0].id);
+      // Auto (Smart Routing) is always default when available
+      const autoModel = availableModels.find(m => m.id === 'auto');
+      if (autoModel && !selectedModel) {
+        setSelectedModel('auto');
+      } else if (recRes?.data?.recommended && availableModels.some(m => m.id === recRes.data.recommended.id)) {
+        setRecommendedModel({ ...recRes.data.recommended, load: recRes.data.load });
+        if (!selectedModel) {
+          setSelectedModel(recRes.data.recommended.id);
         }
-      } catch (err) {
-        console.error('Failed to load models:', err);
-      } finally {
-        setModelsLoading(false);
+      } else if (availableModels.length > 0 && !selectedModel) {
+        setSelectedModel(availableModels[0].id);
       }
-    };
-    loadModels();
+    } catch (err) {
+      console.error('Failed to load models:', err);
+    } finally {
+      setModelsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    refreshModels();
   }, []);
 
   // Scroll to bottom on new messages — only if user hasn't scrolled up
@@ -434,6 +444,8 @@ export function useChatMessages(currentConversationId: number | null): UseChatMe
           : undefined,
         // Chat mode (brainstorm, rag, free)
         useDocumentStore.getState().chatMode !== 'free' ? useDocumentStore.getState().chatMode : undefined,
+        // Force web search toggle
+        forceWebSearch || undefined,
       );
     } catch (err) {
       setIsStreaming(false);
@@ -477,7 +489,12 @@ export function useChatMessages(currentConversationId: number | null): UseChatMe
         `Chat_${format.toUpperCase()}`,
       );
       if (result.success && result.url) {
-        await downloadFile(result.url, result.filename);
+        // For PDF: open the editor panel if attachment was created
+        if (format === 'pdf' && result.attachmentId) {
+          usePDFEditorStore.getState().openEditor(result.attachmentId, result.filename);
+        } else {
+          await downloadFile(result.url, result.filename, useAuthStore.getState().accessToken || undefined);
+        }
       }
     } catch (err) {
       console.error('Failed to generate document:', err);
@@ -512,6 +529,8 @@ export function useChatMessages(currentConversationId: number | null): UseChatMe
     activeFormSession,
     showConsentModal,
     routingInfo,
+    forceWebSearch,
+    setForceWebSearch,
     currentModel,
     messagesEndRef,
     inputRef,
@@ -530,5 +549,6 @@ export function useChatMessages(currentConversationId: number | null): UseChatMe
     loadMemoryObservations,
     handleFormCancel,
     handleFormConfirm,
+    refreshModels,
   };
 }
