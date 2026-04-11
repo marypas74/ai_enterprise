@@ -12,6 +12,7 @@ import {
   FolderKanban,
   Lock,
   Unlock,
+  BarChart2,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { format } from 'date-fns';
@@ -137,6 +138,7 @@ export default function UsersGroupsPage() {
           department: data.department || null,
           job_title: data.job_title || null,
           notes: data.notes || null,
+          exclude_from_stats: data.exclude_from_stats,
         });
 
         // Update group assignments
@@ -386,16 +388,24 @@ export default function UsersGroupsPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span
-                        className={clsx(
-                          'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium',
-                          user.is_active
-                            ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
-                            : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
+                      <div className="flex flex-col gap-1">
+                        <span
+                          className={clsx(
+                            'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium',
+                            user.is_active
+                              ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
+                              : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
+                          )}
+                        >
+                          {user.is_active ? 'Attivo' : 'Disattivo'}
+                        </span>
+                        {user.exclude_from_stats && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300" title="Escluso dalle statistiche">
+                            <BarChart2 className="w-3 h-3" />
+                            no stats
+                          </span>
                         )}
-                      >
-                        {user.is_active ? 'Attivo' : 'Disattivo'}
-                      </span>
+                      </div>
                     </td>
                     <td className="px-6 py-4 text-center">
                       {user.mfa_enabled ? (

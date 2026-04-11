@@ -23,6 +23,7 @@ export interface User {
   department?: string;
   job_title?: string;
   notes?: string;
+  exclude_from_stats?: boolean;
 }
 
 export interface Group {
@@ -67,6 +68,8 @@ export default function UserForm({ user, groups, onSave, onCancel }: UserFormPro
     department: user?.department || '',
     job_title: user?.job_title || '',
     notes: user?.notes || '',
+    // Stats
+    exclude_from_stats: user?.exclude_from_stats ?? false,
   });
 
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -279,7 +282,7 @@ export default function UserForm({ user, groups, onSave, onCancel }: UserFormPro
       </div>
 
       {/* Status */}
-      <div className="flex items-center gap-4 p-3 bg-surface-50 dark:bg-surface-800 rounded-lg">
+      <div className="flex flex-col gap-3 p-3 bg-surface-50 dark:bg-surface-800 rounded-lg">
         <label className="flex items-center gap-2 cursor-pointer">
           <input
             type="checkbox"
@@ -288,10 +291,22 @@ export default function UserForm({ user, groups, onSave, onCancel }: UserFormPro
             className="rounded text-green-500"
           />
           <span className="text-sm font-medium">Utente Attivo</span>
+          <span className="text-xs text-surface-500">
+            {formData.is_active ? 'L\'utente può accedere al sistema' : 'L\'utente non può effettuare il login'}
+          </span>
         </label>
-        <span className="text-xs text-surface-500">
-          {formData.is_active ? 'L\'utente pu\u00F2 accedere al sistema' : 'L\'utente non pu\u00F2 effettuare il login'}
-        </span>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={formData.exclude_from_stats}
+            onChange={(e) => setFormData({ ...formData, exclude_from_stats: e.target.checked })}
+            className="rounded text-orange-500"
+          />
+          <span className="text-sm font-medium">Escludi da statistiche dashboard</span>
+          <span className="text-xs text-surface-500">
+            L'utente non apparirà nella dashboard KPI né nei conteggi globali
+          </span>
+        </label>
       </div>
 
       {/* Actions */}

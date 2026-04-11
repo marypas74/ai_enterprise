@@ -72,12 +72,13 @@ export async function systemSettingsRoutes(fastify: FastifyInstance) {
              COALESCE(SUM(mu.request_count), 0) as request_count
       FROM users u
       LEFT JOIN monthly_usage mu ON u.id = mu.user_id AND mu.\`year_month\` = ?
+      WHERE (u.exclude_from_stats IS NULL OR u.exclude_from_stats = 0)
     `;
 
     const params: any[] = [month];
 
     if (query.userId) {
-      sql += ' WHERE u.id = ?';
+      sql += ' AND u.id = ?';
       params.push(query.userId);
     }
 
@@ -85,28 +86,32 @@ export async function systemSettingsRoutes(fastify: FastifyInstance) {
 
     const userStats = await findMany<UsageStats>(fastify.db, sql, params);
 
-    // Get provider breakdown
+    // Get provider breakdown (exclude test users)
     const providerStats = await findMany(
       fastify.db,
-      `SELECT provider,
-              SUM(total_tokens_input) as tokens_input,
-              SUM(total_tokens_output) as tokens_output,
-              SUM(total_cost_usd) as cost,
-              SUM(request_count) as requests
-       FROM monthly_usage
-       WHERE \`year_month\` = ?
-       GROUP BY provider`,
+      `SELECT mu.provider,
+              SUM(mu.total_tokens_input) as tokens_input,
+              SUM(mu.total_tokens_output) as tokens_output,
+              SUM(mu.total_cost_usd) as cost,
+              SUM(mu.request_count) as requests
+       FROM monthly_usage mu
+       JOIN users u ON mu.user_id = u.id
+       WHERE mu.\`year_month\` = ?
+         AND (u.exclude_from_stats IS NULL OR u.exclude_from_stats = 0)
+       GROUP BY mu.provider`,
       [month]
     );
 
-    // Get totals
+    // Get totals (exclude test users)
     const [totals] = await fastify.db.execute(
       `SELECT
-         SUM(total_tokens_input + total_tokens_output) as total_tokens,
-         SUM(total_cost_usd) as total_cost,
-         SUM(request_count) as total_requests
-       FROM monthly_usage
-       WHERE \`year_month\` = ?`,
+         SUM(mu.total_tokens_input + mu.total_tokens_output) as total_tokens,
+         SUM(mu.total_cost_usd) as total_cost,
+         SUM(mu.request_count) as total_requests
+       FROM monthly_usage mu
+       JOIN users u ON mu.user_id = u.id
+       WHERE mu.\`year_month\` = ?
+         AND (u.exclude_from_stats IS NULL OR u.exclude_from_stats = 0)`,
       [month]
     ) as any;
 
@@ -132,12 +137,12 @@ export async function systemSettingsRoutes(fastify: FastifyInstance) {
     let userStats = { totalUsers: 0, activeUsers: 0 };
     try {
       const [rows] = await fastify.db.execute(
-        `SELECT COUNT(*) as totalUsers, SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) as activeUsers FROM users`
+        `SELECT COUNT(*) as totalUsers, SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) as activeUsers FROM users WHERE (exclude_from_stats IS NULL OR exclude_from_stats = 0)`
       ) as any;
       userStats = rows[0] || userStats;
     } catch {
       try {
-        const [rows] = await fastify.db.execute(`SELECT COUNT(*) as totalUsers FROM users`) as any;
+        const [rows] = await fastify.db.execute(`SELECT COUNT(*) as totalUsers FROM users WHERE (exclude_from_stats IS NULL OR exclude_from_stats = 0)`) as any;
         const total = rows[0]?.totalUsers || 0;
         userStats = { totalUsers: total, activeUsers: total };
       } catch { /* Table may not exist */ }

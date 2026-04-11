@@ -37,6 +37,7 @@ const updateUserSchema = z.object({
   notes: z.string().max(2000, 'Le note non possono superare 2000 caratteri').nullable().optional(),
   is_hidden: z.boolean().optional(),
   local_only: z.boolean().optional(),
+  exclude_from_stats: z.boolean().optional(),
 });
 
 // Types
@@ -269,6 +270,10 @@ export async function userManagementRoutes(fastify: FastifyInstance) {
     if (body.local_only !== undefined) {
       updates.push('local_only = ?');
       values.push(body.local_only ? 1 : 0);
+    }
+    if (body.exclude_from_stats !== undefined) {
+      updates.push('exclude_from_stats = ?');
+      values.push(body.exclude_from_stats ? 1 : 0);
     }
 
     if (updates.length === 0) {
