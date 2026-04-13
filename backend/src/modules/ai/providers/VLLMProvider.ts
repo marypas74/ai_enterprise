@@ -19,7 +19,7 @@ export class VLLMProvider implements AIProvider {
   private readonly timeout: number;
 
   // All chat model aliases resolve to the single served model
-  private static readonly SERVED_MODEL = process.env.VLLM_SERVED_MODEL || 'qwen3:30b-a3b';
+  private static readonly SERVED_MODEL = process.env.VLLM_SERVED_MODEL || 'qwen25vl:32b';
   private static readonly MODEL_MAP: Record<string, string> = {
     'qwen-fast': VLLMProvider.SERVED_MODEL,
     'qwen-thinking': VLLMProvider.SERVED_MODEL,
