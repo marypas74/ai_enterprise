@@ -77,4 +77,32 @@ export class AIProviderFactory {
   static clearProviders() {
     this.providers.clear();
   }
+
+  /**
+   * Costruisce un messaggio utente OpenAI-compatible per l'elaborazione documenti.
+   * Se pageImages è vuoto → messaggio testuale semplice.
+   * Se pageImages ha elementi → messaggio multimodale (formato OpenAI vision, compatibile con vLLM Qwen2.5-VL).
+   */
+  static buildDocumentMessage(
+    prompt: string,
+    pageImages: string[],
+    textContent?: string,
+  ): { role: 'user'; content: string | Array<Record<string, unknown>> } {
+    if (pageImages.length === 0) {
+      const content = textContent
+        ? `${prompt}\n\n${textContent}`
+        : prompt;
+      return { role: 'user', content };
+    }
+
+    const content: Array<Record<string, unknown>> = [
+      ...pageImages.map(b64 => ({
+        type: 'image_url',
+        image_url: { url: `data:image/png;base64,${b64}` },
+      })),
+      { type: 'text', text: prompt },
+    ];
+
+    return { role: 'user', content };
+  }
 }
