@@ -102,7 +102,8 @@ export async function completionRoutes(fastify: FastifyInstance) {
       // ── RAG mode guard: non-admin users must use local models ──────
       const LOCAL_PROVIDER_TYPES = new Set(['ollama', 'vllm', 'custom']);
       const ragGuardMode = body.chat_mode || (body.use_rag ? 'rag' : 'free');
-      if (ragGuardMode === 'rag' && body.model !== 'auto') {
+      // NOTE: use parsedBody.model (original request value) to distinguish explicit selection from auto-routing
+      if (ragGuardMode === 'rag' && parsedBody.model !== 'auto') {
         const userInfo = await findOne<{ role: string }>(fastify.db, 'SELECT role FROM users WHERE id = ?', [user.id]);
         const isAdmin = userInfo?.role === 'admin';
         // Check if the selected model is from a local provider
@@ -117,24 +118,32 @@ export async function completionRoutes(fastify: FastifyInstance) {
         }
       }
 
-      // ── RAG auto-routing: force local models for non-admin ─────────
-      if (ragGuardMode === 'rag' && body.model === 'auto') {
-        const userInfo = await findOne<{ role: string }>(fastify.db, 'SELECT role FROM users WHERE id = ?', [user.id]);
-        const isAdmin = userInfo?.role === 'admin';
-        if (!isAdmin && routingDecision?.model) {
-          const modelProvider = await findOne<{ provider_type: string }>(fastify.db,
-            `SELECT p.provider_type FROM ai_models m JOIN ai_providers p ON m.provider_id = p.id WHERE m.model_id = ?`, [routingDecision.model]);
-          if (modelProvider && !LOCAL_PROVIDER_TYPES.has(modelProvider.provider_type)) {
-            // Re-route to first available local model
-            const localModel = await findOne<{ model_id: string }>(fastify.db,
-              `SELECT m.model_id FROM ai_models m JOIN ai_providers p ON m.provider_id = p.id
-               WHERE m.is_enabled = TRUE AND p.is_enabled = TRUE AND m.model_type IN ('chat','completion')
-                 AND p.provider_type IN ('ollama','vllm','custom')
-               ORDER BY m.sort_order ASC LIMIT 1`);
-            if (localModel) {
-              body.model = localModel.model_id;
-              fastify.log.info(`[Chat] RAG mode: re-routed non-admin from external to local model ${body.model}`);
-            }
+      // ── RAG auto-routing: prioritize vLLM → local → external API ──
+      // For document mode with auto-routing, prefer local inference to keep data private.
+      // Priority: vLLM (fastest local) → ollama/custom → external API (fallback only).
+      if (ragGuardMode === 'rag' && parsedBody.model === 'auto') {
+        // 1. Try vLLM first
+        const vllmModel = await findOne<{ model_id: string }>(fastify.db,
+          `SELECT m.model_id FROM ai_models m JOIN ai_providers p ON m.provider_id = p.id
+           WHERE m.is_enabled = TRUE AND p.is_enabled = TRUE AND m.model_type IN ('chat','completion')
+             AND p.provider_type = 'vllm'
+           ORDER BY m.sort_order ASC LIMIT 1`);
+        if (vllmModel) {
+          body.model = vllmModel.model_id;
+          fastify.log.info(`[Chat] RAG mode: routed to vLLM model ${body.model}`);
+        } else {
+          // 2. Fall back to other local models (ollama, custom)
+          const localModel = await findOne<{ model_id: string }>(fastify.db,
+            `SELECT m.model_id FROM ai_models m JOIN ai_providers p ON m.provider_id = p.id
+             WHERE m.is_enabled = TRUE AND p.is_enabled = TRUE AND m.model_type IN ('chat','completion')
+               AND p.provider_type IN ('ollama','custom')
+             ORDER BY m.sort_order ASC LIMIT 1`);
+          if (localModel) {
+            body.model = localModel.model_id;
+            fastify.log.info(`[Chat] RAG mode: no vLLM available, routed to local model ${body.model}`);
+          } else {
+            // 3. No local models — fall back to external API from auto-routing
+            fastify.log.warn(`[Chat] RAG mode: no local models available, falling back to external model ${body.model}`);
           }
         }
       }
