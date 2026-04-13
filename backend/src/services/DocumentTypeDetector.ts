@@ -13,10 +13,17 @@ export interface DetectionResult {
 const TEXT_DENSITY_THRESHOLD = 50;
 const HYBRID_DENSITY_THRESHOLD = 10;
 
+const PDF_MAGIC = '%PDF-';
+
 export class DocumentTypeDetector {
   static async detect(buffer: Buffer, mimeType: string): Promise<DetectionResult> {
     if (mimeType !== 'application/pdf') {
       return { path: 'text', textDensity: 9999, pageCount: 1 };
+    }
+
+    // Magic-byte check: prevent MIME spoofing
+    if (buffer.length < 5 || buffer.subarray(0, 5).toString('ascii') !== PDF_MAGIC) {
+      return { path: 'vision', textDensity: 0, pageCount: 1 };
     }
 
     try {

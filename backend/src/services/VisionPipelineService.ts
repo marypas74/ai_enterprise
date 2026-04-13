@@ -40,14 +40,18 @@ export class VisionPipelineService {
     );
 
     try {
+      let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+
       const pages = await Promise.race<string[]>([
-        PdfPageRenderer.renderToBase64(buffer, MAX_PAGES, RENDER_DPI),
-        new Promise<never>((_, reject) =>
-          setTimeout(
+        PdfPageRenderer.renderToBase64(buffer, MAX_PAGES, RENDER_DPI).finally(() => {
+          if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
+        }),
+        new Promise<never>((_, reject) => {
+          timeoutHandle = setTimeout(
             () => reject(new Error(`render timeout after ${renderTimeout}ms`)),
             renderTimeout,
-          ),
-        ),
+          );
+        }),
       ]);
 
       return {

@@ -10,9 +10,9 @@ export class PdfPageRenderer {
     maxPages = 50,
     dpi = 150,
   ): Promise<string[]> {
-    const images = await convertPdfToImages(buffer, 'png', dpi);
-    return images
-      .slice(0, maxPages)
-      .map(img => img.buffer.toString('base64'));
+    const pagesSpec = `1-${maxPages}`;
+    const images = await convertPdfToImages(buffer, 'png', dpi, pagesSpec);
+    // slice as safety net: cap rendering at source via pagesSpec, then double-check
+    return images.slice(0, maxPages).map(img => img.buffer.toString('base64'));
   }
 }

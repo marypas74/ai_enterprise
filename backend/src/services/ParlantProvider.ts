@@ -1,4 +1,5 @@
 import { AIProvider, CompletionOptions, CompletionResult, StreamChunk, ProviderType } from '../modules/ai/providers.js';
+import { extractTextContent } from '../modules/ai/types.js';
 
 // Parlant service URL
 const PARLANT_URL = process.env.PARLANT_URL || 'http://parlant:8800';
@@ -228,12 +229,13 @@ export class ParlantProvider implements AIProvider {
     const session = await this.getOrCreateSession();
 
     // Send message and get response
-    const offset = await this.sendMessage(session.id, lastUserMessage.content);
+    const userText = extractTextContent(lastUserMessage.content);
+    const offset = await this.sendMessage(session.id, userText);
     const response = await this.pollForResponse(session.id, offset);
 
     return {
       content: response,
-      tokensInput: Math.ceil(lastUserMessage.content.length / 4),
+      tokensInput: Math.ceil(userText.length / 4),
       tokensOutput: Math.ceil(response.length / 4),
       model: `parlant:${this.agentId}`,
       provider: 'custom'
@@ -251,7 +253,7 @@ export class ParlantProvider implements AIProvider {
     const session = await this.getOrCreateSession();
 
     // Send message
-    const offset = await this.sendMessage(session.id, lastUserMessage.content);
+    const offset = await this.sendMessage(session.id, extractTextContent(lastUserMessage.content));
 
     // For Parlant, we poll and yield the complete response
     // (Parlant doesn't stream partial responses like OpenAI)

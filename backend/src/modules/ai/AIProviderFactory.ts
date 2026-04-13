@@ -1,4 +1,4 @@
-import type { AIProvider, ProviderConfig, ProviderType } from './types.js';
+import type { AIProvider, DocumentMessage, MessageContentPart, ProviderConfig, ProviderType } from './types.js';
 import { MODEL_PRICING } from './types.js';
 import { OpenAIProvider } from './providers/OpenAIProvider.js';
 import { AnthropicProvider } from './providers/AnthropicProvider.js';
@@ -87,7 +87,7 @@ export class AIProviderFactory {
     prompt: string,
     pageImages: string[],
     textContent?: string,
-  ): { role: 'user'; content: string | Array<Record<string, unknown>> } {
+  ): DocumentMessage {
     if (pageImages.length === 0) {
       const content = textContent
         ? `${prompt}\n\n${textContent}`
@@ -95,8 +95,8 @@ export class AIProviderFactory {
       return { role: 'user', content };
     }
 
-    const content: Array<Record<string, unknown>> = [
-      ...pageImages.map(b64 => ({
+    const content: MessageContentPart[] = [
+      ...pageImages.map((b64): MessageContentPart => ({
         type: 'image_url',
         image_url: { url: `data:image/png;base64,${b64}` },
       })),

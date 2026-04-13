@@ -236,7 +236,7 @@ export class RabbitHoleService {
         const provider = AIProviderFactory.getProvider('qwen25vl:32b', 'vllm');
         const result = await provider.complete({
           model: 'qwen25vl:32b',
-          messages: [message as any],
+          messages: [message],
           temperature: 0.1,
           maxTokens: 8192,
         });
