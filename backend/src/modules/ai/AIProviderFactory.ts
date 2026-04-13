@@ -1,4 +1,4 @@
-import type { AIProvider, ProviderConfig, ProviderType } from './types.js';
+import type { AIProvider, DocumentMessage, MessageContentPart, ProviderConfig, ProviderType } from './types.js';
 import { MODEL_PRICING } from './types.js';
 import { OpenAIProvider } from './providers/OpenAIProvider.js';
 import { AnthropicProvider } from './providers/AnthropicProvider.js';
@@ -76,5 +76,33 @@ export class AIProviderFactory {
   // Clear all cached providers (useful when reloading configuration)
   static clearProviders() {
     this.providers.clear();
+  }
+
+  /**
+   * Costruisce un messaggio utente OpenAI-compatible per l'elaborazione documenti.
+   * Se pageImages è vuoto → messaggio testuale semplice.
+   * Se pageImages ha elementi → messaggio multimodale (formato OpenAI vision, compatibile con vLLM Qwen2.5-VL).
+   */
+  static buildDocumentMessage(
+    prompt: string,
+    pageImages: string[],
+    textContent?: string,
+  ): DocumentMessage {
+    if (pageImages.length === 0) {
+      const content = textContent
+        ? `${prompt}\n\n${textContent}`
+        : prompt;
+      return { role: 'user', content };
+    }
+
+    const content: MessageContentPart[] = [
+      ...pageImages.map((b64): MessageContentPart => ({
+        type: 'image_url',
+        image_url: { url: `data:image/png;base64,${b64}` },
+      })),
+      { type: 'text', text: prompt },
+    ];
+
+    return { role: 'user', content };
   }
 }

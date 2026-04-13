@@ -17,6 +17,8 @@ import { chunkDocument, type DocumentChunk } from './ChunkingService.js';
 import { storeDeclarative, getAllCollectionsInfo, type MemoryPoint } from './VectorMemoryService.js';
 import { eventBus, type HookContext } from './EventBusService.js';
 import type mysql from 'mysql2/promise';
+import { VisionPipelineService } from './VisionPipelineService.js';
+import { AIProviderFactory } from '../modules/ai/AIProviderFactory.js';
 
 // ---- Types ----
 
@@ -202,6 +204,52 @@ export class RabbitHoleService {
       sourceType: 'file',
       metadata: { original_filename: filename },
     }, onProgress);
+  }
+
+  /**
+   * Ingest di un file raw (Buffer + MIME type).
+   * Per i PDF: rileva automaticamente se testuale o scansionato.
+   * Se scansionato → usa vLLM Qwen2.5-VL per estrarre il testo dalle immagini.
+   * Se testuale → usa extractedText passato dal chiamante.
+   */
+  async ingestFileBuffer(
+    buffer: Buffer,
+    mimeType: string,
+    extractedText: string,
+    filename: string,
+    userId: number,
+    conversationId?: number,
+    onProgress?: ProgressCallback,
+  ): Promise<IngestionResult> {
+    const vision = await VisionPipelineService.prepare(buffer, mimeType);
+
+    let contentToIngest = extractedText;
+
+    if (vision.pages.length > 0) {
+      try {
+        const prompt =
+          'Estrai e trascrivi fedelmente tutto il testo visibile in questo documento. ' +
+          'Preserva la struttura (titoli, paragrafi, tabelle, elenchi). ' +
+          'Non aggiungere commenti o interpretazioni — solo il testo del documento.';
+
+        const message = AIProviderFactory.buildDocumentMessage(prompt, vision.pages);
+        const provider = AIProviderFactory.getProvider('qwen25vl:32b', 'vllm');
+        const result = await provider.complete({
+          model: 'qwen25vl:32b',
+          messages: [message],
+          temperature: 0.1,
+          maxTokens: 8192,
+        });
+
+        if (result.content && result.content.length > 50) {
+          contentToIngest = result.content;
+        }
+      } catch {
+        // Fallback silenzioso: usa il testo già estratto
+      }
+    }
+
+    return this.ingestFileContent(contentToIngest, filename, userId, conversationId, onProgress);
   }
 
   /**

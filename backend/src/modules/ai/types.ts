@@ -9,9 +9,33 @@ export interface Message {
   name?: string;
 }
 
+/** Content part for vision/multimodal messages (OpenAI-compatible format) */
+export type MessageContentPart =
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string } };
+
+/**
+ * Multimodal message for vision-capable providers (e.g. vLLM Qwen2.5-VL).
+ * Compatible with OpenAI vision API format.
+ */
+export interface DocumentMessage {
+  role: 'user';
+  content: string | MessageContentPart[];
+}
+
+/** Extract plain text from a message content (strips image parts if present) */
+export function extractTextContent(content: string | MessageContentPart[]): string {
+  if (typeof content === 'string') return content;
+  return content
+    .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+    .map(p => p.text)
+    .join('\n');
+}
+
 export interface CompletionOptions {
   model: string;
-  messages: Message[];
+  /** Standard messages. Use DocumentMessage entries for vision-capable providers. */
+  messages: (Message | DocumentMessage)[];
   maxTokens?: number;
   temperature?: number;
   stream?: boolean;

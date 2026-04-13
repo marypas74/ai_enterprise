@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
-import type { AIProvider, CompletionOptions, CompletionResult, ProviderConfig, StreamChunk } from '../types.js';
+import type { AIProvider, CompletionOptions, CompletionResult, DocumentMessage, Message, ProviderConfig, StreamChunk } from '../types.js';
+import { extractTextContent } from '../types.js';
 
 // Anthropic Provider (supports both API key and OAuth token)
 export class AnthropicProvider implements AIProvider {
@@ -57,7 +58,7 @@ export class AnthropicProvider implements AIProvider {
    * Format messages for Anthropic API: transforms tool/tool_calls messages.
    * Shared between complete() and streamComplete() to avoid divergence.
    */
-  private formatAnthropicMessages(messages: Array<{ role: string; content: string; tool_call_id?: string; tool_calls?: any[] }>): any[] {
+  private formatAnthropicMessages(messages: (Message | DocumentMessage)[]): any[] {
     return messages
       .filter(m => m.role !== 'system')
       .map(m => {
@@ -67,15 +68,16 @@ export class AnthropicProvider implements AIProvider {
             content: [
               {
                 type: 'tool_result',
-                tool_use_id: m.tool_call_id,
-                content: m.content
+                tool_use_id: (m as Message).tool_call_id,
+                content: extractTextContent(m.content)
               }
             ]
           };
         }
 
         const content: any[] = [];
-        if (m.content) content.push({ type: 'text', text: m.content });
+        const textContent = extractTextContent(m.content);
+        if (textContent) content.push({ type: 'text', text: textContent });
 
         if (m.role === 'assistant' && (m as any).tool_calls) {
           (m as any).tool_calls.forEach((tc: any) => {
@@ -117,10 +119,11 @@ export class AnthropicProvider implements AIProvider {
     const systemMessage = options.messages.find(m => m.role === 'system');
 
     // v4.0: Build system with cache_control support
-    const systemContent = systemMessage?.content
+    const systemText = systemMessage ? extractTextContent(systemMessage.content) : undefined;
+    const systemContent = systemText
       ? (options.cacheControl
-        ? [{ type: 'text', text: systemMessage.content, cache_control: { type: 'ephemeral' } }]
-        : systemMessage.content)
+        ? [{ type: 'text', text: systemText, cache_control: { type: 'ephemeral' } }]
+        : systemText)
       : undefined;
 
     const formattedMessages = this.formatAnthropicMessages(options.messages);
@@ -219,10 +222,11 @@ export class AnthropicProvider implements AIProvider {
     }));
 
     // v4.0: Build system with cache_control support
-    const systemContent = systemMessage?.content
+    const streamSystemText = systemMessage ? extractTextContent(systemMessage.content) : undefined;
+    const systemContent = streamSystemText
       ? (options.cacheControl
-        ? [{ type: 'text', text: systemMessage.content, cache_control: { type: 'ephemeral' } }]
-        : systemMessage.content)
+        ? [{ type: 'text', text: streamSystemText, cache_control: { type: 'ephemeral' } }]
+        : streamSystemText)
       : undefined;
 
     const streamFormattedMessages = this.formatAnthropicMessages(options.messages);
