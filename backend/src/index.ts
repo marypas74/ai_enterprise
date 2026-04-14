@@ -394,6 +394,26 @@ const appPlugin = fp(async function (fastify) {
         unsubscribe();
       });
     });
+
+    // WebSocket per job notifications (async document queue)
+    fastify.get('/ws/jobs', { websocket: true }, async (socket, request) => {
+      if (!(await authenticateWs(request))) {
+        socket.send(JSON.stringify({ error: 'Unauthorized' }));
+        socket.close();
+        return;
+      }
+
+      const user = (request as any).user as { id: number };
+
+      const { JobEventEmitter } = await import('./services/JobEventEmitter.js');
+      const unsubscribe = JobEventEmitter.subscribeToUser(user.id, (event) => {
+        try { socket.send(JSON.stringify(event)); }
+        catch { unsubscribe(); }
+      });
+
+      socket.on('close', () => unsubscribe());
+      socket.on('error', () => unsubscribe());
+    });
   });
 
   // Debug WebSocket for real-time logs
@@ -653,6 +673,18 @@ async function bootstrap() {
       fastify.log.warn('Could not initialize LLM Sync Worker: ' + String(err));
     }
 
+    let docJobWorker: import('./services/DocumentJobWorker.js').DocumentJobWorker | null = null;
+    try {
+      const { DocumentJobQueue } = await import('./services/DocumentJobQueue.js');
+      const { DocumentJobWorker } = await import('./services/DocumentJobWorker.js');
+      const redis = (fastify as any).redis;
+      const queue = new DocumentJobQueue(redis);
+      docJobWorker = new DocumentJobWorker(fastify, queue);
+      docJobWorker.start();
+    } catch (err: any) {
+      fastify.log.warn(`[JobWorker] Could not initialize DocumentJobWorker: ${err.message}`);
+    }
+
     // All shutdown handlers consolidated below (after service initialization)
 
     // Initialize HyDE service and register hook
@@ -735,6 +767,7 @@ async function bootstrap() {
     const gracefulShutdown = async () => {
       fastify.log.info('[Shutdown] Graceful shutdown initiated...');
       syncWorker?.stop();
+      docJobWorker?.stop();
       memoryDecay.stop();
       biasMonitor.stop();
       conversationCleanup.stop();
