@@ -19,23 +19,23 @@ export function mapStreamErrorToUserMessage(
   if (errorMessage.includes('timeout') || errorMessage.includes('timed out')) {
     return 'Request timed out. The AI service took too long to respond.';
   }
-  if (errorMessage.includes('502') || errorMessage.toLowerCase().includes('bad gateway')) {
+  if (/\b502\b/.test(errorMessage) || errorMessage.toLowerCase().includes('bad gateway')) {
     return 'Il modello AI è in fase di avvio, riprova tra qualche minuto.';
   }
-  if (errorMessage.includes('401') || errorMessage.toLowerCase().includes('unauthorized')) {
+  if (/\b401\b/.test(errorMessage) || errorMessage.toLowerCase().includes('unauthorized')) {
     return "API key non valida o mancante. Contatta l'amministratore.";
   }
   if (
-    errorMessage.includes('429') ||
+    /\b429\b/.test(errorMessage) ||
     errorMessage.toLowerCase().includes('too many requests') ||
     errorMessage.toLowerCase().includes('rate limit')
   ) {
     return 'Limite rate raggiunto. Riprova tra qualche momento.';
   }
-  if (errorMessage.includes('404') || errorMessage.toLowerCase().includes('not found')) {
+  if (/\b404\b/.test(errorMessage) || errorMessage.toLowerCase().includes('not found')) {
     return "Modello AI non trovato. Contatta l'amministratore.";
   }
-  if (errorMessage.includes('503') || errorMessage.toLowerCase().includes('service unavailable')) {
+  if (/\b503\b/.test(errorMessage) || errorMessage.toLowerCase().includes('service unavailable')) {
     return 'Servizio AI temporaneamente non disponibile. Riprova tra qualche minuto.';
   }
   if (errorMessage.includes('Ollama') && errorMessage.includes('500')) {

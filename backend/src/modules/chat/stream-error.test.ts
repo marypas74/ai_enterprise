@@ -83,4 +83,9 @@ describe('mapStreamErrorToUserMessage', () => {
     const msg = mapStreamErrorToUserMessage('Ollama API error: 500 Internal Server Error');
     expect(msg).toBe('Il modello locale non è disponibile al momento. Prova un altro modello.');
   });
+
+  it('returns generic message for plain 500 without Ollama prefix', () => {
+    const msg = mapStreamErrorToUserMessage('500 Internal Server Error from vLLM');
+    expect(msg).toBe('An error occurred while processing your request.');
+  });
 });
