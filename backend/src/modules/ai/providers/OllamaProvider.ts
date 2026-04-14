@@ -37,7 +37,7 @@ export class OllamaProvider implements AIProvider {
     const targetModel = this.resolveModel(options.model);
     const useThinking = !!options.thinking;
 
-    const response = await fetch(`${this.baseUrl}/api/chat`, {
+    const fetchComplete = () => fetch(`${this.baseUrl}/api/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -59,6 +59,22 @@ export class OllamaProvider implements AIProvider {
       }),
       signal: AbortSignal.timeout(this.timeout)
     });
+
+    let response = await fetchComplete();
+
+    // GPU crash (GGML_ASSERT): retry once after 2s
+    if (response.status === 500) {
+      const body500 = await response.text().catch(() => '');
+      const isGpuCrash = body500.includes('GGML_ASSERT') || body500.includes('llama runner process has terminated');
+      if (isGpuCrash) {
+        console.warn('[Ollama] GPU crash detected in complete(), retrying after 2s');
+        await new Promise<void>(resolve => setTimeout(resolve, 2000));
+        response = await fetchComplete();
+      } else {
+        console.error(`[Ollama] API error: 500 ${response.statusText} - ${body500}`);
+        throw new Error(`Ollama API error: 500 Internal Server Error`);
+      }
+    }
 
     if (!response.ok) {
       throw new Error(`Ollama API error: ${response.status} ${response.statusText}`);
@@ -126,6 +142,20 @@ export class OllamaProvider implements AIProvider {
 
       const connectTime = Date.now() - startTime;
       console.log(`[Ollama] Connection established in ${connectTime}ms, status=${response.status}`);
+
+      // GPU crash (GGML_ASSERT): retry once after 2s
+      if (response.status === 500) {
+        const body500 = await response.text().catch(() => '');
+        const isGpuCrash = body500.includes('GGML_ASSERT') || body500.includes('llama runner process has terminated');
+        if (isGpuCrash) {
+          console.warn('[Ollama] GPU crash detected in streamComplete(), retrying after 2s');
+          await new Promise<void>(resolve => setTimeout(resolve, 2000));
+          response = await makeRequest();
+        } else {
+          console.error(`[Ollama] API error: 500 ${response.statusText} - ${body500}`);
+          throw new Error(`Ollama API error: 500 Internal Server Error`);
+        }
+      }
 
       // If model doesn't support tools, retry without them
       if (!response.ok && useTools) {
