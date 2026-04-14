@@ -32,7 +32,7 @@ export function mapStreamErrorToUserMessage(
   ) {
     return 'Limite rate raggiunto. Riprova tra qualche momento.';
   }
-  if (/\b404\b/.test(errorMessage) || errorMessage.toLowerCase().includes('not found')) {
+  if (/\b404\b/.test(errorMessage)) {
     return "Modello AI non trovato. Contatta l'amministratore.";
   }
   if (/\b503\b/.test(errorMessage) || errorMessage.toLowerCase().includes('service unavailable')) {
