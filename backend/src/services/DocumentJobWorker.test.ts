@@ -71,14 +71,16 @@ describe('DocumentJobWorker', () => {
 
     await worker.processJob(job);
 
+    // C4: worker must UPDATE the placeholder message, not INSERT a new one
     expect(fastify.db.execute).toHaveBeenCalledWith(
-      expect.stringContaining('INSERT INTO messages'),
-      expect.arrayContaining([42, 'assistant'])
+      expect.stringContaining('UPDATE messages SET content'),
+      expect.arrayContaining([99]) // placeholderMessageId
     );
     expect(emitCompleteSpy).toHaveBeenCalledWith(expect.objectContaining({
       jobId: 'test-uuid',
       userId: 1,
       conversationId: 42,
+      messageId: 99, // placeholderMessageId
     }));
   });
 
