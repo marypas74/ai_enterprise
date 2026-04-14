@@ -25,6 +25,8 @@ import {
   FALLBACK_MAP, isRetriableError, injectRAGSystemPrompt, injectBrainstormSystemPrompt
 } from './context-builder.js';
 import { getModelRouter, type RoutingDecision } from '../../services/ModelRouter.js';
+import { estimateMessageTokens, ASYNC_TOKEN_THRESHOLD, MAX_TOKEN_LIMIT } from '../../utils/tokenEstimator.js';
+import { DocumentJobQueue } from '../../services/DocumentJobQueue.js';
 
 export async function completionRoutes(fastify: FastifyInstance) {
   const contentSafetyService = new ContentSafetyService(fastify);
@@ -406,6 +408,64 @@ export async function completionRoutes(fastify: FastifyInstance) {
       }
 
       ensureItalianSystemPrompt(messages);
+
+      // ── Token limit guard: reject documents exceeding MAX_TOKEN_LIMIT ──
+      const estimatedTokens = estimateMessageTokens(messages);
+      if (estimatedTokens > MAX_TOKEN_LIMIT) {
+        reply.hijack();
+        writeSseHeaders(reply, { conversationId, webSearchPerformed, model: body.model, providerName });
+        const sseWriteLimit = createSseWriter(reply);
+        sseWriteLimit(`data: ${JSON.stringify({
+          content: 'Il documento è troppo lungo per essere elaborato (' + estimatedTokens.toLocaleString() + ' token stimati). Per favore, dividi il documento in sezioni più piccole (massimo ~200 pagine o ~50.000 parole ciascuna) e invia ogni sezione separatamente.',
+          done: true,
+          conversationId,
+        })}\n\n`);
+        fastify.log.warn(`[Chat] Request rejected — document too large: ${estimatedTokens} tokens (limit: ${MAX_TOKEN_LIMIT}), user=${user.id}`);
+        return;
+      }
+
+      // ── Async document queue: intercept large requests ──────────────
+      if (estimatedTokens > ASYNC_TOKEN_THRESHOLD) {
+        const redis = (fastify as any).redis;
+        const jobQueue = new DocumentJobQueue(redis);
+
+        // Save placeholder assistant message
+        const placeholderContent = '⏳ Documento ricevuto — elaborazione in corso...';
+        const [placeholderInsert] = await fastify.db.execute(
+          'INSERT INTO messages (conversation_id, role, content, is_ai_generated, ai_model, ai_provider) VALUES (?, ?, ?, ?, ?, ?)',
+          [conversationId, 'assistant', placeholderContent, false, body.model, providerName]
+        );
+        const placeholderMessageId = (placeholderInsert as any).insertId;
+
+        const { jobId, eta } = await jobQueue.enqueue({
+          userId: user.id,
+          conversationId,
+          placeholderMessageId,
+          model: body.model,
+          providerName,
+          messagesJson: JSON.stringify(messages),
+          estimatedTokens,
+        });
+
+        const etaLabel = eta < 60
+          ? `${eta} secondi`
+          : `${Math.ceil(eta / 60)} minut${Math.ceil(eta / 60) === 1 ? 'o' : 'i'}`;
+
+        // Return SSE-compatible response (frontend expects SSE format)
+        reply.hijack();
+        writeSseHeaders(reply, { conversationId, webSearchPerformed, model: body.model, providerName });
+        const sseWriteAsync = createSseWriter(reply);
+        sendInitialSseEvents(sseWriteAsync, { model: body.model, providerName, safetyResult, recalledVectorMemories });
+        sseWriteAsync(`data: ${JSON.stringify({
+          job: { id: jobId, eta, estimatedTokens },
+          content: '\u23F3 Documento ricevuto \u2014 elaborazione in corso, risposta attesa in circa ' + etaLabel + '.',
+          done: true,
+          conversationId,
+        })}\n\n`);
+        fastify.log.info(`[Chat] Async job ${jobId} queued for user ${user.id}, eta=${eta}s, tokens=${estimatedTokens}`);
+        return;
+      }
+      // ── End async queue check ────────────────────────────────────────
 
       // Set up SSE streaming
       reply.hijack();
