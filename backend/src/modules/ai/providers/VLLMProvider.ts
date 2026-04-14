@@ -117,9 +117,9 @@ export class VLLMProvider implements AIProvider {
    * Uses exponential backoff: 5s → 15s → 30s (3 retries max).
    * Only retries on 502/503 (server-side transient errors), not on 4xx client errors.
    */
-  private async retryCreate<T>(fn: () => Promise<T>): Promise<T> {
+  private async retryCreate<T>(fn: () => Promise<T>, signal?: AbortSignal): Promise<T> {
     const delays = [5_000, 15_000, 30_000];
-    let lastError: unknown;
+    let lastError: unknown = new Error('retryCreate: no attempts made');
     for (let attempt = 0; attempt <= delays.length; attempt++) {
       try {
         return await fn();
@@ -130,7 +130,14 @@ export class VLLMProvider implements AIProvider {
           throw error;
         }
         lastError = error;
-        await new Promise(resolve => setTimeout(resolve, delays[attempt]));
+        if (signal?.aborted) throw error;
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(resolve, delays[attempt]);
+          signal?.addEventListener('abort', () => {
+            clearTimeout(timer);
+            reject(error);
+          }, { once: true });
+        });
       }
     }
     throw lastError;
@@ -151,7 +158,8 @@ export class VLLMProvider implements AIProvider {
           },
           // Forward AbortSignal if provided
           options.signal ? { signal: options.signal } : undefined,
-        )
+        ),
+        options.signal,
       );
 
       const message = response.choices[0]?.message;
@@ -191,7 +199,8 @@ export class VLLMProvider implements AIProvider {
           },
           // Forward AbortSignal if provided
           options.signal ? { signal: options.signal } : undefined,
-        )
+        ),
+        options.signal,
       );
 
       let isInThinking = false;
