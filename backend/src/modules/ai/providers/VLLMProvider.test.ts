@@ -335,4 +335,109 @@ describe('VLLMProvider', () => {
       expect(chunks[1].thinkingDone).toBe(true);
     });
   });
+
+  describe('retry on 502/503 (cold-start backoff)', () => {
+    const make502 = () => Object.assign(new Error('502 Bad Gateway'), { status: 502 });
+    const make503 = () => Object.assign(new Error('503 Service Unavailable'), { status: 503 });
+    const make400 = () => Object.assign(new Error('400 Bad Request'), { status: 400 });
+
+    describe('complete()', () => {
+      it('retries once on 502 and succeeds', async () => {
+        vi.useFakeTimers();
+        const successResponse = {
+          choices: [{ message: { content: 'hello', tool_calls: undefined } }],
+          usage: { prompt_tokens: 10, completion_tokens: 5 },
+        };
+        mockCreate
+          .mockRejectedValueOnce(make502())
+          .mockResolvedValueOnce(successResponse);
+
+        const promise = provider.complete({ model: 'qwen25vl:32b', messages: [{ role: 'user', content: 'hi' }] });
+        await vi.runAllTimersAsync();
+        const result = await promise;
+
+        expect(result.content).toBe('hello');
+        expect(mockCreate).toHaveBeenCalledTimes(2);
+        vi.useRealTimers();
+      });
+
+      it('retries up to 3 times then throws on persistent 502', async () => {
+        vi.useFakeTimers();
+        mockCreate.mockRejectedValue(make502());
+
+        const promise = provider.complete({ model: 'qwen25vl:32b', messages: [{ role: 'user', content: 'hi' }] });
+        await vi.runAllTimersAsync();
+
+        await expect(promise).rejects.toThrow(/complete\(\) failed/);
+        expect(mockCreate).toHaveBeenCalledTimes(4); // 1 initial + 3 retries
+        vi.useRealTimers();
+      });
+
+      it('does NOT retry on 400 (client error)', async () => {
+        mockCreate.mockRejectedValue(make400());
+
+        await expect(
+          provider.complete({ model: 'qwen25vl:32b', messages: [{ role: 'user', content: 'hi' }] })
+        ).rejects.toThrow(/complete\(\) failed/);
+        expect(mockCreate).toHaveBeenCalledTimes(1); // no retry
+      });
+
+      it('retries on 503 as well', async () => {
+        vi.useFakeTimers();
+        const successResponse = {
+          choices: [{ message: { content: 'ok', tool_calls: undefined } }],
+          usage: { prompt_tokens: 5, completion_tokens: 2 },
+        };
+        mockCreate
+          .mockRejectedValueOnce(make503())
+          .mockResolvedValueOnce(successResponse);
+
+        const promise = provider.complete({ model: 'qwen25vl:32b', messages: [{ role: 'user', content: 'hi' }] });
+        await vi.runAllTimersAsync();
+        const result = await promise;
+
+        expect(result.content).toBe('ok');
+        expect(mockCreate).toHaveBeenCalledTimes(2);
+        vi.useRealTimers();
+      });
+    });
+
+    describe('streamComplete()', () => {
+      it('retries stream creation once on 502 and succeeds', async () => {
+        vi.useFakeTimers();
+
+        const mockStream = (async function* () {
+          yield { choices: [{ delta: { content: 'hello' }, finish_reason: null }] };
+          yield { choices: [{ delta: { content: '' }, finish_reason: 'stop' }], usage: { prompt_tokens: 5, completion_tokens: 2 } };
+        })();
+
+        mockCreate
+          .mockRejectedValueOnce(make502())
+          .mockResolvedValueOnce(mockStream);
+
+        const chunks: string[] = [];
+        const gen = provider.streamComplete({ model: 'qwen25vl:32b', messages: [{ role: 'user', content: 'hi' }], stream: true });
+        const collectPromise = (async () => {
+          for await (const chunk of gen) {
+            if (chunk.content) chunks.push(chunk.content);
+          }
+        })();
+
+        await vi.runAllTimersAsync();
+        await collectPromise;
+
+        expect(chunks.join('')).toBe('hello');
+        expect(mockCreate).toHaveBeenCalledTimes(2);
+        vi.useRealTimers();
+      });
+
+      it('does NOT retry on 400 for stream', async () => {
+        mockCreate.mockRejectedValue(make400());
+
+        const gen = provider.streamComplete({ model: 'qwen25vl:32b', messages: [{ role: 'user', content: 'hi' }], stream: true });
+        await expect(async () => { for await (const _ of gen) {} }).rejects.toThrow(/streamComplete\(\) failed/);
+        expect(mockCreate).toHaveBeenCalledTimes(1);
+      });
+    });
+  });
 });

@@ -112,20 +112,46 @@ export class VLLMProvider implements AIProvider {
     });
   }
 
+  /**
+   * Retry wrapper for vLLM API calls that may fail with 502/503 during cold-start.
+   * Uses exponential backoff: 5s → 15s → 30s (3 retries max).
+   * Only retries on 502/503 (server-side transient errors), not on 4xx client errors.
+   */
+  private async retryCreate<T>(fn: () => Promise<T>): Promise<T> {
+    const delays = [5_000, 15_000, 30_000];
+    let lastError: unknown;
+    for (let attempt = 0; attempt <= delays.length; attempt++) {
+      try {
+        return await fn();
+      } catch (error: any) {
+        const status = error?.status ?? 0;
+        const isTransient = status === 502 || status === 503;
+        if (!isTransient || attempt === delays.length) {
+          throw error;
+        }
+        lastError = error;
+        await new Promise(resolve => setTimeout(resolve, delays[attempt]));
+      }
+    }
+    throw lastError;
+  }
+
   async complete(options: CompletionOptions): Promise<CompletionResult> {
     try {
       const resolvedModel = this.resolveModel(options.model);
       const messages = this.applyThinkingMode(options.messages, options.model);
-      const response = await this.client.chat.completions.create(
-        {
-          model: resolvedModel,
-          messages: messages as OpenAI.ChatCompletionMessageParam[],
-          max_tokens: options.maxTokens || 4096,
-          temperature: options.temperature ?? 0.7,
-          ...(options.tools?.length ? { tools: this.convertTools(options.tools) } : {}),
-        },
-        // Forward AbortSignal if provided
-        options.signal ? { signal: options.signal } : undefined,
+      const response = await this.retryCreate(() =>
+        this.client.chat.completions.create(
+          {
+            model: resolvedModel,
+            messages: messages as OpenAI.ChatCompletionMessageParam[],
+            max_tokens: options.maxTokens || 4096,
+            temperature: options.temperature ?? 0.7,
+            ...(options.tools?.length ? { tools: this.convertTools(options.tools) } : {}),
+          },
+          // Forward AbortSignal if provided
+          options.signal ? { signal: options.signal } : undefined,
+        )
       );
 
       const message = response.choices[0]?.message;
@@ -152,18 +178,20 @@ export class VLLMProvider implements AIProvider {
     try {
       const resolvedModel = this.resolveModel(options.model);
       const messages = this.applyThinkingMode(options.messages, options.model);
-      const stream = await this.client.chat.completions.create(
-        {
-          model: resolvedModel,
-          messages: messages as OpenAI.ChatCompletionMessageParam[],
-          max_tokens: options.maxTokens || 4096,
-          temperature: options.temperature ?? 0.7,
-          stream: true,
-          stream_options: { include_usage: true },
-          ...(options.tools?.length ? { tools: this.convertTools(options.tools) } : {}),
-        },
-        // Forward AbortSignal if provided
-        options.signal ? { signal: options.signal } : undefined,
+      const stream = await this.retryCreate(() =>
+        this.client.chat.completions.create(
+          {
+            model: resolvedModel,
+            messages: messages as OpenAI.ChatCompletionMessageParam[],
+            max_tokens: options.maxTokens || 4096,
+            temperature: options.temperature ?? 0.7,
+            stream: true,
+            stream_options: { include_usage: true },
+            ...(options.tools?.length ? { tools: this.convertTools(options.tools) } : {}),
+          },
+          // Forward AbortSignal if provided
+          options.signal ? { signal: options.signal } : undefined,
+        )
       );
 
       let isInThinking = false;
