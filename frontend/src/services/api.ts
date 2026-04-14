@@ -176,6 +176,11 @@ function processSSELine(
     if (data.thinking && onThinking) onThinking(data.thinking, false);
     if (data.thinkingDone && onThinking) onThinking('', true);
     if (data.content) onChunk(data.content);
+    if (data.job) {
+      window.dispatchEvent(new CustomEvent('async-job-queued', {
+        detail: { jobId: data.job.id, eta: data.job.eta, conversationId: data.conversationId, estimatedTokens: data.job.estimatedTokens }
+      }));
+    }
     if (data.done) { onDone(data.conversationId || convId); return true; }
   } catch { /* Ignore parse errors for incomplete chunks */ }
   return false;

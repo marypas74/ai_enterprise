@@ -33,6 +33,9 @@ import ChatInputArea from '../components/chat/ChatInputArea';
 import AvatarOrb from '../components/chat/AvatarOrb';
 import { RagModeBadge } from '../components/chat/RagModeBadge';
 import { useDocumentStore } from '../hooks/useDocumentStore';
+import { AsyncJobBadge } from '../components/AsyncJobBadge';
+import { useJobStore } from '../stores/useJobStore';
+import { useJobNotifications } from '../hooks/useJobNotifications';
 
 export default function ChatPage() {
   const { user, logout } = useAuthStore();
@@ -43,6 +46,13 @@ export default function ChatPage() {
 
   const conversations = useChatConversations();
   const chatMessages = useChatMessages(conversations.currentConversationId);
+  const { addJob } = useJobStore();
+
+  const handleJobComplete = (_conversationId: number) => {
+    // Future: trigger message reload when backend delivers async job result via WS
+  };
+
+  useJobNotifications(handleJobComplete);
   const fileAttachments = useFileAttachments();
   const voiceMode = useVoiceMode();
   const pdfEditor = usePDFEditorStore();
@@ -90,6 +100,16 @@ export default function ChatPage() {
       voiceMode.onThinkingDone();
     }
   }, [chatMessages.messages, voiceMode.onThinkingStart, voiceMode.onThinkingDone]);
+
+  // Listen for async job events dispatched by the SSE handler
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { jobId, eta, conversationId, estimatedTokens } = (e as CustomEvent).detail;
+      addJob({ jobId, etaSeconds: eta, conversationId, queuedAt: Date.now(), estimatedTokens });
+    };
+    window.addEventListener('async-job-queued', handler);
+    return () => window.removeEventListener('async-job-queued', handler);
+  }, [addJob]);
 
   // When a conversation is selected, load its messages
   const handleLoadConversation = async (id: number) => {
@@ -359,6 +379,8 @@ export default function ChatPage() {
           </div>
 
           <div className="flex items-center gap-1 sm:gap-2">
+            <AsyncJobBadge />
+
             {!isRagMode && (
               <div className="hidden sm:block">
                 <IconSelector onIconChange={setSelectedBotIcon} />
