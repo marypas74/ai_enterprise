@@ -278,6 +278,7 @@ export default function ChatPage() {
                         .map((model) => {
                         const isExternal = model.is_local === false;
                         const isDisabledInRag = isRagMode && isExternal && user?.role !== 'admin';
+                        const isAudio = model.id.toLowerCase().includes('audio');
                         return (
                         <button
                           key={model.id}
@@ -304,6 +305,15 @@ export default function ChatPage() {
                                   Esterno
                                 </span>
                               )}
+                              {isAudio && (
+                                <span
+                                  title="Questo modello gestisce solo input/output audio"
+                                  className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 flex items-center gap-0.5"
+                                >
+                                  <Volume2 className="w-2.5 h-2.5" />
+                                  Solo Audio
+                                </span>
+                              )}
                               {chatMessages.recommendedModel?.id === model.id && (
                                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">Consigliato</span>
                               )}
@@ -321,6 +331,12 @@ export default function ChatPage() {
                               <p className="text-[10px] text-red-600 dark:text-red-400 mt-1 flex items-center gap-1">
                                 <AlertTriangle className="w-3 h-3" />
                                 {user?.role === 'admin' ? 'Attenzione: i documenti verranno inviati a un servizio esterno' : 'Non disponibile in modalità documenti'}
+                              </p>
+                            )}
+                            {isAudio && chatMessages.selectedModel === model.id && (
+                              <p className="text-[10px] text-purple-600 dark:text-purple-400 mt-1 flex items-center gap-1">
+                                <Volume2 className="w-3 h-3" />
+                                Questo modello gestisce solo input/output audio
                               </p>
                             )}
                           </div>
