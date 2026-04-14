@@ -47,4 +47,40 @@ describe('mapStreamErrorToUserMessage', () => {
     const msg = mapStreamErrorToUserMessage('timeout after 502 ms');
     expect(msg).toContain('timed out');
   });
+
+  // HTTP status code mappings
+  it('maps 401 Unauthorized to API key error', () => {
+    const msg = mapStreamErrorToUserMessage('Error 401: 401 Unauthorized');
+    expect(msg).toBe("API key non valida o mancante. Contatta l'amministratore.");
+  });
+
+  it('maps "unauthorized" (lowercase) to API key error', () => {
+    const msg = mapStreamErrorToUserMessage('OpenAI API error: unauthorized access denied');
+    expect(msg).toBe("API key non valida o mancante. Contatta l'amministratore.");
+  });
+
+  it('maps 429 to rate limit message', () => {
+    const msg = mapStreamErrorToUserMessage('429 Too Many Requests - rate limit exceeded');
+    expect(msg).toBe('Limite rate raggiunto. Riprova tra qualche momento.');
+  });
+
+  it('maps "rate limit" string to rate limit message', () => {
+    const msg = mapStreamErrorToUserMessage('You exceeded your current quota, rate limit reached');
+    expect(msg).toBe('Limite rate raggiunto. Riprova tra qualche momento.');
+  });
+
+  it('maps 404 to model not found message', () => {
+    const msg = mapStreamErrorToUserMessage('404 Not Found: model does not exist');
+    expect(msg).toBe("Modello AI non trovato. Contatta l'amministratore.");
+  });
+
+  it('maps 503 to service unavailable message', () => {
+    const msg = mapStreamErrorToUserMessage('503 Service Unavailable from upstream');
+    expect(msg).toBe('Servizio AI temporaneamente non disponibile. Riprova tra qualche minuto.');
+  });
+
+  it('maps Ollama 500 error to local model message', () => {
+    const msg = mapStreamErrorToUserMessage('Ollama API error: 500 Internal Server Error');
+    expect(msg).toBe('Il modello locale non è disponibile al momento. Prova un altro modello.');
+  });
 });
