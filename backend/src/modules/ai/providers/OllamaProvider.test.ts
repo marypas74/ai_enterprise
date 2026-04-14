@@ -73,9 +73,10 @@ describe('OllamaProvider', () => {
           model: 'granite3.2-vision:latest',
           messages: [{ role: 'user', content: 'ciao' }],
         });
+        const assertion = expect(promise).rejects.toThrow('Ollama API error: 500');
         await vi.runAllTimersAsync();
 
-        await expect(promise).rejects.toThrow('Ollama API error: 500');
+        await assertion;
         expect(mockFetch).toHaveBeenCalledTimes(2);
         vi.useRealTimers();
       });
