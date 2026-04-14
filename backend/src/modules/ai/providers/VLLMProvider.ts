@@ -157,7 +157,7 @@ export class VLLMProvider implements AIProvider {
             ...(options.tools?.length ? { tools: this.convertTools(options.tools) } : {}),
           },
           // Forward AbortSignal if provided
-          options.signal ? { signal: options.signal } : undefined,
+          ...(options.signal ? [{ signal: options.signal }] : []),
         ),
         options.signal,
       );
@@ -198,7 +198,7 @@ export class VLLMProvider implements AIProvider {
             ...(options.tools?.length ? { tools: this.convertTools(options.tools) } : {}),
           },
           // Forward AbortSignal if provided
-          options.signal ? { signal: options.signal } : undefined,
+          ...(options.signal ? [{ signal: options.signal }] : []),
         ),
         options.signal,
       );
