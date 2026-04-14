@@ -4,6 +4,20 @@ import type { AIProvider, CompletionOptions, CompletionResult, StreamChunk } fro
 // Models that use max_completion_tokens and don't support temperature
 const REASONING_MODELS = /^(o1|o3|o4|gpt-5|gpt-4\.5)/i;
 
+// Convert Anthropic-format tool definitions to OpenAI format.
+// Anthropic: { name, description, input_schema }
+// OpenAI:    { type: 'function', function: { name, description, parameters } }
+function toOpenAITools(tools: any[]): any[] {
+  return tools.map(t => ({
+    type: 'function',
+    function: {
+      name: t.name,
+      description: t.description,
+      parameters: t.input_schema ?? t.parameters ?? { type: 'object', properties: {}, required: [] },
+    },
+  }));
+}
+
 function isReasoningModel(model: string): boolean {
   return REASONING_MODELS.test(model);
 }
@@ -36,7 +50,7 @@ export class OpenAIProvider implements AIProvider {
       model: options.model,
       messages: options.messages as any,
       ...buildTokenParam(options.model, options.maxTokens),
-      tools: options.tools as any
+      tools: options.tools ? toOpenAITools(options.tools as any[]) : undefined,
     };
     // temperature not supported by reasoning models
     if (!reasoning) {
@@ -71,7 +85,7 @@ export class OpenAIProvider implements AIProvider {
       messages: options.messages as any,
       ...buildTokenParam(options.model, options.maxTokens),
       stream: true,
-      tools: options.tools as any
+      tools: options.tools ? toOpenAITools(options.tools as any[]) : undefined,
     };
     // temperature not supported by reasoning models
     if (!reasoning) {

@@ -134,7 +134,7 @@ export class HyDEService {
        FROM ai_providers p
        JOIN ai_models m ON m.provider_id = p.id
        LEFT JOIN ai_provider_settings ps ON ps.provider_id = p.id
-       WHERE p.is_enabled = 1 AND m.is_enabled = 1 AND m.capabilities LIKE '%chat%'
+       WHERE p.is_enabled = 1 AND m.is_enabled = 1
        GROUP BY p.id, p.provider_type, m.model_id
        ORDER BY p.id ASC LIMIT 1`,
       [],
