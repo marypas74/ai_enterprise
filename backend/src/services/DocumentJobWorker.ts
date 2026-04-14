@@ -4,6 +4,7 @@ import { DocumentJobQueue, type DocumentJob } from './DocumentJobQueue.js';
 import { JobEventEmitter } from './JobEventEmitter.js';
 
 const POLL_INTERVAL_MS = 1000;
+const STALE_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes
 
 export class DocumentJobWorker {
   private running = false;
@@ -17,7 +18,35 @@ export class DocumentJobWorker {
   start(): void {
     this.running = true;
     this.fastify.log.info('[JobWorker] Started');
-    this.scheduleNext();
+    // C3: Recover stale jobs from previous crash before starting the poll loop
+    this.recoverStaleJobs().then(() => this.scheduleNext()).catch((err: any) => {
+      this.fastify.log.error(`[JobWorker] recoverStaleJobs failed: ${err.message}`);
+      this.scheduleNext();
+    });
+  }
+
+  /** C3: Reset jobs stuck in "processing" for more than STALE_THRESHOLD_MS. */
+  private async recoverStaleJobs(): Promise<void> {
+    const redis = (this.fastify as any).redis;
+    const tenMinutesAgo = new Date(Date.now() - STALE_THRESHOLD_MS).toISOString();
+    let cursor = '0';
+    let recovered = 0;
+    do {
+      const [nextCursor, keys] = await redis.scan(cursor, 'MATCH', 'doc:job:*', 'COUNT', '100') as [string, string[]];
+      cursor = nextCursor;
+      for (const key of keys) {
+        const raw = await redis.hgetall(key) as Record<string, string>;
+        if (!raw || Object.keys(raw).length === 0) continue;
+        if (raw.status === 'processing' && raw.startedAt && raw.startedAt < tenMinutesAgo) {
+          const jobId = key.replace('doc:job:', '');
+          await redis.hset(key, { status: 'pending', startedAt: '' });
+          await redis.lpush('doc:jobs', jobId);
+          recovered++;
+          this.fastify.log.warn({ jobId, startedAt: raw.startedAt }, '[JobWorker] Recovered stale job');
+        }
+      }
+    } while (cursor !== '0');
+    if (recovered > 0) this.fastify.log.info(`[JobWorker] Recovered ${recovered} stale job(s)`);
   }
 
   stop(): void {
@@ -63,11 +92,11 @@ export class DocumentJobWorker {
 
       const responseContent = result.content ?? 'Nessuna risposta generata.';
 
-      const [insertResult] = await (this.fastify as any).db.execute(
-        'INSERT INTO messages (conversation_id, role, content, is_ai_generated, ai_model, ai_provider) VALUES (?, ?, ?, ?, ?, ?)',
-        [job.conversationId, 'assistant', responseContent, true, job.model, job.providerName]
+      // C4: Replace the placeholder message in-place instead of inserting a new one
+      await (this.fastify as any).db.execute(
+        'UPDATE messages SET content = ?, is_ai_generated = ?, ai_model = ?, ai_provider = ?, updated_at = NOW() WHERE id = ?',
+        [responseContent, true, job.model, job.providerName, job.placeholderMessageId]
       );
-      const newMessageId = (insertResult as any).insertId;
 
       await (this.fastify as any).db.execute(
         'UPDATE conversations SET updated_at = NOW() WHERE id = ?',
@@ -81,7 +110,7 @@ export class DocumentJobWorker {
         jobId: job.id,
         userId: job.userId,
         conversationId: job.conversationId,
-        messageId: newMessageId,
+        messageId: job.placeholderMessageId,
       });
 
       this.fastify.log.info(`[JobWorker] Job ${job.id} completed in ${Date.now() - startTime}ms`);

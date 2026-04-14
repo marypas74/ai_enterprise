@@ -26,7 +26,7 @@ import {
   FALLBACK_MAP, isRetriableError, injectRAGSystemPrompt, injectBrainstormSystemPrompt
 } from './context-builder.js';
 import { getModelRouter, type RoutingDecision } from '../../services/ModelRouter.js';
-import { estimateMessageTokens, ASYNC_TOKEN_THRESHOLD } from '../../utils/tokenEstimator.js';
+import { estimateMessageTokens, ASYNC_TOKEN_THRESHOLD, MAX_TOKEN_LIMIT } from '../../utils/tokenEstimator.js';
 import { DocumentJobQueue } from '../../services/DocumentJobQueue.js';
 
 export async function completionRoutes(fastify: FastifyInstance) {
@@ -422,6 +422,22 @@ export async function completionRoutes(fastify: FastifyInstance) {
 
       // ── Async document queue: intercept large requests ──────────────
       const estimatedTokens = estimateMessageTokens(messages);
+
+      // C2: Reject documents exceeding the model's context limit
+      if (estimatedTokens > MAX_TOKEN_LIMIT) {
+        reply.hijack();
+        writeSseHeaders(reply, { conversationId, webSearchPerformed: false, model: body.model, providerName });
+        const sseWrite = createSseWriter(reply);
+        sendInitialSseEvents(sseWrite, { model: body.model, providerName, safetyResult, recalledVectorMemories });
+        sseWrite(`data: ${JSON.stringify({
+          content: `Il documento è troppo lungo per essere elaborato (${estimatedTokens.toLocaleString('it-IT')} token stimati, limite ${MAX_TOKEN_LIMIT.toLocaleString('it-IT')}). Per favore, dividi il documento in sezioni più piccole (massimo ~200 pagine o ~50.000 parole ciascuna) e invia ogni sezione separatamente.`,
+          done: true,
+          conversationId,
+        })}\n\n`);
+        fastify.log.warn({ estimatedTokens, limit: MAX_TOKEN_LIMIT, userId: user.id }, '[Chat] Document exceeds MAX_TOKEN_LIMIT, rejected');
+        return;
+      }
+
       if (estimatedTokens > ASYNC_TOKEN_THRESHOLD) {
         const redis = (fastify as any).redis;
         const jobQueue = new DocumentJobQueue(redis);

@@ -8,7 +8,7 @@ function makeRedisMock() {
     hset: vi.fn(async (key: string, fields: Record<string, string>) => {
       store[key] = { ...(store[key] || {}), ...fields };
     }),
-    hgetall: vi.fn(async (key: string) => store[key] ?? null),
+    hgetall: vi.fn(async (key: string) => store[key] ?? {}),
     rpush: vi.fn(async (key: string, value: string) => {
       lists[key] = [...(lists[key] || []), value];
     }),

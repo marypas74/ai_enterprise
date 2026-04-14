@@ -65,13 +65,13 @@ export class DocumentJobQueue {
     const jobId = await this.redis.lpop(QUEUE_KEY) as string | null;
     if (!jobId) return null;
     const raw = await this.redis.hgetall(JOB_KEY(jobId)) as Record<string, string> | null;
-    if (!raw) return null;
+    if (!raw || Object.keys(raw).length === 0) return null;
     return this.deserializeJob(jobId, raw);
   }
 
   async getJob(jobId: string): Promise<DocumentJob | null> {
     const raw = await this.redis.hgetall(JOB_KEY(jobId)) as Record<string, string> | null;
-    if (!raw) return null;
+    if (!raw || Object.keys(raw).length === 0) return null;
     return this.deserializeJob(jobId, raw);
   }
 
