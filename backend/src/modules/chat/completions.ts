@@ -88,6 +88,7 @@ export async function completionRoutes(fastify: FastifyInstance) {
           const fallbackRow = await findOne<{ model_id: string }>(fastify.db,
             `SELECT m.model_id FROM ai_models m JOIN ai_providers p ON m.provider_id = p.id
              WHERE m.is_enabled = TRUE AND p.is_enabled = TRUE AND m.model_type IN ('chat','completion')
+               AND m.model_id NOT LIKE '%audio%'
              ORDER BY m.sort_order ASC LIMIT 1`);
           if (fallbackRow) {
             routedModel = fallbackRow.model_id;
@@ -593,6 +594,7 @@ export async function completionRoutes(fastify: FastifyInstance) {
              INNER JOIN ai_providers p ON m.provider_id = p.id
              WHERE rt.is_enabled = TRUE AND m.is_enabled = TRUE AND p.is_enabled = TRUE
                AND rt.model_id != ?
+               AND m.model_id NOT LIKE '%audio%'
              ORDER BY FIELD(rt.tier_name, 'balanced', 'powerful', 'fast'), rt.priority ASC LIMIT 1`, [body.model]);
 
           if (escalatedModel && isProviderHealthy(escalatedModel.model_id)) {

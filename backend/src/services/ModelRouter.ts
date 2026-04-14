@@ -131,7 +131,7 @@ function scoreToTier(score: number): RoutingTier {
 const TIER_EFFORT = { fast: 'low', balanced: 'medium', powerful: 'high' } as const;
 
 // ─── Router ─────────────────────────────────────────────────────────
-class ModelRouter {
+export class ModelRouter {
   private tierModels: readonly TierModel[] = [];
   private lastFetched = 0;
   private readonly CACHE_TTL = 60_000;
@@ -152,6 +152,7 @@ class ModelRouter {
            AND m.is_enabled = TRUE
            AND p.is_enabled = TRUE
            AND m.model_type IN ('chat', 'completion')
+           AND m.model_id NOT LIKE '%audio%'
          ORDER BY rt.tier_name, rt.priority ASC`
       ) as any;
       this.tierModels = rows as TierModel[];
@@ -171,7 +172,7 @@ class ModelRouter {
         : ['balanced', 'fast', 'powerful'];
 
     for (const t of tryTiers) {
-      for (const m of allModels.filter(x => x.tier_name === t)) {
+      for (const m of allModels.filter(x => x.tier_name === t && !x.model_id.includes('audio'))) {
         if (isProviderHealthy(m.model_id)) return m.model_id;
       }
     }
