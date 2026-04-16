@@ -28,7 +28,7 @@ export async function fetchDocumentChunksForSummary(
   const filter: any = { must: [{ key: 'user_id', match: { value: userId } }] };
   if (documentIds && documentIds.length > 0) {
     filter.must.push({
-      key: 'document_id',
+      key: 'attachment_id',
       match: { any: documentIds },
     });
   }

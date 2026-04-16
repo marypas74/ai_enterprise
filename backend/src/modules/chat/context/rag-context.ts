@@ -82,11 +82,14 @@ export async function injectRAGSystemPrompt(
       );
 
       // Filter by document_ids if specified
+      // NOTE: VectorMemoryService.searchCollection returns metadata: hit.payload (the full Qdrant
+      // payload). VectorStoreService indexes chunks with 'attachment_id' as the top-level payload
+      // field (not 'document_id'). documentIds passed here are attachment IDs.
       let filtered = rawResults;
       if (opts.documentIds && opts.documentIds.length > 0) {
         filtered = rawResults.filter(r => {
           const meta = r.metadata || {};
-          const docId = meta.document_id;
+          const docId = meta.attachment_id;
           return docId !== undefined && opts.documentIds!.includes(Number(docId));
         });
       }
