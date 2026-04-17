@@ -2,7 +2,9 @@
 
 Enterprise-grade AI chat platform with multi-provider support, intelligent model orchestration, autonomous AI agents, document studio, marketplace, and VS Code extension.
 
-**Current version: 2.1.54**
+**Current version: 2.1.59**
+
+**Repository**: [github.com/marypas74/ai_enterprise](https://github.com/marypas74/ai_enterprise)
 
 ## Features
 
@@ -12,6 +14,8 @@ Enterprise-grade AI chat platform with multi-provider support, intelligent model
 - **Document Studio** — PDF editor (pdftohtml + LibreOffice + Ollama Vision OCR), PAdES-B-B digital signatures, DOCX/XLSX/PPTX generation, OnlyOffice integration.
 - **Marketplace** — Plugin/skill catalog with approval workflow, catalog service, KB integration, Qdrant vector search, and backend client for automated installs.
 - **Vector Memory** — 4-tier RAG pipeline (episodic/declarative/procedural/working) with HyDE, embeddings, semantic search, and memory stats dashboard.
+- **Async Document Queue** — Large RAG requests (>8K tokens) are intercepted and dispatched to a background `DocumentJobWorker` with Redis-backed job queue, WebSocket notifications (`/ws/jobs`), and stale job recovery on worker restart.
+- **Summary Intent Detection** — Document queries are classified as "summary" vs "specific" to either pull distributed chunks covering the whole document or run semantic search (IT/EN patterns for "riassumi", "di che argomenti/temi/tematiche parla", "what is this document about", etc.).
 - **Plugin System** — File-based plugins with EventBus hooks, MCP server support, skill management, prompt templates.
 - **EU AI Act Compliance** — Art. 50.1/50.2 disclosure, consent management, bias monitoring, audit logging, AI transparency page, DPIA documentation.
 - **VS Code Extension** — 19 commands: chat, code explain/fix/improve/document, agent sessions, inline editing, provider switching.
@@ -97,6 +101,10 @@ Automatically selects the optimal AI model for each query without user intervent
 ### Local Development
 
 ```bash
+# Clone
+git clone https://github.com/marypas74/ai_enterprise.git
+cd ai_enterprise
+
 # Backend
 cd backend
 npm install
@@ -129,7 +137,7 @@ sudo bash DEPLOY.sh # Quick deploy: import pre-built images + restart pods
 ## Project Structure
 
 ```
-enterprise-ai-chat/
+ai_enterprise/
 ├── backend/                    # Fastify 5 API server (TypeScript)
 │   └── src/
 │       ├── modules/            # 25 feature modules
@@ -339,3 +347,22 @@ sudo microk8s kubectl rollout status deployment/backend -n enterprise-ai-chat
 - **Audit logging** — Immutable log of all AI interactions
 - **AI Transparency page** — User-facing explanation of AI system behavior
 - **DPIA** — Data Protection Impact Assessment documented in `DPIA.md`
+
+## Branches
+
+- **`main`** — Production branch, tracks live deployment.
+- **`abandoned/*`** — Archived feature branches preserved for historical reference (no longer maintained):
+  - `abandoned/archive-legacy`
+  - `abandoned/feat-ai-act-compliance`
+  - `abandoned/feature-agent-framework-v1.6`
+  - `abandoned/feature-document-studio`
+  - `abandoned/feature-v2.0.0-image-gen-voice`
+  - `abandoned/feature-vision-document-pipeline`
+  - `abandoned/feature-vllm-async-document-queue` (merged into `main`)
+  - `abandoned/feature-vllm-integration`
+  - `abandoned/pre-vllm-migration-backup`
+  - `abandoned/worktree-marketplace`
+
+## License
+
+Proprietary. See `DPIA.md` and `PRIVACY_POLICY.md` for compliance documentation.
