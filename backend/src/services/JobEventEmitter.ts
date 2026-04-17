@@ -1,12 +1,14 @@
 import { EventEmitter } from 'events';
 
 export interface JobEvent {
-  type: 'job_complete' | 'job_error';
+  type: 'job_complete' | 'job_error' | 'job_provider_warning';
   jobId: string;
   userId: number;
   conversationId: number;
   messageId?: number;
   errorMessage?: string;
+  warningMessage?: string;
+  fallbackProvider?: string;
   timestamp: Date;
 }
 
@@ -50,6 +52,11 @@ class JobEventEmitterClass extends EventEmitter {
 
   public emitJobError(event: Omit<JobEvent, 'type' | 'timestamp'>): void {
     const fullEvent: JobEvent = { ...event, type: 'job_error', timestamp: new Date() };
+    this.notifyUser(fullEvent);
+  }
+
+  public emitJobProviderWarning(event: Omit<JobEvent, 'type' | 'timestamp'>): void {
+    const fullEvent: JobEvent = { ...event, type: 'job_provider_warning', timestamp: new Date() };
     this.notifyUser(fullEvent);
   }
 

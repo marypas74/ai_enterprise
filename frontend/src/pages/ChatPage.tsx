@@ -52,7 +52,18 @@ export default function ChatPage() {
     // Future: trigger message reload when backend delivers async job result via WS
   };
 
-  useJobNotifications(handleJobComplete);
+  const handleJobProviderWarning = (
+    _conversationId: number,
+    _messageId: number | undefined,
+    warningMessage: string,
+    fallbackProvider: string | undefined
+  ) => {
+    // Warning is already reflected in AsyncJobBadge via useJobStore.setJobWarning.
+    // Log to console so devs can see it; the badge turns orange with the warning text.
+    console.warn(`[JobWorker] Provider fallback:`, { warningMessage, fallbackProvider });
+  };
+
+  useJobNotifications(handleJobComplete, handleJobProviderWarning);
   const fileAttachments = useFileAttachments();
   const voiceMode = useVoiceMode();
   const pdfEditor = usePDFEditorStore();

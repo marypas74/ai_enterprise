@@ -6,12 +6,15 @@ export interface PendingJob {
   etaSeconds: number;
   queuedAt: number; // Date.now() quando accodato
   estimatedTokens?: number;
+  warningMessage?: string;   // set when worker falls back to external API
+  fallbackProvider?: string; // provider used for fallback
 }
 
 interface JobStore {
   pendingJobs: PendingJob[];
   addJob: (job: PendingJob) => void;
   removeJob: (jobId: string) => void;
+  setJobWarning: (jobId: string, warningMessage: string, fallbackProvider?: string) => void;
   getEtaRemaining: (jobId: string) => number; // secondi rimanenti
 }
 
@@ -26,6 +29,13 @@ export const useJobStore = create<JobStore>((set, get) => ({
   removeJob: (jobId) =>
     set((state) => ({
       pendingJobs: state.pendingJobs.filter((j) => j.jobId !== jobId),
+    })),
+
+  setJobWarning: (jobId, warningMessage, fallbackProvider) =>
+    set((state) => ({
+      pendingJobs: state.pendingJobs.map((j) =>
+        j.jobId === jobId ? { ...j, warningMessage, fallbackProvider } : j
+      ),
     })),
 
   getEtaRemaining: (jobId) => {

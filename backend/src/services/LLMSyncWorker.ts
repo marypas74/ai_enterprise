@@ -5,6 +5,28 @@ import { fetchAllModels } from './ModelFetcher.js';
 import { decrypt as decryptSecret } from '../utils/crypto.js';
 import { inferModelCapabilities } from '../utils/model-capabilities.js';
 
+/**
+ * Model ID patterns that are NOT compatible with /v1/chat/completions.
+ * These models target other OpenAI APIs (Realtime, Audio, TTS, Images, Responses, etc.)
+ * and would cause 404 errors if used in a standard chat completion request.
+ */
+const CHAT_COMPLETIONS_INCOMPATIBLE_PATTERNS: RegExp[] = [
+    /realtime/i,      // Realtime API (WebSockets)
+    /audio/i,         // Audio/speech API
+    /[-_]tts[-_]|[-_]tts$/i,  // TTS models
+    /transcribe/i,    // Transcription API
+    /[-_]image[-_]|[-_]image$/i, // Image generation
+    /-codex/i,        // Codex (different API format)
+    /search-api/i,    // Search API
+    /instruct/i,      // Completion-style instruct models (not chat)
+    /gpt-5-pro/i,     // Responses API only
+    /diarize/i,       // Diarization API
+];
+
+function isChatCompletionsCompatible(modelId: string): boolean {
+    return !CHAT_COMPLETIONS_INCOMPATIBLE_PATTERNS.some(pattern => pattern.test(modelId));
+}
+
 export class LLMSyncWorker {
     private fastify: FastifyInstance;
     private configInterval: NodeJS.Timeout | null = null;
@@ -180,8 +202,11 @@ export class LLMSyncWorker {
             return;
         }
 
-        const availableModels = await fetchAllModels(providerConfigs);
-        this.fastify.log.info(`[LLMSyncWorker] fetchAllModels returned ${availableModels.length} model(s): ${availableModels.map(m => `${m.provider}/${m.id}`).join(', ')}`);
+        const allModels = await fetchAllModels(providerConfigs);
+        // Filter out models incompatible with /v1/chat/completions (Realtime, Audio, TTS, Image, etc.)
+        const availableModels = allModels.filter(m => isChatCompletionsCompatible(m.id));
+        const skippedCount = allModels.length - availableModels.length;
+        this.fastify.log.info(`[LLMSyncWorker] fetchAllModels returned ${allModels.length} model(s), ${skippedCount} filtered (non-chat-completions): ${availableModels.map(m => `${m.provider}/${m.id}`).join(', ')}`);
         let addedCount = 0;
 
         for (const model of availableModels) {
@@ -228,6 +253,40 @@ export class LLMSyncWorker {
 
         if (addedCount > 0) {
             this.fastify.log.info(`[LLMSyncWorker] Added ${addedCount} new API models total`);
+        }
+
+        // Disable any previously-synced models that are now known to be chat-completions-incompatible
+        await this.disableIncompatibleModels(providers);
+    }
+
+    /**
+     * Disable models already in the DB that are incompatible with /v1/chat/completions.
+     * This handles models that were synced before the filter was introduced.
+     */
+    private async disableIncompatibleModels(providers: any[]) {
+        const providerIds = providers.map((p: any) => p.id);
+        if (providerIds.length === 0) return;
+
+        const placeholders = providerIds.map(() => '?').join(',');
+        const allDbModels = await findAll<any>(
+            this.fastify.db,
+            `SELECT id, model_id FROM ai_models WHERE provider_id IN (${placeholders}) AND is_enabled = TRUE`,
+            providerIds
+        );
+
+        let disabledCount = 0;
+        for (const m of allDbModels) {
+            if (!isChatCompletionsCompatible(m.model_id)) {
+                await this.fastify.db.execute(
+                    'UPDATE ai_models SET is_enabled = FALSE WHERE id = ?',
+                    [m.id]
+                );
+                this.fastify.log.info(`[LLMSyncWorker] Disabled incompatible model: ${m.model_id}`);
+                disabledCount++;
+            }
+        }
+        if (disabledCount > 0) {
+            this.fastify.log.info(`[LLMSyncWorker] Disabled ${disabledCount} chat-completions-incompatible model(s)`);
         }
     }
 

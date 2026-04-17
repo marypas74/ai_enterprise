@@ -5,6 +5,8 @@ import { JobEventEmitter } from './JobEventEmitter.js';
 
 const POLL_INTERVAL_MS = 1000;
 const STALE_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes
+const MAX_VLLM_ATTEMPTS = 2;
+const RETRY_DELAY_MS = 3000;
 
 export class DocumentJobWorker {
   private running = false;
@@ -85,12 +87,80 @@ export class DocumentJobWorker {
       const messages: Message[] = JSON.parse(job.messagesJson);
       const provider = AIProviderFactory.getProvider(job.model);
 
-      const result = await provider.complete(messages, {
-        model: job.model,
-        maxTokens: 4096,
-      });
+      // Try primary provider up to MAX_VLLM_ATTEMPTS times
+      let result: { content: string | null } | null = null;
+      let lastError: Error | null = null;
 
-      const responseContent = result.content ?? 'Nessuna risposta generata.';
+      for (let attempt = 1; attempt <= MAX_VLLM_ATTEMPTS; attempt++) {
+        try {
+          result = await provider.complete({ messages, model: job.model, maxTokens: 4096 });
+          lastError = null;
+          break;
+        } catch (err: any) {
+          lastError = err;
+          this.fastify.log.warn(
+            `[JobWorker] Job ${job.id} attempt ${attempt}/${MAX_VLLM_ATTEMPTS} failed: ${err.message}`
+          );
+          if (attempt < MAX_VLLM_ATTEMPTS) {
+            await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
+          }
+        }
+      }
+
+      // If primary provider failed both attempts, try external API fallback
+      if (lastError) {
+        const [extRows]: any[] = await (this.fastify as any).db.execute(
+          `SELECT m.model_id, p.provider_type
+           FROM ai_models m JOIN ai_providers p ON m.provider_id = p.id
+           WHERE m.is_enabled = TRUE AND p.is_enabled = TRUE
+             AND m.model_type IN ('chat','completion')
+             AND p.provider_type IN ('openai','anthropic','google')
+           ORDER BY m.sort_order ASC LIMIT 1`
+        );
+        const externalModel = extRows?.[0];
+
+        if (!externalModel) {
+          // No external fallback available — propagate original error
+          throw lastError;
+        }
+
+        // Warn the user BEFORE starting the external API call
+        JobEventEmitter.emitJobProviderWarning({
+          jobId: job.id,
+          userId: job.userId,
+          conversationId: job.conversationId,
+          messageId: job.placeholderMessageId,
+          warningMessage: `⚠️ Il modello locale non è disponibile al momento. L'elaborazione continua tramite ${externalModel.provider_type.toUpperCase()}.`,
+          fallbackProvider: externalModel.provider_type,
+        });
+
+        // Update placeholder in DB so the warning is also visible after page reload
+        await (this.fastify as any).db.execute(
+          'UPDATE messages SET content = ? WHERE id = ?',
+          [
+            `⚠️ vLLM temporaneamente saturo — elaborazione in corso tramite ${externalModel.provider_type.toUpperCase()}...`,
+            job.placeholderMessageId,
+          ]
+        );
+
+        // Brief pause so the WS event reaches the client before the response starts
+        await new Promise(r => setTimeout(r, 500));
+
+        this.fastify.log.warn(
+          `[JobWorker] Job ${job.id} falling back to external provider: ${externalModel.model_id}`
+        );
+        const fallbackProvider = AIProviderFactory.getProvider(externalModel.model_id);
+        result = await fallbackProvider.complete({
+          messages,
+          model: externalModel.model_id,
+          maxTokens: 4096,
+        });
+
+        // Use the fallback model/provider for the stored response
+        job = { ...job, model: externalModel.model_id, providerName: externalModel.provider_type };
+      }
+
+      const responseContent = result!.content ?? 'Nessuna risposta generata.';
 
       // C4: Replace the placeholder message in-place instead of inserting a new one
       await (this.fastify as any).db.execute(

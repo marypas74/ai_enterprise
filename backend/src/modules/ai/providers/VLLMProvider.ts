@@ -114,11 +114,11 @@ export class VLLMProvider implements AIProvider {
 
   /**
    * Retry wrapper for vLLM API calls that may fail with 502/503 during cold-start.
-   * Uses exponential backoff: 5s → 15s → 30s (3 retries max).
+   * Uses exponential backoff: 1s → 3s → 8s (3 retries max).
    * Only retries on 502/503 (server-side transient errors), not on 4xx client errors.
    */
   private async retryCreate<T>(fn: () => Promise<T>, signal?: AbortSignal): Promise<T> {
-    const delays = [5_000, 15_000, 30_000];
+    const delays = [1_000, 3_000, 8_000];
     let lastError: unknown = new Error('retryCreate: no attempts made');
     for (let attempt = 0; attempt <= delays.length; attempt++) {
       try {

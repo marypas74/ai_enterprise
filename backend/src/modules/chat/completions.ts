@@ -439,6 +439,36 @@ export async function completionRoutes(fastify: FastifyInstance) {
       }
 
       if (estimatedTokens > ASYNC_TOKEN_THRESHOLD) {
+        // For large documents with auto-routing, always prefer local/vLLM.
+        // Smart Routing may have selected an external model (OpenAI, etc.) — override to keep
+        // document data on-premise. The worker will only fall back to external APIs if vLLM
+        // fails both retry attempts, and will warn the user before doing so.
+        if (parsedBody.model === 'auto') {
+          const vllmRow = await findOne<{ model_id: string }>(fastify.db,
+            `SELECT m.model_id FROM ai_models m JOIN ai_providers p ON m.provider_id = p.id
+             WHERE m.is_enabled = TRUE AND p.is_enabled = TRUE
+               AND m.model_type IN ('chat','completion') AND p.provider_type = 'vllm'
+             ORDER BY m.sort_order ASC LIMIT 1`);
+          if (vllmRow) {
+            body.model = vllmRow.model_id;
+            providerName = AIProviderFactory.getProviderName(body.model);
+            fastify.log.info(`[Chat] Large doc async-queue: overriding auto-route to vLLM ${body.model}`);
+          } else {
+            const localRow = await findOne<{ model_id: string }>(fastify.db,
+              `SELECT m.model_id FROM ai_models m JOIN ai_providers p ON m.provider_id = p.id
+               WHERE m.is_enabled = TRUE AND p.is_enabled = TRUE
+                 AND m.model_type IN ('chat','completion') AND p.provider_type IN ('ollama','custom')
+               ORDER BY m.sort_order ASC LIMIT 1`);
+            if (localRow) {
+              body.model = localRow.model_id;
+              providerName = AIProviderFactory.getProviderName(body.model);
+              fastify.log.info(`[Chat] Large doc async-queue: no vLLM, overriding to local ${body.model}`);
+            } else {
+              fastify.log.warn(`[Chat] Large doc async-queue: no local model found, keeping ${body.model} — worker will warn before external API call`);
+            }
+          }
+        }
+
         const redis = (fastify as any).redis;
         const jobQueue = new DocumentJobQueue(redis);
 

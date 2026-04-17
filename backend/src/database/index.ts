@@ -565,6 +565,14 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
         ORDER BY m.sort_order DESC LIMIT 4`
     },
     {
+      name: 'model_routing_vllm_priority_first',
+      sql: `UPDATE model_routing_tiers SET priority = 0 WHERE model_id = 'qwen25vl:32b'`
+    },
+    {
+      name: 'model_routing_bump_non_vllm',
+      sql: `UPDATE model_routing_tiers SET priority = GREATEST(priority, 10) WHERE model_id != 'qwen25vl:32b' AND priority < 10`
+    },
+    {
       name: 'routing_decisions',
       sql: `CREATE TABLE IF NOT EXISTS routing_decisions (
         id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

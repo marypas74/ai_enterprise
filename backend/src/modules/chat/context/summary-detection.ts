@@ -1,13 +1,38 @@
 // ---- Summary Intent Detection ----
 
 const SUMMARY_PATTERNS = [
-  /\b(riassumi|riassunto|riassumimi|sintetizza|sintesi)\b/i,
-  /\b(summarize|summary|overview|abstract)\b/i,
-  /\b(panoramica|punti\s+principali|argomenti\s+principali)\b/i,
-  /\b(cosa\s+(dice|contiene|tratta|parla|riguarda))\b/i,
-  /\b(di\s+cosa\s+(parla|tratta|si\s+occupa))\b/i,
-  /\b(contenuto\s+del\s+documento)\b/i,
-  /\b(descrivi(mi)?|spiegami)\s+(il\s+)?(documento|file|pdf|testo)\b/i,
+  // 1. Riassunto / sintesi espliciti (IT + EN)
+  /\b(riassum(i|imi|ilo|ere)|riassunto|sintetizza(mi|re)?|sintesi|compendio)\b/i,
+  /\b(summarize|summary|overview|abstract|tl;?dr|gist)\b/i,
+
+  // 2. Panoramica / punti / argomenti principali
+  /\b(panoramic[ao]|punti\s+(principali|chiave|salient[ei]|trattati|cardine))\b/i,
+  /\b(argoment[io]|tem[ai]|(tematich[ei]|tematic[ao]))\s+(principali|trattati|chiave|salient[ei])\b/i,
+  /\b(main|key|primary|core)\s+(topics?|themes?|subjects?|points?|ideas?|takeaways?)\b/i,
+
+  // 3. "(Che) cosa + verbo di contenuto"
+  /\b(che\s+)?cosa\s+(dice|contiene|tratta|parla|riguarda|concerne|discute|affronta|analizza|descrive|spiega|presenta|illustra|racconta|espone|menziona|copre|include|approfondisce)\b/i,
+
+  // 4. "Di (che) cosa + verbo di contenuto"
+  /\bdi\s+(che\s+)?cosa\s+(parla|tratta|si\s+(occupa|parla|discute|tratta)|discute|scrive|ragiona|racconta)\b/i,
+
+  // 5. "Di/Su che|quali + sinonimi-di-argomento"
+  /\b(di|su|sopra|circa)\s+(che|quali)\s+(argoment[io]|tem[ai]|(tematich[ei]|tematic[ao])|contenut[io]|materi[ae]|question[ei]|soggett[io]|assunt[io]|punt[io]|cose?)\b/i,
+
+  // 6. "Che|quali + sinonimi-di-argomento"
+  /\b(che|quali)\s+(argoment[io]|tem[ai]|(tematich[ei]|tematic[ao])|contenut[io]|materi[ae]|question[ei]|soggett[io]|assunt[io]|punt[io])\b/i,
+
+  // 7. "Qual(e) è / quali sono + sinonimi-di-argomento"
+  /\b(qual[eì]?'?\s*[èe]|qual[ei]?\s+sono|qual[ei]?\s+sarebb(e|ero))\s+(il|la|lo|l['i]|i|gli|le)?\s*(argoment[io]|tem[ai]|(tematich[ei]|tematic[ao])|contenut[io]|materi[ae]|soggett[io]|tes[ei]|assunt[io])\b/i,
+
+  // 8. "Contenuto / argomento / ... del documento|file|..."
+  /\b(contenut[io]|argoment[io]|tem[ai]|(tematich[ei]|tematic[ao])|soggett[io]|tes[ei]|sostanz[ae])\s+(del|dei|della|delle|dell')\s+(documento|file|pdf|testo|articolo|paper|report|allegato|document[io]|scritto)\b/i,
+
+  // 9. Imperativi: "descrivi/spiega/elenca/... + documento|argomenti|..."
+  /\b(descrivi(mi)?|spiegami?|illustrami?|riassumimi?|dimmi|elencami?|esponi(mi)?|mostrami|parlami|raccontami)\s+.{0,20}?(contenut[io]|argoment[io]|tem[ai]|(tematich[ei]|tematic[ao])|soggett[io]|punt[io]|documento|file|pdf|testo|articolo|allegato|scritto)\b/i,
+
+  // 10. Inglese: "what is this document about" e varianti
+  /\bwhat(\s+is|'s|\s+does)\s+(this|the|it)\s+(document|file|pdf|text|article|paper)\s+(about|cover|contain|discuss)\b/i,
 ];
 
 export function isSummaryQuery(query: string): boolean {
