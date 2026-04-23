@@ -14,6 +14,60 @@ const ONLYOFFICE_PUBLIC_URL = process.env.ONLYOFFICE_PUBLIC_URL || '';
 
 const SESSION_TTL_SECONDS = 24 * 60 * 60;
 const REDIS_KEY_PREFIX = 'oo_session:';
+const MIN_CONVERTIBLE_TEXT_CHARS = 50;
+const PDF_TO_DOCX_TIMEOUT_MS = 120000;
+const PDFTOTEXT_TIMEOUT_MS = 15000;
+
+export type PdfConversionErrorCode = 'NO_TEXT' | 'TIMEOUT' | 'SCRIPT_ERROR';
+
+export class PdfConversionError extends Error {
+  readonly code: PdfConversionErrorCode;
+  readonly userMessage: string;
+
+  constructor(code: PdfConversionErrorCode, userMessage: string, cause?: unknown) {
+    super(userMessage);
+    this.name = 'PdfConversionError';
+    this.code = code;
+    this.userMessage = userMessage;
+    if (cause !== undefined) {
+      (this as { cause?: unknown }).cause = cause;
+    }
+  }
+}
+
+/**
+ * Extract textual content count from a PDF using pdftotext (poppler-utils).
+ * Returns 0 on any failure — callers treat this as non-convertible PDF.
+ */
+export async function extractPdfText(pdfPath: string): Promise<number> {
+  try {
+    const { stdout } = await execFileAsync(
+      'pdftotext',
+      ['-layout', '-nopgbrk', pdfPath, '-'],
+      { timeout: PDFTOTEXT_TIMEOUT_MS, maxBuffer: 10 * 1024 * 1024 },
+    );
+    return stdout.trim().length;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Decide whether a PDF has enough extractable text to justify a `pdf2docx`
+ * round-trip. Image-only / scanned PDFs are rejected early so the frontend
+ * falls back to the annotation viewer instead of hitting a 500.
+ */
+export async function isPdfConvertible(
+  pdfPath: string,
+  deps: { extract: (p: string) => Promise<number> } = { extract: extractPdfText },
+): Promise<boolean> {
+  try {
+    const chars = await deps.extract(pdfPath);
+    return chars >= MIN_CONVERTIBLE_TEXT_CHARS;
+  } catch {
+    return false;
+  }
+}
 
 interface OnlyOfficeSession {
   readonly documentKey: string;
@@ -59,20 +113,41 @@ export function verifyOnlyOfficeJwt(token: string): Record<string, unknown> {
 /**
  * Convert PDF to DOCX using PyMuPDF + python-docx script.
  * Returns the path to the generated DOCX file.
+ *
+ * Throws a typed {@link PdfConversionError} so callers can map failures to
+ * user-visible HTTP responses instead of leaking generic 500s.
  */
 export async function convertPdfToDocx(pdfPath: string, outputDir: string): Promise<string> {
   const baseName = path.basename(pdfPath, '.pdf');
   const expectedOutput = path.join(outputDir, `${baseName}.docx`);
 
-  // Remove existing output to avoid conflicts
   await fsPromises.unlink(expectedOutput).catch(() => {});
 
-  // Use custom Python script with PyMuPDF + python-docx for reliable conversion
   const scriptPath = path.join(path.dirname(new URL(import.meta.url).pathname), '../../scripts/pdf_to_docx.py');
-  await execFileAsync('python3', [scriptPath, pdfPath, expectedOutput], { timeout: 120000 });
 
-  // Verify output exists
-  await fsPromises.access(expectedOutput);
+  try {
+    await execFileAsync('python3', [scriptPath, pdfPath, expectedOutput], {
+      timeout: PDF_TO_DOCX_TIMEOUT_MS,
+      maxBuffer: 10 * 1024 * 1024,
+    });
+  } catch (err) {
+    const anyErr = err as NodeJS.ErrnoException & { killed?: boolean; signal?: string; stderr?: string };
+    const stderr = (anyErr.stderr || '').toString().trim();
+    const killed = anyErr.killed || anyErr.signal === 'SIGTERM' || anyErr.signal === 'SIGKILL';
+    const summary = stderr.split('\n').slice(-3).join(' | ') || anyErr.message;
+
+    if (killed) {
+      throw new PdfConversionError('TIMEOUT', 'Conversione PDF troppo lenta (timeout 120s)', err);
+    }
+    throw new PdfConversionError('SCRIPT_ERROR', `Conversione PDF fallita: ${summary}`, err);
+  }
+
+  try {
+    await fsPromises.access(expectedOutput);
+  } catch (err) {
+    throw new PdfConversionError('SCRIPT_ERROR', 'Conversione PDF non ha prodotto output', err);
+  }
+
   return expectedOutput;
 }
 
@@ -107,34 +182,45 @@ export async function createSession(
 ): Promise<OnlyOfficeSession> {
   const documentKey = `oo_${attachmentId}_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
 
-  // Convert PDF to DOCX for full editing in OnlyOffice CE
+  // Reject image-based / scanned PDFs up-front so the frontend falls back to
+  // the annotation viewer instead of hitting a generic 500.
+  if (!(await isPdfConvertible(filePath))) {
+    throw new PdfConversionError(
+      'NO_TEXT',
+      'Il PDF non contiene testo estraibile (scansione o immagine). L\'editor avanzato richiede un PDF testuale.',
+    );
+  }
+
   const dir = path.dirname(filePath);
   const tempDir = path.join(dir, `_oo_temp_${documentKey}`);
   await fsPromises.mkdir(tempDir, { recursive: true });
 
-  // Copy PDF to temp dir with a clean name
-  const tempPdf = path.join(tempDir, 'source.pdf');
-  await fsPromises.copyFile(filePath, tempPdf);
+  try {
+    const tempPdf = path.join(tempDir, 'source.pdf');
+    await fsPromises.copyFile(filePath, tempPdf);
 
-  const docxPath = await convertPdfToDocx(tempPdf, tempDir);
+    const docxPath = await convertPdfToDocx(tempPdf, tempDir);
 
-  // Clean up temp PDF copy
-  await fsPromises.unlink(tempPdf).catch(() => {});
+    await fsPromises.unlink(tempPdf).catch(() => {});
 
-  const session: OnlyOfficeSession = {
-    documentKey,
-    attachmentId,
-    userId,
-    filePath,
-    originalName,
-    conversationId,
-    createdAt: Date.now(),
-    docxPath,
-    status: 'editing',
-  };
+    const session: OnlyOfficeSession = {
+      documentKey,
+      attachmentId,
+      userId,
+      filePath,
+      originalName,
+      conversationId,
+      createdAt: Date.now(),
+      docxPath,
+      status: 'editing',
+    };
 
-  await saveSession(session);
-  return session;
+    await saveSession(session);
+    return session;
+  } catch (err) {
+    await fsPromises.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+    throw err;
+  }
 }
 
 async function saveSession(session: OnlyOfficeSession): Promise<void> {

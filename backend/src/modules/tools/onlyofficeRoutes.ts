@@ -14,6 +14,7 @@ import {
   verifyOnlyOfficeJwt,
   getPublicUrl,
   isConfigured,
+  PdfConversionError,
 } from './onlyofficeService.js';
 
 interface AttachmentRow {
@@ -76,23 +77,39 @@ export async function onlyofficeRoutes(fastify: FastifyInstance) {
       return reply.status(413).send({ error: 'Il file è troppo grande (max 50MB)' });
     }
 
-    const session = await createSession(
-      attachment.id,
-      userId,
-      attachment.file_path,
-      attachment.original_name,
-      attachment.conversation_id,
-    );
+    try {
+      const session = await createSession(
+        attachment.id,
+        userId,
+        attachment.file_path,
+        attachment.original_name,
+        attachment.conversation_id,
+      );
 
-    // Use internal K8s URL for callbacks (OnlyOffice -> backend within cluster)
-    const backendInternalUrl = 'http://backend:3000';
-    const editorConfig = buildEditorConfig(session, backendInternalUrl);
+      // Use internal K8s URL for callbacks (OnlyOffice -> backend within cluster)
+      const backendInternalUrl = 'http://backend:3000';
+      const editorConfig = buildEditorConfig(session, backendInternalUrl);
 
-    return {
-      editorConfig,
-      publicUrl: getPublicUrl(),
-      documentKey: session.documentKey,
-    };
+      return {
+        editorConfig,
+        publicUrl: getPublicUrl(),
+        documentKey: session.documentKey,
+      };
+    } catch (err) {
+      if (err instanceof PdfConversionError) {
+        fastify.log.warn(
+          { attachmentId: attachment.id, code: err.code, cause: (err as { cause?: unknown }).cause },
+          `[OnlyOffice] PDF non convertibile: ${err.userMessage}`,
+        );
+        const status = err.code === 'TIMEOUT' ? 504 : 422;
+        return reply.status(status).send({ error: err.userMessage, code: err.code });
+      }
+      fastify.log.error(
+        { err, attachmentId: attachment.id },
+        '[OnlyOffice] Errore imprevisto in createSession',
+      );
+      return reply.status(500).send({ error: 'Errore interno durante la creazione della sessione di editing' });
+    }
   });
 
   // GET /tools/pdf-editor/document/:documentKey — serve DOCX to OnlyOffice

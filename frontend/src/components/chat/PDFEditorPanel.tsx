@@ -36,6 +36,7 @@ export default function PDFEditorPanel({ attachmentId, filename, onClose, onSave
         if (!cancelled) {
           const status = err.response?.status;
           const serverMsg = err.response?.data?.error;
+          const serverCode = err.response?.data?.code;
           if (status === 503) {
             setError('OnlyOffice non è configurato sul server.');
           } else if (status === 404) {
@@ -44,6 +45,12 @@ export default function PDFEditorPanel({ attachmentId, filename, onClose, onSave
             setError(serverMsg || 'Il file è troppo grande (max 50MB).');
           } else if (status === 400) {
             setError(serverMsg || 'Il file non è un PDF.');
+          } else if (status === 422 && serverCode === 'NO_TEXT') {
+            setError(serverMsg || 'PDF scansionato o privo di testo: usa la visualizzazione con annotazioni.');
+          } else if (status === 422) {
+            setError(serverMsg || 'PDF non convertibile in formato editabile.');
+          } else if (status === 504) {
+            setError(serverMsg || 'Conversione PDF troppo lenta. Riprova o usa un file più piccolo.');
           } else {
             setError(serverMsg || 'Errore durante la creazione della sessione di editing.');
           }
