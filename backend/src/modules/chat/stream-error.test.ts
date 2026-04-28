@@ -88,4 +88,63 @@ describe('mapStreamErrorToUserMessage', () => {
     const msg = mapStreamErrorToUserMessage('500 Internal Server Error from vLLM');
     expect(msg).toBe('An error occurred while processing your request.');
   });
+
+  // Context-aware 404 (model + provider info)
+  describe('with context (model not found 404)', () => {
+    it('includes model id and provider in 404 message when context provided', () => {
+      const msg = mapStreamErrorToUserMessage('404 Not Found: model does not exist', {
+        model: 'gpt-5.5-pro-2026-04-23',
+        provider: 'openai',
+      });
+      expect(msg).toContain('gpt-5.5-pro-2026-04-23');
+      expect(msg).toContain('openai');
+      expect(msg).toContain("amministratore");
+    });
+
+    it('lists available models when 404 and availableModels is non-empty', () => {
+      const msg = mapStreamErrorToUserMessage('404 Not Found', {
+        model: 'unknown-model',
+        provider: 'openai',
+        availableModels: ['gpt-4o', 'gpt-4o-mini', 'claude-3-5-sonnet'],
+      });
+      expect(msg).toContain('Modelli disponibili');
+      expect(msg).toContain('gpt-4o');
+      expect(msg).toContain('claude-3-5-sonnet');
+    });
+
+    it('omits "Modelli disponibili" when availableModels is empty array', () => {
+      const msg = mapStreamErrorToUserMessage('404 Not Found', {
+        model: 'gpt-x',
+        provider: 'openai',
+        availableModels: [],
+      });
+      expect(msg).not.toContain('Modelli disponibili');
+      expect(msg).toContain('gpt-x');
+    });
+
+    it('still maps non-404 errors correctly when context is provided', () => {
+      const msg = mapStreamErrorToUserMessage('429 Too Many Requests', {
+        model: 'gpt-4o',
+        provider: 'openai',
+      });
+      expect(msg).toBe('Limite rate raggiunto. Riprova tra qualche momento.');
+    });
+
+    it('preserves Parlant override when isParlant is passed via context', () => {
+      const msg = mapStreamErrorToUserMessage('Parlant service error', {
+        isParlant: true,
+      });
+      expect(msg).toContain('Parlant');
+    });
+  });
+
+  it('backward-compat: no context arg still returns the original generic 404 message', () => {
+    const msg = mapStreamErrorToUserMessage('404 Not Found: model does not exist');
+    expect(msg).toBe("Modello AI non trovato. Contatta l'amministratore.");
+  });
+
+  it('backward-compat: legacy boolean second arg still works for Parlant', () => {
+    const msg = mapStreamErrorToUserMessage('Parlant service error', true);
+    expect(msg).toContain('Parlant');
+  });
 });
