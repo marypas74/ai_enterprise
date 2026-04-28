@@ -145,7 +145,8 @@ export async function playTTS(text: string, voice = 'nova', speed = 1.0): Promis
     speed,
   }, { responseType: 'blob' });
 
-  const contentType = response.headers?.['content-type'] || 'audio/mpeg';
+  const headerValue = response.headers?.['content-type'];
+  const contentType = typeof headerValue === 'string' ? headerValue : 'audio/mpeg';
   const audioBlob = new Blob([response.data], { type: contentType });
   const audioUrl = URL.createObjectURL(audioBlob);
   try {

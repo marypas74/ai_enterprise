@@ -4,28 +4,7 @@ import { AIProviderFactory, ProviderType } from '../modules/ai/providers.js';
 import { fetchAllModels } from './ModelFetcher.js';
 import { decrypt as decryptSecret } from '../utils/crypto.js';
 import { inferModelCapabilities } from '../utils/model-capabilities.js';
-
-/**
- * Model ID patterns that are NOT compatible with /v1/chat/completions.
- * These models target other OpenAI APIs (Realtime, Audio, TTS, Images, Responses, etc.)
- * and would cause 404 errors if used in a standard chat completion request.
- */
-const CHAT_COMPLETIONS_INCOMPATIBLE_PATTERNS: RegExp[] = [
-    /realtime/i,      // Realtime API (WebSockets)
-    /audio/i,         // Audio/speech API
-    /[-_]tts[-_]|[-_]tts$/i,  // TTS models
-    /transcribe/i,    // Transcription API
-    /[-_]image[-_]|[-_]image$/i, // Image generation
-    /-codex/i,        // Codex (different API format)
-    /search-api/i,    // Search API
-    /instruct/i,      // Completion-style instruct models (not chat)
-    /gpt-5-pro/i,     // Responses API only
-    /diarize/i,       // Diarization API
-];
-
-function isChatCompletionsCompatible(modelId: string): boolean {
-    return !CHAT_COMPLETIONS_INCOMPATIBLE_PATTERNS.some(pattern => pattern.test(modelId));
-}
+import { isChatCompletionsCompatible } from './LLMSyncWorker.filter.js';
 
 export class LLMSyncWorker {
     private fastify: FastifyInstance;
@@ -215,7 +194,7 @@ export class LLMSyncWorker {
 
             const existing = await findOne<any>(
                 this.fastify.db,
-                'SELECT id, is_enabled FROM ai_models WHERE provider_id = ? AND model_id = ?',
+                'SELECT id, is_enabled, is_manually_disabled FROM ai_models WHERE provider_id = ? AND model_id = ?',
                 [provider.id, model.id]
             );
 
@@ -241,8 +220,9 @@ export class LLMSyncWorker {
                     addedCount++;
                     this.fastify.log.info(`[LLMSyncWorker] Added new model: ${model.provider}/${model.id} (${model.name}) [tools=${caps.supports_functions}, vision=${caps.supports_vision}]`);
                 }
-            } else if (!existing.is_enabled) {
-                // Re-enable models that were disabled when their provider was off
+            } else if (!existing.is_enabled && !existing.is_manually_disabled) {
+                // Re-enable models that were disabled when their provider was off,
+                // but ONLY when an admin has not manually disabled them.
                 await this.fastify.db.execute(
                     'UPDATE ai_models SET is_enabled = TRUE WHERE id = ?',
                     [existing.id]
@@ -260,8 +240,13 @@ export class LLMSyncWorker {
     }
 
     /**
-     * Disable models already in the DB that are incompatible with /v1/chat/completions.
-     * This handles models that were synced before the filter was introduced.
+     * Reconcile DB enable/disable state against the chat-completions filter.
+     *
+     * Two responsibilities:
+     *   - Disable currently-enabled models that match the incompatible blacklist.
+     *   - Re-enable models that are disabled BUT match the chat-completions
+     *     allowlist AND were not flagged as `is_manually_disabled` (regression
+     *     guard for v2.1.62: false-positive disabling of `gpt-5.5-pro-*` etc.).
      */
     private async disableIncompatibleModels(providers: any[]) {
         const providerIds = providers.map((p: any) => p.id);
@@ -270,23 +255,37 @@ export class LLMSyncWorker {
         const placeholders = providerIds.map(() => '?').join(',');
         const allDbModels = await findAll<any>(
             this.fastify.db,
-            `SELECT id, model_id FROM ai_models WHERE provider_id IN (${placeholders}) AND is_enabled = TRUE`,
+            `SELECT id, model_id, is_enabled, is_manually_disabled
+             FROM ai_models WHERE provider_id IN (${placeholders})`,
             providerIds
         );
 
         let disabledCount = 0;
+        let reEnabledCount = 0;
         for (const m of allDbModels) {
-            if (!isChatCompletionsCompatible(m.model_id)) {
+            const compatible = isChatCompletionsCompatible(m.model_id);
+
+            if (m.is_enabled && !compatible) {
                 await this.fastify.db.execute(
                     'UPDATE ai_models SET is_enabled = FALSE WHERE id = ?',
                     [m.id]
                 );
                 this.fastify.log.info(`[LLMSyncWorker] Disabled incompatible model: ${m.model_id}`);
                 disabledCount++;
+            } else if (!m.is_enabled && compatible && !m.is_manually_disabled) {
+                await this.fastify.db.execute(
+                    'UPDATE ai_models SET is_enabled = TRUE WHERE id = ?',
+                    [m.id]
+                );
+                this.fastify.log.info(`[LLMSyncWorker] Re-enabled previously false-positive model: ${m.model_id}`);
+                reEnabledCount++;
             }
         }
         if (disabledCount > 0) {
             this.fastify.log.info(`[LLMSyncWorker] Disabled ${disabledCount} chat-completions-incompatible model(s)`);
+        }
+        if (reEnabledCount > 0) {
+            this.fastify.log.info(`[LLMSyncWorker] Re-enabled ${reEnabledCount} model(s) that were previously incorrectly disabled`);
         }
     }
 

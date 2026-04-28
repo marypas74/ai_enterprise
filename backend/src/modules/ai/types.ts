@@ -184,9 +184,27 @@ export function calculateCost(model: string, tokensInput: number, tokensOutput: 
   return (tokensInput * pricing.input + tokensOutput * pricing.output) / 1000;
 }
 
+/**
+ * Result of verifying that a model exists on the upstream provider.
+ * `fetchedAt` reflects when the underlying check (or its cached value) was performed.
+ */
+export interface ModelExistsResult {
+  exists: boolean;
+  fetchedAt: Date;
+  /** Optional human-readable reason — populated when `exists=false`. */
+  reason?: string;
+}
+
 // Provider interface (Strategy pattern)
 export interface AIProvider {
   name: ProviderType;
   complete(options: CompletionOptions): Promise<CompletionResult>;
   streamComplete(options: CompletionOptions): AsyncGenerator<StreamChunk>;
+  /**
+   * Check whether `modelId` exists on the upstream provider.
+   * Implementations SHOULD cache results (Redis, TTL ~1h) to avoid hitting
+   * remote APIs on every admin request.
+   * Optional for legacy providers — admin code must guard with `typeof`.
+   */
+  verifyModelExists?(modelId: string): Promise<ModelExistsResult>;
 }

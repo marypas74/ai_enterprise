@@ -1,6 +1,6 @@
 {
   "name": "enterprise-ai-chat-frontend",
-  "version": "2.1.61",
+  "version": "2.1.62",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -39,7 +39,7 @@
     "@tiptap/pm": "^3.20.4",
     "@tiptap/react": "^3.20.4",
     "@tiptap/starter-kit": "^3.20.4",
-    "axios": "^1.13.5",
+    "axios": "^1.15.1",
     "capacitor-stream-http": "^0.1.0",
     "clsx": "^2.1.0",
     "date-fns": "^4.1.0",

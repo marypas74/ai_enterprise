@@ -702,6 +702,10 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
     // v4.2: Hidden and local-only users
     { name: 'users_add_is_hidden', sql: `ALTER TABLE users ADD COLUMN is_hidden BOOLEAN NOT NULL DEFAULT FALSE` },
     { name: 'users_add_local_only', sql: `ALTER TABLE users ADD COLUMN local_only BOOLEAN NOT NULL DEFAULT FALSE` },
+    // v2.1.62: Distinguish admin-disabled models from auto-disabled ones
+    // so the LLMSyncWorker can re-enable false-positives without overriding
+    // an explicit admin choice.
+    { name: 'ai_models_add_is_manually_disabled', sql: `ALTER TABLE ai_models ADD COLUMN is_manually_disabled BOOLEAN NOT NULL DEFAULT FALSE` },
   ];
 
   for (const migration of alterMigrations) {

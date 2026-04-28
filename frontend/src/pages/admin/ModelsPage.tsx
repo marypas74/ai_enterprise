@@ -13,6 +13,11 @@ import {
   DollarSign
 } from 'lucide-react';
 import clsx from 'clsx';
+import {
+  ModelExistsWarning,
+  isModelNotFoundOnProvider,
+  type ModelNotFoundOnProvider,
+} from '../../components/admin/ModelExistsWarning';
 
 interface Model {
   id: number;
@@ -49,6 +54,11 @@ export default function ModelsPage() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [editingModel, setEditingModel] = useState<Model | null>(null);
+  const [modelExistsWarning, setModelExistsWarning] = useState<{
+    payload: ModelNotFoundOnProvider;
+    pendingPatch: { id: number; body: Partial<Model> };
+  } | null>(null);
+  const [forceSave, setForceSave] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -78,6 +88,41 @@ export default function ModelsPage() {
     } catch (err) {
       console.error('Failed to toggle model:', err);
     }
+  };
+
+  /**
+   * Patch a model with backend-side existence verification.
+   * On 422 with MODEL_NOT_FOUND_ON_PROVIDER the warning UI is surfaced and the
+   * admin can opt-in to retry with `?force=true`.
+   */
+  const patchModelSafely = async (
+    id: number,
+    body: Partial<Model>,
+    options: { force?: boolean } = {},
+  ): Promise<boolean> => {
+    try {
+      const url = options.force ? `/admin/models/${id}?force=true` : `/admin/models/${id}`;
+      await api.patch(url, body);
+      setModels(prev => prev.map(m => (m.id === id ? { ...m, ...body } : m)));
+      setModelExistsWarning(null);
+      setForceSave(false);
+      return true;
+    } catch (err: any) {
+      const status = err?.response?.status;
+      const data = err?.response?.data;
+      if (status === 422 && isModelNotFoundOnProvider(data)) {
+        setModelExistsWarning({ payload: data, pendingPatch: { id, body } });
+        return false;
+      }
+      console.error('Failed to update model:', err);
+      return false;
+    }
+  };
+
+  const handleConfirmForce = () => {
+    if (!modelExistsWarning) return;
+    const { id, body } = modelExistsWarning.pendingPatch;
+    void patchModelSafely(id, body, { force: true });
   };
 
   const deleteModel = async (id: number) => {
@@ -127,6 +172,21 @@ export default function ModelsPage() {
           <p className="text-surface-500 mt-1">Manage available models and their settings</p>
         </div>
       </div>
+
+      {modelExistsWarning && (
+        <div className="mb-4 flex-shrink-0">
+          <ModelExistsWarning
+            payload={modelExistsWarning.payload}
+            forceSave={forceSave}
+            onForceSaveChange={setForceSave}
+            onConfirm={handleConfirmForce}
+            onCancel={() => {
+              setModelExistsWarning(null);
+              setForceSave(false);
+            }}
+          />
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex gap-4 mb-6 flex-shrink-0">

@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
-import type { AIProvider, CompletionOptions, CompletionResult, StreamChunk } from '../types.js';
+import type { AIProvider, CompletionOptions, CompletionResult, ModelExistsResult, StreamChunk } from '../types.js';
+import { verifyModelExistsHttp } from './modelExistsHttp.js';
 
 // Models that use max_completion_tokens and don't support temperature
 const REASONING_MODELS = /^(o1|o3|o4|gpt-5|gpt-4\.5)/i;
@@ -34,14 +35,34 @@ function buildTokenParam(model: string, maxTokens?: number): Record<string, numb
 export class OpenAIProvider implements AIProvider {
   name: 'openai' = 'openai';
   private client: OpenAI;
+  private apiKey: string;
+  private baseUrl: string;
+  private redisClient?: any;
 
-  constructor(config?: { apiKey?: string }) {
+  constructor(config?: { apiKey?: string; baseUrl?: string; redisClient?: any }) {
     const apiKey = config?.apiKey || process.env.OPENAI_API_KEY;
     if (!apiKey) {
       throw new Error('OpenAI API key not configured');
     }
     // 120s timeout to prevent hanging on slow/new models
     this.client = new OpenAI({ apiKey, timeout: 120000 });
+    this.apiKey = apiKey;
+    this.baseUrl = (config?.baseUrl || 'https://api.openai.com/v1').replace(/\/+$/, '');
+    this.redisClient = config?.redisClient;
+  }
+
+  /**
+   * Verify a model exists on OpenAI via `GET /v1/models/{id}`.
+   * Result is cached (Redis if available) for 1 hour.
+   */
+  async verifyModelExists(modelId: string): Promise<ModelExistsResult> {
+    return verifyModelExistsHttp({
+      provider: 'openai',
+      modelId,
+      url: `${this.baseUrl}/models/${encodeURIComponent(modelId)}`,
+      headers: { 'Authorization': `Bearer ${this.apiKey}` },
+      redisClient: this.redisClient,
+    });
   }
 
   async complete(options: CompletionOptions): Promise<CompletionResult> {

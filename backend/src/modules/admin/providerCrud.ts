@@ -4,6 +4,7 @@ import { findOne, findAll, insertOne, updateOne } from '../../database/index.js'
 import { encrypt, decrypt } from '../../utils/crypto.js';
 import { clearEmbeddingCache } from '../../services/EmbeddingService.js';
 import { requireAdmin } from '../../middleware/index.js';
+import { verifyModelOnProvider, mapModelExistsErrorBody } from './modelExistsCheck.js';
 
 // Types
 interface Provider {
@@ -437,9 +438,22 @@ export async function providerCrudRoutes(fastify: FastifyInstance) {
       tags: ['admin'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest<{ Querystring: { provider_id: string } }>, reply: FastifyReply) => {
-    const { provider_id } = request.query;
+  }, async (request: FastifyRequest<{ Querystring: { provider_id: string; force?: string } }>, reply: FastifyReply) => {
+    const { provider_id, force } = request.query;
     const body = createModelSchema.parse(request.body);
+
+    // v2.1.62: verify the model id exists upstream, unless force=true was passed
+    const isForced = force === 'true' || force === '1';
+    if (!isForced) {
+      const verification = await verifyModelOnProvider(fastify, Number(provider_id), body.model_id);
+      if (!verification.skipped && verification.result && !verification.result.exists) {
+        return reply
+          .status(422)
+          .send(mapModelExistsErrorBody(body.model_id, verification.providerType ?? 'unknown', verification.result.reason));
+      }
+    } else {
+      fastify.log.warn(`[admin] Model creation forced for ${body.model_id} (provider_id=${provider_id})`);
+    }
 
     const modelId = await insertOne(
       fastify.db,
@@ -466,9 +480,33 @@ export async function providerCrudRoutes(fastify: FastifyInstance) {
       tags: ['admin'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+  }, async (
+    request: FastifyRequest<{ Params: { id: string }; Querystring: { force?: string } }>,
+    reply: FastifyReply,
+  ) => {
     const { id } = request.params;
+    const { force } = request.query;
     const body = updateModelSchema.parse(request.body);
+
+    // v2.1.62: when the admin renames `model_id`, re-verify against the upstream provider
+    const isForced = force === 'true' || force === '1';
+    if (body.model_id && !isForced) {
+      const existing = await findOne<{ provider_id: number }>(
+        fastify.db,
+        'SELECT provider_id FROM ai_models WHERE id = ?',
+        [id],
+      );
+      if (existing) {
+        const verification = await verifyModelOnProvider(fastify, existing.provider_id, body.model_id);
+        if (!verification.skipped && verification.result && !verification.result.exists) {
+          return reply
+            .status(422)
+            .send(mapModelExistsErrorBody(body.model_id, verification.providerType ?? 'unknown', verification.result.reason));
+        }
+      }
+    } else if (body.model_id && isForced) {
+      fastify.log.warn(`[admin] Model update forced for ${body.model_id} (id=${id})`);
+    }
 
     const updates: string[] = [];
     const values: any[] = [];

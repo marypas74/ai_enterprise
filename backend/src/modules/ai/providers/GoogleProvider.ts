@@ -1,26 +1,43 @@
 import { GoogleGenAI } from '@google/genai';
-import type { AIProvider, CompletionOptions, CompletionResult, ProviderConfig, StreamChunk } from '../types.js';
+import type { AIProvider, CompletionOptions, CompletionResult, ModelExistsResult, ProviderConfig, StreamChunk } from '../types.js';
+import { verifyModelExistsHttp } from './modelExistsHttp.js';
 
 // Google Gemini Provider (supports both API key and OAuth)
 export class GoogleProvider implements AIProvider {
   name: 'google' = 'google';
   private client: GoogleGenAI;
   private userId?: number;
+  private apiKey: string;
+  private redisClient?: any;
 
-  constructor(config?: ProviderConfig & { userId?: number }) {
+  constructor(config?: ProviderConfig & { userId?: number; redisClient?: any }) {
     this.userId = config?.userId;
+    this.redisClient = config?.redisClient;
 
     // Priority: OAuth token > API key in config > Environment variable
-    if (config?.apiKey) {
-      // Could be an OAuth access token or API key
-      this.client = new GoogleGenAI({ apiKey: config.apiKey });
-      console.log('[GoogleProvider] Using provided API key/OAuth token');
-    } else if (process.env.GOOGLE_AI_API_KEY) {
-      this.client = new GoogleGenAI({ apiKey: process.env.GOOGLE_AI_API_KEY });
-      console.log('[GoogleProvider] Using environment API key');
-    } else {
+    const resolvedKey = config?.apiKey || process.env.GOOGLE_AI_API_KEY;
+    if (!resolvedKey) {
       throw new Error('Google API key not configured. Set GOOGLE_AI_API_KEY or configure OAuth.');
     }
+    this.apiKey = resolvedKey;
+    this.client = new GoogleGenAI({ apiKey: resolvedKey });
+    console.log(`[GoogleProvider] Using ${config?.apiKey ? 'provided API key/OAuth token' : 'environment API key'}`);
+  }
+
+  /**
+   * Verify a Gemini model exists via `GET /v1beta/models/{id}?key=...`.
+   * Note: model IDs may be passed without the `models/` prefix that the API
+   * URL expects, so we normalise.
+   */
+  async verifyModelExists(modelId: string): Promise<ModelExistsResult> {
+    const normalised = modelId.startsWith('models/') ? modelId : `models/${modelId}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/${normalised}?key=${encodeURIComponent(this.apiKey)}`;
+    return verifyModelExistsHttp({
+      provider: 'google',
+      modelId,
+      url,
+      redisClient: this.redisClient,
+    });
   }
 
   /**

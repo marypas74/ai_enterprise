@@ -1,4 +1,5 @@
-import type { AIProvider, CompletionOptions, CompletionResult, ProviderConfig, StreamChunk } from '../types.js';
+import type { AIProvider, CompletionOptions, CompletionResult, ModelExistsResult, ProviderConfig, StreamChunk } from '../types.js';
+import { getCachedExists, setCachedExists } from './modelExistsCache.js';
 
 // Ollama Provider (Local LLMs) - With Debug Logging
 export class OllamaProvider implements AIProvider {
@@ -6,12 +7,54 @@ export class OllamaProvider implements AIProvider {
   private baseUrl: string;
   private timeout: number;
   private keepAlive: string;
+  private redisClient?: any;
 
-  constructor(config?: ProviderConfig) {
+  constructor(config?: ProviderConfig & { redisClient?: any }) {
     this.baseUrl = config?.baseUrl || process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
     this.timeout = config?.timeout || 300000; // Default 5 minutes
     this.keepAlive = config?.keepAlive || '-1'; // Keep models loaded indefinitely
+    this.redisClient = config?.redisClient;
     console.log(`[Ollama] Initialized: baseUrl=${this.baseUrl}, timeout=${this.timeout}ms, keepAlive=${this.keepAlive}`);
+  }
+
+  /**
+   * Verify a model exists locally on the Ollama daemon.
+   * Ollama does not expose `/v1/models/{id}`, so we list `/api/tags` and
+   * filter. Resolves aliases via the static MODEL_MAPPING.
+   */
+  async verifyModelExists(modelId: string): Promise<ModelExistsResult> {
+    const target = this.resolveModel(modelId);
+    const cached = await getCachedExists('ollama', target, this.redisClient);
+    if (cached) return cached;
+
+    const headers: Record<string, string> = {};
+    if (process.env.OLLAMA_AUTH_KEY) headers['X-Ollama-Key'] = process.env.OLLAMA_AUTH_KEY;
+
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 5000);
+    let response: Response;
+    try {
+      response = await fetch(`${this.baseUrl}/api/tags`, { headers, signal: ctrl.signal });
+    } catch (err: any) {
+      clearTimeout(t);
+      return { exists: true, fetchedAt: new Date(), reason: `network_error:${err?.name || 'unknown'}` };
+    }
+    clearTimeout(t);
+
+    if (!response.ok) {
+      return { exists: true, fetchedAt: new Date(), reason: `http_${response.status}_uncached` };
+    }
+
+    const data = (await response.json().catch(() => ({}))) as { models?: Array<{ name: string }> };
+    const installed = (data.models ?? []).map(m => m.name);
+    const exists = installed.includes(target);
+
+    const result: ModelExistsResult = exists
+      ? { exists: true, fetchedAt: new Date() }
+      : { exists: false, fetchedAt: new Date(), reason: 'not_in_tags' };
+
+    await setCachedExists('ollama', target, result, this.redisClient);
+    return result;
   }
 
   // Model mapping for Ollama (handles aliases from DB -> actual Ollama model names)

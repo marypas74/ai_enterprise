@@ -83,7 +83,8 @@ export function useVoiceMode() {
         speed: Math.min(Math.max(voiceSettings.speed, 0.25), 4.0),
       }, { responseType: 'blob' });
 
-      const contentType = response.headers?.['content-type'] || 'audio/mpeg';
+      const headerValue = response.headers?.['content-type'];
+      const contentType = typeof headerValue === 'string' ? headerValue : 'audio/mpeg';
       const audioBlob = new Blob([response.data], { type: contentType });
       const audioUrl = URL.createObjectURL(audioBlob);
       const audio = new Audio(audioUrl);

@@ -1,6 +1,6 @@
 {
   "name": "enterprise-ai-chat-backend",
-  "version": "2.1.61",
+  "version": "2.1.62",
   "description": "Enterprise AI Chat Platform - Backend API",
   "main": "dist/index.js",
   "type": "module",
@@ -51,7 +51,7 @@
     "pino-pretty": "^11.0.0",
     "pptxgenjs": "^4.0.1",
     "qrcode": "^1.5.4",
-    "sanitize-html": "^2.17.2",
+    "sanitize-html": "^2.17.3",
     "sharp": "^0.34.5",
     "tesseract.js": "^7.0.0",
     "zod": "^3.23.0"
@@ -72,6 +72,9 @@
   },
   "overrides": {
     "minimatch": "^10.2.1",
-    "bn.js": "^5.2.3"
+    "bn.js": "^5.2.3",
+    "@fastify/static": "^9.1.1",
+    "brace-expansion": "^4.0.1",
+    "yaml": "^2.8.3"
   }
 }

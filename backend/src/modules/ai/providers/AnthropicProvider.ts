@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
-import type { AIProvider, CompletionOptions, CompletionResult, DocumentMessage, Message, ProviderConfig, StreamChunk } from '../types.js';
+import type { AIProvider, CompletionOptions, CompletionResult, DocumentMessage, Message, ModelExistsResult, ProviderConfig, StreamChunk } from '../types.js';
 import { extractTextContent } from '../types.js';
+import { verifyModelExistsHttp } from './modelExistsHttp.js';
 
 // Anthropic Provider (supports both API key and OAuth token)
 export class AnthropicProvider implements AIProvider {
@@ -8,8 +9,9 @@ export class AnthropicProvider implements AIProvider {
   private client: Anthropic | null = null;
   private oauthToken: string | null = null;
   private apiKey: string | null = null;
+  private redisClient?: any;
 
-  constructor(config?: ProviderConfig) {
+  constructor(config?: ProviderConfig & { redisClient?: any }) {
     // OAuth token takes priority over API key
     if (config?.apiKey?.startsWith('sk-ant-oat')) {
       // This is an OAuth token, use Bearer auth
@@ -21,6 +23,29 @@ export class AnthropicProvider implements AIProvider {
       this.apiKey = process.env.ANTHROPIC_API_KEY;
       this.client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
     }
+    this.redisClient = config?.redisClient;
+  }
+
+  /**
+   * Verify a model exists on Anthropic via `GET /v1/models/{id}`.
+   * Uses the API key when available, otherwise the OAuth token.
+   */
+  async verifyModelExists(modelId: string): Promise<ModelExistsResult> {
+    const headers: Record<string, string> = { 'anthropic-version': '2023-06-01' };
+    if (this.apiKey) {
+      headers['x-api-key'] = this.apiKey;
+    } else if (this.oauthToken) {
+      headers['Authorization'] = `Bearer ${this.oauthToken}`;
+      headers['anthropic-beta'] = 'oauth-2025-04-20';
+    }
+
+    return verifyModelExistsHttp({
+      provider: 'anthropic',
+      modelId,
+      url: `https://api.anthropic.com/v1/models/${encodeURIComponent(modelId)}`,
+      headers,
+      redisClient: this.redisClient,
+    });
   }
 
   // Helper to make API calls with OAuth token
