@@ -110,7 +110,6 @@ const OPENAI_NON_CHAT_MODELS_REAL: string[] = [
     // OCR / vision-only
     'deepseek-ocr:latest',
     'glm-ocr:latest',
-    'qwen2.5vl:7b',
     'minicpm-v:latest',
     'granite3.2-vision:latest',
 ];
@@ -178,7 +177,6 @@ describe('LLMSyncWorker.filter — blacklist (CHAT_COMPLETIONS_INCOMPATIBLE_PATT
         'omni-moderation-latest',
         'gpt-4o-realtime-preview',
         'deepseek-ocr:latest',
-        'qwen2.5vl:7b',
     ])('flags non-chat model as incompatible: %s', (modelId) => {
         expect(matchesBlacklist(modelId)).toBe(true);
     });

@@ -71,7 +71,6 @@ export const CHAT_COMPLETIONS_INCOMPATIBLE_PATTERNS: readonly RegExp[] = Object.
     /^bge[-:_]/i,                        // BAAI BGE embedding models (bge-m3, bge-large-en)
     /\bocr\b/i,                          // OCR-only models
     /(?:^|[-_])vision(?:[-_]|$)/i,       // Vision-only models (chat handled separately)
-    /(?:^|[-_\d])vl(?:[-_:]|$|\d)/i,     // Vision-language only (qwen2.5vl:7b, qwen-vl-7b)
     /minicpm-v/i,                        // MiniCPM-V vision
     /granite\d+(?:\.\d+)?-vision/i,      // Granite vision variants
     /moderation/i,                       // Moderation endpoint
