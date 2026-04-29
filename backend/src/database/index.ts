@@ -706,6 +706,10 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
     // so the LLMSyncWorker can re-enable false-positives without overriding
     // an explicit admin choice.
     { name: 'ai_models_add_is_manually_disabled', sql: `ALTER TABLE ai_models ADD COLUMN is_manually_disabled BOOLEAN NOT NULL DEFAULT FALSE` },
+    // v2.1.64: Symmetric flag to mark models the admin explicitly enabled with ?force=true.
+    // The LLMSyncWorker auto-disable pass MUST NOT clear admin-forced models even if the
+    // chat-completions filter would normally flag them as incompatible.
+    { name: 'ai_models_add_is_manually_enabled', sql: `ALTER TABLE ai_models ADD COLUMN is_manually_enabled BOOLEAN NOT NULL DEFAULT FALSE` },
   ];
 
   for (const migration of alterMigrations) {

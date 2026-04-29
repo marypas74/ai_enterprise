@@ -143,18 +143,41 @@ export class ModelRouter {
       return this.tierModels;
     }
     try {
+      // v2.1.64: LEFT JOIN so a routing tier entry whose target model isn't
+      // (yet) catalogued in `ai_models` (e.g. local Ollama/vLLM models that the
+      // sync worker hasn't enumerated) remains routable. Local providers are
+      // also boosted ahead of remote APIs at equal priority.
       const [rows] = await this.db.execute(
-        `SELECT rt.tier_name, rt.model_id, rt.provider, rt.priority
+        `SELECT rt.tier_name, rt.model_id, rt.provider, rt.priority,
+                p.provider_type AS provider_type,
+                m.id            AS model_pk
          FROM model_routing_tiers rt
-         INNER JOIN ai_models m ON rt.model_id = m.model_id
-         INNER JOIN ai_providers p ON m.provider_id = p.id
+         LEFT JOIN ai_models m ON rt.model_id = m.model_id
+         LEFT JOIN ai_providers p ON COALESCE(
+                m.provider_id,
+                (SELECT id FROM ai_providers WHERE name = rt.provider LIMIT 1)
+         ) = p.id
          WHERE rt.is_enabled = TRUE
-           AND m.is_enabled = TRUE
-           AND p.is_enabled = TRUE
-           AND m.model_type IN ('chat', 'completion')
-           AND m.model_id NOT LIKE '%audio%'
-         ORDER BY rt.tier_name, rt.priority ASC`
+           AND (m.id IS NULL OR (
+                m.is_enabled = TRUE
+                AND m.model_type IN ('chat', 'completion')
+                AND m.model_id NOT LIKE '%audio%'
+           ))
+           AND (p.is_enabled = TRUE OR p.id IS NULL)
+         ORDER BY rt.tier_name,
+           CASE WHEN p.provider_type IN ('vllm', 'ollama') THEN 0 ELSE 1 END,
+           rt.priority ASC`
       ) as any;
+      // Runtime filter: log a warning for tier entries with no ai_models row
+      // but still include them (local provider may serve the model directly).
+      for (const r of rows as any[]) {
+        if (r.model_pk == null) {
+          // Single line — keep verbosity low; the cache TTL is 60s.
+          // (Logger isn't injected into this class; we surface via console.warn.)
+          // eslint-disable-next-line no-console
+          console.warn(`[ModelRouter] tier entry "${r.tier_name}/${r.model_id}" has no ai_models row; including via local-provider path`);
+        }
+      }
       this.tierModels = rows as TierModel[];
       this.lastFetched = Date.now();
     } catch {

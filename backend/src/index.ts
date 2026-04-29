@@ -10,6 +10,7 @@ import helmet from '@fastify/helmet';
 import fp from 'fastify-plugin';
 import path from 'path';
 import 'dotenv/config';
+import pkg from '../package.json' with { type: 'json' };
 
 import { databasePlugin } from './database/index.js';
 import { redisPlugin } from './cache/index.js';
@@ -561,7 +562,7 @@ async function bootstrap() {
       info: {
         title: 'Enterprise AI Chat API',
         description: 'Multi-provider AI chat platform with agent orchestration, project management, and RAG pipeline',
-        version: process.env.APP_VERSION || '1.8.10'
+        version: process.env.APP_VERSION || pkg.version
       },
       servers: [
         { url: `http://localhost:${process.env.PORT || 3000}`, description: 'Local' },

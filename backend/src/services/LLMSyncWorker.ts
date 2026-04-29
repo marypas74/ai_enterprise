@@ -185,7 +185,7 @@ export class LLMSyncWorker {
         // Filter out models incompatible with /v1/chat/completions (Realtime, Audio, TTS, Image, etc.)
         const availableModels = allModels.filter(m => isChatCompletionsCompatible(m.id));
         const skippedCount = allModels.length - availableModels.length;
-        this.fastify.log.info(`[LLMSyncWorker] fetchAllModels returned ${allModels.length} model(s), ${skippedCount} filtered (non-chat-completions): ${availableModels.map(m => `${m.provider}/${m.id}`).join(', ')}`);
+        this.fastify.log.info(`[LLMSyncWorker] fetchAllModels returned ${allModels.length} model(s), ${availableModels.length} kept (chat-completions compatible), ${skippedCount} skipped: ${availableModels.map(m => `${m.provider}/${m.id}`).join(', ')}`);
         let addedCount = 0;
 
         for (const model of availableModels) {
@@ -255,7 +255,7 @@ export class LLMSyncWorker {
         const placeholders = providerIds.map(() => '?').join(',');
         const allDbModels = await findAll<any>(
             this.fastify.db,
-            `SELECT id, model_id, is_enabled, is_manually_disabled
+            `SELECT id, model_id, is_enabled, is_manually_disabled, is_manually_enabled
              FROM ai_models WHERE provider_id IN (${placeholders})`,
             providerIds
         );
@@ -265,13 +265,18 @@ export class LLMSyncWorker {
         for (const m of allDbModels) {
             const compatible = isChatCompletionsCompatible(m.model_id);
 
-            if (m.is_enabled && !compatible) {
+            if (m.is_enabled && !compatible && !m.is_manually_enabled) {
+                // v2.1.64: respect admin-forced enable. If the admin explicitly enabled
+                // this model (e.g. via PATCH /admin/models/:id?force=true), do NOT auto-disable
+                // it even if the heuristic flags it as incompatible.
                 await this.fastify.db.execute(
                     'UPDATE ai_models SET is_enabled = FALSE WHERE id = ?',
                     [m.id]
                 );
                 this.fastify.log.info(`[LLMSyncWorker] Disabled incompatible model: ${m.model_id}`);
                 disabledCount++;
+            } else if (m.is_enabled && !compatible && m.is_manually_enabled) {
+                this.fastify.log.debug(`[LLMSyncWorker] Skipped auto-disable for admin-forced model: ${m.model_id}`);
             } else if (!m.is_enabled && compatible && !m.is_manually_disabled) {
                 await this.fastify.db.execute(
                     'UPDATE ai_models SET is_enabled = TRUE WHERE id = ?',

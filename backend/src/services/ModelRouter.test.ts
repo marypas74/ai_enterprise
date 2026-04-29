@@ -48,3 +48,60 @@ describe('ModelRouter — audio model filtering', () => {
     expect(decision.model).toBe('');
   });
 });
+
+describe('ModelRouter — v2.1.64 LEFT JOIN + provider boost', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('SQL uses LEFT JOIN against ai_models and ai_providers', async () => {
+    const pool = makePool([]);
+    const router = new ModelRouter(pool);
+    await router.route({
+      query: 'test', conversationLength: 0, hasAttachments: false,
+      attachmentCount: 0, hasVisionAttachments: false, toolsRequested: false,
+      userId: 1,
+    });
+    const [sql] = pool.execute.mock.calls[0];
+    expect(sql).toMatch(/LEFT JOIN ai_models/i);
+    expect(sql).toMatch(/LEFT JOIN ai_providers/i);
+  });
+
+  it('SQL boosts vllm/ollama provider_type ahead of others at equal priority', async () => {
+    const pool = makePool([]);
+    const router = new ModelRouter(pool);
+    await router.route({
+      query: 'test', conversationLength: 0, hasAttachments: false,
+      attachmentCount: 0, hasVisionAttachments: false, toolsRequested: false,
+      userId: 1,
+    });
+    const [sql] = pool.execute.mock.calls[0];
+    expect(sql).toMatch(/CASE WHEN p\.provider_type IN \('vllm', 'ollama'\) THEN 0 ELSE 1 END/);
+  });
+
+  it('SQL allows tier rows whose model has no ai_models entry (m.id IS NULL)', async () => {
+    const pool = makePool([]);
+    const router = new ModelRouter(pool);
+    await router.route({
+      query: 'test', conversationLength: 0, hasAttachments: false,
+      attachmentCount: 0, hasVisionAttachments: false, toolsRequested: false,
+      userId: 1,
+    });
+    const [sql] = pool.execute.mock.calls[0];
+    expect(sql).toMatch(/m\.id IS NULL/i);
+  });
+
+  it('warns and still routes a model that has no ai_models row (local provider path)', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const pool = makePool([
+      { tier_name: 'fast', model_id: 'qwen3-vl:8b', provider: 'ollama', priority: 1, provider_type: 'ollama', model_pk: null },
+    ]);
+    const router = new ModelRouter(pool);
+    const decision = await router.route({
+      query: 'ciao', conversationLength: 0, hasAttachments: false,
+      attachmentCount: 0, hasVisionAttachments: false, toolsRequested: false,
+      userId: 1,
+    });
+    expect(decision.model).toBe('qwen3-vl:8b');
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('qwen3-vl:8b'));
+    warn.mockRestore();
+  });
+});

@@ -518,6 +518,14 @@ export async function providerCrudRoutes(fastify: FastifyInstance) {
       }
     }
 
+    // v2.1.64: when admin explicitly forces is_enabled=true, mark the model as
+    // manually enabled so the LLMSyncWorker auto-disable pass respects the choice.
+    if (isForced && body.is_enabled === true) {
+      updates.push('is_manually_enabled = ?');
+      values.push(true);
+      fastify.log.info(`[admin] Marking model id=${id} as is_manually_enabled=true (force=true override)`);
+    }
+
     if (updates.length > 0) {
       values.push(id);
       await updateOne(
