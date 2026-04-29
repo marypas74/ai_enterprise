@@ -81,6 +81,16 @@ export async function injectRAGSystemPrompt(
         opts.userId
       );
 
+      // [RAG-DIAG] log dimensione/forma del payload PRIMA del filter
+      const sampleMeta = rawResults[0]?.metadata || null;
+      fastify.log.info(
+        `[RAG-DIAG] searchCollection: rawCount=${rawResults.length}, ` +
+        `documentIds=${JSON.stringify(opts.documentIds)}, ` +
+        `sample_keys=${sampleMeta ? JSON.stringify(Object.keys(sampleMeta)) : 'none'}, ` +
+        `sample_attachment_id=${sampleMeta?.attachment_id ?? 'N/A'}, ` +
+        `sample_user_id=${sampleMeta?.user_id ?? 'N/A'}`
+      );
+
       // Filter by document_ids if specified
       // NOTE: VectorMemoryService.searchCollection returns metadata: hit.payload (the full Qdrant
       // payload). VectorStoreService indexes chunks with 'attachment_id' as the top-level payload
@@ -93,6 +103,19 @@ export async function injectRAGSystemPrompt(
           return docId !== undefined && opts.documentIds!.includes(Number(docId));
         });
       }
+
+      // [RAG-DIAG] mismatch detection: rawResults>0 ma filtered=0 => ID mismatch
+      if (opts.documentIds?.length && filtered.length === 0 && rawResults.length > 0) {
+        const payloadAttachmentIds = rawResults
+          .map(r => r.metadata?.attachment_id)
+          .filter((v): v is number | string => v !== undefined && v !== null);
+        fastify.log.warn(
+          `[RAG-DIAG] FILTER MISMATCH: ${rawResults.length} rawResults but 0 after filter. ` +
+          `Payload attachment_ids=${JSON.stringify(payloadAttachmentIds)} ` +
+          `vs requested documentIds=${JSON.stringify(opts.documentIds)}`
+        );
+      }
+
       results = filtered;
 
       if (filtered.length === 0) {

@@ -25,17 +25,51 @@ const SUMMARY_PATTERNS = [
   // 7. "Qual(e) è / quali sono + sinonimi-di-argomento"
   /\b(qual[eì]?'?\s*[èe]|qual[ei]?\s+sono|qual[ei]?\s+sarebb(e|ero))\s+(il|la|lo|l['i]|i|gli|le)?\s*(argoment[io]|tem[ai]|(tematich[ei]|tematic[ao])|contenut[io]|materi[ae]|soggett[io]|tes[ei]|assunt[io])\b/i,
 
-  // 8. "Contenuto / argomento / ... del documento|file|..."
-  /\b(contenut[io]|argoment[io]|tem[ai]|(tematich[ei]|tematic[ao])|soggett[io]|tes[ei]|sostanz[ae])\s+(del|dei|della|delle|dell')\s+(documento|file|pdf|testo|articolo|paper|report|allegato|document[io]|scritto)\b/i,
+  // 8. "Contenuto / argomento / ... del documento|file|articolo|..."
+  /\b(contenut[io]|argoment[io]|tem[ai]|(tematich[ei]|tematic[ao])|soggett[io]|tes[ei]|sostanz[ae])\s+(del|dei|della|delle|dell['’])\s*(documento|file|pdf|testo|articolo|paper|report|allegato|document[io]|scritto)\b/i,
 
   // 9. Imperativi: "descrivi/spiega/elenca/... + documento|argomenti|..."
   /\b(descrivi(mi)?|spiegami?|illustrami?|riassumimi?|dimmi|elencami?|esponi(mi)?|mostrami|parlami|raccontami)\s+.{0,20}?(contenut[io]|argoment[io]|tem[ai]|(tematich[ei]|tematic[ao])|soggett[io]|punt[io]|documento|file|pdf|testo|articolo|allegato|scritto)\b/i,
 
   // 10. Inglese: "what is this document about" e varianti
   /\bwhat(\s+is|'s|\s+does)\s+(this|the|it)\s+(document|file|pdf|text|article|paper)\s+(about|cover|contain|discuss)\b/i,
+
+  // 11. TL;DR varianti (tldr / tl dr / tl-dr / tl;dr / tl.dr)
+  /\btl[\s;:,.\-]?d[\s]?r\b/i,
+
+  // 12. "in (N|due|poche|breve) (parole|righe|punti)"
+  /\bin\s+(\d+|due|poche|breve|tre|quattro|cinque|sei|sette|otto|nove|dieci)\s+(parole|righe|punti)\b/i,
+
+  // 13. "in (sintesi|breve|soldoni|pillole)"
+  /\bin\s+(sintesi|breve|soldoni|pillole)\b/i,
+
+  // 14. "il (succo|nocciolo)"
+  /\bil\s+(succo|nocciolo)\b/i,
+
+  // 15. "che roba è" / "che roba e'"
+  /\bche\s+roba\s+(è|e['’])(?!\w)/i,
+
+  // 16. "fammi un punto"
+  /\bfammi\s+un\s+punto\b/i,
+
+  // 17. Slang regionali (accentate => no \b finale, usiamo lookahead)
+  /\bfammi\s+cap(i|ì|i['’])(?!\w)/i,
+  /\bdimme\s+['’]?n\s+po['’]?/i,
+  /\bfamme\s+cap(i|ì|i['’])(?!\w)/i,
+  /\bspiegheme\b/i,
+
+  // 18. EN aggiuntivo: gist / brief me / in a nutshell / recap
+  /\b(gist|brief\s+me|in\s+a\s+nutshell|recap)\b/i,
 ];
 
+// Pattern di esclusione: la query si riferisce alla CONVERSAZIONE, non al
+// documento. Se matcha, isSummaryQuery ritorna false anche con match positivo.
+const CONVERSATION_REFERENCE_PATTERN =
+  /\b(hai\s+detto|abbiamo\s+(detto|discusso|parlato)|conversazione|chat|risposta)\b/i;
+
 export function isSummaryQuery(query: string): boolean {
+  if (!query) return false;
+  if (CONVERSATION_REFERENCE_PATTERN.test(query)) return false;
   return SUMMARY_PATTERNS.some(p => p.test(query));
 }
 
