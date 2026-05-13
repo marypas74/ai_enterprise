@@ -10,7 +10,8 @@ import {
   Zap,
   Eye,
   MessageSquare,
-  DollarSign
+  DollarSign,
+  ShieldCheck
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -29,6 +30,7 @@ interface Model {
   supports_functions: boolean;
   supports_vision: boolean;
   is_enabled: boolean;
+  is_manually_enabled: boolean;
   is_default: boolean;
   provider_name: string;
   provider_display_name: string;
@@ -77,6 +79,17 @@ export default function ModelsPage() {
       );
     } catch (err) {
       console.error('Failed to toggle model:', err);
+    }
+  };
+
+  const toggleManuallyEnabled = async (id: number, value: boolean) => {
+    try {
+      await api.patch(`/admin/models/${id}`, { is_manually_enabled: value });
+      setModels(prev =>
+        prev.map(m => m.id === id ? { ...m, is_manually_enabled: value } : m)
+      );
+    } catch (err) {
+      console.error('Failed to toggle is_manually_enabled:', err);
     }
   };
 
@@ -241,6 +254,37 @@ export default function ModelsPage() {
                       <span>Out: ${model.output_cost_per_1k}/1K</span>
                     </div>
                   )}
+
+                  {/* Forza abilitazione (anti-auto-disable) */}
+                  <div className="flex items-center justify-between mt-3 pt-3 border-t border-surface-100 dark:border-surface-800 text-xs">
+                    <label
+                      htmlFor={`manually-enabled-${model.id}`}
+                      className="flex items-center gap-1.5 text-surface-500 cursor-pointer select-none"
+                      title="Impedisce al worker di auto-disabilitare questo modello"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5 flex-shrink-0" />
+                      Forza abilitazione
+                    </label>
+                    <button
+                      id={`manually-enabled-${model.id}`}
+                      role="switch"
+                      aria-checked={model.is_manually_enabled}
+                      onClick={() => toggleManuallyEnabled(model.id, !model.is_manually_enabled)}
+                      className={clsx(
+                        'relative inline-flex h-4 w-8 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none',
+                        model.is_manually_enabled
+                          ? 'bg-amber-400'
+                          : 'bg-surface-200 dark:bg-surface-700'
+                      )}
+                    >
+                      <span
+                        className={clsx(
+                          'inline-block h-3 w-3 transform rounded-full bg-white shadow transition-transform',
+                          model.is_manually_enabled ? 'translate-x-4' : 'translate-x-0.5'
+                        )}
+                      />
+                    </button>
+                  </div>
 
                   {/* Actions */}
                   <div className="flex justify-end gap-2 mt-3 pt-3 border-t border-surface-100 dark:border-surface-800">

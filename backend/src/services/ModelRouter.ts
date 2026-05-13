@@ -7,6 +7,7 @@
  *   - powerful:  complex reasoning (architecture, multi-step, deep analysis)
  */
 import mysql from 'mysql2/promise';
+import type { FastifyBaseLogger } from 'fastify';
 import { isProviderHealthy } from './CircuitBreakerService.js';
 import { MODEL_PRICING } from '../modules/ai/types.js';
 
@@ -136,7 +137,7 @@ export class ModelRouter {
   private lastFetched = 0;
   private readonly CACHE_TTL = 60_000;
 
-  constructor(private readonly db: mysql.Pool) {}
+  constructor(private readonly db: mysql.Pool, private readonly logger?: FastifyBaseLogger) {}
 
   private async loadTierModels(): Promise<readonly TierModel[]> {
     if (this.tierModels.length > 0 && Date.now() - this.lastFetched < this.CACHE_TTL) {
@@ -232,7 +233,7 @@ export class ModelRouter {
         ],
       );
     } catch (err) {
-      console.warn('[ModelRouter] Failed to record routing decision:', err);
+      this.logger?.warn({ err }, '[ModelRouter] Failed to record routing decision');
     }
   }
 }
@@ -240,9 +241,9 @@ export class ModelRouter {
 // ─── Singleton ──────────────────────────────────────────────────────
 let instance: ModelRouter | null = null;
 
-export function getModelRouter(db: mysql.Pool): ModelRouter {
+export function getModelRouter(db: mysql.Pool, logger?: FastifyBaseLogger): ModelRouter {
   if (!instance) {
-    instance = new ModelRouter(db);
+    instance = new ModelRouter(db, logger);
   }
   return instance;
 }

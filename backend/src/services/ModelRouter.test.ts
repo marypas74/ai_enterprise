@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ModelRouter } from './ModelRouter.js';
+import { ModelRouter, getModelRouter } from './ModelRouter.js';
 
 const makePool = (rows: object[]) => ({
   execute: vi.fn().mockResolvedValue([rows, []]),
@@ -46,5 +46,48 @@ describe('ModelRouter — audio model filtering', () => {
       hasVisionAttachments: false, toolsRequested: false, userId: 1,
     });
     expect(decision.model).toBe('');
+  });
+});
+
+describe('ModelRouter — Fastify logger injection (N2)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('calls logger.warn when recordDecision DB write fails', async () => {
+    const warnFn = vi.fn();
+    const mockLogger = { warn: warnFn } as any;
+    const pool = {
+      execute: vi.fn()
+        .mockResolvedValueOnce([[{ tier_name: 'fast', model_id: 'gpt-4o-mini', provider: 'openai', priority: 1 }], []])
+        .mockRejectedValueOnce(new Error('DB write failed')),
+    } as any;
+
+    const router = new ModelRouter(pool, mockLogger);
+    const decision = await router.route({
+      query: 'ciao', conversationLength: 0, hasAttachments: false,
+      attachmentCount: 0, hasVisionAttachments: false, toolsRequested: false,
+      userId: 1, hasDocuments: false,
+    });
+    await router.recordDecision(decision, { query: 'ciao', conversationLength: 0, hasAttachments: false, attachmentCount: 0, hasVisionAttachments: false, toolsRequested: false, userId: 1 }, { latencyMs: 10, tokensInput: 5, tokensOutput: 5, costUsd: 0 });
+
+    expect(warnFn).toHaveBeenCalledOnce();
+    expect(warnFn.mock.calls[0][1]).toMatch(/Failed to record routing decision/);
+  });
+
+  it('does not throw when logger is undefined and DB write fails', async () => {
+    const pool = {
+      execute: vi.fn()
+        .mockResolvedValueOnce([[{ tier_name: 'fast', model_id: 'gpt-4o-mini', provider: 'openai', priority: 1 }], []])
+        .mockRejectedValueOnce(new Error('DB write failed')),
+    } as any;
+
+    const router = new ModelRouter(pool);
+    const decision = await router.route({
+      query: 'ciao', conversationLength: 0, hasAttachments: false,
+      attachmentCount: 0, hasVisionAttachments: false, toolsRequested: false,
+      userId: 1, hasDocuments: false,
+    });
+    await expect(
+      router.recordDecision(decision, { query: 'ciao', conversationLength: 0, hasAttachments: false, attachmentCount: 0, hasVisionAttachments: false, toolsRequested: false, userId: 1 }, { latencyMs: 10, tokensInput: 5, tokensOutput: 5, costUsd: 0 })
+    ).resolves.toBeUndefined();
   });
 });

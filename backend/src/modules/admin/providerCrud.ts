@@ -66,10 +66,24 @@ const createModelSchema = z.object({
   supports_functions: z.boolean().default(false),
   supports_vision: z.boolean().default(false),
   is_enabled: z.boolean().default(true),
+  is_manually_enabled: z.boolean().optional(),
   is_default: z.boolean().default(false)
 });
 
 const updateModelSchema = createModelSchema.partial();
+
+// Explicit allowlist: only these column names may appear in a dynamic SET clause.
+// Defense-in-depth against any future Zod schema drift that could expose new columns.
+const ALLOWED_MODEL_UPDATE_KEYS = [
+  'model_id', 'display_name', 'description', 'model_type',
+  'is_enabled', 'is_manually_enabled', 'is_default', 'sort_order',
+  'context_window', 'max_output_tokens',
+  'input_cost_per_1k', 'output_cost_per_1k',
+  'supports_streaming', 'supports_functions', 'supports_vision',
+  'supports_thinking', 'supports_citations', 'supports_caching',
+  'supports_native_pdf', 'optimal_temperature', 'optimal_top_p',
+  'optimal_repeat_penalty', 'timeout_ms',
+] as const;
 
 export async function providerCrudRoutes(fastify: FastifyInstance) {
 
@@ -474,22 +488,24 @@ export async function providerCrudRoutes(fastify: FastifyInstance) {
     const values: any[] = [];
 
     for (const [key, value] of Object.entries(body)) {
-      if (value !== undefined) {
+      if (value !== undefined && (ALLOWED_MODEL_UPDATE_KEYS as readonly string[]).includes(key)) {
         updates.push(`${key} = ?`);
         values.push(value);
       }
     }
 
-    if (updates.length > 0) {
-      values.push(id);
-      await updateOne(
-        fastify.db,
-        `UPDATE ai_models SET ${updates.join(', ')} WHERE id = ?`,
-        values
-      );
-      // Invalidate cached embedding provider when any model is updated
-      clearEmbeddingCache();
+    if (updates.length === 0) {
+      return reply.status(400).send({ error: 'No valid fields to update' });
     }
+
+    values.push(id);
+    await updateOne(
+      fastify.db,
+      `UPDATE ai_models SET ${updates.join(', ')} WHERE id = ?`,
+      values
+    );
+    // Invalidate cached embedding provider when any model is updated
+    clearEmbeddingCache();
 
     return { success: true };
   });
