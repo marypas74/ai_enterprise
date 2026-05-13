@@ -31,7 +31,7 @@ import { DocumentJobQueue } from '../../services/DocumentJobQueue.js';
 
 export async function completionRoutes(fastify: FastifyInstance) {
   const contentSafetyService = new ContentSafetyService(fastify);
-  const modelRouter = getModelRouter(fastify.db);
+  const modelRouter = getModelRouter(fastify.db, fastify.log);
 
   fastify.post('/completions', {
     onRequest: [(fastify as any).authenticate],
