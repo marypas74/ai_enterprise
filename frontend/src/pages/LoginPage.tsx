@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../hooks/useAuthStore';
-import { MessageSquare, Mail, Lock, AlertCircle, Smartphone, Download } from 'lucide-react';
+import { MessageSquare, Mail, Lock, AlertCircle, Smartphone, Download, PlayCircle } from 'lucide-react';
 import { APP_VERSION } from '../version';
 import { isNativePlatform } from '../utils/platform';
 
@@ -203,6 +203,23 @@ export default function LoginPage() {
               </a>
             </div>
           )}
+        </div>
+
+        {/* Login guide video — public endpoint, streams from backend with Range support */}
+        <div className="mt-6 rounded-xl overflow-hidden shadow-lg bg-black">
+          <div className="flex items-center gap-2 px-4 py-2 bg-surface-800 text-surface-100 text-sm">
+            <PlayCircle className="w-4 h-4 text-primary-400" />
+            <span>Guida introduttiva</span>
+          </div>
+          <video
+            controls
+            preload="metadata"
+            playsInline
+            className="w-full h-auto block"
+            src={`${import.meta.env.VITE_API_URL || '/api'}/public/login-guide.mp4`}
+          >
+            Il tuo browser non supporta la riproduzione video HTML5.
+          </video>
         </div>
 
         {/* Footer */}
