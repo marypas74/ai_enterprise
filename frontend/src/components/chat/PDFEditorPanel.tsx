@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { X, Loader2, FileText, AlertTriangle, CheckCircle, Download } from 'lucide-react';
-import { createOnlyOfficeSession, getOnlyOfficeSessionStatus } from '../../services/pdfEditorApi';
-import type { OnlyOfficeSessionResponse } from '../../services/pdfEditorApi';
+import { createOnlyOfficeSession, getOnlyOfficeSessionStatus, buildOneShotDownloadUrl } from '../../services/pdfEditorApi';
+import type { OnlyOfficeSessionResponse, SaveMode } from '../../services/pdfEditorApi';
 import { PDFEditorWidget } from './PDFEditorWidget/PDFEditorWidget';
 import { downloadFile } from '../../utils/fileDownload';
 import { useAuthStore } from '../../hooks/useAuthStore';
@@ -9,11 +9,12 @@ import { useAuthStore } from '../../hooks/useAuthStore';
 interface PDFEditorPanelProps {
   attachmentId: number;
   filename: string;
+  saveMode?: SaveMode;
   onClose: () => void;
   onSaved: (newAttachmentId: number, newFilename: string) => void;
 }
 
-export default function PDFEditorPanel({ attachmentId, filename, onClose, onSaved }: PDFEditorPanelProps) {
+export default function PDFEditorPanel({ attachmentId, filename, saveMode = 'draft', onClose, onSaved }: PDFEditorPanelProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [session, setSession] = useState<OnlyOfficeSessionResponse | null>(null);
@@ -28,7 +29,7 @@ export default function PDFEditorPanel({ attachmentId, filename, onClose, onSave
       try {
         setLoading(true);
         setError(null);
-        const sessionData = await createOnlyOfficeSession(attachmentId);
+        const sessionData = await createOnlyOfficeSession(attachmentId, saveMode);
         if (!cancelled) {
           setSession(sessionData);
         }
@@ -134,13 +135,19 @@ export default function PDFEditorPanel({ attachmentId, filename, onClose, onSave
     pollRef.current = setInterval(async () => {
       try {
         const status = await getOnlyOfficeSessionStatus(session.documentKey);
-        if (status.status === 'saved' && status.newAttachmentId && status.newFilename) {
+        if (status.status === 'saved') {
           setSaveStatus('saved');
           if (pollRef.current) {
             clearInterval(pollRef.current);
             pollRef.current = null;
           }
-          onSaved(status.newAttachmentId, status.newFilename);
+          if (status.saveMode === 'download' && status.downloadToken) {
+            const url = buildOneShotDownloadUrl(status.downloadToken);
+            const finalName = status.newFilename || filename.replace(/\.pdf$/i, '_modificato.pdf');
+            await downloadFile(url, finalName, useAuthStore.getState().accessToken || undefined);
+          } else if (status.newAttachmentId && status.newFilename) {
+            onSaved(status.newAttachmentId, status.newFilename);
+          }
         } else if (status.status === 'error') {
           setSaveStatus('error');
           if (pollRef.current) {

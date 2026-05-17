@@ -5,6 +5,11 @@ metadata:
   namespace: enterprise-ai-chat
 spec:
   replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   selector:
     matchLabels:
       app: backend
@@ -15,7 +20,7 @@ spec:
     spec:
       containers:
         - name: backend
-          image: localhost:32000/enterprise-ai-chat-backend:2.1.65
+          image: localhost:32000/enterprise-ai-chat-backend:2.1.74
           imagePullPolicy: Always
           ports:
             - containerPort: 3000

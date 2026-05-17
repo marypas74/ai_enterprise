@@ -13,6 +13,12 @@
  */
 import { BrowserService } from './BrowserService.js';
 import { findOne } from '../database/index.js';
+import { detectLayout } from './document-processing/LayoutDetector.js';
+import {
+  getCachedDocOCR,
+  setCachedDocOCR,
+  type CachedDocResult,
+} from './document-processing/OCRCacheService.js';
 import type mysql from 'mysql2/promise';
 
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
@@ -39,6 +45,7 @@ export interface DocumentOCRResult {
 export class VisionService {
   private static instance: VisionService | null = null;
   private db: mysql.Pool | null = null;
+  private redis: any = null;
 
   static getInstance(): VisionService {
     if (!VisionService.instance) {
@@ -50,6 +57,11 @@ export class VisionService {
   /** Set the DB pool for dynamic model resolution */
   setDb(db: mysql.Pool): void {
     this.db = db;
+  }
+
+  /** Set the Redis client for OCR result caching (content-hash based) */
+  setRedis(redis: any): void {
+    this.redis = redis;
   }
 
   /**
@@ -105,7 +117,7 @@ export class VisionService {
           `SELECT m.model_id FROM ai_models m
            JOIN ai_providers p ON m.provider_id = p.id
            WHERE p.name = 'ollama' AND m.is_enabled = TRUE AND m.supports_vision = TRUE
-             AND (m.model_id LIKE '%ocr%' OR m.name LIKE '%ocr%')
+             AND (m.model_id LIKE '%ocr%' OR m.display_name LIKE '%ocr%' OR m.display_name LIKE '%OCR%')
            ORDER BY m.context_window ASC, m.sort_order ASC
            LIMIT 1`,
         );
@@ -120,6 +132,28 @@ export class VisionService {
 
     // Fallback to general vision model
     return this.resolveVisionModel();
+  }
+
+  /**
+   * Pick the right model based on page layout:
+   *   - 'text'   → resolveOCRModel (fast OCR-specialized, e.g. glm-ocr)
+   *   - 'layout' → resolveVisionModel (general multimodal, preserves tables/columns)
+   *   - 'auto'   → run LayoutDetector on the image and decide
+   */
+  private async chooseModelForLayout(
+    pageImage: Buffer,
+    hint: 'text' | 'layout' | 'auto',
+  ): Promise<string> {
+    if (hint === 'layout') return this.resolveVisionModel();
+    if (hint === 'text') return this.resolveOCRModel();
+    const detection = await detectLayout(pageImage);
+    console.log(
+      `[VisionOCR] Layout detection: ${detection.classification} ` +
+        `(H=${detection.horizontalLines}, V=${detection.verticalLines})`,
+    );
+    return detection.classification === 'layout'
+      ? this.resolveVisionModel()
+      : this.resolveOCRModel();
   }
 
   /**
@@ -191,18 +225,33 @@ export class VisionService {
    * This is significantly better than Tesseract for complex layouts,
    * tables, mixed languages, and handwritten text.
    */
-  async analyzeDocument(buffer: Buffer, mimeType: string = 'application/pdf'): Promise<DocumentOCRResult> {
-    const model = await this.resolveOCRModel();
-
+  async analyzeDocument(
+    buffer: Buffer,
+    mimeType: string = 'application/pdf',
+    options: { layoutHint?: 'text' | 'layout' | 'auto' } = {},
+  ): Promise<DocumentOCRResult> {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     const authKey = process.env.OLLAMA_AUTH_KEY || '';
     if (authKey) headers['X-Ollama-Key'] = authKey;
 
-    // For images, analyze directly
+    const hint = options.layoutHint ?? 'auto';
+
+    // Content-hash cache: skip pipeline if we've already OCR'd this exact file
+    const cacheTag = `vision-ocr:${hint}`;
+    const cached = await getCachedDocOCR(buffer, cacheTag, this.redis);
+    if (cached) {
+      console.log(`[VisionOCR] CACHE HIT for ${cacheTag} (${cached.pages} pages, ${cached.text.length} chars)`);
+      return { text: cached.text, model: cached.model, pages: cached.pages, method: 'vision-ocr' };
+    }
+
+    // For images, analyze directly. If hint='auto', detect layout from the image itself.
     if (mimeType.startsWith('image/')) {
+      const model = await this.chooseModelForLayout(buffer, hint);
       const base64 = buffer.toString('base64');
       const text = await this.ocrPage(base64, model, headers);
-      return { text, model, pages: 1, method: 'vision-ocr' };
+      const result: DocumentOCRResult = { text, model, pages: 1, method: 'vision-ocr' };
+      await setCachedDocOCR(buffer, cacheTag, result satisfies CachedDocResult, this.redis).catch(() => {});
+      return result;
     }
 
     // For PDFs, convert to images first
@@ -233,20 +282,42 @@ export class VisionService {
           throw new Error('pdftoppm produced no page images');
         }
 
-        console.log(`[VisionOCR] Processing ${pageImages.length} pages with model ${model}`);
+        // Detect layout on the first page (auto mode) and pick the right model
+        const firstPagePath = path.join(tmpDir, pageImages[0]);
+        const firstPageBuf = await fs.readFile(firstPagePath);
+        const model = await this.chooseModelForLayout(firstPageBuf, hint);
 
-        // Process pages sequentially to avoid overloading Ollama
-        const pageTexts: string[] = [];
-        for (let i = 0; i < pageImages.length; i++) {
-          const imgBuffer = await fs.readFile(path.join(tmpDir, pageImages[i]));
+        // Concurrency: process pages in batches to avoid overloading Ollama / Vision GPU.
+        // OCR_PAGE_CONCURRENCY env tunable; default 2 — safe with vLLM Qwen2.5-VL-32B residente.
+        const concurrency = Math.max(1, Math.min(4, Number(process.env.OCR_PAGE_CONCURRENCY ?? 2)));
+        console.log(`[VisionOCR] Processing ${pageImages.length} pages with model ${model} (hint=${hint}, concurrency=${concurrency})`);
+
+        // Per-page OCR task: returns the text for a given page index.
+        const ocrAt = async (i: number): Promise<string> => {
+          const imgBuffer = i === 0
+            ? firstPageBuf
+            : await fs.readFile(path.join(tmpDir, pageImages[i]));
           const base64 = imgBuffer.toString('base64');
           console.log(`[VisionOCR] Processing page ${i + 1}/${pageImages.length}`);
-          const text = await this.ocrPage(base64, model, headers);
-          pageTexts.push(text);
+          return this.ocrPage(base64, model, headers);
+        };
+
+        // Bounded-concurrency runner: keeps `concurrency` workers busy until done.
+        const pageTexts: string[] = new Array(pageImages.length).fill('');
+        let next = 0;
+        async function worker(): Promise<void> {
+          for (;;) {
+            const i = next++;
+            if (i >= pageImages.length) return;
+            pageTexts[i] = await ocrAt(i);
+          }
         }
+        await Promise.all(Array.from({ length: concurrency }, worker));
 
         const fullText = pageTexts.join('\n\n--- Page Break ---\n\n');
-        return { text: fullText, model, pages: pageImages.length, method: 'vision-ocr' };
+        const result: DocumentOCRResult = { text: fullText, model, pages: pageImages.length, method: 'vision-ocr' };
+        await setCachedDocOCR(buffer, cacheTag, result satisfies CachedDocResult, this.redis).catch(() => {});
+        return result;
       } finally {
         await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
       }

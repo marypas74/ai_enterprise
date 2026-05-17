@@ -2,6 +2,41 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { api } from '../services/api';
 
+// Proactive refresh: fire ~1 minute before the JWT expires to avoid 401 bursts
+// from the response interceptor when many parallel requests hit an expired token.
+const REFRESH_MARGIN_MS = 60_000;
+let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+function decodeJwtExpMs(token: string): number | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    let b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    while (b64.length % 4) b64 += '=';
+    const payload = JSON.parse(atob(b64));
+    return typeof payload.exp === 'number' ? payload.exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
+
+function clearProactiveRefresh() {
+  if (refreshTimer) {
+    clearTimeout(refreshTimer);
+    refreshTimer = null;
+  }
+}
+
+function scheduleProactiveRefresh(token: string, refresh: () => Promise<void>) {
+  clearProactiveRefresh();
+  const expMs = decodeJwtExpMs(token);
+  if (expMs === null) return;
+  const delay = Math.max(expMs - REFRESH_MARGIN_MS - Date.now(), 0);
+  refreshTimer = setTimeout(() => {
+    refresh().catch(() => { /* refresh handles its own failure */ });
+  }, delay);
+}
+
 interface User {
   id: number;
   email: string;
@@ -50,6 +85,7 @@ export const useAuthStore = create<AuthState>()(
               isAuthenticated: true, // Allow access to Settings page
               isLoading: false
             });
+            scheduleProactiveRefresh(accessToken, () => get().refreshToken());
             return response.data;
           }
 
@@ -59,6 +95,7 @@ export const useAuthStore = create<AuthState>()(
             isAuthenticated: true,
             isLoading: false
           });
+          scheduleProactiveRefresh(accessToken, () => get().refreshToken());
           return response.data;
         } catch (err: any) {
           set({
@@ -85,6 +122,7 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: async () => {
+        clearProactiveRefresh();
         try {
           await api.post('/auth/logout');
         } catch {
@@ -100,8 +138,11 @@ export const useAuthStore = create<AuthState>()(
       refreshToken: async () => {
         try {
           const response = await api.post('/auth/refresh');
-          set({ accessToken: response.data.accessToken });
+          const { accessToken } = response.data;
+          set({ accessToken });
+          scheduleProactiveRefresh(accessToken, () => get().refreshToken());
         } catch {
+          clearProactiveRefresh();
           set({
             user: null,
             accessToken: null,

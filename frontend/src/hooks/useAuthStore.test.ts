@@ -8,12 +8,22 @@
  * 4. clearError resets the error field
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { useAuthStore } from './useAuthStore';
 import { api } from '../services/api';
 
 // Get a reference to the mocked api
 const mockApi = vi.mocked(api);
+
+// Helper: build a fake JWT with a given `exp` claim (seconds since epoch).
+// JWT spec uses base64url; jsdom's btoa produces standard base64 — we convert.
+function makeJwt(expSeconds: number): string {
+  const header = { alg: 'HS256', typ: 'JWT' };
+  const payload = { sub: 'user', exp: expSeconds };
+  const b64url = (obj: unknown) =>
+    btoa(JSON.stringify(obj)).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+  return `${b64url(header)}.${b64url(payload)}.sig`;
+}
 
 describe('useAuthStore', () => {
   beforeEach(() => {
@@ -171,6 +181,99 @@ describe('useAuthStore', () => {
       useAuthStore.getState().clearError();
 
       expect(useAuthStore.getState().error).toBeNull();
+    });
+  });
+
+  describe('proactive token refresh', () => {
+    const NOW = 1_700_000_000_000; // fixed epoch in ms
+    const TTL_SECONDS = 15 * 60;   // 15-minute access token
+    const REFRESH_MARGIN_MS = 60_000; // refresh 1 min before expiry
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(NOW);
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('should schedule a proactive refresh ~1 minute before access token expires after login', async () => {
+      const exp = Math.floor(NOW / 1000) + TTL_SECONDS;
+      const initialToken = makeJwt(exp);
+      const refreshedToken = makeJwt(exp + TTL_SECONDS);
+
+      // login response
+      mockApi.post.mockResolvedValueOnce({
+        data: {
+          accessToken: initialToken,
+          user: { id: 1, email: 'a@b.com', name: 'A', role: 'user' as const },
+        },
+      } as any);
+
+      await useAuthStore.getState().login('a@b.com', 'pw');
+
+      // The proactive refresh must NOT fire immediately
+      expect(mockApi.post).toHaveBeenCalledTimes(1);
+      expect(mockApi.post).toHaveBeenLastCalledWith('/auth/login', expect.any(Object));
+
+      // Prepare refresh response BEFORE advancing timers
+      mockApi.post.mockResolvedValueOnce({ data: { accessToken: refreshedToken } } as any);
+
+      // Advance to just-before refresh: still no refresh fired
+      vi.advanceTimersByTime(TTL_SECONDS * 1000 - REFRESH_MARGIN_MS - 1);
+      expect(mockApi.post).toHaveBeenCalledTimes(1);
+
+      // Cross the threshold → refresh fires
+      await vi.advanceTimersByTimeAsync(2);
+      expect(mockApi.post).toHaveBeenCalledWith('/auth/refresh');
+
+      const state = useAuthStore.getState();
+      expect(state.accessToken).toBe(refreshedToken);
+      expect(state.isAuthenticated).toBe(true);
+    });
+
+    it('should clear the scheduled refresh on logout', async () => {
+      const exp = Math.floor(NOW / 1000) + TTL_SECONDS;
+      const initialToken = makeJwt(exp);
+
+      mockApi.post.mockResolvedValueOnce({
+        data: {
+          accessToken: initialToken,
+          user: { id: 1, email: 'a@b.com', name: 'A', role: 'user' as const },
+        },
+      } as any);
+      await useAuthStore.getState().login('a@b.com', 'pw');
+
+      // logout
+      mockApi.post.mockResolvedValueOnce({ data: {} } as any);
+      await useAuthStore.getState().logout();
+
+      const callsAfterLogout = mockApi.post.mock.calls.length;
+
+      // Fast-forward well past when the proactive refresh would have fired
+      await vi.advanceTimersByTimeAsync(TTL_SECONDS * 1000 + 10_000);
+
+      expect(mockApi.post.mock.calls.length).toBe(callsAfterLogout);
+      const refreshCalled = mockApi.post.mock.calls.some(c => c[0] === '/auth/refresh');
+      expect(refreshCalled).toBe(false);
+    });
+
+    it('should not crash and not schedule when token is malformed', async () => {
+      mockApi.post.mockResolvedValueOnce({
+        data: {
+          accessToken: 'not-a-jwt',
+          user: { id: 1, email: 'a@b.com', name: 'A', role: 'user' as const },
+        },
+      } as any);
+
+      await expect(
+        useAuthStore.getState().login('a@b.com', 'pw')
+      ).resolves.toBeDefined();
+
+      const callsAfter = mockApi.post.mock.calls.length;
+      await vi.advanceTimersByTimeAsync(TTL_SECONDS * 1000 + 10_000);
+      expect(mockApi.post.mock.calls.length).toBe(callsAfter);
     });
   });
 });

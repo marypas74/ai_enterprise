@@ -87,6 +87,17 @@ sudo microk8s ctr image import /tmp/backend.tar
 sudo microk8s kubectl set image deployment/backend backend=docker.io/library/enterprise-ai-chat-backend:1.1.0 -n enterprise-ai-chat
 ```
 
+### Regola: Aggiornamento Guide
+
+Ogni nuova feature con esposizione **utente** o **amministratore** DEVE includere
+l'aggiornamento del record corrispondente in `guide_pages` (slug `user` o `admin`)
+nella stessa PR. Il code-reviewer e il senior-supervisor verificano la presenza
+dell'aggiornamento prima dell'approvazione.
+
+- Sorgenti seed: `backend/src/guides/user-guide.html`, `backend/src/guides/admin-guide.html`
+- CMS admin: `/admin/guides` (UI), `PUT /api/admin/guides/:slug` (API)
+- Lettura utente: `/help` (UI), `GET /api/guides/:slug` (API JWT user)
+
 ### Verifica Deployment
 ```bash
 sudo microk8s kubectl get pods -n enterprise-ai-chat

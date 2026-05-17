@@ -14,19 +14,19 @@ const ONLYOFFICE_PUBLIC_URL = process.env.ONLYOFFICE_PUBLIC_URL || '';
 
 const SESSION_TTL_SECONDS = 24 * 60 * 60;
 const REDIS_KEY_PREFIX = 'oo_session:';
-const MIN_CONVERTIBLE_TEXT_CHARS = 50;
-const PDF_TO_DOCX_TIMEOUT_MS = 120000;
 const PDFTOTEXT_TIMEOUT_MS = 15000;
+const MIN_TEXT_CHARS_FOR_NATIVE_EDIT = 1; // Native PDF editing supports image-only PDFs (annotation mode)
 
-export type PdfConversionErrorCode = 'NO_TEXT' | 'TIMEOUT' | 'SCRIPT_ERROR';
+export type PdfPreflightErrorCode = 'TIMEOUT' | 'IO_ERROR';
+export type SaveMode = 'draft' | 'download';
 
-export class PdfConversionError extends Error {
-  readonly code: PdfConversionErrorCode;
+export class PdfPreflightError extends Error {
+  readonly code: PdfPreflightErrorCode;
   readonly userMessage: string;
 
-  constructor(code: PdfConversionErrorCode, userMessage: string, cause?: unknown) {
+  constructor(code: PdfPreflightErrorCode, userMessage: string, cause?: unknown) {
     super(userMessage);
-    this.name = 'PdfConversionError';
+    this.name = 'PdfPreflightError';
     this.code = code;
     this.userMessage = userMessage;
     if (cause !== undefined) {
@@ -37,7 +37,8 @@ export class PdfConversionError extends Error {
 
 /**
  * Extract textual content count from a PDF using pdftotext (poppler-utils).
- * Returns 0 on any failure — callers treat this as non-convertible PDF.
+ * Returns 0 on any failure — used only for diagnostics, no longer gates editing
+ * since OnlyOffice 8.1+ supports native PDF editing of image-only PDFs.
  */
 export async function extractPdfText(pdfPath: string): Promise<number> {
   try {
@@ -52,45 +53,28 @@ export async function extractPdfText(pdfPath: string): Promise<number> {
   }
 }
 
-/**
- * Decide whether a PDF has enough extractable text to justify a `pdf2docx`
- * round-trip. Image-only / scanned PDFs are rejected early so the frontend
- * falls back to the annotation viewer instead of hitting a 500.
- */
-export async function isPdfConvertible(
-  pdfPath: string,
-  deps: { extract: (p: string) => Promise<number> } = { extract: extractPdfText },
-): Promise<boolean> {
-  try {
-    const chars = await deps.extract(pdfPath);
-    return chars >= MIN_CONVERTIBLE_TEXT_CHARS;
-  } catch {
-    return false;
-  }
-}
-
 interface OnlyOfficeSession {
   readonly documentKey: string;
   readonly attachmentId: number;
   readonly userId: number;
+  /** Path to the source PDF — served directly to OnlyOffice for native editing */
   readonly filePath: string;
   readonly originalName: string;
   readonly conversationId: number;
   readonly createdAt: number;
-  /** Path to the converted DOCX file used for editing */
-  readonly docxPath: string;
+  /** How saved edits are persisted: as draft (server) or one-shot download */
+  readonly saveMode: SaveMode;
+  /** Diagnostic: char count of extractable text (0 = image-only PDF) */
+  readonly textChars: number;
   newAttachmentId?: number;
   newFilename?: string;
+  /** Path to the temporary edited PDF when saveMode='download' */
+  downloadPath?: string;
   status: 'editing' | 'saved' | 'error';
 }
 
-// Module-level reference to Fastify Redis client
 let redisClient: FastifyInstance['redis'] | null = null;
 
-/**
- * Initialize the OnlyOffice service with a Redis client for shared session storage.
- * Must be called once during route registration.
- */
 export function initOnlyOfficeRedis(client: FastifyInstance['redis']): void {
   redisClient = client;
 }
@@ -111,66 +95,19 @@ export function verifyOnlyOfficeJwt(token: string): Record<string, unknown> {
 }
 
 /**
- * Convert PDF to DOCX using PyMuPDF + python-docx script.
- * Returns the path to the generated DOCX file.
- *
- * Throws a typed {@link PdfConversionError} so callers can map failures to
- * user-visible HTTP responses instead of leaking generic 500s.
+ * Whitelist of URL prefixes the backend is allowed to fetch as part of a callback.
+ * OnlyOffice serves the edited file from its own internal hostname; any URL
+ * outside this whitelist is rejected to prevent SSRF via callback payload.
  */
-export async function convertPdfToDocx(pdfPath: string, outputDir: string): Promise<string> {
-  const baseName = path.basename(pdfPath, '.pdf');
-  const expectedOutput = path.join(outputDir, `${baseName}.docx`);
-
-  await fsPromises.unlink(expectedOutput).catch(() => {});
-
-  const scriptPath = path.join(path.dirname(new URL(import.meta.url).pathname), '../../scripts/pdf_to_docx.py');
-
+export function isAllowedDownloadUrl(url: string): boolean {
+  if (!url) return false;
   try {
-    await execFileAsync('python3', [scriptPath, pdfPath, expectedOutput], {
-      timeout: PDF_TO_DOCX_TIMEOUT_MS,
-      maxBuffer: 10 * 1024 * 1024,
-    });
-  } catch (err) {
-    const anyErr = err as NodeJS.ErrnoException & { killed?: boolean; signal?: string; stderr?: string };
-    const stderr = (anyErr.stderr || '').toString().trim();
-    const killed = anyErr.killed || anyErr.signal === 'SIGTERM' || anyErr.signal === 'SIGKILL';
-    const summary = stderr.split('\n').slice(-3).join(' | ') || anyErr.message;
-
-    if (killed) {
-      throw new PdfConversionError('TIMEOUT', 'Conversione PDF troppo lenta (timeout 120s)', err);
-    }
-    throw new PdfConversionError('SCRIPT_ERROR', `Conversione PDF fallita: ${summary}`, err);
+    const u = new URL(url, ONLYOFFICE_URL);
+    const allowedHost = new URL(ONLYOFFICE_URL).host;
+    return u.host === allowedHost && (u.protocol === 'http:' || u.protocol === 'https:');
+  } catch {
+    return false;
   }
-
-  try {
-    await fsPromises.access(expectedOutput);
-  } catch (err) {
-    throw new PdfConversionError('SCRIPT_ERROR', 'Conversione PDF non ha prodotto output', err);
-  }
-
-  return expectedOutput;
-}
-
-/**
- * Convert DOCX to PDF using LibreOffice headless.
- * Returns the path to the generated PDF file.
- */
-export async function convertDocxToPdf(docxPath: string, outputDir: string): Promise<string> {
-  const baseName = path.basename(docxPath, '.docx');
-  const expectedOutput = path.join(outputDir, `${baseName}.pdf`);
-
-  await fsPromises.unlink(expectedOutput).catch(() => {});
-
-  await execFileAsync('libreoffice', [
-    '--headless',
-    '--norestore',
-    '--convert-to', 'pdf:writer_pdf_Export',
-    '--outdir', outputDir,
-    docxPath,
-  ], { timeout: 120000 });
-
-  await fsPromises.access(expectedOutput);
-  return expectedOutput;
 }
 
 export async function createSession(
@@ -179,48 +116,29 @@ export async function createSession(
   filePath: string,
   originalName: string,
   conversationId: number,
+  saveMode: SaveMode = 'draft',
 ): Promise<OnlyOfficeSession> {
   const documentKey = `oo_${attachmentId}_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
 
-  // Reject image-based / scanned PDFs up-front so the frontend falls back to
-  // the annotation viewer instead of hitting a generic 500.
-  if (!(await isPdfConvertible(filePath))) {
-    throw new PdfConversionError(
-      'NO_TEXT',
-      'Il PDF non contiene testo estraibile (scansione o immagine). L\'editor avanzato richiede un PDF testuale.',
-    );
-  }
+  // Diagnostic only: track whether the PDF has extractable text. Native PDF
+  // editing handles image-only PDFs in annotation mode (no hard reject).
+  const textChars = await extractPdfText(filePath).catch(() => 0);
 
-  const dir = path.dirname(filePath);
-  const tempDir = path.join(dir, `_oo_temp_${documentKey}`);
-  await fsPromises.mkdir(tempDir, { recursive: true });
+  const session: OnlyOfficeSession = {
+    documentKey,
+    attachmentId,
+    userId,
+    filePath,
+    originalName,
+    conversationId,
+    createdAt: Date.now(),
+    saveMode,
+    textChars,
+    status: 'editing',
+  };
 
-  try {
-    const tempPdf = path.join(tempDir, 'source.pdf');
-    await fsPromises.copyFile(filePath, tempPdf);
-
-    const docxPath = await convertPdfToDocx(tempPdf, tempDir);
-
-    await fsPromises.unlink(tempPdf).catch(() => {});
-
-    const session: OnlyOfficeSession = {
-      documentKey,
-      attachmentId,
-      userId,
-      filePath,
-      originalName,
-      conversationId,
-      createdAt: Date.now(),
-      docxPath,
-      status: 'editing',
-    };
-
-    await saveSession(session);
-    return session;
-  } catch (err) {
-    await fsPromises.rm(tempDir, { recursive: true, force: true }).catch(() => {});
-    throw err;
-  }
+  await saveSession(session);
+  return session;
 }
 
 async function saveSession(session: OnlyOfficeSession): Promise<void> {
@@ -236,19 +154,13 @@ export async function getSession(documentKey: string): Promise<OnlyOfficeSession
   return JSON.parse(data) as OnlyOfficeSession;
 }
 
-export async function updateSessionSaved(
+export async function updateSession(
   documentKey: string,
-  newAttachmentId: number,
-  newFilename: string,
+  patch: Partial<OnlyOfficeSession>,
 ): Promise<void> {
   const session = await getSession(documentKey);
   if (session) {
-    const updated: OnlyOfficeSession = {
-      ...session,
-      status: 'saved',
-      newAttachmentId,
-      newFilename,
-    };
+    const updated: OnlyOfficeSession = { ...session, ...patch } as OnlyOfficeSession;
     await saveSession(updated);
   }
 }
@@ -256,29 +168,31 @@ export async function updateSessionSaved(
 export async function removeSession(documentKey: string): Promise<void> {
   const session = await getSession(documentKey);
   if (session) {
-    // Clean up temp DOCX and its directory
-    const dir = path.dirname(session.docxPath);
-    fsPromises.rm(dir, { recursive: true, force: true }).catch(() => {});
+    if (session.downloadPath) {
+      fsPromises.unlink(session.downloadPath).catch(() => {});
+    }
     const redis = getRedis();
     await redis.del(`${REDIS_KEY_PREFIX}${session.documentKey}`);
   }
 }
 
+/**
+ * Build the OnlyOffice editor configuration for native PDF editing.
+ * No DOCX round-trip: OnlyOffice 8.1+ edits PDFs directly with full text,
+ * page, and object manipulation when permissions.edit=true.
+ */
 export function buildEditorConfig(
   session: OnlyOfficeSession,
   backendBaseUrl: string,
 ): Record<string, unknown> {
-  // Serve the DOCX file (not the original PDF) for full editing support
-  const documentUrl = `${backendBaseUrl}/api/tools/pdf-editor/document/${session.documentKey}.docx`;
+  const documentUrl = `${backendBaseUrl}/api/tools/pdf-editor/document/${session.documentKey}.pdf`;
   const callbackUrl = `${backendBaseUrl}/api/tools/pdf-editor/onlyoffice-callback`;
-
-  const editableName = session.originalName.replace(/\.pdf$/i, '.docx');
 
   const config: Record<string, unknown> = {
     document: {
-      fileType: 'docx',
+      fileType: 'pdf',
       key: session.documentKey,
-      title: editableName,
+      title: session.originalName,
       url: documentUrl,
       permissions: {
         edit: true,
@@ -303,13 +217,12 @@ export function buildEditorConfig(
         toolbarNoTabs: false,
       },
     },
-    documentType: 'word',
+    documentType: 'pdf',
     type: 'desktop',
     height: '100%',
     width: '100%',
   };
 
-  // Sign the entire config as JWT token
   const token = signOnlyOfficeJwt(config);
   (config as Record<string, unknown>).token = token;
 
@@ -317,7 +230,9 @@ export function buildEditorConfig(
 }
 
 export async function downloadEditedFile(downloadUrl: string): Promise<Buffer> {
-  // OnlyOffice provides a URL relative to itself — resolve against internal URL
+  if (!isAllowedDownloadUrl(downloadUrl)) {
+    throw new Error(`Download URL not whitelisted: ${downloadUrl}`);
+  }
   const resolvedUrl = downloadUrl.startsWith('http')
     ? downloadUrl
     : `${ONLYOFFICE_URL}${downloadUrl}`;
@@ -336,4 +251,13 @@ export function getPublicUrl(): string {
 
 export function isConfigured(): boolean {
   return ONLYOFFICE_JWT_SECRET.length > 0 && ONLYOFFICE_PUBLIC_URL.length > 0;
+}
+
+/**
+ * Detect intent to open the PDF editor from a chat message.
+ * Returns true on common Italian/English phrasings.
+ */
+export function detectEditPdfIntent(message: string): boolean {
+  if (!message) return false;
+  return /\b(modifica|modific[ah][rl]?o?|edita|edit|apri\s+editor)\s+(il\s+|the\s+)?pdf\b/i.test(message);
 }

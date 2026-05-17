@@ -83,6 +83,18 @@ export default function ChatPage() {
     }
   }, [conversations.currentConversationId]);
 
+  // Auto-open PDF editor when backend signals 'open_pdf_editor' intent (e.g. user typed "modifica pdf")
+  useEffect(() => {
+    const handler = (ev: Event) => {
+      const detail = (ev as CustomEvent).detail as { attachmentId: number; filename: string; saveMode?: 'draft' | 'download' };
+      if (detail?.attachmentId && detail?.filename) {
+        pdfEditor.openEditor(detail.attachmentId, detail.filename, detail.saveMode || 'draft');
+      }
+    };
+    window.addEventListener('open-pdf-editor', handler);
+    return () => window.removeEventListener('open-pdf-editor', handler);
+  }, [pdfEditor]);
+
   // Drive voice mode state machine from streaming state
   useEffect(() => {
     const wasStreaming = prevStreamingRef.current;
@@ -570,6 +582,7 @@ export default function ChatPage() {
             <PDFEditorPanel
               attachmentId={pdfEditor.attachmentId}
               filename={pdfEditor.filename}
+              saveMode={pdfEditor.saveMode}
               onClose={pdfEditor.closeEditor}
               onSaved={(newId, newFilename) => {
                 pdfEditor.closeEditor();

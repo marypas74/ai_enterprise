@@ -710,6 +710,11 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
     // The LLMSyncWorker auto-disable pass MUST NOT clear admin-forced models even if the
     // chat-completions filter would normally flag them as incompatible.
     { name: 'ai_models_add_is_manually_enabled', sql: `ALTER TABLE ai_models ADD COLUMN is_manually_enabled BOOLEAN NOT NULL DEFAULT FALSE` },
+    // v2.1.68: PDF draft persistence for OnlyOffice editor flow
+    { name: 'chat_attachments_add_parent_attachment_id', sql: `ALTER TABLE chat_attachments ADD COLUMN parent_attachment_id BIGINT UNSIGNED NULL` },
+    { name: 'chat_attachments_add_is_draft', sql: `ALTER TABLE chat_attachments ADD COLUMN is_draft BOOLEAN NOT NULL DEFAULT FALSE` },
+    { name: 'chat_attachments_add_draft_session_id', sql: `ALTER TABLE chat_attachments ADD COLUMN draft_session_id VARCHAR(64) NULL` },
+    { name: 'chat_attachments_add_idx_conv_draft', sql: `ALTER TABLE chat_attachments ADD INDEX idx_conv_draft (conversation_id, is_draft)` },
   ];
 
   for (const migration of alterMigrations) {

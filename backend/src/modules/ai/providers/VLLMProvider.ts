@@ -17,6 +17,18 @@ export class VLLMProvider implements AIProvider {
   readonly name: 'vllm' = 'vllm';
   private readonly client: OpenAI;
   private readonly timeout: number;
+  private readonly healthUrl: string;
+  private readonly healthHeaders: Record<string, string>;
+
+  /**
+   * Preflight health cache — avoids hammering vLLM with checks on every call.
+   * After a healthy check, we trust the upstream for HEALTH_CACHE_TTL.
+   * After an unhealthy check, we re-probe quickly to detect recovery.
+   */
+  private static healthCache: { healthy: boolean; ts: number } | null = null;
+  private static readonly HEALTH_CACHE_TTL_OK = 30_000;   // 30s when healthy
+  private static readonly HEALTH_CACHE_TTL_KO = 3_000;    // 3s when unhealthy
+  private static readonly HEALTH_PROBE_TIMEOUT = 4_000;   // 4s per probe
 
   // All chat model aliases resolve to the single served model
   private static readonly SERVED_MODEL = process.env.VLLM_SERVED_MODEL || 'qwen25vl:32b';
@@ -110,6 +122,42 @@ export class VLLMProvider implements AIProvider {
       defaultHeaders,
       timeout: this.timeout,
     });
+
+    // Preflight health probe: nginx vLLM proxy exposes /vllm/health (no auth required by config,
+    // but we forward X-Vllm-Key just in case the proxy is hardened).
+    // baseURL ends with '/vllm' so we append '/health'.
+    this.healthUrl = `${baseUrl.replace(/\/$/, '')}/health`;
+    this.healthHeaders = { ...defaultHeaders };
+  }
+
+  /**
+   * Probe the vLLM proxy /health endpoint with a short timeout, cached.
+   * Returns true if upstream is reachable, false otherwise.
+   * Callers should fail fast (throw a retriable error) when this returns false,
+   * letting the fallback chain in completions.ts switch to gpt-4.1 / claude.
+   */
+  async isUpstreamHealthy(): Promise<boolean> {
+    const now = Date.now();
+    const cached = VLLMProvider.healthCache;
+    if (cached) {
+      const ttl = cached.healthy ? VLLMProvider.HEALTH_CACHE_TTL_OK : VLLMProvider.HEALTH_CACHE_TTL_KO;
+      if (now - cached.ts < ttl) return cached.healthy;
+    }
+    let healthy = false;
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), VLLMProvider.HEALTH_PROBE_TIMEOUT);
+      try {
+        const res = await fetch(this.healthUrl, { headers: this.healthHeaders, signal: controller.signal });
+        healthy = res.ok;
+      } finally {
+        clearTimeout(timer);
+      }
+    } catch {
+      healthy = false;
+    }
+    VLLMProvider.healthCache = { healthy, ts: now };
+    return healthy;
   }
 
   /**
@@ -144,6 +192,12 @@ export class VLLMProvider implements AIProvider {
   }
 
   async complete(options: CompletionOptions): Promise<CompletionResult> {
+    if (!(await this.isUpstreamHealthy())) {
+      const err: any = new Error(`[vLLM] preflight 503: upstream /health unreachable`);
+      err.status = 503;
+      err.code = 'VLLM_UNHEALTHY';
+      throw err;
+    }
     try {
       const resolvedModel = this.resolveModel(options.model);
       const messages = this.applyThinkingMode(options.messages, options.model);
@@ -182,6 +236,12 @@ export class VLLMProvider implements AIProvider {
   }
 
   async *streamComplete(options: CompletionOptions): AsyncGenerator<StreamChunk> {
+    if (!(await this.isUpstreamHealthy())) {
+      const err: any = new Error(`[vLLM] preflight 503: upstream /health unreachable`);
+      err.status = 503;
+      err.code = 'VLLM_UNHEALTHY';
+      throw err;
+    }
     const startTime = Date.now();
     try {
       const resolvedModel = this.resolveModel(options.model);

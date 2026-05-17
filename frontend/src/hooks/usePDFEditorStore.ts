@@ -1,10 +1,13 @@
 import { create } from 'zustand';
 
+type SaveMode = 'draft' | 'download';
+
 interface PDFEditorState {
   isOpen: boolean;
   attachmentId: number | null;
   filename: string;
-  openEditor: (attachmentId: number, filename: string) => void;
+  saveMode: SaveMode;
+  openEditor: (attachmentId: number, filename: string, saveMode?: SaveMode) => void;
   closeEditor: () => void;
 }
 
@@ -12,6 +15,7 @@ export const usePDFEditorStore = create<PDFEditorState>((set) => ({
   isOpen: false,
   attachmentId: null,
   filename: '',
-  openEditor: (attachmentId, filename) => set({ isOpen: true, attachmentId, filename }),
-  closeEditor: () => set({ isOpen: false, attachmentId: null, filename: '' }),
+  saveMode: 'draft',
+  openEditor: (attachmentId, filename, saveMode = 'draft') => set({ isOpen: true, attachmentId, filename, saveMode }),
+  closeEditor: () => set({ isOpen: false, attachmentId: null, filename: '', saveMode: 'draft' }),
 }));

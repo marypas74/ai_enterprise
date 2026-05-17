@@ -55,7 +55,7 @@
 <body>
 <div class="container">
 
-<span class="version">v2.1.52</span>
+<span class="version">v2.1.74</span>
 <h1>Enterprise AI Chat</h1>
 <p class="subtitle">Guida Utente Completa - Piattaforma di Intelligenza Artificiale Conversazionale Enterprise</p>
 
@@ -67,7 +67,9 @@
     <li><a href="#chat">Chat con l'AI</a></li>
     <li><a href="#ricercaweb">Ricerca Web in Tempo Reale</a></li>
     <li><a href="#modelli">Modelli AI Disponibili</a></li>
-    <li><a href="#allegati">Allegati e Documenti</a></li>
+    <li><a href="#allegati">Allegati e Documenti in Chat</a></li>
+    <li><a href="#documenti">Modalita Documenti (RAG)</a></li>
+    <li><a href="#modifica-pdf">Modifica PDF in Chat</a></li>
     <li><a href="#conversazioni">Gestione Conversazioni</a></li>
     <li><a href="#export">Esportazione Documenti</a></li>
     <li><a href="#memoria">Sistema di Memoria</a></li>
@@ -77,7 +79,6 @@
     <li><a href="#impostazioni">Impostazioni e Sicurezza</a></li>
     <li><a href="#competenze">Le Mie Competenze (Skills)</a></li>
     <li><a href="#compliance">Trasparenza e Conformita AI Act</a></li>
-    <li><a href="#estensione">Estensione VS Code</a></li>
     <li><a href="#shortcuts">Scorciatoie e Suggerimenti</a></li>
   </ol>
 </div>
@@ -184,8 +185,7 @@
     <li><strong>Ricerca</strong> - Cerca tra le conversazioni per titolo</li>
     <li><strong>Archivio</strong> - Visualizza/ripristina conversazioni archiviate</li>
     <li><strong>Gestione</strong> - Archivia o elimina tutte le conversazioni</li>
-    <li><strong>Download VS Code Extension</strong> - Scarica l'estensione per l'editor</li>
-    <li><strong>Guide</strong> - Scarica le guide utente e amministratore</li>
+    <li><strong>Guide</strong> - Consulta le guide utente e amministratore</li>
     <li><strong>Menu Utente</strong> - Nome, email, link a impostazioni e logout</li>
   </ul>
 </div>
@@ -348,8 +348,134 @@
   <p>Per documenti scansionati, il sistema utilizza OCR (Tesseract) per estrarre il testo. La qualita dell'estrazione dipende dalla qualita della scansione. I documenti vengono automaticamente indicizzati nella memoria vettoriale per ricerche semantiche future.</p>
 </div>
 
-<!-- SECTION 6: CONVERSAZIONI -->
-<h2 id="conversazioni">6. Gestione Conversazioni</h2>
+<!-- SECTION 7: MODALITA DOCUMENTI (RAG) -->
+<h2 id="documenti">7. Modalita Documenti (RAG)</h2>
+
+<p>La <strong>Modalita Documenti</strong> e una modalita di chat dedicata per interrogare una libreria personale di documenti caricati: l'AI risponde basandosi sul contenuto dei documenti selezionati invece che sulla sua conoscenza generale. Diversa dagli "Allegati in Chat" perche i documenti vengono indicizzati permanentemente, riutilizzabili in piu conversazioni e gestiti dalla pagina <code>Documenti</code>.</p>
+
+<div class="card">
+  <div class="card-title">Quando usarla</div>
+  <ul>
+    <li>Hai un corpus stabile di PDF/Office da consultare ripetutamente (manuali tecnici, normative, tesi, contratti)</li>
+    <li>Vuoi citazioni precise dal testo del documento e non risposte generiche del modello</li>
+    <li>Vuoi escludere il rumore della conoscenza pre-addestrata del modello su un dato argomento</li>
+  </ul>
+</div>
+
+<h3>Come si usa</h3>
+<div class="step"><div class="step-num">1</div><div class="step-content"><strong>Carica i documenti</strong> - Vai su <code>Documenti</code> dalla sidebar e trascina/seleziona i file (PDF, DOCX, XLSX, TXT). Il sistema estrae il testo, applica OCR se serve, divide in chunk e indicizza in vettoriale.</div></div>
+<div class="step"><div class="step-num">2</div><div class="step-content"><strong>Apri una nuova chat</strong> e seleziona la modalita <strong>Documenti</strong> tramite il selettore in alto/sotto la barra messaggio.</div></div>
+<div class="step"><div class="step-num">3</div><div class="step-content"><strong>Seleziona uno o piu documenti</strong> dalla lista che compare. Vedrai un badge "Modalita Documenti - N selezionato".</div></div>
+<div class="step"><div class="step-num">4</div><div class="step-content"><strong>Scrivi la tua domanda</strong> in linguaggio naturale. L'AI cerchera i passaggi piu rilevanti nei documenti selezionati e rispondera basandosi su quelli.</div></div>
+
+<h3>Come funziona dietro le quinte</h3>
+<ul>
+  <li><strong>Indicizzazione</strong> - Ogni documento viene diviso in chunk di ~800 caratteri con overlap di 150, ognuno trasformato in un vettore di embedding salvato in Qdrant.</li>
+  <li><strong>Retrieval</strong> - Quando fai una domanda, il sistema trova i chunk piu simili semanticamente alla query (top-K) filtrati per i documenti che hai selezionato.</li>
+  <li><strong>Generazione</strong> - I chunk recuperati vengono iniettati nel system prompt del modello AI come contesto, da cui il modello compone la risposta.</li>
+  <li><strong>Routing AI</strong> - In modalita Documenti il sistema usa preferenzialmente il modello locale <code>vLLM</code> (Qwen2.5-VL-32B) per privacy e zero costo API. Se vLLM non e disponibile, fallback automatico a Ollama o provider esterno.</li>
+</ul>
+
+<div class="tip">
+  <div class="tip-title">Vision per PDF scansionati</div>
+  <p>Per PDF scansionati o con grafici/tabelle complesse, la pipeline rileva automaticamente la bassa densita di testo e attiva una pipeline <strong>vision</strong>: ogni pagina viene renderizzata come immagine e analizzata dal modello vision-language Qwen2.5-VL. Il risultato e un'estrazione molto piu accurata di tabelle, formule e diagrammi.</p>
+</div>
+
+<div class="warning">
+  <div class="warning-title">Limiti</div>
+  <ul>
+    <li>Documenti molto grandi (oltre 200 pagine) richiedono qualche minuto per essere indicizzati: lo stato passa da <em>processing</em> a <em>ready</em>.</li>
+    <li>Se non selezioni alcun documento, la modalita Documenti restituira "Non trovo questa informazione".</li>
+    <li>Se cambi nome al file dopo l'upload, l'indice non viene rinominato (il contenuto resta corretto).</li>
+  </ul>
+</div>
+
+<h3>Troubleshooting</h3>
+<table>
+  <thead><tr><th>Sintomo</th><th>Causa probabile</th><th>Soluzione</th></tr></thead>
+  <tbody>
+    <tr><td>Risposta sempre "Non trovo questa informazione"</td><td>Documento non selezionato o ancora in stato <em>processing</em></td><td>Verifica il selettore documenti e attendi che lo stato sia <em>ready</em></td></tr>
+    <tr><td>Risposta generica, non cita il documento</td><td>Modalita non impostata su Documenti, attiva la modalita "Chat Libera"</td><td>Cambia modalita dal selettore sopra la barra di input</td></tr>
+    <tr><td>Upload bloccato in stato <em>processing</em></td><td>Documento di grandi dimensioni o pipeline vision in coda</td><td>Attendi qualche minuto; in caso persistente segnala a un amministratore</td></tr>
+  </tbody>
+</table>
+
+<!-- SECTION 8: MODIFICA PDF IN CHAT -->
+<h2 id="modifica-pdf">8. Modifica PDF in Chat</h2>
+
+<p>In <strong>Chat Libera</strong> puoi modificare direttamente un PDF allegato senza uscire dalla conversazione. La piattaforma usa l'editor OnlyOffice integrato che apre il PDF in modalita <strong>editing nativo</strong> (testo, pagine, tabelle, immagini, hyperlink) — non e una semplice annotazione.</p>
+
+<div class="card">
+  <div class="card-title">Come si attiva</div>
+  <ol>
+    <li>Allega un PDF al tuo messaggio (icona graffetta o trascina nel campo input)</li>
+    <li>Scrivi nella chat un messaggio del tipo <code>modifica pdf</code> oppure <code>modifica il pdf</code> oppure <code>edit pdf</code></li>
+    <li>L'editor OnlyOffice si apre automaticamente nel pannello laterale destro</li>
+  </ol>
+</div>
+
+<p>In alternativa puoi cliccare il pulsante <strong>Modifica PDF</strong> mostrato sotto al messaggio con l'allegato.</p>
+
+<h3>Salvataggio: due modalita</h3>
+
+<div class="card">
+  <div class="card-title">Salva come bozza (default)</div>
+  <p>Cliccando "Salva" (o premendo Ctrl+S), il PDF modificato viene <strong>persistito sul server come bozza</strong> collegata alla conversazione corrente. La bozza:</p>
+  <ul>
+    <li>E disponibile per ulteriori richieste AI nella stessa conversazione (l'AI conosce le modifiche fatte)</li>
+    <li>Compare nella chat come allegato modificato con badge "bozza"</li>
+    <li>Conserva un riferimento al PDF originale (parent), per poter confrontare le versioni</li>
+    <li>Genera automaticamente un messaggio di sistema con il <strong>diff testuale</strong> (righe aggiunte/rimosse) cosi i turni AI successivi sanno cosa e cambiato</li>
+  </ul>
+</div>
+
+<div class="card">
+  <div class="card-title">Scarica direttamente</div>
+  <p>Se vuoi solo scaricare il PDF modificato senza salvarlo lato server, puoi attivare la modalita <strong>download</strong> all'apertura dell'editor. Alla chiusura, il file viene generato temporaneamente sul server e fornito come download monouso (link valido 5 minuti, scaricabile una sola volta).</p>
+</div>
+
+<h3>Storico bozze (versioning)</h3>
+
+<p>Ogni volta che salvi una nuova bozza dallo stesso PDF originale, viene creata una nuova versione. Le versioni precedenti rimangono accessibili: puoi richiamarle scrivendo in chat <em>"mostra le bozze del PDF"</em> oppure aprendo l'allegato originale e selezionando dal menu "Bozze precedenti".</p>
+
+<h3>Awareness AI sulle modifiche</h3>
+
+<p>Dopo il salvataggio di una bozza, l'AI nella chat ha automaticamente conoscenza delle modifiche tramite due meccanismi:</p>
+<ul>
+  <li><strong>Diff testuale</strong> iniettato come messaggio di sistema (es. "+5 righe, -2 righe", con preview delle prime 3 modifiche)</li>
+  <li><strong>Contenuto integrale aggiornato</strong> della bozza disponibile come contesto per i turni successivi (RAG)</li>
+</ul>
+
+<p>Esempio di flusso conversazionale completo:</p>
+<div class="step"><div class="step-num">1</div><div class="step-content">Carico <code>contratto_v1.pdf</code></div></div>
+<div class="step"><div class="step-num">2</div><div class="step-content">Scrivo: <em>"modifica pdf"</em> -> editor si apre</div></div>
+<div class="step"><div class="step-num">3</div><div class="step-content">Aggiungo nel paragrafo 4 una clausola di penale, salvo</div></div>
+<div class="step"><div class="step-num">4</div><div class="step-content">Chat mostra: <em>"Bozza salvata: +1 riga, -0 righe. Aggiunte: clausola di penale del 5%"</em></div></div>
+<div class="step"><div class="step-num">5</div><div class="step-content">Scrivo: <em>"riassumi le modifiche fatte e suggerisci eventuali implicazioni legali"</em> -> l'AI risponde citando la nuova clausola</div></div>
+
+<div class="warning">
+  <div class="warning-title">Limiti</div>
+  <ul>
+    <li>Massimo 50 MB per PDF</li>
+    <li>PDF scansionati (image-only): l'editor si apre comunque ma il testo non e modificabile (solo annotazioni). In v2.1.74 sara aggiunto OCR pre-edit automatico.</li>
+    <li>Track changes con accept/reject per autore: NON disponibile sul PDF Editor di OnlyOffice (limitazione upstream). Le modifiche sono sempre dirette.</li>
+    <li>Editing concorrente multi-utente: supportato nativamente da OnlyOffice se piu utenti aprono la stessa bozza con la stessa chiave documento.</li>
+  </ul>
+</div>
+
+<h3>Troubleshooting</h3>
+<table>
+  <thead><tr><th>Sintomo</th><th>Causa probabile</th><th>Soluzione</th></tr></thead>
+  <tbody>
+    <tr><td>L'editor non si apre</td><td>OnlyOffice non raggiungibile o JWT non configurato</td><td>Segnala a un amministratore (errore 503)</td></tr>
+    <tr><td>"Il file e troppo grande"</td><td>PDF supera i 50 MB</td><td>Riduci o splitta il PDF</td></tr>
+    <tr><td>Editor apre ma il testo non e modificabile</td><td>PDF scansionato (image-only)</td><td>Per ora usa solo annotazioni; OCR pre-edit in v2.1.74</td></tr>
+    <tr><td>Chat AI non sembra "vedere" la bozza</td><td>Bozza non ancora salvata o messaggio system non iniettato (errore di estrazione testo)</td><td>Verifica che il toast "Bozza salvata" sia comparso; ricarica la chat se persiste</td></tr>
+  </tbody>
+</table>
+
+<!-- SECTION 9: CONVERSAZIONI -->
+<h2 id="conversazioni">9. Gestione Conversazioni</h2>
 
 <h3>Operazioni Disponibili</h3>
 <ul>
@@ -595,33 +721,8 @@
   <li><strong>Nota Conformita nei Documenti</strong> - In calce a ogni documento generato</li>
 </ul>
 
-<!-- SECTION 14: ESTENSIONE -->
-<h2 id="estensione">14. Estensione VS Code</h2>
-
-<p>La piattaforma include un'estensione companion per Visual Studio Code che integra le funzionalita AI direttamente nell'editor.</p>
-
-<h3>Funzionalita</h3>
-<ul>
-  <li><strong>Chat nell'Editor</strong> - Apri una finestra di chat AI direttamente in VS Code</li>
-  <li><strong>Spiegazione Codice</strong> - Seleziona codice e chiedi all'AI di spiegarlo</li>
-  <li><strong>Fix Codice</strong> - L'AI suggerisce correzioni per errori</li>
-  <li><strong>Miglioramento Codice</strong> - Ottimizzazione e refactoring suggeriti dall'AI</li>
-  <li><strong>Sessioni Agente</strong> - Avvia agenti autonomi direttamente dall'editor</li>
-  <li><strong>Inline Edit</strong> - Modifica codice inline con suggerimenti AI</li>
-  <li><strong>30+ Comandi</strong> - Comandi accessibili dalla palette comandi di VS Code</li>
-</ul>
-
-<h3>Installazione</h3>
-<ol>
-  <li>Scarica il file <code>.vsix</code> dalla sidebar della chat (pulsante "VS Code Extension")</li>
-  <li>In VS Code, apri il menu Estensioni</li>
-  <li>Clicca "..." &gt; "Installa da VSIX..."</li>
-  <li>Seleziona il file scaricato</li>
-  <li>Configura l'URL del server nelle impostazioni dell'estensione</li>
-</ol>
-
-<!-- SECTION 15: SHORTCUTS -->
-<h2 id="shortcuts">15. Scorciatoie e Suggerimenti</h2>
+<!-- SECTION 14: SHORTCUTS -->
+<h2 id="shortcuts">14. Scorciatoie e Suggerimenti</h2>
 
 <div class="card">
   <div class="card-title">Scorciatoie Utili</div>
@@ -703,7 +804,7 @@
 </div>
 
 <div class="footer">
-  <p>Enterprise AI Chat v2.1.52 - Guida Utente</p>
+  <p>Enterprise AI Chat v2.1.74 - Guida Utente</p>
   <p>Questa piattaforma e conforme al Regolamento Europeo sull'AI (AI Act) - Articolo 50</p>
   <p>Documento generato automaticamente - Ultimo aggiornamento: Aprile 2026</p>
 </div>

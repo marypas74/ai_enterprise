@@ -16,6 +16,7 @@ const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage'));
 const TermsOfServicePage = lazy(() => import('./pages/TermsOfServicePage'));
 const AITransparencyPage = lazy(() => import('./pages/AITransparencyPage'));
 const DocumentsPage = lazy(() => import('./pages/DocumentsPage'));
+const HelpPage = lazy(() => import('./pages/HelpPage'));
 
 function LoadingFallback() {
   return (
@@ -102,6 +103,14 @@ export default function App() {
             element={
               <PrivateRoute>
                 <DocumentsPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/help"
+            element={
+              <PrivateRoute>
+                <HelpPage />
               </PrivateRoute>
             }
           />

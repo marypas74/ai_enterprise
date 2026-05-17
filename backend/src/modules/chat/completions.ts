@@ -254,6 +254,42 @@ export async function completionRoutes(fastify: FastifyInstance) {
         return;
       }
 
+      // ── Edit-PDF intent short-circuit ──
+      // If user asks to "modifica pdf" / "edit pdf" with a PDF attachment in the
+      // current turn, return an open_pdf_editor event instead of streaming an LLM response.
+      if (body.attachmentIds && body.attachmentIds.length > 0) {
+        const { detectEditPdfIntent } = await import('../tools/onlyofficeService.js');
+        if (detectEditPdfIntent(body.message)) {
+          const pdfAttachmentRow = await findOne<{ id: number; original_name: string; mime_type: string }>(
+            fastify.db,
+            `SELECT id, original_name, mime_type FROM chat_attachments
+             WHERE id IN (${body.attachmentIds.map(() => '?').join(',')}) AND user_id = ? AND mime_type = 'application/pdf'
+             LIMIT 1`,
+            [...body.attachmentIds, user.id],
+          );
+          if (pdfAttachmentRow) {
+            fastify.log.info(`[Chat] Edit-PDF intent detected, opening editor for attachment ${pdfAttachmentRow.id}`);
+            await insertOne(fastify.db,
+              'INSERT INTO messages (conversation_id, role, content) VALUES (?, ?, ?)',
+              [conversationId, 'user', body.message]);
+            const reply_text = `Apertura editor PDF per "${pdfAttachmentRow.original_name}". Modifica il documento e clicca "Salva" per persistere come bozza.`;
+            await insertOne(fastify.db,
+              'INSERT INTO messages (conversation_id, role, content, is_ai_generated, ai_model, ai_provider) VALUES (?, ?, ?, ?, ?, ?)',
+              [conversationId, 'assistant', reply_text, false, 'pdf-editor-intent', 'system']);
+            await updateOne(fastify.db, 'UPDATE conversations SET updated_at = NOW() WHERE id = ?', [conversationId]);
+            sendFastReply(reply, {
+              conversationId,
+              model: body.model,
+              providerName,
+              safetyResult,
+              content: reply_text,
+              extra: { open_pdf_editor: { attachmentId: pdfAttachmentRow.id, filename: pdfAttachmentRow.original_name } },
+            });
+            return;
+          }
+        }
+      }
+
       // ── Direct format conversion short-circuit (bypass LLM entirely) ──
       if (body.attachmentIds && body.attachmentIds.length > 0) {
         const detectedFormat = detectDocumentFormat(body.message, body.attachmentIds);

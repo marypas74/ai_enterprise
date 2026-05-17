@@ -84,7 +84,10 @@ export async function ensureCollection(dimensions: number): Promise<boolean> {
         const checkResp = await fetch(`${QDRANT_URL}/collections/${COLLECTION_NAME}`);
         if (checkResp.ok) return true;
 
-        // Create collection
+        // Create collection with tuned HNSW + scalar quantization int8.
+        // - hnsw m=32 / ef_construct=200: better recall vs default m=16, modest build-time hit
+        // - scalar int8 quantization: ~4× RAM saving with negligible recall loss
+        // - on_disk vectors: keep raw vectors on disk, only quantized in RAM
         const createResp = await fetch(`${QDRANT_URL}/collections/${COLLECTION_NAME}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -92,6 +95,23 @@ export async function ensureCollection(dimensions: number): Promise<boolean> {
                 vectors: {
                     size: dimensions,
                     distance: 'Cosine',
+                    on_disk: true,
+                },
+                hnsw_config: {
+                    m: 32,
+                    ef_construct: 200,
+                    full_scan_threshold: 10000,
+                },
+                quantization_config: {
+                    scalar: {
+                        type: 'int8',
+                        quantile: 0.99,
+                        always_ram: true,
+                    },
+                },
+                optimizers_config: {
+                    default_segment_number: 2,
+                    indexing_threshold: 20000,
                 },
             }),
         });

@@ -188,7 +188,7 @@ export async function documentRoutes(fastify: FastifyInstance): Promise<void> {
                         sourceType: 'file',
                         contentType: mime,
                         metadata: {
-                            document_id: docId,
+                            attachment_id: docId,
                             original_name: capturedFile.filename,
                             source_type: 'user_document',
                         },

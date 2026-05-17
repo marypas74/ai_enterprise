@@ -66,7 +66,7 @@
 <body>
 <div class="container">
 
-<span class="version">v2.1.52 - ADMIN</span>
+<span class="version">v2.1.74 - ADMIN</span>
 <h1>Enterprise AI Chat</h1>
 <p class="subtitle">Guida Amministratore Completa - Configurazione, Gestione e Architettura del Sistema</p>
 
@@ -84,6 +84,7 @@
     <li><a href="#hooks">Hooks e Automazione</a></li>
     <li><a href="#marketplace">Marketplace Competenze</a></li>
     <li><a href="#pipeline-visualizer">Hook Pipeline Visualizer</a></li>
+    <li><a href="#guide-management">Gestione Guide Utente e Amministratore</a></li>
     <li><a href="#templates">Template Prompt</a></li>
     <li><a href="#forms">Form Conversazionali</a></li>
     <li><a href="#scheduler-admin">Scheduler (White Rabbit)</a></li>
@@ -566,6 +567,57 @@
   <li>Generazione embedding vettoriali</li>
   <li>Indicizzazione nella collezione appropriata</li>
 </ol>
+
+<h3>Pipeline vLLM Vision per Documenti</h3>
+
+<p>Dalla v2.1.55 i documenti utente caricati in <strong>Modalita Documenti</strong> passano attraverso una pipeline ibrida testo+vision orchestrata da <code>VisionPipelineService</code> e servita dal modello <code>Qwen2.5-VL-32B-Instruct-AWQ</code> su vLLM.</p>
+
+<div class="card">
+  <div class="card-title">Componenti</div>
+  <ul>
+    <li><code>DocumentTypeDetector</code> - Determina path: <em>text</em> (alta densita testo, estrazione diretta), <em>hybrid</em> (testo + render pagine sospette), <em>vision</em> (PDF scansionati, render integrale)</li>
+    <li><code>PdfPageRenderer</code> - Converte pagine PDF in PNG base64 a 150 DPI tramite mupdf WASM</li>
+    <li><code>VisionPipelineService</code> - Orchestratore con timeout adattivo (3s/pagina, max 120s) e fallback silenzioso a estrazione testuale</li>
+    <li><code>RabbitHoleService.ingestFileBuffer()</code> - Entry-point: chiama la pipeline vision quando attivata</li>
+  </ul>
+</div>
+
+<h4>Routing modello (Auto Smart Routing)</h4>
+<p>Quando l'utente sceglie modalita Documenti + modello "Auto", il backend bypassa il tier scoring e applica policy <strong>vLLM-first hardcoded</strong> (vedi <code>completions.ts:129-154</code>): viene selezionato il primo modello <code>provider_type='vllm'</code> abilitato in DB. Se vLLM e down, fallback su Ollama.</p>
+
+<div class="info">
+  <div class="info-title">Configurazione vLLM</div>
+  <p>vLLM gira come container Docker sull'host (NON in K8s). Endpoint K8s: <code>http://10.0.1.1:8087/vllm</code>. Modello servito come <code>qwen25vl:32b</code>. Parametri docker-compose in <code>/home/marcello/vllm/</code>: <code>--quantization=awq_marlin</code>, <code>--max-model-len=128000</code>, <code>--cpu-offload-gb=20</code>, <code>--kv-cache-dtype=fp8</code>.</p>
+</div>
+
+<h3>Procedura: Reindex Qdrant per documenti utente</h3>
+
+<p>Se cambia lo schema del payload Qdrant per la collezione <code>declarative_memory</code> (es. rinominare un campo metadata), e necessario un reindex idempotente <strong>senza downtime</strong> e <strong>senza re-embedding</strong>.</p>
+
+<h4>Strategia: SetPayload</h4>
+<p>Usare l'API Qdrant <code>POST /collections/{name}/points/payload</code> con un filtro per modificare solo i punti coinvolti, in batch per <code>document_id</code>.</p>
+
+<pre><code># 1. Port-forward verso il pod Qdrant
+sudo microk8s kubectl port-forward -n enterprise-ai-chat qdrant-0 6333:6333
+
+# 2. Conta punti da migrare
+curl -s -X POST http://localhost:6333/collections/declarative_memory/points/count \
+  -H 'Content-Type: application/json' \
+  -d '{"exact":true,"filter":{"must":[{"key":"source_type","match":{"value":"user_document"}}]}}'
+
+# 3. Esegui SetPayload (esempio: copia document_id -> attachment_id)
+curl -s -X POST http://localhost:6333/collections/declarative_memory/points/payload?wait=true \
+  -H 'Content-Type: application/json' \
+  -d '{"payload":{"attachment_id":N},"filter":{"must":[
+        {"key":"source_type","match":{"value":"user_document"}},
+        {"key":"document_id","match":{"value":N}}]}}'</code></pre>
+
+<p>Lo script idempotente di riferimento e archiviato in <code>ai_enterprise/scripts/migrations/2026-05-11_v2.1.66_attachment_id_payload.sh</code>: include dry-run, count per documento, esecuzione batched e verifica finale.</p>
+
+<div class="warning">
+  <div class="warning-title">Convenzione metadata Qdrant</div>
+  <p>Per i documenti utente in <code>declarative_memory</code>, il campo metadata canonico e <strong><code>attachment_id</code></strong> (NON <code>document_id</code>). I lettori RAG (<code>rag-context.ts</code>, <code>summary-detection.ts</code>) filtrano su questa chiave. Se aggiungi nuovi scrittori, allineati alla convenzione.</p>
+</div>
 
 <!-- SECTION 9: HOOKS -->
 <h2 id="hooks">9. Hooks e Automazione</h2>
@@ -1666,11 +1718,52 @@ bash BUILD.sh    # Richiede sudo: npm install, Docker build, MicroK8s import, K8
   </ul>
 </div>
 
+<!-- SECTION: GESTIONE GUIDE -->
+<h2 id="guide-management">Gestione Guide Utente e Amministratore</h2>
+
+<p>Le guide consultate dagli utenti finali (<code>/help</code>) e dagli amministratori (<code>/admin/guides</code>) sono memorizzate nella tabella <code>guide_pages</code> del database e gestite dal CMS interno.</p>
+
+<div class="card">
+  <div class="card-title">Tabella <code>guide_pages</code></div>
+  <ul>
+    <li><code>slug</code> - identificatore univoco (<code>user</code>, <code>admin</code>)</li>
+    <li><code>title</code>, <code>description</code> - metadati visualizzati</li>
+    <li><code>content</code> - HTML completo della guida (<code>LONGTEXT</code>)</li>
+    <li><code>updated_by_user_id</code>, <code>updated_at</code> - audit trail dell'ultima modifica</li>
+  </ul>
+</div>
+
+<h3>Pagina Admin: <code>/admin/guides</code></h3>
+<ul>
+  <li><strong>Lista</strong> - Mostra tutte le guide con titolo, slug, autore ultima modifica e timestamp.</li>
+  <li><strong>Editor inline</strong> - Cliccando una guida si apre un editor HTML/Markdown per modificare titolo, descrizione e contenuto.</li>
+  <li><strong>Persistenza</strong> - Il salvataggio invoca <code>PUT /api/admin/guides/:slug</code> e aggiorna <code>updated_by_user_id</code> con l'utente autenticato.</li>
+</ul>
+
+<h3>Endpoint API</h3>
+<table>
+  <thead><tr><th>Endpoint</th><th>Auth</th><th>Funzione</th></tr></thead>
+  <tbody>
+    <tr><td><code>GET /api/admin/guides</code></td><td>admin</td><td>Lista metadata guide (no contenuto)</td></tr>
+    <tr><td><code>GET /api/admin/guides/:slug</code></td><td>admin</td><td>Recupera guida con contenuto completo</td></tr>
+    <tr><td><code>PUT /api/admin/guides/:slug</code></td><td>admin</td><td>Aggiorna content/title/description</td></tr>
+    <tr><td><code>GET /api/public/guides/:slug</code></td><td>JWT user</td><td>Recupera guida read-only per pagina <code>/help</code></td></tr>
+  </tbody>
+</table>
+
+<h3>Seed iniziale</h3>
+<p>Al primo avvio, se la tabella e vuota, il backend importa automaticamente i due file HTML statici da <code>backend/src/guides/user-guide.html</code> e <code>backend/src/guides/admin-guide.html</code>. Per aggiornare le guide post-seed: usare il pannello admin oppure modificare direttamente la riga <code>guide_pages</code> via SQL.</p>
+
+<div class="warning">
+  <div class="warning-title">Regola di mantenimento (CLAUDE.md)</div>
+  <p>Ogni nuova feature con esposizione utente o admin <strong>DEVE includere un aggiornamento del record <code>guide_pages</code> corrispondente nella stessa PR</strong>. Il code-reviewer e il senior-supervisor verificano la presenza dell'aggiornamento prima dell'approvazione.</p>
+</div>
+
 <div class="footer">
-  <p>Enterprise AI Chat v2.1.52 - Guida Amministratore</p>
+  <p>Enterprise AI Chat v2.1.74 - Guida Amministratore</p>
   <p>Documento riservato - Solo per personale autorizzato</p>
   <p>Conforme al Regolamento Europeo sull'AI (AI Act) e GDPR</p>
-  <p>Ultimo aggiornamento: Aprile 2026</p>
+  <p>Ultimo aggiornamento: Maggio 2026</p>
 </div>
 
 </div>

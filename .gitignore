@@ -79,3 +79,11 @@ frontend/ios/App/Pods/
 stress-test-*.ts
 stress-test-*.json
 .superpowers/
+
+# Playwright MCP runtime artifacts
+.playwright-mcp/
+
+# OCR bench results (rigenerati ad ogni run)
+scripts/ocr-bench/__pycache__/
+scripts/ocr-bench/results/
+scripts/ocr-bench/results_baseline/

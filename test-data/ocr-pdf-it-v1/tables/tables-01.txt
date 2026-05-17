@@ -1,0 +1,1 @@
+Fattura 1 — Riepilogo Codice Descrizione Quantita' Prezzo Totale A001 Servizio consulenza 10 150.00 1500.00 A002 Licenza software annuale 1 2400.00 2400.00 A003 Manutenzione hardware 12 80.00 960.00 B101 Formazione personale 3 500.00 1500.00 B102 Audit sicurezza 1 1800.00 1800.00

@@ -20,6 +20,11 @@ describe('VLLMProvider', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Stub fetch for isUpstreamHealthy preflight: default = healthy upstream.
+    // Tests that need to simulate an unhealthy upstream override this with vi.spyOn.
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 200 })));
+    // Reset the static health cache so each test starts from a known state.
+    (VLLMProvider as any).healthCache = null;
     provider = new VLLMProvider({
       baseUrl: 'http://10.0.1.1:8087/vllm',
       apiKey: 'test-api-key',
@@ -29,6 +34,34 @@ describe('VLLMProvider', () => {
 
   afterEach(() => {
     process.env = { ...originalEnv };
+    vi.unstubAllGlobals();
+  });
+
+  describe('isUpstreamHealthy() preflight', () => {
+    it('returns true and caches when /health responds 200', async () => {
+      const fetchMock = vi.fn(async () => new Response('', { status: 200 }));
+      vi.stubGlobal('fetch', fetchMock);
+      (VLLMProvider as any).healthCache = null;
+      await expect(provider.isUpstreamHealthy()).resolves.toBe(true);
+      // Second call should hit cache, not refetch
+      await provider.isUpstreamHealthy();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock.mock.calls[0][0]).toContain('/vllm/health');
+    });
+
+    it('returns false when /health throws or 5xx', async () => {
+      vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('ECONNREFUSED'); }));
+      (VLLMProvider as any).healthCache = null;
+      await expect(provider.isUpstreamHealthy()).resolves.toBe(false);
+    });
+
+    it('complete() throws retriable 503 when upstream unhealthy', async () => {
+      vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 502 })));
+      (VLLMProvider as any).healthCache = null;
+      await expect(
+        provider.complete({ model: 'qwen25vl:32b', messages: [{ role: 'user', content: 'hi' }] }),
+      ).rejects.toThrow(/preflight 503/);
+    });
   });
 
   describe('constructor', () => {
@@ -366,9 +399,12 @@ describe('VLLMProvider', () => {
         mockCreate.mockRejectedValue(make502());
 
         const promise = provider.complete({ model: 'qwen25vl:32b', messages: [{ role: 'user', content: 'hi' }] });
+        // Attach the rejection assertion BEFORE advancing timers — otherwise the
+        // rejection lands while no listener is attached and vitest flags it as
+        // an Unhandled Rejection (true even though the test logic is correct).
+        const rejectAssertion = expect(promise).rejects.toThrow(/complete\(\) failed/);
         await vi.runAllTimersAsync();
-
-        await expect(promise).rejects.toThrow(/complete\(\) failed/);
+        await rejectAssertion;
         expect(mockCreate).toHaveBeenCalledTimes(4); // 1 initial + 3 retries
         vi.useRealTimers();
       });

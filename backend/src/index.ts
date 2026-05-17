@@ -17,6 +17,7 @@ import { redisPlugin } from './cache/index.js';
 import { geoPlugin } from './modules/geo/index.js';
 import { authRoutes } from './modules/auth/routes.js';
 import { publicRoutes } from './modules/public/routes.js';
+import { userGuidesRoutes } from './modules/guides/routes.js';
 import { chatRoutes } from './modules/chat/routes.js';
 import { adminRoutes } from './modules/admin/routes.js';
 import { providerRoutes } from './modules/admin/providers.js';
@@ -250,6 +251,7 @@ const appPlugin = fp(async function (fastify) {
 
   // Routes
   await fastify.register(publicRoutes, { prefix: '/api/public' });
+  await fastify.register(userGuidesRoutes, { prefix: '/api/guides' });
   await fastify.register(authRoutes, { prefix: '/api/auth' });
   await fastify.register(chatRoutes, { prefix: '/api/chat' });
   await fastify.register(adminRoutes, { prefix: '/api/admin' });
@@ -706,11 +708,15 @@ async function bootstrap() {
       fastify.log.warn('[Startup] Marketplace Auto-Suggest hook registration failed: ' + err);
     }
 
-    // Initialize Vision Service with DB for dynamic model resolution
+    // Initialize Vision Service with DB for dynamic model resolution + Redis for OCR cache
     try {
       const { VisionService } = await import('./services/VisionService.js');
-      VisionService.getInstance().setDb(fastify.db);
-      fastify.log.info('[Startup] VisionService initialized with DB pool');
+      const vs = VisionService.getInstance();
+      vs.setDb(fastify.db);
+      if ((fastify as any).redis) {
+        vs.setRedis((fastify as any).redis);
+      }
+      fastify.log.info('[Startup] VisionService initialized with DB pool + Redis OCR cache');
     } catch (err) {
       fastify.log.warn('[Startup] VisionService initialization failed: ' + err);
     }

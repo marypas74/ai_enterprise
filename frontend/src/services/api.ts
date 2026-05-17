@@ -172,6 +172,11 @@ function processSSELine(
     const data = JSON.parse(line.slice(6));
     if (data.error) { onError(data.error); return true; }
     if (data.routing && onRouting) onRouting(data.routing);
+    if (data.type === 'open_pdf_editor' && data.attachmentId) {
+      window.dispatchEvent(new CustomEvent('open-pdf-editor', {
+        detail: { attachmentId: data.attachmentId, filename: data.filename, saveMode: 'draft' }
+      }));
+    }
     if (data.type === 'vector_memories' && data.memories && onVectorMemories) onVectorMemories(data.memories);
     if (data.thinking && onThinking) onThinking(data.thinking, false);
     if (data.thinkingDone && onThinking) onThinking('', true);

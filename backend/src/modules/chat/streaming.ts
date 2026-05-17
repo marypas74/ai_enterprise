@@ -76,6 +76,7 @@ export function sendFastReply(
     providerName: string;
     safetyResult: SafetyResult;
     content: string;
+    extra?: Record<string, unknown>;
   }
 ): void {
   reply.hijack();
@@ -88,6 +89,11 @@ export function sendFastReply(
   reply.raw.write(`data: ${JSON.stringify({ type: 'ai_disclosure', model: opts.model, provider: opts.providerName })}\n\n`);
   if (opts.safetyResult.is_sensitive && opts.safetyResult.disclaimer) {
     reply.raw.write(`data: ${JSON.stringify({ type: 'content_safety_warning', disclaimer: opts.safetyResult.disclaimer, topics: opts.safetyResult.topics })}\n\n`);
+  }
+  if (opts.extra) {
+    for (const [type, payload] of Object.entries(opts.extra)) {
+      reply.raw.write(`data: ${JSON.stringify({ type, ...(payload as Record<string, unknown>) })}\n\n`);
+    }
   }
   reply.raw.write(`data: ${JSON.stringify({ content: opts.content })}\n\n`);
   reply.raw.write('data: [DONE]\n\n');
