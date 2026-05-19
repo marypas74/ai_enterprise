@@ -42,10 +42,10 @@ spec:
               mountPath: /qdrant/storage
           resources:
             requests:
-              memory: "256Mi"
+              memory: "512Mi"
               cpu: "200m"
             limits:
-              memory: "512Mi"
+              memory: "1536Mi"
               cpu: "500m"
           livenessProbe:
             httpGet:
@@ -53,6 +53,7 @@ spec:
               port: 6333
             initialDelaySeconds: 10
             periodSeconds: 15
+            failureThreshold: 5
           readinessProbe:
             httpGet:
               path: /healthz

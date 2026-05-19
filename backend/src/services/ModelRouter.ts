@@ -21,6 +21,10 @@ export interface RoutingDecision {
   readonly effort: 'low' | 'medium' | 'high';
   readonly estimatedCostPer1k: number;
   readonly routingMethod: 'rule' | 'semantic' | 'override';
+  /** PERF-79-B3: When true, completions.ts overrides max_tokens=512, temperature=0,
+   *  and prepends a concise-output system prompt. Prevents KV cache exhaustion on
+   *  fast-tier vLLM models used for short conversational queries. */
+  readonly forceShortOutput?: boolean;
 }
 
 interface RoutingContext {
@@ -45,6 +49,8 @@ interface TierModel {
   readonly model_id: string;
   readonly provider: string;
   readonly priority: number;
+  // PERF-79-B3: from model_routing_tiers.force_short_output column
+  readonly force_short_output: number; // MySQL BOOLEAN returns 0/1
 }
 
 // ─── Keyword sets ───────────────────────────────────────────────────
@@ -171,6 +177,7 @@ export class ModelRouter {
       // also boosted ahead of remote APIs at equal priority.
       const [rows] = await this.db.execute(
         `SELECT rt.tier_name, rt.model_id, rt.provider, rt.priority,
+                COALESCE(rt.force_short_output, 0) AS force_short_output,
                 p.provider_type AS provider_type,
                 m.id            AS model_pk
          FROM model_routing_tiers rt
@@ -209,6 +216,12 @@ export class ModelRouter {
   }
 
   private async selectModelFromTier(tier: RoutingTier): Promise<string | null> {
+    const [model] = await this.selectModelFromTierWithMeta(tier);
+    return model;
+  }
+
+  /** Returns [modelId, TierModel] — TierModel carries force_short_output and other DB fields. */
+  private async selectModelFromTierWithMeta(tier: RoutingTier): Promise<[string | null, TierModel | null]> {
     const allModels = await this.loadTierModels();
     const tryTiers: RoutingTier[] = tier === 'fast'
       ? ['fast', 'balanced', 'powerful']
@@ -218,21 +231,22 @@ export class ModelRouter {
 
     for (const t of tryTiers) {
       for (const m of allModels.filter(x => x.tier_name === t && !x.model_id.includes('audio'))) {
-        if (isProviderHealthy(m.model_id)) return m.model_id;
+        if (isProviderHealthy(m.model_id)) return [m.model_id, m];
       }
     }
-    return null;
+    return [null, null];
   }
 
   async route(ctx: RoutingContext): Promise<RoutingDecision> {
     const score = computeComplexityScore(ctx);
     const tier = scoreToTier(score);
-    const model = await this.selectModelFromTier(tier);
+    const [model, selectedTierModel] = await this.selectModelFromTierWithMeta(tier);
 
     if (!model) {
       return {
         tier: 'balanced', model: '', reason: 'No routing tiers configured',
         confidence: 0, effort: 'medium', estimatedCostPer1k: 0, routingMethod: 'rule',
+        forceShortOutput: false,
       };
     }
 
@@ -255,6 +269,7 @@ export class ModelRouter {
       effort: TIER_EFFORT[tier],
       estimatedCostPer1k: (pricing.input + pricing.output) / 2,
       routingMethod: 'rule',
+      forceShortOutput: selectedTierModel?.force_short_output === 1,
     };
   }
 

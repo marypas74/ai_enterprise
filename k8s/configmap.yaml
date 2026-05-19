@@ -34,6 +34,9 @@ data:
   # Ollama (external Docker container on host, HTTP + header auth)
   OLLAMA_BASE_URL: "http://10.0.1.1:8086/ollama"
   OLLAMA_AUTH_KEY: "mTLS-k8s-backend-2026"
+  # PERF-79-B1: Ollama CPU-only embedding instance (porta 11436, Gemini P0 fix)
+  # Dedicated to embedding models (bge-m3, nomic-embed-text, etc.) — no GPU contention
+  OLLAMA_EMBED_BASE_URL: "http://10.0.1.1:11436"
 
   # vLLM (external Docker container on host, OpenAI-compatible API)
   VLLM_BASE_URL: "http://10.0.1.1:8087/vllm"

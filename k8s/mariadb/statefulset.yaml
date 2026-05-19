@@ -28,12 +28,14 @@ spec:
               mountPath: /var/lib/mysql
             - name: init-scripts
               mountPath: /docker-entrypoint-initdb.d
+            - name: mariadb-config
+              mountPath: /etc/mysql/conf.d
           resources:
             requests:
-              memory: "512Mi"
+              memory: "1Gi"
               cpu: "250m"
             limits:
-              memory: "1Gi"
+              memory: "3Gi"
               cpu: "500m"
           livenessProbe:
             exec:
@@ -44,6 +46,7 @@ spec:
                 - localhost
             initialDelaySeconds: 30
             periodSeconds: 10
+            failureThreshold: 5
           readinessProbe:
             exec:
               command:
@@ -57,6 +60,9 @@ spec:
         - name: init-scripts
           configMap:
             name: mariadb-init
+        - name: mariadb-config
+          configMap:
+            name: mariadb-tuning
   volumeClaimTemplates:
     - metadata:
         name: data

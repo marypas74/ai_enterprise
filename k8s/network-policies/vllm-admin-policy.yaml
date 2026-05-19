@@ -1,0 +1,56 @@
+---
+# PERF-79-B4: vLLM Admin Endpoint Access Policy (revisione post-deploy)
+#
+# NOTE: vLLM runs as a Docker container on the HOST (not in K8s).
+# Originally we shipped a `vllm-egress-allow-backend` policy that whitelisted
+# 10.0.1.1:8087 from backend pods via `ipBlock`. In practice MicroK8s CNI does
+# not route NetworkPolicy egress reliably to the host IP (10.0.1.1) — the
+# allow rule was applied as policyType=Egress which silently denied all
+# unlisted egress, breaking backend → vLLM reachability and causing 503
+# fallback to cloud providers.
+#
+# Resolution: do NOT constrain backend egress to the host via NetworkPolicy.
+# Backend egress is unrestricted (host firewall + nginx auth header guard
+# the vLLM proxy). We keep ONLY the deny rule for non-backend pods so that
+# frontend/doc-processor/etc. cannot hit vLLM directly.
+
+# Deny egress to vLLM (and other host services) from all pods except backend.
+# Non-backend pods can still reach K8s cluster services, DNS, HTTPS (443) and HTTP (80).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: vllm-egress-deny-non-backend
+  namespace: enterprise-ai-chat
+  annotations:
+    perf-task: PERF-79-B4
+    description: >
+      Block non-backend pods from reaching vLLM/Ollama host endpoints.
+      All AI calls must transit the backend API.
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: NotIn
+        values: [backend]
+  policyTypes:
+    - Egress
+  egress:
+    # Allow egress to K8s cluster services (MariaDB, Redis, Qdrant, etc.)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: enterprise-ai-chat
+    # Allow DNS
+    - ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Allow HTTPS (external APIs, Cloudflare)
+    - ports:
+        - protocol: TCP
+          port: 443
+    # Allow HTTP for image registry localhost:32000 and similar
+    - ports:
+        - protocol: TCP
+          port: 80

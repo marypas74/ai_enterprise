@@ -8,6 +8,7 @@ resources:
   - configmap.yaml
   - secrets.yaml
   - mariadb/statefulset.yaml
+  - mariadb/configmap-tuning.yaml
   - redis/statefulset.yaml
   - backend/deployment.yaml
   - frontend/deployment.yaml
@@ -16,9 +17,10 @@ resources:
   - ingress.yaml
   - onlyoffice/deployment.yaml
   - onlyoffice/ingress.yaml
+  - network-policies/vllm-admin-policy.yaml
 
 # NOTE: commonLabels removed — it injects labels into Service selectors,
 # breaking selector matching when pods don't have the same labels.
 # Use metadata labels directly in each resource instead.
 commonAnnotations:
-  app.kubernetes.io/version: "2.1.78"
+  app.kubernetes.io/version: "2.1.79"

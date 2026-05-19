@@ -103,7 +103,13 @@ async function doDetectProvider(db: mysql.Pool): Promise<EmbeddingProvider | nul
             config[s.setting_key] = s.setting_value;
         }
 
-        const baseUrl = (config.base_url || (row.provider_type === 'openai' ? 'https://api.openai.com/v1' : 'http://localhost:11434')).replace(/\/$/, '');
+        // PERF-79-B1: For ollama providers, prefer OLLAMA_EMBED_BASE_URL (CPU-only embed instance)
+        // over OLLAMA_BASE_URL (GPU instance shared with OCR). Falls back to DB config or defaults.
+        const ollamaEmbedBaseUrl = process.env.OLLAMA_EMBED_BASE_URL?.replace(/\/$/, '');
+        const defaultBaseUrl = row.provider_type === 'ollama' && ollamaEmbedBaseUrl
+            ? ollamaEmbedBaseUrl
+            : (row.provider_type === 'openai' ? 'https://api.openai.com/v1' : 'http://localhost:11434');
+        const baseUrl = (config.base_url || defaultBaseUrl).replace(/\/$/, '');
 
         const dimensions = await probeDimensions(row.provider_type, baseUrl, config.api_key || null, row.model_id);
 

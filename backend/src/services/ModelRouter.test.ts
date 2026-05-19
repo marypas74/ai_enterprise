@@ -105,3 +105,60 @@ describe('ModelRouter — v2.1.64 LEFT JOIN + provider boost', () => {
     warn.mockRestore();
   });
 });
+
+describe('ModelRouter — PERF-79-B3 force_short_output', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('returns forceShortOutput=true when tier model has force_short_output=1', async () => {
+    const pool = makePool([
+      { tier_name: 'fast', model_id: 'qwen25vl:32b', provider: 'vllm', priority: 0, force_short_output: 1 },
+    ]);
+    const router = new ModelRouter(pool);
+    const decision = await router.route({
+      query: 'ciao', conversationLength: 0, hasAttachments: false,
+      attachmentCount: 0, hasVisionAttachments: false, toolsRequested: false,
+      userId: 1,
+    });
+    expect(decision.model).toBe('qwen25vl:32b');
+    expect(decision.forceShortOutput).toBe(true);
+  });
+
+  it('returns forceShortOutput=false when tier model has force_short_output=0', async () => {
+    const pool = makePool([
+      { tier_name: 'balanced', model_id: 'qwen25vl:32b', provider: 'vllm', priority: 0, force_short_output: 0 },
+    ]);
+    const router = new ModelRouter(pool);
+    const decision = await router.route({
+      // Long query to ensure balanced tier is selected
+      query: 'analizza questo documento in dettaglio e fornisci un report completo',
+      conversationLength: 6, hasAttachments: false,
+      attachmentCount: 0, hasVisionAttachments: false, toolsRequested: false,
+      userId: 1, hasDocuments: true,
+    });
+    expect(decision.forceShortOutput).toBe(false);
+  });
+
+  it('SQL query includes force_short_output column via COALESCE', async () => {
+    const pool = makePool([]);
+    const router = new ModelRouter(pool);
+    await router.route({
+      query: 'test', conversationLength: 0, hasAttachments: false,
+      attachmentCount: 0, hasVisionAttachments: false, toolsRequested: false,
+      userId: 1,
+    });
+    const [sql] = pool.execute.mock.calls[0];
+    expect(sql).toMatch(/COALESCE.*force_short_output/i);
+  });
+
+  it('returns forceShortOutput=false when no tier models available', async () => {
+    const pool = makePool([]);
+    const router = new ModelRouter(pool);
+    const decision = await router.route({
+      query: 'ciao', conversationLength: 0, hasAttachments: false,
+      attachmentCount: 0, hasVisionAttachments: false, toolsRequested: false,
+      userId: 1,
+    });
+    expect(decision.model).toBe('');
+    expect(decision.forceShortOutput).toBe(false);
+  });
+});

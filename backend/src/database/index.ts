@@ -15,6 +15,12 @@ declare module 'fastify' {
 }
 
 async function databaseConnector(fastify: FastifyInstance) {
+  // v2.1.79 (PERF-79-D): Pool tuning per ridurre Aborted_connects.
+  // - connectionLimit ridotto a 10 (2 pod backend × 10 = 20 conn max vs 25 per pod precedente)
+  //   evita apertura di connessioni in eccesso che MariaDB rifiuta per wait_timeout
+  // - connectTimeout: chiude connessioni bloccate entro 10s invece di aspettare all'infinito
+  // - enableKeepAlive + keepAliveInitialDelay: mantiene vive le conn idle, riduce TCP RST
+  // DB_CONNECTION_LIMIT env override disponibile per tuning senza rebuild
   const pool = mysql.createPool({
     host: process.env.DB_HOST || 'localhost',
     port: parseInt(process.env.DB_PORT || '3306'),
@@ -22,10 +28,11 @@ async function databaseConnector(fastify: FastifyInstance) {
     password: process.env.DB_PASSWORD || '',
     database: process.env.DB_NAME || 'enterprise_ai_chat',
     waitForConnections: true,
-    connectionLimit: parseInt(process.env.DB_CONNECTION_LIMIT || '25'),
+    connectionLimit: parseInt(process.env.DB_CONNECTION_LIMIT || '10'),
     queueLimit: 50,
+    connectTimeout: 10000,
     enableKeepAlive: true,
-    keepAliveInitialDelay: 10000
+    keepAliveInitialDelay: 30000
   });
 
   // Test connection
@@ -721,6 +728,22 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
     { name: 'messages_add_latency_ms', sql: `ALTER TABLE messages ADD COLUMN latency_ms INT NULL` },
     { name: 'messages_add_first_token_ms', sql: `ALTER TABLE messages ADD COLUMN first_token_ms INT NULL` },
     { name: 'messages_add_provider', sql: `ALTER TABLE messages ADD COLUMN provider VARCHAR(32) NULL` },
+    // v2.1.79: PERF-79-D — Performance indexes on messages table (ALGORITHM=INPLACE, LOCK=NONE)
+    // NB: routing_decisions.provider non esiste — idx_tier_date su selected_tier è già presente
+    {
+      name: 'messages_idx_provider_created',
+      sql: `ALTER TABLE messages ADD INDEX idx_msg_provider_created (provider, created_at), ALGORITHM=INPLACE, LOCK=NONE`
+    },
+    {
+      name: 'messages_idx_conv_created',
+      sql: `ALTER TABLE messages ADD INDEX idx_msg_conv_created (conversation_id, created_at), ALGORITHM=INPLACE, LOCK=NONE`
+    },
+    // v2.1.79: PERF-79-B3 — force_short_output flag on model_routing_tiers
+    // Enables compact-output mode for fast-tier vLLM model (avoids KV cache exhaustion on short queries)
+    {
+      name: 'model_routing_tiers_add_force_short_output',
+      sql: `ALTER TABLE model_routing_tiers ADD COLUMN IF NOT EXISTS force_short_output BOOLEAN DEFAULT FALSE`
+    },
   ];
 
   for (const migration of alterMigrations) {
@@ -821,15 +844,27 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
     }
   }
 
-  // v2.1.78: Update app_version in system_settings to current version.
-  // Uses UPDATE with version comparison so re-running on an already-updated DB is a no-op.
-  // Fixes the INSERT IGNORE bug where the initial seed value was never updated on upgrade.
+  // v2.1.79: PERF-79-B3 — seed force_short_output=TRUE for fast-tier vLLM model
+  // Prevents KV cache exhaustion on short conversational queries with qwen25vl:32b
   try {
     await pool.execute(
-      `UPDATE system_settings SET setting_value = '2.1.78'
-       WHERE setting_key = 'app_version' AND setting_value < '2.1.78'`
+      `UPDATE model_routing_tiers
+       SET force_short_output = TRUE
+       WHERE tier_name = 'fast' AND provider = 'vllm' AND model_id = 'qwen25vl:32b'`
     );
-    fastify.log.info('[Migration] app_version updated to 2.1.78 (if behind)');
+    fastify.log.info('[Migration] PERF-79-B3: force_short_output seeded for fast/vllm/qwen25vl:32b');
+  } catch (err: any) {
+    fastify.log.warn({ err }, '[Migration] PERF-79-B3: force_short_output seed skipped');
+  }
+
+  // v2.1.79: Update app_version in system_settings to current version.
+  // Uses UPDATE with version comparison so re-running on an already-updated DB is a no-op.
+  try {
+    await pool.execute(
+      `UPDATE system_settings SET setting_value = '2.1.79'
+       WHERE setting_key = 'app_version' AND setting_value < '2.1.79'`
+    );
+    fastify.log.info('[Migration] app_version updated to 2.1.79 (if behind)');
   } catch (err: any) {
     fastify.log.warn({ err }, '[Migration] app_version update skipped');
   }
