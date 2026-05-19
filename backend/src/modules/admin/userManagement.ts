@@ -25,19 +25,32 @@ const createUserSchema = z.object({
   local_only: z.boolean().optional(),
 });
 
+// Coerce boolean-like values from JSON, HTML forms, and integers.
+// Handles: true/false (native), 1/0 (integer), "true"/"false" (string form values).
+// Note: z.coerce.boolean() would coerce any non-empty string to true, including "false".
+// This preprocess correctly maps "false" and 0 to false.
+function booleanField() {
+  return z.preprocess((val) => {
+    if (val === undefined) return undefined;
+    if (val === 'true' || val === true || val === 1) return true;
+    if (val === 'false' || val === false || val === 0) return false;
+    return val; // let zod boolean() reject other values
+  }, z.boolean().optional());
+}
+
 const updateUserSchema = z.object({
   name: z.string().min(1, 'Nome è obbligatorio').max(100, 'Il nome non può superare 100 caratteri').optional(),
   role: z.enum(['admin', 'user'], { message: 'Ruolo non valido: deve essere "admin" o "user"' }).optional(),
-  is_active: z.preprocess((val) => val === undefined ? undefined : (val === 1 || val === true), z.boolean().optional()),
+  is_active: booleanField(),
   password: z.string().min(8, 'La password deve contenere almeno 8 caratteri').max(128, 'La password non può superare 128 caratteri').optional(),
   phone: z.string().max(20, 'Il numero di telefono non può superare 20 caratteri').nullable().optional(),
   company: z.string().max(100, 'Il nome azienda non può superare 100 caratteri').nullable().optional(),
   department: z.string().max(100, 'Il reparto non può superare 100 caratteri').nullable().optional(),
   job_title: z.string().max(100, 'La qualifica non può superare 100 caratteri').nullable().optional(),
   notes: z.string().max(2000, 'Le note non possono superare 2000 caratteri').nullable().optional(),
-  is_hidden: z.boolean().optional(),
-  local_only: z.boolean().optional(),
-  exclude_from_stats: z.boolean().optional(),
+  is_hidden: booleanField(),
+  local_only: booleanField(),
+  exclude_from_stats: booleanField(),
 });
 
 // Types

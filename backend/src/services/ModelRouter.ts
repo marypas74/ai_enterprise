@@ -32,6 +32,12 @@ interface RoutingContext {
   readonly toolsRequested: boolean;
   readonly userId: number;
   readonly hasDocuments?: boolean;
+  /** AI-77: estimated input token count (used to force fast tier for short prompts) */
+  readonly estimatedTokens?: number;
+  /** AI-77b: web search active — disqualify fast tier (qwen2.5vl:7b Ollama)
+   *  because retrieved snippets inflate context beyond fast tier capacity AND
+   *  Ollama 7B may be unloaded due to VRAM contention with vLLM 32B. */
+  readonly hasWebSearch?: boolean;
 }
 
 interface TierModel {
@@ -92,6 +98,22 @@ function computeComplexityScore(ctx: RoutingContext): number {
   if (ctx.attachmentCount > 1) score += 1;
   if (ctx.hasVisionAttachments) score += 1;
   if (ctx.toolsRequested) score += 2;
+
+  // AI-77: Short prompts without image attachments → fast tier.
+  // Estimated tokens: provided explicitly or approximated from query length (1 token ≈ 4 chars).
+  // AI-77b: web search excludes fast tier — retrieved snippets inflate context AND
+  //         qwen2.5vl:7b Ollama may be unloaded due to VRAM contention with vLLM 32B.
+  const estimatedTokens = ctx.estimatedTokens ?? Math.ceil(queryLen / 4);
+  const isShortPrompt = estimatedTokens < 512
+    && !ctx.hasVisionAttachments
+    && !ctx.hasDocuments
+    && !ctx.hasWebSearch;
+  if (isShortPrompt) {
+    score -= 3; // Strong push toward fast tier
+  }
+
+  // Web search → at least balanced tier (snippets retrieved server-side add ~1-3k tokens)
+  if (ctx.hasWebSearch) score += 3;
 
   // Document creation detection — needs real processing, not a simple chat
   const isDocCreation = DOC_CREATION_PATTERN.test(ctx.query);

@@ -74,6 +74,9 @@ export async function completionRoutes(fastify: FastifyInstance) {
             convMsgCount = countRow?.cnt || 0;
           } catch { /* non-critical */ }
         }
+        // AI-77: estimate tokens from raw message (before context build) so router
+        // can apply the fast-tier rule (<512 tok, no vision/docs).
+        const routingEstimatedTokens = Math.ceil((parsedBody.message?.length || 0) / 4);
         routingDecision = await modelRouter.route({
           query: parsedBody.message,
           conversationLength: convMsgCount,
@@ -83,10 +86,17 @@ export async function completionRoutes(fastify: FastifyInstance) {
           toolsRequested: false,
           userId: user.id,
           hasDocuments: parsedBody.use_rag || (parsedBody.document_ids?.length || 0) > 0,
+          estimatedTokens: routingEstimatedTokens,
+          hasWebSearch: !!parsedBody.force_web_search,
         });
         if (routingDecision.model) {
           fastify.log.info(`[Router] Auto-routed to ${routingDecision.model} (tier=${routingDecision.tier}, reason=${routingDecision.reason})`);
           routedModel = routingDecision.model;
+          // AI-77: LOCALE-FIRST policy — warn explicitly if cloud provider selected
+          const cloudModelPatterns = /^(gpt-|claude-|gemini-|text-davinci|o1-|o3-)/i;
+          if (cloudModelPatterns.test(routedModel)) {
+            fastify.log.warn(`[Router] AI-77 CLOUD-FALLBACK: selected cloud model "${routedModel}" (tier=${routingDecision.tier}). Local models may be unavailable or circuit-broken.`);
+          }
         } else {
           // Fallback: pick first enabled chat model from DB
           const fallbackRow = await findOne<{ model_id: string }>(fastify.db,
@@ -583,6 +593,7 @@ export async function completionRoutes(fastify: FastifyInstance) {
       let tokensOutput = 0;
       let toolDefs: ReturnType<typeof selectTools> | undefined;
       let costModel = body.model; // Tracks actual model used (may change on escalation)
+      let firstTokenMs: number | null = null; // OBS-77: Time-to-first-token (ms)
       const sseWrite = createSseWriter(reply);
 
       sendInitialSseEvents(sseWrite, { model: body.model, providerName, safetyResult, recalledVectorMemories });
@@ -693,6 +704,10 @@ export async function completionRoutes(fastify: FastifyInstance) {
               }
             }
             if (chunk.content) {
+              // OBS-77: Record first-token latency on first non-empty content chunk
+              if (firstTokenMs === null) {
+                firstTokenMs = Date.now() - streamStartTime;
+              }
               fullResponse += chunk.content;
               roundContent += chunk.content;
               reply.raw.write(`data: ${JSON.stringify({ content: chunk.content, done: false })}\n\n`);
@@ -961,9 +976,11 @@ export async function completionRoutes(fastify: FastifyInstance) {
       } catch (hookErr: any) { fastify.log.warn(`[Hook] before_message_send failed: ${hookErr.message}`); }
 
       // Save assistant message (use costModel which may be the escalated model)
+      // OBS-77: Populate latency_ms, first_token_ms, provider columns
+      const latencyMsTotal = Date.now() - streamStartTime;
       const assistantMsgId = await insertOne(fastify.db,
-        'INSERT INTO messages (conversation_id, role, content, tokens_input, tokens_output, is_ai_generated, ai_model, ai_provider) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        [conversationId, 'assistant', fullResponse, tokensInput, tokensOutput, true, costModel, providerName]);
+        'INSERT INTO messages (conversation_id, role, content, tokens_input, tokens_output, is_ai_generated, ai_model, ai_provider, latency_ms, first_token_ms, provider) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [conversationId, 'assistant', fullResponse, tokensInput, tokensOutput, true, costModel, providerName, latencyMsTotal, firstTokenMs, providerName]);
 
       const cost = calculateCost(costModel, tokensInput, tokensOutput);
 

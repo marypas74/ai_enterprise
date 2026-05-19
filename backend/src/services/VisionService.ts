@@ -385,7 +385,7 @@ Output ONLY the extracted text, no commentary.`;
         name.includes('vision') ||
         name.includes('ocr') ||
         name.includes('minicpm') ||
-        name.includes('qwen2.5vl')
+        name.includes('qwen2.5vl') || name.includes('qwen25vl')
       );
     } catch {
       return false;

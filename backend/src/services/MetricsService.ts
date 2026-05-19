@@ -173,6 +173,44 @@ export class MetricsService {
 
         const uptimeSeconds = nodeUptimeResult[0]?.value?.[1] ? parseFloat(nodeUptimeResult[0].value[1]) : os.uptime();
 
+        // OBS-77: p50/p95 first_token_ms per provider (last 24h, assistant messages only)
+        const providerLatencyStats: Record<string, { p50: number | null; p95: number | null; count: number }> = await (async () => {
+            if (!db) return {};
+            try {
+                const [latencyRows] = await db.query<any[]>(
+                    `SELECT provider,
+                            first_token_ms
+                     FROM messages
+                     WHERE role = 'assistant'
+                       AND first_token_ms IS NOT NULL
+                       AND provider IS NOT NULL
+                       AND created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+                     ORDER BY provider, first_token_ms`
+                );
+                const byProvider = latencyRows.reduce<Record<string, number[]>>((acc, row) => {
+                    const p = row.provider as string;
+                    return { ...acc, [p]: [...(acc[p] ?? []), Number(row.first_token_ms)] };
+                }, {});
+                return Object.fromEntries(
+                    Object.entries(byProvider).map(([prov, values]) => {
+                        const sorted = [...values].sort((a, b) => a - b);
+                        const p50Idx = Math.floor(sorted.length * 0.5);
+                        const p95Idx = Math.min(Math.floor(sorted.length * 0.95), sorted.length - 1);
+                        return [prov, {
+                            p50: sorted[p50Idx] ?? null,
+                            p95: sorted[p95Idx] ?? null,
+                            count: sorted.length,
+                        }];
+                    })
+                );
+            } catch (err) {
+                // Non-blocking: column may not exist on fresh DB before migration runs.
+                // Logged to stderr (no logger in this static service) so the failure isn't fully silent.
+                process.stderr.write(`[MetricsService] providerLatencyStats query failed (likely pre-migration): ${(err as Error).message}\n`);
+                return {};
+            }
+        })();
+
         return {
             timestamp: new Date().toISOString(),
             hostname: os.hostname(),
@@ -204,7 +242,8 @@ export class MetricsService {
             processes: topProcesses,
             k8sPods,
             activeUsers,
-            ollama: ollamaData
+            ollama: ollamaData,
+            providerLatency: providerLatencyStats, // OBS-77: p50/p95 first_token_ms per provider
         };
     }
 }

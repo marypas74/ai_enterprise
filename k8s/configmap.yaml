@@ -19,8 +19,8 @@ data:
   REDIS_HOST: "redis"
   REDIS_PORT: "6379"
 
-  # JWT
-  JWT_ACCESS_EXPIRES_IN: "15m"
+  # JWT (v2.1.78: TTL access esteso a 60m per ridurre logout forzati)
+  JWT_ACCESS_EXPIRES_IN: "60m"
   JWT_REFRESH_EXPIRES_IN: "7d"
 
   # Rate Limiting
@@ -28,7 +28,8 @@ data:
   RATE_LIMIT_WINDOW_MS: "60000"
 
   # CORS - Update with your domain (comma-separated for multiple origins)
-  CORS_ORIGIN: "https://plane.lushlolli.com,https://localhost,capacitor://localhost"
+  # v2.1.78: aggiunto aia2.lan per accesso LAN diretto
+  CORS_ORIGIN: "https://plane.lushlolli.com,https://aia2.lan,https://localhost,capacitor://localhost"
 
   # Ollama (external Docker container on host, HTTP + header auth)
   OLLAMA_BASE_URL: "http://10.0.1.1:8086/ollama"

@@ -2,6 +2,9 @@
 # Enterprise AI Chat - Script di build e deploy
 # Esegui con: bash BUILD.sh
 
+# AI-77/2.1.78: ensure /snap/bin is in PATH so microk8s is available when run via sudo
+export PATH=/snap/bin:$PATH
+
 set -e
 
 echo "=========================================="
@@ -128,8 +131,32 @@ else
     print_warning "Directory marketplace non trovata, skip"
 fi
 
-# 5. Import in MicroK8s
-print_step "5. Import immagini in MicroK8s..."
+# 5. Push immagini al registry localhost:32000 (necessario per il pull dei pod K8s)
+print_step "5. Push immagini al registry localhost:32000..."
+docker push localhost:32000/enterprise-ai-chat-backend:${BACKEND_VERSION}
+docker push localhost:32000/enterprise-ai-chat-backend:latest
+print_status "Backend pushato al registry (${BACKEND_VERSION} e latest)"
+
+docker push localhost:32000/enterprise-ai-chat-frontend:${FRONTEND_VERSION}
+docker push localhost:32000/enterprise-ai-chat-frontend:latest
+print_status "Frontend pushato al registry (${FRONTEND_VERSION} e latest)"
+
+# Push doc-processor se disponibile
+if docker image inspect localhost:32000/doc-processor:${DOC_PROCESSOR_VERSION} >/dev/null 2>&1; then
+    docker push localhost:32000/doc-processor:${DOC_PROCESSOR_VERSION}
+    docker push localhost:32000/doc-processor:latest
+    print_status "doc-processor pushato al registry (${DOC_PROCESSOR_VERSION} e latest)"
+fi
+
+# Push marketplace se disponibile
+if docker image inspect localhost:32000/enterprise-ai-chat/marketplace:${MARKETPLACE_VERSION} >/dev/null 2>&1; then
+    docker push localhost:32000/enterprise-ai-chat/marketplace:${MARKETPLACE_VERSION}
+    docker push localhost:32000/enterprise-ai-chat/marketplace:latest
+    print_status "marketplace pushato al registry (${MARKETPLACE_VERSION} e latest)"
+fi
+
+# 6. Import in MicroK8s (containerd locale — complementare al registry pull)
+print_step "6. Import immagini in MicroK8s (containerd locale)..."
 docker save localhost:32000/enterprise-ai-chat-backend:${BACKEND_VERSION} > /tmp/backend.tar
 docker save localhost:32000/enterprise-ai-chat-frontend:${FRONTEND_VERSION} > /tmp/frontend.tar
 microk8s ctr image import /tmp/backend.tar
@@ -154,8 +181,8 @@ fi
 
 print_status "Immagini versionate importate in MicroK8s"
 
-# 6. Copia schema database nel ConfigMap
-print_step "6. Configurazione schema database..."
+# 7. Copia schema database nel ConfigMap
+print_step "7. Configurazione schema database..."
 # Aggiorna il ConfigMap con lo schema SQL reale
 cat > k8s/mariadb/init-configmap.yaml << 'EOF'
 apiVersion: v1
@@ -169,8 +196,8 @@ EOF
 sed 's/^/    /' database/init.sql >> k8s/mariadb/init-configmap.yaml
 print_status "Schema database configurato"
 
-# 7. Deploy su Kubernetes
-print_step "7. Deploy su Kubernetes..."
+# 8. Deploy su Kubernetes
+print_step "8. Deploy su Kubernetes..."
 microk8s kubectl apply -f k8s/namespace.yaml
 microk8s kubectl apply -f k8s/configmap.yaml
 microk8s kubectl apply -f k8s/secrets.yaml
@@ -200,7 +227,7 @@ fi
 microk8s kubectl apply -f k8s/ingress.yaml
 
 # Aggiorna la versione nel database (unica fonte di verità)
-print_step "7b. Aggiornamento versione nel database..."
+print_step "8b. Aggiornamento versione nel database..."
 MARIADB_POD=$(microk8s kubectl get pod -l app=mariadb -n enterprise-ai-chat -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
 if [ -n "$MARIADB_POD" ]; then
     microk8s kubectl exec -n enterprise-ai-chat "$MARIADB_POD" -- \
@@ -214,8 +241,8 @@ fi
 
 print_status "Deploy completato!"
 
-# 8. Verifica status
-print_step "8. Verifica status..."
+# 9. Verifica status
+print_step "9. Verifica status..."
 echo ""
 microk8s kubectl get all -n enterprise-ai-chat
 echo ""

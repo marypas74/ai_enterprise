@@ -276,6 +276,119 @@ describe('User Management Routes (Admin)', () => {
       expect(response.statusCode).toBe(200);
       expect(bcrypt.default.hash).toHaveBeenCalledWith('newpassword123', 10);
     });
+
+    // ADMIN-77: z.coerce.boolean() — frontend sends boolean-like values from form/JSON
+    it('should accept is_active as boolean true', async () => {
+      mockUpdateOne.mockResolvedValueOnce(1);
+
+      const response = await fastify.inject({
+        method: 'PATCH',
+        url: '/admin/users/5',
+        headers: createAuthHeaders(fastify, 1, 'admin'),
+        payload: { is_active: true },
+      });
+
+      expect(response.statusCode).toBe(200);
+    });
+
+    it('should accept is_active as boolean false', async () => {
+      mockUpdateOne.mockResolvedValueOnce(1);
+
+      const response = await fastify.inject({
+        method: 'PATCH',
+        url: '/admin/users/5',
+        headers: createAuthHeaders(fastify, 1, 'admin'),
+        payload: { is_active: false },
+      });
+
+      expect(response.statusCode).toBe(200);
+    });
+
+    it('should accept is_active as string "true" (HTML form value)', async () => {
+      mockUpdateOne.mockResolvedValueOnce(1);
+
+      const response = await fastify.inject({
+        method: 'PATCH',
+        url: '/admin/users/5',
+        headers: createAuthHeaders(fastify, 1, 'admin'),
+        payload: { is_active: 'true' },
+      });
+
+      // z.coerce.boolean() must coerce string "true" → true
+      expect(response.statusCode).toBe(200);
+    });
+
+    it('should accept is_active as string "false" (HTML form value)', async () => {
+      mockUpdateOne.mockResolvedValueOnce(1);
+
+      const response = await fastify.inject({
+        method: 'PATCH',
+        url: '/admin/users/5',
+        headers: createAuthHeaders(fastify, 1, 'admin'),
+        payload: { is_active: 'false' },
+      });
+
+      // z.coerce.boolean() must coerce string "false" → false (not true!)
+      // NOTE: z.coerce.boolean('false') = Boolean('false') = true (non-empty string)
+      // We use a custom preprocess to handle this correctly.
+      expect(response.statusCode).toBe(200);
+    });
+
+    it('should accept exclude_from_stats as boolean', async () => {
+      mockUpdateOne.mockResolvedValueOnce(1);
+
+      const response = await fastify.inject({
+        method: 'PATCH',
+        url: '/admin/users/5',
+        headers: createAuthHeaders(fastify, 1, 'admin'),
+        payload: { exclude_from_stats: true },
+      });
+
+      expect(response.statusCode).toBe(200);
+    });
+
+    it('should accept exclude_from_stats as string "true" (form value)', async () => {
+      mockUpdateOne.mockResolvedValueOnce(1);
+
+      const response = await fastify.inject({
+        method: 'PATCH',
+        url: '/admin/users/5',
+        headers: createAuthHeaders(fastify, 1, 'admin'),
+        payload: { exclude_from_stats: 'true' },
+      });
+
+      expect(response.statusCode).toBe(200);
+    });
+
+    it('should send only email patch (partial update)', async () => {
+      // Note: email is NOT in the updateUserSchema whitelist (intentional RBAC).
+      // Only whitelisted fields trigger update. This verifies that omitting all
+      // whitelist fields triggers the "No fields to update" 400 response.
+      const response = await fastify.inject({
+        method: 'PATCH',
+        url: '/admin/users/5',
+        headers: createAuthHeaders(fastify, 1, 'admin'),
+        payload: { email: 'new@email.com' }, // not in whitelist
+      });
+
+      expect(response.statusCode).toBe(400);
+      const body = JSON.parse(response.body);
+      expect(body.error).toBe('No fields to update');
+    });
+
+    it('should send only role patch', async () => {
+      mockUpdateOne.mockResolvedValueOnce(1);
+
+      const response = await fastify.inject({
+        method: 'PATCH',
+        url: '/admin/users/5',
+        headers: createAuthHeaders(fastify, 1, 'admin'),
+        payload: { role: 'admin' },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(JSON.parse(response.body).message).toBe('User updated');
+    });
   });
 
   // ─── DELETE USER ───────────────────────────────────────────
@@ -285,7 +398,7 @@ describe('User Management Routes (Admin)', () => {
       const response = await fastify.inject({
         method: 'DELETE',
         url: '/admin/users/1', // same as admin user ID
-        headers: createAuthHeaders(fastify, 1, 'admin'),
+        headers: createAuthHeaders(fastify, 1, 'admin', false),
       });
 
       expect(response.statusCode).toBe(400);
@@ -298,7 +411,7 @@ describe('User Management Routes (Admin)', () => {
       const response = await fastify.inject({
         method: 'DELETE',
         url: '/admin/users/5',
-        headers: createAuthHeaders(fastify, 1, 'admin'),
+        headers: createAuthHeaders(fastify, 1, 'admin', false),
       });
 
       expect(response.statusCode).toBe(200);
@@ -311,7 +424,7 @@ describe('User Management Routes (Admin)', () => {
       const response = await fastify.inject({
         method: 'DELETE',
         url: '/admin/users/999',
-        headers: createAuthHeaders(fastify, 1, 'admin'),
+        headers: createAuthHeaders(fastify, 1, 'admin', false),
       });
 
       expect(response.statusCode).toBe(404);
@@ -327,7 +440,7 @@ describe('User Management Routes (Admin)', () => {
       const response = await fastify.inject({
         method: 'POST',
         url: '/admin/users/5/mfa-reset',
-        headers: createAuthHeaders(fastify, 1, 'admin'),
+        headers: createAuthHeaders(fastify, 1, 'admin', false),
       });
 
       expect(response.statusCode).toBe(200);
@@ -340,7 +453,7 @@ describe('User Management Routes (Admin)', () => {
       const response = await fastify.inject({
         method: 'POST',
         url: '/admin/users/999/mfa-reset',
-        headers: createAuthHeaders(fastify, 1, 'admin'),
+        headers: createAuthHeaders(fastify, 1, 'admin', false),
       });
 
       expect(response.statusCode).toBe(404);
@@ -392,7 +505,7 @@ describe('User Management Routes (Admin)', () => {
       const response = await fastify.inject({
         method: 'DELETE',
         url: '/admin/active-sessions/5',
-        headers: createAuthHeaders(fastify, 1, 'admin'),
+        headers: createAuthHeaders(fastify, 1, 'admin', false),
       });
 
       expect(response.statusCode).toBe(200);
@@ -407,7 +520,7 @@ describe('User Management Routes (Admin)', () => {
       const response = await fastify.inject({
         method: 'DELETE',
         url: '/admin/active-sessions/999',
-        headers: createAuthHeaders(fastify, 1, 'admin'),
+        headers: createAuthHeaders(fastify, 1, 'admin', false),
       });
 
       expect(response.statusCode).toBe(404);

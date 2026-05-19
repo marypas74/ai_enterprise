@@ -181,4 +181,93 @@ describe('Auth Routes', () => {
       expect(body.user.role).toBe('user');
     });
   });
+
+  // ─── AUTH-77: Refresh endpoint — body-agnostic ──────────────
+  describe('POST /auth/refresh', () => {
+    it('should return 401 when no refresh token cookie is present', async () => {
+      const response = await fastify.inject({
+        method: 'POST',
+        url: '/auth/refresh',
+        // No cookie header
+      });
+
+      expect(response.statusCode).toBe(401);
+      const body = JSON.parse(response.body);
+      expect(body.error).toBe('Refresh token required');
+    });
+
+    it('should accept request with empty body {}', async () => {
+      // The refresh endpoint must work regardless of body content.
+      // Without a valid cookie it still returns 401 (not 400).
+      const response = await fastify.inject({
+        method: 'POST',
+        url: '/auth/refresh',
+        payload: {},
+        // No cookie — expects 401, NOT a body-validation error (400)
+      });
+
+      expect(response.statusCode).toBe(401);
+      // Ensure the failure is about the missing token, not invalid body
+      const body = JSON.parse(response.body);
+      expect(body.error).toBe('Refresh token required');
+    });
+
+    it('should accept request with serialized empty body string', async () => {
+      // Some clients (e.g. useAuthStore fetch) may send body: '{}'
+      const response = await fastify.inject({
+        method: 'POST',
+        url: '/auth/refresh',
+        headers: { 'content-type': 'application/json' },
+        payload: '{}',
+        // No cookie — expects 401, NOT 400
+      });
+
+      expect(response.statusCode).toBe(401);
+      const body = JSON.parse(response.body);
+      expect(body.error).toBe('Refresh token required');
+    });
+
+    it('should return 401 for invalid (tampered) refresh token', async () => {
+      const { findOne } = await import('../../database/index.js');
+      (findOne as any).mockResolvedValue(null); // token not found in DB
+
+      const response = await fastify.inject({
+        method: 'POST',
+        url: '/auth/refresh',
+        cookies: { refreshToken: 'invalid-token-value' },
+      });
+
+      expect(response.statusCode).toBe(401);
+      const body = JSON.parse(response.body);
+      expect(body.error).toBe('Invalid refresh token');
+    });
+
+    it('should return new accessToken for valid refresh token', async () => {
+      const { findOne, updateOne } = await import('../../database/index.js');
+
+      // Simulate a valid refresh token row joined with user data
+      (findOne as any).mockResolvedValue({
+        id: 1,
+        token_hash: 'abc123',
+        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        revoked_at: null,
+        user_id: 42,
+        email: 'user@test.com',
+        role: 'user',
+        name: 'Test User',
+      });
+      (updateOne as any).mockResolvedValue(1);
+
+      const response = await fastify.inject({
+        method: 'POST',
+        url: '/auth/refresh',
+        cookies: { refreshToken: 'valid-token-value' },
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.accessToken).toBeDefined();
+      expect(typeof body.accessToken).toBe('string');
+    });
+  });
 });

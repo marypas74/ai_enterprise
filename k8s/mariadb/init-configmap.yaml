@@ -182,6 +182,9 @@ data:
         content TEXT NOT NULL,
         tokens_input INT UNSIGNED DEFAULT 0,
         tokens_output INT UNSIGNED DEFAULT 0,
+        latency_ms INT NULL,
+        first_token_ms INT NULL,
+        provider VARCHAR(32) NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
         INDEX idx_conversation_id (conversation_id),
@@ -834,7 +837,7 @@ data:
     ('allow_user_registration', 'false', 'boolean', 'Allow new users to self-register', FALSE),
     ('default_model', 'gpt-4o', 'string', 'Default model for new conversations', TRUE),
     ('maintenance_mode', 'false', 'boolean', 'Enable maintenance mode', FALSE),
-    ('app_version', '2.1.75', 'string', 'Versione corrente dell''applicazione', TRUE);
+    ('app_version', '2.1.78', 'string', 'Versione corrente dell''applicazione', TRUE);
     
     -- ============================================
     -- DEFAULT SKILLS

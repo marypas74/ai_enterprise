@@ -715,6 +715,12 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
     { name: 'chat_attachments_add_is_draft', sql: `ALTER TABLE chat_attachments ADD COLUMN is_draft BOOLEAN NOT NULL DEFAULT FALSE` },
     { name: 'chat_attachments_add_draft_session_id', sql: `ALTER TABLE chat_attachments ADD COLUMN draft_session_id VARCHAR(64) NULL` },
     { name: 'chat_attachments_add_idx_conv_draft', sql: `ALTER TABLE chat_attachments ADD INDEX idx_conv_draft (conversation_id, is_draft)` },
+    // v2.1.76: Add 'vllm' to provider_type ENUM so vLLM provider can be registered in DB
+    { name: 'ai_providers_enum_add_vllm', sql: `ALTER TABLE ai_providers MODIFY COLUMN provider_type ENUM('openai','anthropic','google','ollama','vllm','custom') NOT NULL` },
+    // v2.1.77: OBS-77 — Observability columns on messages for latency tracking
+    { name: 'messages_add_latency_ms', sql: `ALTER TABLE messages ADD COLUMN latency_ms INT NULL` },
+    { name: 'messages_add_first_token_ms', sql: `ALTER TABLE messages ADD COLUMN first_token_ms INT NULL` },
+    { name: 'messages_add_provider', sql: `ALTER TABLE messages ADD COLUMN provider VARCHAR(32) NULL` },
   ];
 
   for (const migration of alterMigrations) {
@@ -727,6 +733,61 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
         fastify.log.warn({ err }, `[Migration] Column ${migration.name} migration failed`);
       }
     }
+  }
+
+  // v2.1.76: Seed vLLM provider and qwen25vl:32b model (idempotent via INSERT IGNORE)
+  try {
+    await pool.execute(
+      `INSERT IGNORE INTO ai_providers (name, display_name, provider_type, is_enabled, is_local, config_schema)
+       VALUES (?, ?, 'vllm', TRUE, TRUE, ?)`,
+      [
+        'vllm',
+        'vLLM (Local)',
+        JSON.stringify({
+          type: 'object',
+          required: ['base_url'],
+          properties: {
+            base_url: {
+              type: 'string',
+              title: 'Base URL',
+              description: 'vLLM OpenAI-compatible API endpoint',
+              default: 'http://10.0.1.1:8087/vllm'
+            },
+            api_key: {
+              type: 'string',
+              title: 'API Key',
+              description: 'API key for vLLM (if required)',
+              format: 'password'
+            }
+          }
+        })
+      ]
+    );
+    fastify.log.info('[Migration] vLLM provider seeded');
+  } catch (err: any) {
+    fastify.log.warn({ err }, '[Migration] vLLM provider seed skipped');
+  }
+
+  try {
+    await pool.execute(
+      `INSERT IGNORE INTO ai_models
+         (provider_id, model_id, display_name, description,
+          context_window, max_output_tokens,
+          input_cost_per_1k, output_cost_per_1k,
+          supports_streaming, supports_functions, supports_vision,
+          is_enabled, is_default, sort_order)
+       VALUES
+         ((SELECT id FROM ai_providers WHERE name = 'vllm'),
+          'qwen25vl:32b', 'Qwen2.5-VL 32B', 'Qwen 2.5 Vision-Language 32B via local vLLM',
+          62000, 8192,
+          0, 0,
+          TRUE, FALSE, TRUE,
+          TRUE, FALSE, 1)`,
+      []
+    );
+    fastify.log.info('[Migration] qwen25vl:32b model seeded for vLLM provider');
+  } catch (err: any) {
+    fastify.log.warn({ err }, '[Migration] qwen25vl:32b model seed skipped');
   }
 
   // v4.0: Enable capabilities for Claude models (only where not already set)
@@ -758,6 +819,19 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
     if (err?.errno !== 1054) {
       fastify.log.warn({ err }, `[Migration] Ollama thinking capabilities update failed`);
     }
+  }
+
+  // v2.1.78: Update app_version in system_settings to current version.
+  // Uses UPDATE with version comparison so re-running on an already-updated DB is a no-op.
+  // Fixes the INSERT IGNORE bug where the initial seed value was never updated on upgrade.
+  try {
+    await pool.execute(
+      `UPDATE system_settings SET setting_value = '2.1.78'
+       WHERE setting_key = 'app_version' AND setting_value < '2.1.78'`
+    );
+    fastify.log.info('[Migration] app_version updated to 2.1.78 (if behind)');
+  } catch (err: any) {
+    fastify.log.warn({ err }, '[Migration] app_version update skipped');
   }
 
   // Seed AI Act compliance settings

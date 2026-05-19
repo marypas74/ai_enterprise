@@ -18,9 +18,12 @@ spec:
       port:
         number: 80
   tls:
-    - secretName: lan-tls
+    - hosts:
+        - aia2.lan
+      secretName: lan-tls
   rules:
-    - http:
+    - host: aia2.lan
+      http:
         paths:
           - path: /api
             pathType: Prefix
