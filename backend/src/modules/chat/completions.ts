@@ -2,29 +2,24 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { findOne, insertOne, updateOne } from '../../database/index.js';
 import { AIProviderFactory, calculateCost, Message } from '../ai/providers.js';
-import { ParlantProviderFactory, checkParlantHealth } from '../../services/ParlantProvider.js';
 import { selectTools } from '../../services/ToolSelectionService.js';
-import { MemoryService } from '../memory/service.js';
-import { eventBus } from '../../services/EventBusService.js';
-import { storeEpisodic } from '../../services/VectorMemoryService.js';
 import { ConversationalFormService } from '../../services/ConversationalFormService.js';
 import { ModelConfigService } from '../../services/ModelConfigService.js';
 import { recordProviderSuccess } from '../../services/CircuitBreakerService.js';
 import { ContentSafetyService } from '../compliance/contentSafety.js';
-import { completionSchema, SafetyResult, ToolContext } from './types.js';
-import { validateChatModel } from './model-validation.js';
+import { completionSchema } from './types.js';
 import {
   createSseWriter, writeSseHeaders, sendInitialSseEvents, sendFastReply,
   recordTokenComponents, recordUsageAndAudit,
-  isDirectConversionRequest, directConvertAttachment, detectDocumentFormat
+  isDirectConversionRequest, directConvertAttachment, detectDocumentFormat,
+  writeSseDone,
 } from './streaming.js';
 import {
-  prepareToolContext, loadOrCreateConversation, injectFormContext,
-  processAttachments, injectSystemPrompts, ensureItalianSystemPrompt,
-  injectRAGSystemPrompt, injectBrainstormSystemPrompt
+  loadOrCreateConversation, injectFormContext, processAttachments,
 } from './context-builder.js';
 import { getModelRouter, type RoutingDecision } from '../../services/ModelRouter.js';
 import { estimateMessageTokens, ASYNC_TOKEN_THRESHOLD, MAX_TOKEN_LIMIT } from '../../utils/tokenEstimator.js';
+import { eventBus } from '../../services/EventBusService.js';
 // DEBT-80-D: extracted runners
 import { runToolLoop, type ToolLoopRunnerOptions } from './runners/ToolLoopRunner.js';
 import { createStreamState } from './runners/ChatStreamRunner.js';
@@ -37,6 +32,10 @@ import { runFallbackChain } from './runners/FallbackChain.js';
 import { runEmptyResponseEscalation } from './runners/EscalationRunner.js';
 import { runEmbeddedToolFallback } from './runners/EmbeddedToolFallback.js';
 import { runPostProcessing } from './runners/PostProcessingRunner.js';
+// DEBT-83-G: new runners extracted from completions.ts
+import { resolveRoutedModel } from './runners/RoutedModelResolver.js';
+import { runSafetyAndContentInjection, checkContentSafety } from './runners/SafetyContentRunner.js';
+import { runMemoryHooks } from './runners/MemoryHooksRunner.js';
 
 export async function completionRoutes(fastify: FastifyInstance) {
   const contentSafetyService = new ContentSafetyService(fastify);
@@ -115,74 +114,11 @@ export async function completionRoutes(fastify: FastifyInstance) {
 
       fastify.log.info(`[Chat] Request for model: ${body.model}`);
 
-      // Check if this is a Parlant agent
-      const isParlantAgent = body.model.startsWith('parlant:');
-
-      // ── Pre-flight model validation ──────────────────────────────
-      // Reject unknown / disabled models BEFORE hitting the upstream
-      // provider, so the user gets a useful error instead of a generic
-      // "Modello AI non trovato" coming back from a provider 404.
-      // Parlant agents have their own registry and are validated below.
-      let preflightAvailableModels: string[] = [];
-      if (!isParlantAgent) {
-        const preflight = await validateChatModel(fastify.db, body.model);
-        preflightAvailableModels = preflight.enabledChatModels;
-        if (!preflight.ok) {
-          fastify.log.warn(`[Chat] Pre-flight rejected model="${body.model}" (not registered or disabled)`);
-          return reply.status(400).send({
-            error: `Il modello \`${body.model}\` non è registrato o non è abilitato.`,
-            supportedModels: preflightAvailableModels,
-          });
-        }
-      }
-      let provider;
-      let providerName: string;
-
-      if (isParlantAgent) {
-        const agentId = body.model.split(':')[1];
-        if (!agentId || agentId.trim() === '') {
-          return reply.status(400).send({ error: 'Invalid Parlant model format', message: 'Expected format: parlant:{agentId}' });
-        }
-        const parlantHealthy = await checkParlantHealth();
-        if (!parlantHealthy) {
-          fastify.log.error(`[Chat] Parlant service is not reachable`);
-          return reply.status(503).send({
-            error: 'Parlant service unavailable',
-            message: 'The Parlant AI Agent service is not running or not reachable. Please contact your administrator.',
-            hint: 'Ensure PARLANT_URL is configured and the Parlant service is running.'
-          });
-        }
-        provider = ParlantProviderFactory.getProvider(agentId.trim(), 'Parlant Agent', `user_${user.id}`);
-        providerName = 'parlant';
-        fastify.log.info(`[Chat] Using Parlant agent: ${agentId}`);
-      } else {
-        providerName = AIProviderFactory.getProviderName(body.model);
-        fastify.log.info(`[Chat] Using ${providerName} provider for model: ${body.model}`);
-        provider = AIProviderFactory.getProvider(body.model);
-        fastify.log.debug(`[Chat] Provider instance created: ${provider?.name || 'NULL'}`);
-      }
-
-      // Check if model supports tools
-      let supportsTools = false;
-      if (!isParlantAgent) {
-        try {
-          const modelInfo = await findOne<{ supports_functions: number }>(fastify.db, 'SELECT supports_functions FROM ai_models WHERE model_id = ?', [body.model]);
-          supportsTools = modelInfo?.supports_functions === 1;
-          fastify.log.info(`[Chat] Model ${body.model} tool support: ${supportsTools}`);
-        } catch (err) {
-          fastify.log.warn(`[Chat] Failed to check model capabilities: ${err}`);
-        }
-      }
-
-      // Prepare tool context
-      let toolContext: ToolContext | null = null;
-      if (supportsTools) {
-        try {
-          toolContext = await prepareToolContext(fastify, user.id);
-        } catch (err) {
-          fastify.log.warn(`[Chat] Failed to load or create tool context: ${err}`);
-        }
-      }
+      // DEBT-83-G: pre-flight + provider resolution + tool context via RoutedModelResolver
+      const resolverResult = await resolveRoutedModel(fastify, reply, { model: body.model, userId: user.id });
+      if (resolverResult.abort) return;
+      const { provider, isParlantAgent, supportsTools, toolContext, preflightAvailableModels } = resolverResult;
+      let { providerName } = resolverResult;
 
       // Load or create conversation
       let result;
@@ -203,11 +139,8 @@ export async function completionRoutes(fastify: FastifyInstance) {
 
       const hookCtx = Object.freeze({ userId: user.id, conversationId });
 
-      // Content safety check
-      let safetyResult: SafetyResult = { is_sensitive: false, topics: [], disclaimer: null, safety_flags: null };
-      try { safetyResult = await contentSafetyService.checkMessage(body.message); }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
-      catch (safetyErr: any) { fastify.log.warn(`[AI-Act] Content safety check failed: ${safetyErr.message}`); }
+      // DEBT-83-G: content safety via SafetyContentRunner
+      const safetyResult = await checkContentSafety(contentSafetyService, body.message, fastify.log);
 
       // Hook: fast_reply
       const fastReplyResult = await eventBus.pipe('fast_reply', null, hookCtx);
@@ -323,124 +256,28 @@ export async function completionRoutes(fastify: FastifyInstance) {
       messages.push({ role: 'user', content: userMessage });
       await insertOne(fastify.db, 'INSERT INTO messages (conversation_id, role, content) VALUES (?, ?, ?)', [conversationId, 'user', userMessage]);
 
-      // ── RAG-only mode short circuit ──────────────────────────────────
-      // When use_rag is true, skip web search / agent chain / tools and
-      // inject a document-only system prompt before streaming.
-      // Inject system prompts (coding, web search, tools, doc gen, memory)
-      // Skip in RAG mode to avoid overwriting the constrained prompt.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
-      let recalledVectorMemories: { episodic: any[]; declarative: any[]; procedural: any[] } | null = null;
-      let webSearchPerformed = false;
-      let autoGenerateDoc: false | 'docx' | 'pptx' | 'xlsx' | 'pdf' = false;
-
-      const effectiveChatMode = body.chat_mode
-        || (body.use_rag ? 'rag' : undefined)
-        || conversation?.chat_mode
-        || 'free';
-
-      if (effectiveChatMode === 'brainstorm') {
-        fastify.log.info(`[Chat] Brainstorm mode active for user ${user.id}`);
-        await injectBrainstormSystemPrompt(fastify, messages, user.id);
-
-        // Detect document generation even in brainstorm mode so tool forcing works
-        autoGenerateDoc = detectDocumentFormat(body.message, body.attachmentIds);
-        if (autoGenerateDoc) {
-          fastify.log.info(`[Chat] Brainstorm + DocGen detected: format=${autoGenerateDoc}`);
-          const formatName = autoGenerateDoc === 'pptx' ? 'presentazione PowerPoint' :
-            autoGenerateDoc === 'xlsx' ? 'foglio Excel' :
-              autoGenerateDoc === 'pdf' ? 'PDF' : 'documento Word';
-          const toolName = autoGenerateDoc === 'pptx' ? 'generate_powerpoint_document' :
-            autoGenerateDoc === 'xlsx' ? 'generate_excel_document' :
-              autoGenerateDoc === 'docx' ? 'generate_word_document' : null;
-
-          let docGenPrompt: string;
-          if (toolName && supportsTools) {
-            docGenPrompt = `\n\n[ISTRUZIONI GENERAZIONE DOCUMENTO]\nHai a disposizione il tool "${toolName}". DEVI usarlo per generare il ${formatName}.\nREGOLA CRITICA: Usa SEMPRE il tool passando il contenuto come parametro "content".\n- NON scrivere il contenuto intero nella chat — usa DIRETTAMENTE il tool.\nSe per qualche motivo non riesci a usare il tool, scrivi il contenuto nella risposta come fallback.`;
-          } else {
-            docGenPrompt = `\n\n[ISTRUZIONI GENERAZIONE DOCUMENTO]\nL'utente vuole un ${formatName}. Scrivi il contenuto COMPLETO nella risposta.\nIl sistema genererà automaticamente il ${formatName} dalla tua risposta.\nNON suggerire codice o librerie esterne — scrivi DIRETTAMENTE il contenuto.`;
-          }
-
-          const systemIndex = messages.findIndex(m => m.role === 'system');
-          if (systemIndex >= 0) {
-            messages[systemIndex].content += docGenPrompt;
-          } else {
-            messages.unshift({ role: 'system', content: docGenPrompt });
-          }
-        }
-      } else if (effectiveChatMode === 'rag') {
-        fastify.log.info(`[Chat] RAG mode active for user ${user.id}`);
-        const ragMemories = await injectRAGSystemPrompt(fastify, messages, {
-          userMessage: body.message,
-          userId: user.id,
-          documentIds: body.document_ids,
-        });
-
-        // Map RAG results to declarative memory for display in MemoryPanel
-        recalledVectorMemories = {
-          episodic: [],
-          declarative: ragMemories.map(r => ({
-            id: r.id,
-            content: r.content,
-            score: r.score,
-            metadata: r.metadata || {}
-          })),
-          procedural: []
-        };
-      } else {
-        const injectResults = await injectSystemPrompts(fastify, messages, {
-          model: body.model, userMessage: body.message, userId: user.id,
-          supportsTools, toolContext, attachmentIds: body.attachmentIds,
-          forceWebSearch: body.force_web_search,
-        });
-        webSearchPerformed = injectResults.webSearchPerformed;
-        autoGenerateDoc = injectResults.autoGenerateDoc;
-
-        // When web search was performed, show web sources instead of vector memories
-        if (webSearchPerformed && injectResults.webSearchResults?.length) {
-          fastify.log.info(`[Chat] Using ${injectResults.webSearchResults.length} web search results as sources instead of vector memories`);
-          recalledVectorMemories = {
-            episodic: [],
-            declarative: injectResults.webSearchResults.map((r, idx) => ({
-              id: idx + 1,
-              content: r.snippet || r.title,
-              score: 1 - (idx * 0.05), // Decreasing score by rank position
-              metadata: { originalName: r.source || (() => { try { return new URL(r.url).hostname; } catch { return r.url || 'web'; } })(), url: r.url, title: r.title, type: 'web_search' },
-            })),
-            procedural: [],
-          };
-        }
-
-        // Agent Chain: memory recall + prompt templates (skip memory recall when web search was used)
-        try {
-          const { AgentChainService } = await import('../../services/AgentChainService.js');
-          const agentChain = new AgentChainService(fastify, fastify.db);
-          const chainResult = await agentChain.execute({
-            userId: user.id, conversationId, userMessage: body.message, messages, model: body.model, hookCtx,
-          });
-          if (chainResult.skippedByFastReply && chainResult.fastReplyContent) {
-            sendFastReply(reply, { conversationId, model: body.model, providerName, safetyResult, content: chainResult.fastReplyContent });
-            return;
-          }
-          messages = chainResult.messages;
-          // Only use vector memories if web search did NOT provide sources
-          if (!webSearchPerformed) {
-            const totalRecalled = (chainResult.workingMemory.episodicMemories?.length || 0) + (chainResult.workingMemory.declarativeMemories?.length || 0) + (chainResult.workingMemory.proceduralMemories?.length || 0);
-            if (totalRecalled > 0) {
-              fastify.log.info(`[AgentChain] Injected ${totalRecalled} memory results via agent chain for user ${user.id}`);
-              recalledVectorMemories = {
-                episodic: chainResult.workingMemory.episodicMemories || [],
-                declarative: chainResult.workingMemory.declarativeMemories || [],
-                procedural: chainResult.workingMemory.proceduralMemories || [],
-              };
-            }
-          }
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
-        } catch (chainErr: any) {
-          fastify.log.warn(`[AgentChain] Agent chain failed, continuing without: ${chainErr.message}`);
-        }
-      }
-
-      ensureItalianSystemPrompt(messages);
+      // DEBT-83-G: chat mode system prompt injection via SafetyContentRunner
+      const contentResult = await runSafetyAndContentInjection(fastify, {
+        model: body.model,
+        userMessage,
+        userId: user.id,
+        conversationId,
+        chatMode: body.chat_mode,
+        useRag: body.use_rag,
+        documentIds: body.document_ids,
+        attachmentIds: body.attachmentIds,
+        forceWebSearch: body.force_web_search,
+        supportsTools,
+        toolContext,
+        providerName,
+        safetyResult,
+        conversation,
+        hookCtx,
+        reply,
+      }, messages);
+      if (contentResult.abort) return;
+      messages = contentResult.messages;
+      const { recalledVectorMemories, webSearchPerformed, autoGenerateDoc } = contentResult;
 
       // ── Async document queue: intercept large requests ──────────────
       const estimatedTokens = estimateMessageTokens(messages);
@@ -766,26 +603,22 @@ export async function completionRoutes(fastify: FastifyInstance) {
         );
       }
 
-      // Auto-capture memory (async, non-blocking)
-      try {
-        const memoryService = new MemoryService(fastify.db);
-        memoryService.autoCapture(user.id, conversationId, userMessage, fullResponse).catch(err => fastify.log.warn(`[Memory] Auto-capture failed: ${err.message}`));
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
-      } catch (memErr: any) { fastify.log.warn(`[Memory] Auto-capture init failed: ${memErr.message}`); }
+      // DEBT-83-G: post-stream memory + event hooks via MemoryHooksRunner
+      runMemoryHooks(fastify, {
+        userId: user.id,
+        conversationId,
+        userMessage: body.message,
+        fullResponse,
+        model: body.model,
+        providerName,
+        tokensInput,
+        tokensOutput,
+        cost,
+        hookCtx,
+      });
 
-      // Episodic vector memory store
-      try {
-        const memData = { userMessage: body.message, assistantResponse: fullResponse };
-        const memHook = await eventBus.pipe('before_memory_store', memData, hookCtx);
-        const finalMem = memHook.data || memData;
-        storeEpisodic(fastify.db, user.id, conversationId, finalMem.userMessage, finalMem.assistantResponse).catch(err => fastify.log.warn(`[VectorMemory] Episodic store failed: ${err.message}`));
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
-      } catch (memErr: any) { fastify.log.warn(`[VectorMemory] Store hook failed: ${memErr.message}`); }
-
-      eventBus.emit('after_message_send', { userMessage: body.message, assistantResponse: fullResponse, model: body.model, provider: providerName, tokensInput, tokensOutput, cost }, hookCtx).catch(() => { });
-
-      // DEBT-82-D: include finish_reason in the final SSE done event
-      reply.raw.write(`data: ${JSON.stringify({ content: '', done: true, conversationId, finish_reason: finalFinishReason })}\n\n`);
+      // DEBT-82-D / DEBT-83-A: use writeSseDone for consistent SSE done structure with finish_reason
+      writeSseDone(reply, { conversationId, finishReason: finalFinishReason });
       reply.raw.end();
 
     } catch (err) {

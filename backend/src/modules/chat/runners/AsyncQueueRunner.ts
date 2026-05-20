@@ -16,7 +16,7 @@ import type { Message } from '../../ai/providers.js';
 import { findOne } from '../../../database/index.js';
 import { AIProviderFactory } from '../../ai/providers.js';
 import { DocumentJobQueue } from '../../../services/DocumentJobQueue.js';
-import { writeSseHeaders, createSseWriter, sendInitialSseEvents } from '../streaming.js';
+import { writeSseHeaders, createSseWriter, sendInitialSseEvents, writeSseDone } from '../streaming.js';
 
 export interface AsyncQueueOptions {
   readonly userId: number;
@@ -113,12 +113,14 @@ export async function maybeDispatchToAsyncQueue(
   writeSseHeaders(reply, { conversationId, webSearchPerformed: false, model, providerName });
   const sseWrite = createSseWriter(reply);
   sendInitialSseEvents(sseWrite, { model, providerName, safetyResult, recalledVectorMemories });
+  // DEBT-83-A: emit job info first, then use writeSseDone for consistent done structure
   sseWrite(`data: ${JSON.stringify({
     job: { id: jobId, eta, estimatedTokens },
     content: '⏳ Documento ricevuto — elaborazione in corso, risposta attesa in circa ' + etaLabel + '.',
-    done: true,
+    done: false,
     conversationId,
   })}\n\n`);
+  writeSseDone({ raw: reply.raw } as import('fastify').FastifyReply, { conversationId, finishReason: null });
   fastify.log.info(`[Chat] Async job ${jobId} queued for user ${userId}, eta=${eta}s, tokens=${estimatedTokens}`);
 
   return { dispatched: true, model, providerName };

@@ -52,7 +52,7 @@ export async function pluginExecutionRoutes(fastify: FastifyInstance) {
       tags: ['tools'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
+  }, async (request: FastifyRequest, _reply: FastifyReply) => {
     const user = request.user as { role: string; id: number };
     const isAdmin = user.role === 'admin';
 
@@ -98,7 +98,7 @@ export async function pluginExecutionRoutes(fastify: FastifyInstance) {
       tags: ['tools'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
+  }, async (request: FastifyRequest, _reply: FastifyReply) => {
     const body = createToolSchema.parse(request.body);
 
     const toolId = await insertOne(
@@ -131,7 +131,7 @@ export async function pluginExecutionRoutes(fastify: FastifyInstance) {
       tags: ['tools'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+  }, async (request: FastifyRequest<{ Params: { id: string } }>, _reply: FastifyReply) => {
     const { id } = request.params;
     const body = updateToolSchema.parse(request.body);
 
@@ -172,7 +172,7 @@ export async function pluginExecutionRoutes(fastify: FastifyInstance) {
       tags: ['tools'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+  }, async (request: FastifyRequest<{ Params: { id: string } }>, _reply: FastifyReply) => {
     const { id } = request.params;
 
     await fastify.db.execute('DELETE FROM tools WHERE id = ?', [id]);
@@ -193,7 +193,7 @@ export async function pluginExecutionRoutes(fastify: FastifyInstance) {
       tags: ['tools'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest<{ Params: { toolId: string } }>, reply: FastifyReply) => {
+  }, async (request: FastifyRequest<{ Params: { toolId: string } }>, _reply: FastifyReply) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request.user as any).id;
     const { toolId } = request.params;
@@ -228,7 +228,7 @@ export async function pluginExecutionRoutes(fastify: FastifyInstance) {
       tags: ['tools'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest<{ Querystring: { limit?: string; offset?: string; tool_id?: string } }>, reply: FastifyReply) => {
+  }, async (request: FastifyRequest<{ Querystring: { limit?: string; offset?: string; tool_id?: string } }>, _reply: FastifyReply) => {
     const user = request.user as { role: string; id: number };
     const isAdmin = user.role === 'admin';
     const { limit = '50', offset = '0', tool_id } = request.query;

@@ -14,7 +14,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import type mysql from 'mysql2/promise';
-import { storeProcedural, type MemoryPoint } from './VectorMemoryService.js';
+import type { MemoryPoint } from './VectorMemoryService.js';
 import { generateEmbedding } from './EmbeddingService.js';
 
 const QDRANT_URL = process.env.QDRANT_URL || 'http://localhost:6333';

@@ -11,8 +11,6 @@ import {
   createSession as _createSession,
   addLog as _addLog,
   getSessionLogs as _getSessionLogs,
-  completeSession as _completeSession,
-  failSession as _failSession,
   cleanupInterruptedSessions,
   getDashboardMetrics as _getDashboardMetrics,
 } from './agent/AgentSessionManager.js';

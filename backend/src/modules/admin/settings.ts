@@ -69,7 +69,7 @@ export async function settingsRoutes(fastify: FastifyInstance) {
       tags: ['admin'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
+  }, async (request: FastifyRequest, _reply: FastifyReply) => {
     const user = request.user as { role: string };
     const isAdmin = user.role === 'admin';
 
@@ -163,7 +163,7 @@ export async function settingsRoutes(fastify: FastifyInstance) {
       tags: ['admin'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
+  }, async (_request: FastifyRequest, _reply: FastifyReply) => {
     const groups = await findAll<Group & { user_count: number }>(
       fastify.db,
       `SELECT g.*, COUNT(ug.user_id) as user_count
@@ -238,7 +238,7 @@ export async function settingsRoutes(fastify: FastifyInstance) {
       tags: ['admin'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
+  }, async (request: FastifyRequest, _reply: FastifyReply) => {
     const body = createGroupSchema.parse(request.body);
 
     const groupId = await insertOne(
@@ -259,7 +259,7 @@ export async function settingsRoutes(fastify: FastifyInstance) {
       tags: ['admin'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+  }, async (request: FastifyRequest<{ Params: { id: string } }>, _reply: FastifyReply) => {
     const { id } = request.params;
     const body = updateGroupSchema.parse(request.body);
 
@@ -321,7 +321,7 @@ export async function settingsRoutes(fastify: FastifyInstance) {
       tags: ['admin'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest<{ Params: { groupId: string; modelId: string } }>, reply: FastifyReply) => {
+  }, async (request: FastifyRequest<{ Params: { groupId: string; modelId: string } }>, _reply: FastifyReply) => {
     const { groupId, modelId } = request.params;
     const body = groupModelPermissionSchema.omit({ model_id: true }).parse(request.body);
 
@@ -345,7 +345,7 @@ export async function settingsRoutes(fastify: FastifyInstance) {
       tags: ['admin'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest<{ Params: { groupId: string; modelId: string } }>, reply: FastifyReply) => {
+  }, async (request: FastifyRequest<{ Params: { groupId: string; modelId: string } }>, _reply: FastifyReply) => {
     const { groupId, modelId } = request.params;
 
     await fastify.db.execute(
@@ -365,7 +365,7 @@ export async function settingsRoutes(fastify: FastifyInstance) {
       tags: ['admin'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest<{ Params: { groupId: string } }>, reply: FastifyReply) => {
+  }, async (request: FastifyRequest<{ Params: { groupId: string } }>, _reply: FastifyReply) => {
     const { groupId } = request.params;
     const permissions = z.array(groupModelPermissionSchema).parse(request.body);
 
@@ -427,7 +427,7 @@ export async function settingsRoutes(fastify: FastifyInstance) {
       tags: ['admin'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest<{ Params: { groupId: string; userId: string } }>, reply: FastifyReply) => {
+  }, async (request: FastifyRequest<{ Params: { groupId: string; userId: string } }>, _reply: FastifyReply) => {
     const { groupId, userId } = request.params;
 
     await fastify.db.execute(

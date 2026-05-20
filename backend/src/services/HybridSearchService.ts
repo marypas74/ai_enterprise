@@ -3,7 +3,7 @@
  * Combines keyword-based retrieval (MySQL FULLTEXT) with semantic retrieval (Qdrant)
  */
 import { findMany } from '../database/index.js';
-import { recall, type MemoryPoint, type MemoryCollection } from './VectorMemoryService.js';
+import { recall, type MemoryCollection } from './VectorMemoryService.js';
 import type mysql from 'mysql2/promise';
 
 interface HybridResult {

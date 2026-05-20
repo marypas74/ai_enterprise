@@ -1,5 +1,4 @@
 import os from 'os';
-import fs from 'fs';
 import type { Pool } from 'mysql2/promise';
 import {
     queryPrometheus, getK8sToken, formatBytesBackend,

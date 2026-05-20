@@ -11,7 +11,7 @@
  * Each template can be overridden via hooks (agent_prompt_prefix, etc.)
  */
 
-import { findOne, findMany, insertOne, updateOne } from '../database/index.js';
+import { findMany, insertOne, updateOne } from '../database/index.js';
 import type mysql from 'mysql2/promise';
 
 export interface PromptTemplate {

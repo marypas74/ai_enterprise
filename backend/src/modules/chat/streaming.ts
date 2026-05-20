@@ -1,9 +1,34 @@
-import path from 'path';
 import { randomUUID } from 'crypto';
 import { FastifyInstance } from 'fastify';
 import { insertOne } from '../../database/index.js';
 import { Message } from '../ai/providers.js';
 import { SafetyResult } from './types.js';
+import type { FastifyReply } from 'fastify';
+
+/**
+ * DEBT-83-A: Write the terminal SSE done event with consistent finish_reason.
+ * All 4 completion paths (completions, agentic, FallbackChain error, AsyncQueueRunner)
+ * must use this helper to ensure uniform structure.
+ */
+export function writeSseDone(
+  reply: FastifyReply,
+  payload: {
+    conversationId?: number;
+    finishReason?: string | null;
+    iterations?: number;
+    error?: string;
+  },
+): void {
+  const event: Record<string, unknown> = {
+    content: '',
+    done: true,
+    finish_reason: payload.finishReason ?? null,
+  };
+  if (payload.conversationId !== undefined) event.conversationId = payload.conversationId;
+  if (payload.iterations !== undefined) event.iterations = payload.iterations;
+  if (payload.error !== undefined) event.error = payload.error;
+  reply.raw.write(`data: ${JSON.stringify(event)}\n\n`);
+}
 
 /**
  * Safe SSE write — silently skips if client disconnected.
@@ -324,7 +349,7 @@ export async function directConvertAttachment(
     const baseName = attachment.original_name?.replace(/\.[^.]+$/, '') || 'Documento';
     const docTitle = baseName.substring(0, 100);
 
-    const { generateDocxBuffer, convertOfficeToPdf, convertPdfToDocx } = await import('../../services/DocumentProcessorService.js');
+    const { generateDocxBuffer, convertOfficeToPdf } = await import('../../services/DocumentProcessorService.js');
     const fs = await import('fs/promises');
     const pathMod = await import('path');
     const generatedDir = pathMod.default.join(process.env.STORAGE_ROOT || process.cwd(), 'generated');

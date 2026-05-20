@@ -12,9 +12,9 @@
  */
 
 import { FastifyInstance } from 'fastify';
-import { insertOne, updateOne, findMany } from '../database/index.js';
+import { insertOne, updateOne } from '../database/index.js';
 import { chunkDocument, type DocumentChunk } from './ChunkingService.js';
-import { storeDeclarative, getAllCollectionsInfo, type MemoryPoint } from './VectorMemoryService.js';
+import { storeDeclarative } from './VectorMemoryService.js';
 import { eventBus, type HookContext } from './EventBusService.js';
 import type mysql from 'mysql2/promise';
 import { VisionPipelineService } from './VisionPipelineService.js';

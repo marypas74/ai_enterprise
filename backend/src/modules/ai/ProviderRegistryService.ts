@@ -35,6 +35,9 @@ export class ProviderRegistryService {
   private static refreshTimer: NodeJS.Timeout | null = null;
   private static pool: mysql.Pool | null = null;
   private static readonly REFRESH_INTERVAL_MS = 60_000;
+  // DEBT-83-D: track refresh errors for observability
+  private static lastRefreshError: string | null = null;
+  private static lastRefreshTs = 0;
 
   /**
    * Initialise the service. Must be called once after the DB pool is ready.
@@ -52,7 +55,7 @@ export class ProviderRegistryService {
     );
   }
 
-  /** Reload override map from DB. Silently swallows errors (non-critical). */
+  /** Reload override map from DB. Logs errors for observability (DEBT-83-D). */
   static async refresh(): Promise<void> {
     if (!ProviderRegistryService.pool) return;
     try {
@@ -70,9 +73,15 @@ export class ProviderRegistryService {
       }
       // Atomic swap — never leave the cache in a half-built state
       ProviderRegistryService.overrideCache = newCache;
-    } catch {
+      ProviderRegistryService.lastRefreshError = null;
+      ProviderRegistryService.lastRefreshTs = Date.now();
+    } catch (err: unknown) {
       // Non-critical: if the column doesn't exist yet (first deploy before migration)
       // we keep the existing cache and fall back to regex routing.
+      // DEBT-83-D: log the error so it's visible in pod logs
+      const msg = err instanceof Error ? err.message : String(err);
+      ProviderRegistryService.lastRefreshError = msg;
+      console.warn('[ProviderRegistryService] refresh failed:', msg);
     }
   }
 
@@ -82,6 +91,17 @@ export class ProviderRegistryService {
    */
   static getOverride(modelId: string): ProviderType | undefined {
     return ProviderRegistryService.overrideCache.get(modelId);
+  }
+
+  /**
+   * DEBT-83-D: Expose service status for health checks and diagnostics.
+   */
+  static getStatus(): { cacheSize: number; lastRefreshTs: number; lastRefreshError: string | null } {
+    return {
+      cacheSize: ProviderRegistryService.overrideCache.size,
+      lastRefreshTs: ProviderRegistryService.lastRefreshTs,
+      lastRefreshError: ProviderRegistryService.lastRefreshError,
+    };
   }
 
   /** Stop background refresh (useful in tests / graceful shutdown). */

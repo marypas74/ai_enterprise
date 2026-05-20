@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { findOne, findMany, insertOne, updateOne } from '../../database/index.js';
 import { AIProviderFactory, calculateCost } from '../ai/providers.js';
 import { agenticSchema, Conversation, DbMessage } from './types.js';
+import { writeSseDone } from './streaming.js';
 
 export async function agenticRoutes(fastify: FastifyInstance) {
 
@@ -24,6 +25,7 @@ export async function agenticRoutes(fastify: FastifyInstance) {
 
     try {
       const body = agenticSchema.parse(request.body);
+      const maxInferenceMsOverride: number | undefined = (request.body as Record<string, unknown>)?.maxInferenceMs as number | undefined;
       fastify.log.info(`[${reqId}] STEP 1b: Body parsed - Model: ${body.model}, Message length: ${body.message?.length || 0}`);
 
       // ECHO MODE TEST
@@ -172,10 +174,10 @@ export async function agenticRoutes(fastify: FastifyInstance) {
       let iteration = 0;
       const maxIterations = 10;
 
-      // DEBT-82-A: Per-tier hard timeout. Default 30000ms (balanced tier seed).
-      // The caller (completions.ts) may pass maxInferenceMs from RoutingDecision
-      // via body.maxInferenceMs when routing is used. Falls back to 30000.
-      const TIMEOUT_MS: number = (body as Record<string, unknown>).maxInferenceMs as number | undefined ?? 30000;
+      // DEBT-82-A / DEBT-83-E: Per-tier hard timeout. Default 30000ms (balanced tier seed).
+      // maxInferenceMs is NOT in agenticSchema (agentic endpoint) — read from raw body.
+      // When called from completions.ts via routing, the value is passed as raw body field.
+      const TIMEOUT_MS: number = maxInferenceMsOverride ?? 30000;
       let watchdogTimer: NodeJS.Timeout | null = null;
       let requestAborted = false;
 
@@ -187,12 +189,8 @@ export async function agenticRoutes(fastify: FastifyInstance) {
             const timeoutMsg = `TIMEOUT: No response after ${TIMEOUT_MS / 1000}s during "${context}"`;
             fastify.log.error(`[${reqId}] ${timeoutMsg}`);
             sendDebug(`${timeoutMsg}`);
-            reply.raw.write(`data: ${JSON.stringify({
-              error: 'REQUEST_TIMEOUT',
-              message: timeoutMsg,
-              context,
-              done: true
-            })}\n\n`);
+            // DEBT-83-A: use writeSseDone for consistent SSE done structure with finish_reason
+            writeSseDone(reply, { error: 'REQUEST_TIMEOUT', finishReason: null });
             reply.raw.end();
           }
         }, TIMEOUT_MS);
@@ -373,11 +371,8 @@ STRATEGY:
               source: 'backend',
               type: 'HARD_TIMEOUT'
             });
-            reply.raw.write(`data: ${JSON.stringify({
-              error: 'REQUEST_TIMEOUT_30S',
-              message: timeoutMsg,
-              done: true
-            })}\n\n`);
+            // DEBT-83-A: use writeSseDone for consistent SSE done structure
+            writeSseDone(reply, { error: 'REQUEST_TIMEOUT_30S', finishReason: null });
           } else {
             sendDebug(`ERROR in iteration ${iteration}: ${error.message}`);
             fastify.log.error({
@@ -386,7 +381,8 @@ STRATEGY:
               source: 'backend',
               error: error.stack
             });
-            reply.raw.write(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+            // DEBT-83-A: use writeSseDone for consistent SSE done structure
+            writeSseDone(reply, { error: error.message, finishReason: null });
           }
 
           reply.raw.end();
@@ -397,7 +393,8 @@ STRATEGY:
       clearWatchdog();
 
       sendDebug(`AGENT COMPLETE - ${iteration} iterations, ${tokensInput + tokensOutput} tokens used`);
-      reply.raw.write(`data: ${JSON.stringify({ content: '', done: true, conversationId, iterations: iteration })}\n\n`);
+      // DEBT-83-A: use writeSseDone for consistent SSE done structure with finish_reason
+      writeSseDone(reply, { conversationId, iterations: iteration, finishReason: 'stop' });
 
       // Save assistant message
       if (fullResponse) {

@@ -114,7 +114,7 @@ export function extractSearchQuery(message: string): string {
 
   // Detect specialized sources
   let siteFilter = '';
-  for (const [key, source] of Object.entries(SPECIALIZED_SOURCES)) {
+  for (const [, source] of Object.entries(SPECIALIZED_SOURCES)) {
     if (source.trigger.some(trigger => message.toLowerCase().includes(trigger))) {
       siteFilter = ` site:${source.domain}`;
       break;
@@ -167,7 +167,7 @@ export async function performWebSearch(query: string): Promise<WebSearchResponse
     try {
       return await performGoogleSearch(query);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
-    } catch (fallbackError: any) {
+    } catch {
       return {
         query,
         results: [],

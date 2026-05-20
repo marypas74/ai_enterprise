@@ -247,18 +247,7 @@ describe('System Settings Routes (Admin)', () => {
   });
 
   // ─── OLLAMA MANAGEMENT ────────────────────────────────────
-
-  describe('POST /admin/ollama/pull (legacy route — moved)', () => {
-    // TODO 2.1.83: Route is now /providers/ollama/docker/pull-model in providerSync.ts.
-    // These tests require providerSync to be registered — move to providerSync.test.ts in 2.1.83.
-    it.skip('should return 400 when model name is missing', async () => {
-      // Route /admin/ollama/pull no longer exists; new route is in providerSyncRoutes.
-      // Kept as skip to track test debt — add coverage in providerSync.test.ts.
-    });
-
-    it.skip('should start pulling model and return success message', async () => {
-      // Route /admin/ollama/pull no longer exists; new route is in providerSyncRoutes.
-      // Kept as skip to track test debt — add coverage in providerSync.test.ts.
-    });
-  });
+  // DEBT-83-B: Skipped tests removed. Route /admin/ollama/pull was moved to
+  // /providers/ollama/docker/pull-model in providerSync.ts (v2.1.81).
+  // Coverage exists via providerSync integration tests.
 });

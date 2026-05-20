@@ -78,7 +78,7 @@ export async function skillRoutes(fastify: FastifyInstance) {
       tags: ['skills'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
+  }, async (request: FastifyRequest, _reply: FastifyReply) => {
     const user = request.user as { role: string };
     const isAdmin = user.role === 'admin';
 
@@ -143,7 +143,7 @@ export async function skillRoutes(fastify: FastifyInstance) {
       tags: ['skills'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
+  }, async (request: FastifyRequest, _reply: FastifyReply) => {
     const body = createSkillSchema.parse(request.body);
 
     // Use upsert to handle re-installation of existing skills gracefully
@@ -201,7 +201,7 @@ export async function skillRoutes(fastify: FastifyInstance) {
       tags: ['skills'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+  }, async (request: FastifyRequest<{ Params: { id: string } }>, _reply: FastifyReply) => {
     const { id } = request.params;
     const body = updateSkillSchema.parse(request.body);
 
@@ -242,7 +242,7 @@ export async function skillRoutes(fastify: FastifyInstance) {
       tags: ['skills'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+  }, async (request: FastifyRequest<{ Params: { id: string } }>, _reply: FastifyReply) => {
     const { id } = request.params;
 
     await fastify.db.execute('DELETE FROM skills WHERE id = ?', [id]);
@@ -263,7 +263,7 @@ export async function skillRoutes(fastify: FastifyInstance) {
       tags: ['skills'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
+  }, async (request: FastifyRequest, _reply: FastifyReply) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request.user as any).id;
 
@@ -296,7 +296,7 @@ export async function skillRoutes(fastify: FastifyInstance) {
       tags: ['skills'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest<{ Params: { skillId: string } }>, reply: FastifyReply) => {
+  }, async (request: FastifyRequest<{ Params: { skillId: string } }>, _reply: FastifyReply) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request.user as any).id;
     const { skillId } = request.params;
@@ -324,7 +324,7 @@ export async function skillRoutes(fastify: FastifyInstance) {
       tags: ['skills'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest<{ Params: { skillId: string } }>, reply: FastifyReply) => {
+  }, async (request: FastifyRequest<{ Params: { skillId: string } }>, _reply: FastifyReply) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request.user as any).id;
     const { skillId } = request.params;
@@ -350,7 +350,7 @@ export async function skillRoutes(fastify: FastifyInstance) {
       tags: ['skills'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest<{ Params: { userId: string } }>, reply: FastifyReply) => {
+  }, async (request: FastifyRequest<{ Params: { userId: string } }>, _reply: FastifyReply) => {
     const { userId } = request.params;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
@@ -381,7 +381,7 @@ export async function skillRoutes(fastify: FastifyInstance) {
       tags: ['skills'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest<{ Params: { userId: string } }>, reply: FastifyReply) => {
+  }, async (request: FastifyRequest<{ Params: { userId: string } }>, _reply: FastifyReply) => {
     const { userId } = request.params;
     const skills = z.array(z.object({
       skill_id: z.number(),
@@ -418,7 +418,7 @@ export async function skillRoutes(fastify: FastifyInstance) {
       tags: ['skills'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
+  }, async (request: FastifyRequest, _reply: FastifyReply) => {
     const templates = await findAll<SkillTemplate>(
       fastify.db,
       'SELECT * FROM skill_templates WHERE is_active = TRUE ORDER BY display_name'
@@ -478,7 +478,7 @@ export async function skillRoutes(fastify: FastifyInstance) {
       tags: ['skills'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
+  }, async (request: FastifyRequest, _reply: FastifyReply) => {
     const body = createTemplateSchema.parse(request.body);
 
     const templateId = await insertOne(
@@ -499,7 +499,7 @@ export async function skillRoutes(fastify: FastifyInstance) {
       tags: ['skills'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+  }, async (request: FastifyRequest<{ Params: { id: string } }>, _reply: FastifyReply) => {
     const { id } = request.params;
 
     await fastify.db.execute('DELETE FROM skill_templates WHERE id = ?', [id]);

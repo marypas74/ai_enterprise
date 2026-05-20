@@ -253,11 +253,11 @@ export class ModelRouter {
          ORDER BY rt.tier_name,
            CASE WHEN p.provider_type IN ('vllm', 'ollama') THEN 0 ELSE 1 END,
            rt.priority ASC`
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
+       
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mysql2 RowDataPacket interop
       ) as any;
       // Runtime filter: log a warning for tier entries with no ai_models row
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
+       
       // but still include them (local provider may serve the model directly).
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mysql2 RowDataPacket interop
       for (const r of rows as any[]) {

@@ -4,8 +4,8 @@
  * Gracefully degrades when Qdrant is not available
  */
 
-import { generateEmbedding, generateEmbeddings, detectEmbeddingProvider, EmbeddingResult } from './EmbeddingService.js';
-import { insertOne, updateOne, findOne } from '../database/index.js';
+import { generateEmbedding, generateEmbeddings, detectEmbeddingProvider } from './EmbeddingService.js';
+import { updateOne } from '../database/index.js';
 import type mysql from 'mysql2/promise';
 import type { DocumentChunk } from './ChunkingService.js';
 

@@ -18,6 +18,7 @@ import { ModelConfigService } from '../../../services/ModelConfigService.js';
 import { recordProviderError, recordProviderSuccess, isProviderHealthy } from '../../../services/CircuitBreakerService.js';
 import { FALLBACK_MAP, isRetriableError } from '../context-builder.js';
 import { mapStreamErrorToUserMessage } from '../stream-error.js';
+import { writeSseDone } from '../streaming.js';
 
 export interface FallbackChainOptions {
   readonly error: unknown;
@@ -101,7 +102,8 @@ export async function runFallbackChain(
       } catch (fbError: any) {
         recordProviderError(fallbackModel);
         fastify.log.error(`[Chat] Fallback also failed: ${fbError.message}`);
-        reply.raw.write(`data: ${JSON.stringify({ error: 'Both primary and fallback models failed. Please try again later.', done: true })}\n\n`);
+        // DEBT-83-A: use writeSseDone for consistent SSE done structure with finish_reason
+        writeSseDone(reply, { error: 'Both primary and fallback models failed. Please try again later.', finishReason: null });
         reply.raw.end();
         return { fullResponse: '', providerName, usedFallback: false, abort: true, tokensInput: streamState.tokensInput, tokensOutput: streamState.tokensOutput };
       }
@@ -109,15 +111,16 @@ export async function runFallbackChain(
   }
 
   // Non-retriable error or no fallback available
-  reply.raw.write(`data: ${JSON.stringify({
+  // DEBT-83-A: use writeSseDone for consistent SSE done structure with finish_reason
+  writeSseDone(reply, {
     error: mapStreamErrorToUserMessage(errorMessage, {
       model,
       provider: providerName,
       availableModels: preflightAvailableModels,
       isParlant: isParlantAgent,
     }),
-    done: true,
-  })}\n\n`);
+    finishReason: null,
+  });
   reply.raw.end();
   return { fullResponse: '', providerName, usedFallback: false, abort: true, tokensInput: streamState.tokensInput, tokensOutput: streamState.tokensOutput };
 }

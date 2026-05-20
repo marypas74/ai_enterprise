@@ -28,6 +28,7 @@ export const completionSchema = z.preprocess(
     document_ids: z.array(z.number()).optional(),
     chat_mode: z.enum(['free', 'rag', 'brainstorm']).optional(),
     force_web_search: z.boolean().optional(),
+    maxInferenceMs: z.number().int().positive().optional(),
   }),
 );
 

@@ -1,6 +1,6 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
-import { findOne, findMany, insertOne, updateOne } from '../../database/index.js';
+import { findOne, findMany } from '../../database/index.js';
 import { MetricsService } from '../../services/MetricsService.js';
 import { requireAdmin } from '../../middleware/index.js';
 

@@ -9,8 +9,8 @@
  * Working memory is assembled on-the-fly per request (not stored in Qdrant).
  */
 
-import { generateEmbedding, generateEmbeddings, detectEmbeddingProvider } from './EmbeddingService.js';
-import { findOne, findMany, insertOne, updateOne } from '../database/index.js';
+import { generateEmbedding, detectEmbeddingProvider } from './EmbeddingService.js';
+import { findOne } from '../database/index.js';
 import type mysql from 'mysql2/promise';
 
 const QDRANT_URL = process.env.QDRANT_URL || 'http://localhost:6333';
@@ -48,10 +48,7 @@ export interface RecallOptions {
   proceduralThreshold?: number;
 }
 
-interface RecallConfig {
-  k: number;
-  threshold: number;
-}
+// RecallConfig reserved for future use
 
 // ---- Health ----
 

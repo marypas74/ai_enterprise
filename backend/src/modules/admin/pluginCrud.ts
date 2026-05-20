@@ -91,7 +91,7 @@ export async function pluginCrudRoutes(fastify: FastifyInstance) {
       tags: ['plugins'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
+  }, async (request: FastifyRequest, _reply: FastifyReply) => {
     const user = request.user as { role: string; id: number };
     const isAdmin = user.role === 'admin';
 
@@ -187,7 +187,7 @@ export async function pluginCrudRoutes(fastify: FastifyInstance) {
       tags: ['plugins'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
+  }, async (request: FastifyRequest, _reply: FastifyReply) => {
     const body = createPluginSchema.parse(request.body);
 
     const pluginId = await insertOne(
@@ -345,7 +345,7 @@ export async function pluginCrudRoutes(fastify: FastifyInstance) {
       tags: ['plugins'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
+  }, async (request: FastifyRequest, _reply: FastifyReply) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request.user as any).id;
 
@@ -376,7 +376,7 @@ export async function pluginCrudRoutes(fastify: FastifyInstance) {
       tags: ['plugins'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest<{ Params: { pluginId: string } }>, reply: FastifyReply) => {
+  }, async (request: FastifyRequest<{ Params: { pluginId: string } }>, _reply: FastifyReply) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request.user as any).id;
     const { pluginId } = request.params;
@@ -412,7 +412,7 @@ export async function pluginCrudRoutes(fastify: FastifyInstance) {
       tags: ['mcp'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
+  }, async (request: FastifyRequest, _reply: FastifyReply) => {
     const user = request.user as { role: string; id: number };
     const isAdmin = user.role === 'admin';
 
@@ -486,7 +486,7 @@ export async function pluginCrudRoutes(fastify: FastifyInstance) {
       tags: ['mcp'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
+  }, async (request: FastifyRequest, _reply: FastifyReply) => {
     const body = createMCPServerSchema.parse(request.body);
 
     const serverId = await insertOne(
@@ -517,7 +517,7 @@ export async function pluginCrudRoutes(fastify: FastifyInstance) {
       tags: ['mcp'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+  }, async (request: FastifyRequest<{ Params: { id: string } }>, _reply: FastifyReply) => {
     const { id } = request.params;
     const body = updateMCPServerSchema.parse(request.body);
 
@@ -558,7 +558,7 @@ export async function pluginCrudRoutes(fastify: FastifyInstance) {
       tags: ['mcp'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+  }, async (request: FastifyRequest<{ Params: { id: string } }>, _reply: FastifyReply) => {
     const { id } = request.params;
 
     await fastify.db.execute('DELETE FROM mcp_servers WHERE id = ?', [id]);
@@ -652,7 +652,7 @@ export async function pluginCrudRoutes(fastify: FastifyInstance) {
       tags: ['mcp'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
+  }, async (request: FastifyRequest, _reply: FastifyReply) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request.user as any).id;
 
@@ -682,7 +682,7 @@ export async function pluginCrudRoutes(fastify: FastifyInstance) {
       tags: ['mcp'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest<{ Params: { serverId: string } }>, reply: FastifyReply) => {
+  }, async (request: FastifyRequest<{ Params: { serverId: string } }>, _reply: FastifyReply) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request.user as any).id;
     const { serverId } = request.params;

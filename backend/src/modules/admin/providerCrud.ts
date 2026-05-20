@@ -88,7 +88,7 @@ export async function providerCrudRoutes(fastify: FastifyInstance) {
       tags: ['admin'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
+  }, async (_request: FastifyRequest, _reply: FastifyReply) => {
     const providers = await findAll<Provider>(
       fastify.db,
       `SELECT id, name, display_name, provider_type, is_enabled, is_local, config_schema, created_at, updated_at
@@ -156,7 +156,7 @@ export async function providerCrudRoutes(fastify: FastifyInstance) {
       tags: ['admin'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+  }, async (request: FastifyRequest<{ Params: { id: string } }>, _reply: FastifyReply) => {
     const { id } = request.params;
     const body = updateProviderSchema.parse(request.body);
 
@@ -395,7 +395,7 @@ export async function providerCrudRoutes(fastify: FastifyInstance) {
       tags: ['admin'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest<{ Querystring: { provider_id?: string } }>, reply: FastifyReply) => {
+  }, async (request: FastifyRequest<{ Querystring: { provider_id?: string } }>, _reply: FastifyReply) => {
     const { provider_id } = request.query;
 
     let query = `
@@ -425,7 +425,7 @@ export async function providerCrudRoutes(fastify: FastifyInstance) {
       tags: ['models'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
+  }, async (request: FastifyRequest, _reply: FastifyReply) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request.user as any).id;
 
@@ -570,7 +570,7 @@ export async function providerCrudRoutes(fastify: FastifyInstance) {
       tags: ['admin'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+  }, async (request: FastifyRequest<{ Params: { id: string } }>, _reply: FastifyReply) => {
     const { id } = request.params;
 
     await fastify.db.execute('DELETE FROM ai_models WHERE id = ?', [id]);

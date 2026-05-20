@@ -55,6 +55,7 @@ import { BiasMonitorService } from './modules/compliance/biasMonitorService.js';
 import { eventBus } from './services/EventBusService.js';
 import { HyDEService } from './services/HyDEService.js';
 import { AIProviderFactory } from './modules/ai/providers.js';
+import { ProviderRegistryService } from './modules/ai/ProviderRegistryService.js';
 import { AgentOrchestrator } from './services/AgentOrchestrator.js';
 import { AgentEventEmitter } from './services/AgentEventEmitter.js';
 import { LLMSyncWorker } from './services/LLMSyncWorker.js';
@@ -624,11 +625,11 @@ async function bootstrap() {
   // Database & Cache
   await fastify.register(databasePlugin);
 
-  // DEBT-82-F hotfix: initialise ProviderRegistryService cache from DB.
+  // DEBT-82-F / DEBT-83-F: initialise ProviderRegistryService cache from DB.
   // AIProviderFactory.getProviderName() consults this cache for provider_override
   // (e.g. qwen25vl:32b → vllm). Without init, the cache stays empty and the
   // fallback regex incorrectly routes `name:tag` models to Ollama.
-  const { ProviderRegistryService } = await import('./modules/ai/ProviderRegistryService.js');
+  // Static import (DEBT-83-F: removed dynamic import in favour of top-level import).
   await ProviderRegistryService.init(fastify.db);
   fastify.log.info('[ProviderRegistryService] initialised (DEBT-82-F)');
 

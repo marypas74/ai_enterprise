@@ -1,0 +1,38 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`writeSseDone — DEBT-83-A > snapshot: agentic completion path 1`] = `
+{
+  "content": "",
+  "conversationId": 200,
+  "done": true,
+  "finish_reason": "stop",
+  "iterations": 5,
+}
+`;
+
+exports[`writeSseDone — DEBT-83-A > snapshot: async queue done path 1`] = `
+{
+  "content": "",
+  "conversationId": 300,
+  "done": true,
+  "finish_reason": null,
+}
+`;
+
+exports[`writeSseDone — DEBT-83-A > snapshot: fallback chain error path 1`] = `
+{
+  "content": "",
+  "done": true,
+  "error": "Both primary and fallback models failed. Please try again later.",
+  "finish_reason": null,
+}
+`;
+
+exports[`writeSseDone — DEBT-83-A > snapshot: normal completion path (completions.ts) 1`] = `
+{
+  "content": "",
+  "conversationId": 100,
+  "done": true,
+  "finish_reason": "stop",
+}
+`;
