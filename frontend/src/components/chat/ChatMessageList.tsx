@@ -18,6 +18,7 @@ import AIGeneratedLabel from '../AIGeneratedLabel';
 import FeedbackButtons from '../FeedbackButtons';
 import SensitiveTopicWarning from '../SensitiveTopicWarning';
 import { downloadFile } from '../../utils/fileDownload';
+import RagSourcesBadges from './RagSourcesBadges';
 import { isNativePlatform } from '../../utils/platform';
 import { useAuthStore } from '../../hooks/useAuthStore';
 import { usePDFEditorStore } from '../../hooks/usePDFEditorStore';
@@ -292,6 +293,10 @@ export default function ChatMessageList({
                   </ReactMarkdown>
                 )}
               </div>
+              {/* v2.1.85: RAG sources attribution badges (documents + web fallback) */}
+              {message.role === 'assistant' && message.ragSources && (
+                <RagSourcesBadges sources={message.ragSources} />
+              )}
               {/* PDF Edit buttons — from message attachments or regex fallback */}
               {message.role === 'user' && (() => {
                 // Primary: use structured attachment data

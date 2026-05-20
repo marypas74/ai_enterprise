@@ -108,20 +108,36 @@ export async function runPromptInjection(
     }
   } else if (effectiveChatMode === 'rag') {
     fastify.log.info(`[Chat] RAG mode active for user ${userId}`);
-    const ragMemories = await injectRAGSystemPrompt(fastify, messages, {
+    const ragResult = await injectRAGSystemPrompt(fastify, messages, {
       userMessage,
       userId,
       documentIds,
     });
 
+    const ragChunks = ragResult.chunks;
+    const ragWebResults = ragResult.webResults;
+
     recalledVectorMemories = {
       episodic: [],
-      declarative: ragMemories.map(r => ({
-        id: r.id,
-        content: r.content,
-        score: r.score,
-        metadata: r.metadata || {},
-      })),
+      declarative: [
+        ...ragChunks.map((r: { id: unknown; content: string; score?: number; metadata?: Record<string, unknown> }) => ({
+          id: r.id,
+          content: r.content,
+          score: r.score,
+          metadata: { ...(r.metadata || {}), type: 'document' },
+        })),
+        ...ragWebResults.map((r, idx) => ({
+          id: `web_${idx}`,
+          content: r.snippet || r.title,
+          score: 1 - (idx * 0.05),
+          metadata: {
+            originalName: r.source || (() => { try { return new URL(r.url).hostname; } catch { return r.url || 'web'; } })(),
+            url: r.url,
+            title: r.title,
+            type: 'web_search',
+          },
+        })),
+      ],
       procedural: [],
     };
   } else {

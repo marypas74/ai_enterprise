@@ -12,7 +12,7 @@ import {
   createSseWriter, writeSseHeaders, sendInitialSseEvents, sendFastReply,
   recordTokenComponents, recordUsageAndAudit,
   isDirectConversionRequest, directConvertAttachment, detectDocumentFormat,
-  writeSseDone,
+  writeSseDone, sendRagSourcesEvent,
 } from './streaming.js';
 import { loadOrCreateConversation } from './context-builder.js';
 import { getModelRouter, type RoutingDecision } from '../../services/ModelRouter.js';
@@ -268,6 +268,9 @@ export async function completionRoutes(fastify: FastifyInstance) {
       const sseWrite = createSseWriter(reply);
 
       sendInitialSseEvents(sseWrite, { model: body.model, providerName, safetyResult, recalledVectorMemories });
+
+      // T4 (v2.1.85): emit sources event for RAG mode (documents + web fallback attribution)
+      sendRagSourcesEvent(sseWrite, { recalledVectorMemories });
 
       // Send routing decision to frontend if auto-routed
       if (routingDecision) {

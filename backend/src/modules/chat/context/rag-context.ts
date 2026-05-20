@@ -3,6 +3,23 @@ import { Message } from '../../ai/providers.js';
 import { searchCollection } from '../../../services/VectorMemoryService.js';
 import { findOne } from '../../../database/index.js';
 import { isSummaryQuery, fetchDocumentChunksForSummary } from './summary-detection.js';
+import { evaluateRagSufficiency, triggerWebFallback, buildAttributionContext } from '../runners/RagWebFallback.js';
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+export interface RagWebResult {
+  readonly title: string;
+  readonly url: string;
+  readonly snippet: string;
+  readonly source?: string;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
+export interface RagInjectionResult {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
+  readonly chunks: any[];
+  readonly webResults: RagWebResult[];
+}
 
 /**
  * Inject the user's guardrail/roadmap policy into the system prompt.
@@ -51,13 +68,14 @@ export async function injectRAGSystemPrompt(
     documentIds?: number[];
   }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
-): Promise<any[]> {
+): Promise<RagInjectionResult> {
   try {
     const summaryMode = isSummaryQuery(opts.userMessage);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     let results: { content: string; metadata: Record<string, any>; score?: number; id?: any; collection?: string }[];
     let contextBlock: string;
+    let webFallbackResults: RagWebResult[] = [];
 
     if (summaryMode) {
       // -- Summary mode: fetch distributed chunks covering the entire document --
@@ -74,12 +92,22 @@ export async function injectRAGSystemPrompt(
       }
     } else {
       // -- Specific query mode: semantic search as before --
+      // Read score threshold from system_settings (default 0.35). The DB value overrides the
+      // previous hardcoded 0.25 — we keep the search threshold slightly lower (0.20) to maximise
+      // recall, and apply the configurable threshold only when evaluating fallback necessity.
+      const thresholdRow = await findOne<{ setting_value: string }>(
+        fastify.db,
+        'SELECT setting_value FROM system_settings WHERE setting_key = ?',
+        ['rag_score_threshold']
+      );
+      const ragScoreThreshold = thresholdRow ? parseFloat(thresholdRow.setting_value) : 0.35;
+
       const rawResults = await searchCollection(
         fastify.db,
         'declarative_memory',
         opts.userMessage,
         10,  // top-k
-        0.25, // lower threshold to maximise recall in doc-only mode
+        0.20, // lower threshold for retrieval recall; fallback logic uses ragScoreThreshold
         opts.userId
       );
 
@@ -120,7 +148,52 @@ export async function injectRAGSystemPrompt(
 
       results = filtered;
 
-      if (filtered.length === 0) {
+      // \u2500\u2500 RAG Web Fallback (v2.1.85) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+      // Check if RAG context is sufficient; if not, augment with web search.
+      let usingWebFallback = false;
+
+      const { sufficient: ragSufficient } = evaluateRagSufficiency(filtered, ragScoreThreshold);
+
+      if (!ragSufficient && !summaryMode) {
+        // Read fallback settings from DB
+        const [fallbackEnabledRow, maxResultsRow] = await Promise.all([
+          findOne<{ setting_value: string }>(
+            fastify.db,
+            'SELECT setting_value FROM system_settings WHERE setting_key = ?',
+            ['rag_web_fallback_enabled']
+          ),
+          findOne<{ setting_value: string }>(
+            fastify.db,
+            'SELECT setting_value FROM system_settings WHERE setting_key = ?',
+            ['rag_web_max_results']
+          ),
+        ]);
+
+        const fallbackEnabled = (fallbackEnabledRow?.setting_value ?? 'true') === 'true';
+        const maxWebResults = maxResultsRow ? parseInt(maxResultsRow.setting_value, 10) : 5;
+
+        if (fallbackEnabled) {
+          fastify.log.info(
+            `[RAG-Fallback] Insufficient RAG context (${filtered.length} chunks, threshold=${ragScoreThreshold}), triggering web search for user ${opts.userId}`
+          );
+
+          // Trigger web search in parallel with building the partial RAG context
+          const fallbackData = await triggerWebFallback(opts.userMessage, filtered, maxWebResults);
+          webFallbackResults = [...fallbackData.webResults];
+          usingWebFallback = webFallbackResults.length > 0;
+
+          if (usingWebFallback) {
+            fastify.log.info(
+              `[RAG-Fallback] Web search returned ${webFallbackResults.length} results for user ${opts.userId}`
+            );
+          }
+        }
+      }
+
+      // Build context block \u2014 use combined attribution context if web fallback is active
+      if (usingWebFallback) {
+        contextBlock = buildAttributionContext(filtered, webFallbackResults);
+      } else if (filtered.length === 0) {
         contextBlock = '[Nessun contenuto rilevante trovato nei documenti caricati.]';
       } else {
         contextBlock = filtered
@@ -130,6 +203,7 @@ export async function injectRAGSystemPrompt(
     }
 
     // Use a different system prompt for summary vs specific queries
+    const isWebAugmented = typeof contextBlock === 'string' && contextBlock.includes('[WEB');
     const ragSystemPrompt = summaryMode
       ? `[MODALIT\u00c0 DOCUMENTI \u2014 RIASSUNTO]
 Hai ricevuto sezioni distribuite dall'intero documento dell'utente (campionate uniformemente per coprire tutto il contenuto).
@@ -140,6 +214,16 @@ Non inventare informazioni non presenti nelle sezioni.
 --- CONTENUTO DEL DOCUMENTO (${results.length} sezioni) ---
 ${contextBlock}
 --- FINE CONTENUTO ---
+
+IMPORTANT: Rispondi SEMPRE in italiano.`
+      : isWebAugmented
+      ? `[MODALIT\u00c0 DOCUMENTI + RICERCA WEB ATTIVA]
+I documenti dell'utente non contenevano informazioni sufficienti per questa domanda.
+Hai a disposizione sia estratti dai documenti (marcati [DOCUMENTO N]) sia risultati di ricerca web (marcati [WEB N]).
+Usa entrambe le fonti per rispondere in modo completo. Cita esplicitamente le fonti utilizzate.
+Non inventare informazioni. Per informazioni non trovate n\u00e9 nei documenti n\u00e9 sul web, dillo chiaramente.
+
+${contextBlock}
 
 IMPORTANT: Rispondi SEMPRE in italiano.`
       : `[MODALIT\u00c0 DOCUMENTI ATTIVA]
@@ -165,10 +249,10 @@ IMPORTANT: Rispondi SEMPRE in italiano.`;
     await injectGuardrailPolicy(fastify, messages, opts.userId);
 
     fastify.log.info(`[RAG] Injected ${results.length} chunks (${summaryMode ? 'summary' : 'specific'} mode) into system prompt for user ${opts.userId}`);
-    return results;
+    return { chunks: results, webResults: webFallbackResults };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   } catch (ragErr: any) {
     fastify.log.warn(`[RAG] System prompt injection failed: ${ragErr.message}`);
-    return [];
+    return { chunks: [], webResults: [] };
   }
 }

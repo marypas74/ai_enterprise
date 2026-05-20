@@ -66,7 +66,7 @@
 <body>
 <div class="container">
 
-<span class="version">v2.1.84 - ADMIN</span>
+<span class="version">v2.1.85 - ADMIN</span>
 <h1>Enterprise AI Chat</h1>
 <p class="subtitle">Guida Amministratore Completa - Configurazione, Gestione e Architettura del Sistema</p>
 
@@ -538,6 +538,18 @@
     <tr><td><code>HybridSearchService</code></td><td>Combinazione full-text + semantica</td></tr>
     <tr><td><code>MemoryDecayService</code></td><td>Decadimento basato su importanza</td></tr>
     <tr><td><code>HyDEService</code></td><td>Hypothetical Document Embeddings</td></tr>
+  </tbody>
+</table>
+
+<h3>Pagina Admin: RAG Settings (Novita v2.1.85)</h3>
+<p>Percorso: <code>/admin/rag-settings</code></p>
+<p>Pagina dedicata alla configurazione del modulo RAG e del nuovo <strong>fallback web automatico</strong>.</p>
+<table>
+  <thead><tr><th>Impostazione</th><th>Chiave DB</th><th>Default</th><th>Descrizione</th></tr></thead>
+  <tbody>
+    <tr><td>Abilita fallback web</td><td><code>rag_web_fallback_enabled</code></td><td><code>true</code></td><td>Attiva la ricerca web automatica quando RAG e insufficiente</td></tr>
+    <tr><td>Soglia score RAG</td><td><code>rag_score_threshold</code></td><td><code>0.35</code></td><td>Score minimo: sotto questa soglia si attiva il fallback. Range: 0.0-1.0</td></tr>
+    <tr><td>Risultati web massimi</td><td><code>rag_web_max_results</code></td><td><code>5</code></td><td>Numero massimo di risultati DuckDuckGo inclusi nel contesto (1-10)</td></tr>
   </tbody>
 </table>
 
@@ -1760,7 +1772,7 @@ bash BUILD.sh    # Richiede sudo: npm install, Docker build, MicroK8s import, K8
 </div>
 
 <div class="footer">
-  <p>Enterprise AI Chat v2.1.84 - Guida Amministratore</p>
+  <p>Enterprise AI Chat v2.1.85 - Guida Amministratore</p>
   <p>Documento riservato - Solo per personale autorizzato</p>
   <p>Conforme al Regolamento Europeo sull'AI (AI Act) e GDPR</p>
   <p>Ultimo aggiornamento: Maggio 2026</p>

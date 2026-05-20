@@ -946,17 +946,32 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
     fastify.log.warn({ err }, '[Migration] DEBT-82-F: provider_override seed skipped');
   }
 
-  // v2.1.84: Update app_version in system_settings to current version.
+  // v2.1.85: Update app_version in system_settings to current version.
   // Uses UPDATE with version comparison so re-running on an already-updated DB is a no-op.
   try {
     await pool.execute(
-      `UPDATE system_settings SET setting_value = '2.1.84'
-       WHERE setting_key = 'app_version' AND setting_value < '2.1.84'`
+      `UPDATE system_settings SET setting_value = '2.1.85'
+       WHERE setting_key = 'app_version' AND setting_value < '2.1.85'`
     );
-    fastify.log.info('[Migration] app_version updated to 2.1.84 (if behind)');
+    fastify.log.info('[Migration] app_version updated to 2.1.85 (if behind)');
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   } catch (err: any) {
     fastify.log.warn({ err }, '[Migration] app_version update skipped');
+  }
+
+  // v2.1.85: RAG Web Fallback settings
+  try {
+    await pool.execute(
+      `INSERT INTO system_settings (setting_key, setting_value, setting_type, description, is_public) VALUES
+        ('rag_web_fallback_enabled', 'true', 'boolean', 'Enable web search fallback when RAG context insufficient', TRUE),
+        ('rag_score_threshold', '0.35', 'number', 'RAG max chunk score threshold below which web fallback triggers', TRUE),
+        ('rag_web_max_results', '5', 'number', 'Max web search results to include in fallback', TRUE)
+       ON DUPLICATE KEY UPDATE setting_value = setting_value`
+    );
+    fastify.log.info('[Migration] v2.1.85: RAG web fallback settings seeded');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
+  } catch (err: any) {
+    fastify.log.warn({ err }, '[Migration] v2.1.85: RAG web fallback settings seed skipped');
   }
 
   // Seed AI Act compliance settings

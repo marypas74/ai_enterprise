@@ -55,7 +55,7 @@
 <body>
 <div class="container">
 
-<span class="version">v2.1.84</span>
+<span class="version">v2.1.85</span>
 <h1>Enterprise AI Chat</h1>
 <p class="subtitle">Guida Utente Completa - Piattaforma di Intelligenza Artificiale Conversazionale Enterprise</p>
 
@@ -399,6 +399,17 @@
     <tr><td>Upload bloccato in stato <em>processing</em></td><td>Documento di grandi dimensioni o pipeline vision in coda</td><td>Attendi qualche minuto; in caso persistente segnala a un amministratore</td></tr>
   </tbody>
 </table>
+
+<div class="card" style="border-color: #4f46e5;">
+  <div class="card-title">Novita v2.1.85 — Fallback Web automatico</div>
+  <p>Quando il documento non contiene informazioni sufficienti per rispondere, il sistema esegue automaticamente una <strong>ricerca web</strong> (DuckDuckGo) e integra i risultati nella risposta.</p>
+  <ul>
+    <li>La risposta mostra un banner: <em>"Risposta integrata con ricerca web"</em></li>
+    <li>I badge sotto la risposta indicano le fonti usate: icona documento per i tuoi file, icona globo per le pagine web</li>
+    <li>I badge web sono cliccabili e aprono la fonte originale</li>
+    <li>La funzionalita puo essere disabilitata dall'amministratore dalla sezione <strong>RAG Settings</strong></li>
+  </ul>
+</div>
 
 <!-- SECTION 8: MODIFICA PDF IN CHAT -->
 <h2 id="modifica-pdf">8. Modifica PDF in Chat</h2>
@@ -804,7 +815,7 @@
 </div>
 
 <div class="footer">
-  <p>Enterprise AI Chat v2.1.84 - Guida Utente</p>
+  <p>Enterprise AI Chat v2.1.85 - Guida Utente</p>
   <p>Questa piattaforma e conforme al Regolamento Europeo sull'AI (AI Act) - Articolo 50</p>
   <p>Documento generato automaticamente - Ultimo aggiornamento: Maggio 2026</p>
   <p>v2.1.82-83 — performance timeout configurabile, finish_reason in SSE, refactor completions.ts modular</p>

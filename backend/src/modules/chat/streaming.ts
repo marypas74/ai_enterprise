@@ -94,6 +94,54 @@ export function sendInitialSseEvents(
 }
 
 /**
+ * Send RAG sources event (T4 — v2.1.85).
+ * Emits a structured `sources` SSE event containing document and web source arrays
+ * so the frontend can render attribution badges before the LLM stream starts.
+ */
+export function sendRagSourcesEvent(
+  sseWrite: (data: string) => void,
+  opts: {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
+    recalledVectorMemories: { declarative: any[] } | null;
+  }
+): void {
+  if (!opts.recalledVectorMemories) return;
+
+  const declarative = opts.recalledVectorMemories.declarative || [];
+  if (declarative.length === 0) return;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
+  const documentSources = declarative
+    .filter((r: any) => r.metadata?.type !== 'web_search')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
+    .map((r: any) => ({
+      id: r.id,
+      name: r.metadata?.originalName || r.metadata?.source || 'Documento',
+      score: r.score ?? 0,
+    }));
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
+  const webSources = declarative
+    .filter((r: any) => r.metadata?.type === 'web_search')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
+    .map((r: any) => ({
+      url: r.metadata?.url || '',
+      title: r.metadata?.title || r.content?.substring(0, 80) || 'Web result',
+      snippet: r.content || '',
+    }));
+
+  if (documentSources.length === 0 && webSources.length === 0) return;
+
+  sseWrite(`data: ${JSON.stringify({
+    type: 'sources',
+    sources: {
+      documents: documentSources,
+      web: webSources,
+    },
+  })}\n\n`);
+}
+
+/**
  * Send fast-reply short-circuit response via SSE.
  */
 export function sendFastReply(

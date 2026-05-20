@@ -40,7 +40,8 @@ import {
   GitBranch,
   GitMerge,
   RotateCcw,
-  BookOpen
+  BookOpen,
+  FileSearch
 } from 'lucide-react';
 import clsx from 'clsx';
 import { format } from 'date-fns';
@@ -67,6 +68,7 @@ import PluginGraphPage from './admin/PluginGraphPage';
 import ComplianceDashboardPage from './admin/ComplianceDashboardPage';
 import PipelineVisualizerPage from './admin/PipelineVisualizerPage';
 import GuidesPage from './admin/GuidesPage';
+import RagSettingsPage from './admin/RagSettingsPage';
 
 interface User {
   id: number;
@@ -129,6 +131,7 @@ const NAV_ITEMS = [
   { path: '/admin/audit', icon: Shield, label: 'Audit Log' },
   { path: '/admin/debug', icon: Bug, label: 'Debug Console' },
   { path: '/admin/guides', icon: BookOpen, label: 'Guide' },
+  { path: '/admin/rag-settings', icon: FileSearch, label: 'RAG Settings' },
 ];
 
 function Overview() {
@@ -743,6 +746,7 @@ export default function AdminPage() {
           <Route path="/audit" element={<AuditLog />} />
           <Route path="/debug" element={<DebugPage />} />
           <Route path="/guides" element={<GuidesPage />} />
+          <Route path="/rag-settings" element={<RagSettingsPage />} />
         </Routes>
       </main>
     </div>

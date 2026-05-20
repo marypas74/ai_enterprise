@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { api, streamChat, generateDocument } from '../services/api';
+import { api, streamChat, generateDocument, type RagSources } from '../services/api';
 import { downloadFile } from '../utils/fileDownload';
 import { useDocumentStore } from './useDocumentStore';
 import { useAuthStore } from './useAuthStore';
@@ -28,6 +28,7 @@ export interface Message {
     declarative: any[];
     procedural: any[];
   };
+  ragSources?: RagSources;
 }
 
 export interface Model {
@@ -446,6 +447,17 @@ export function useChatMessages(currentConversationId: number | null): UseChatMe
         useDocumentStore.getState().chatMode !== 'free' ? useDocumentStore.getState().chatMode : undefined,
         // Force web search toggle
         forceWebSearch || undefined,
+        // v2.1.85: RAG sources callback (documents + web attribution)
+        (sources: RagSources) => {
+          setMessages(prev => {
+            const newMessages = [...prev];
+            const last = newMessages[newMessages.length - 1];
+            if (last && last.role === 'assistant') {
+              newMessages[newMessages.length - 1] = { ...last, ragSources: sources };
+            }
+            return newMessages;
+          });
+        },
       );
     } catch (err) {
       setIsStreaming(false);

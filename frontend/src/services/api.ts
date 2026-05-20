@@ -156,6 +156,12 @@ async function makeStreamRequest(
   });
 }
 
+// Type for RAG sources event (v2.1.85)
+export interface RagSources {
+  documents: Array<{ id: unknown; name: string; score: number }>;
+  web: Array<{ url: string; title: string; snippet: string }>;
+}
+
 // Helper to process a single SSE line and dispatch to callbacks
 function processSSELine(
   line: string,
@@ -166,6 +172,7 @@ function processSSELine(
   onThinking?: (content: string, done: boolean) => void,
   onVectorMemories?: (memories: { episodic: any[]; declarative: any[]; procedural: any[] }) => void,
   onRouting?: (routing: { tier: string; model: string; reason: string; confidence: number; effort: string }) => void,
+  onSources?: (sources: RagSources) => void,
 ): boolean {
   if (!line.startsWith('data: ')) return false;
   try {
@@ -180,6 +187,8 @@ function processSSELine(
       }));
     }
     if (data.type === 'vector_memories' && data.memories && onVectorMemories) onVectorMemories(data.memories);
+    // v2.1.85: RAG sources event (documents + web attribution)
+    if (data.type === 'sources' && data.sources && onSources) onSources(data.sources as RagSources);
     if (data.thinking && onThinking) onThinking(data.thinking, false);
     if (data.thinkingDone && onThinking) onThinking('', true);
     if (data.content) onChunk(data.content);
@@ -277,6 +286,7 @@ export async function streamChat(
   documentIds?: number[],
   chatMode?: string,
   forceWebSearch?: boolean,
+  onSources?: (sources: RagSources) => void,
 ): Promise<void> {
   // On native platforms, use capacitor-stream-http for real native streaming
   if (isNativePlatform()) {
@@ -319,13 +329,13 @@ export async function streamChat(
       const lines = buffer.split('\n');
       buffer = lines.pop() || '';
       for (const line of lines) {
-        if (processSSELine(line, onChunk, onDone, onError, convId, onThinking, onVectorMemories, onRouting)) return;
+        if (processSSELine(line, onChunk, onDone, onError, convId, onThinking, onVectorMemories, onRouting, onSources)) return;
       }
     }
   } else {
     const text = await response.text();
     for (const line of text.split('\n')) {
-      if (processSSELine(line, onChunk, onDone, onError, convId, onThinking, onVectorMemories, onRouting)) return;
+      if (processSSELine(line, onChunk, onDone, onError, convId, onThinking, onVectorMemories, onRouting, onSources)) return;
     }
   }
 }
