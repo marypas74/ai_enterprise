@@ -1,6 +1,6 @@
 {
   "name": "enterprise-ai-chat-frontend",
-  "version": "2.1.86",
+  "version": "2.1.87",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -29,6 +29,7 @@
     "@capacitor/splash-screen": "^6.0.4",
     "@capacitor/status-bar": "^6.0.3",
     "@capacitor/toast": "^6.0.4",
+    "@testing-library/dom": "^10.4.1",
     "@tiptap/extension-image": "^3.20.4",
     "@tiptap/extension-table": "^3.20.4",
     "@tiptap/extension-table-cell": "^3.20.4",

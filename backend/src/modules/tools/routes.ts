@@ -14,7 +14,7 @@ const docGenRateLimit = {
     }
 };
 import { generateDocxBuffer, generateExcelBuffer, generatePptxBuffer, convertOfficeToPdf } from '../../services/DocumentProcessorService.js';
-import { findOne, findMany, insertOne } from '../../database/index.js';
+import { findOne, insertOne } from '../../database/index.js';
 import { pdfEditorRoutes } from './pdfEditorRoutes.js';
 import { onlyofficeRoutes } from './onlyofficeRoutes.js';
 import fs from 'fs/promises';

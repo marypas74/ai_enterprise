@@ -3,7 +3,7 @@ import type { AIProvider, CompletionOptions, CompletionResult, ProviderConfig, S
 
 // Custom OpenAI-compatible Provider
 export class CustomProvider implements AIProvider {
-  name: 'custom' = 'custom';
+  name = 'custom' as const;
   private client: OpenAI;
 
   constructor(config: ProviderConfig) {

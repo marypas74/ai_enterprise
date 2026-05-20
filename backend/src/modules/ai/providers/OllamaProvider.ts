@@ -3,7 +3,7 @@ import { getCachedExists, setCachedExists } from './modelExistsCache.js';
 
 // Ollama Provider (Local LLMs) - With Debug Logging
 export class OllamaProvider implements AIProvider {
-  name: 'ollama' = 'ollama';
+  name = 'ollama' as const;
   private baseUrl: string;
   private timeout: number;
   private keepAlive: string;

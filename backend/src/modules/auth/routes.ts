@@ -463,7 +463,7 @@ export async function authRoutes(fastify: FastifyInstance) {
         }
       }
     }
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
+  }, async (request: FastifyRequest, _reply: FastifyReply) => {
     const payload = request.user as { id: number };
     const { guardrail_policy } = request.body as { guardrail_policy: string | null };
 

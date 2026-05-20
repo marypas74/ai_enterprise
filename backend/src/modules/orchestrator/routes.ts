@@ -16,7 +16,7 @@ export async function orchestratorRoutes(fastify: FastifyInstance) {
       tags: ['orchestrator'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest) => {
+  }, async (_request: FastifyRequest) => {
     const metrics = await AgentOrchestrator.getDashboardMetrics(fastify.db);
     return {
       status: 'online',

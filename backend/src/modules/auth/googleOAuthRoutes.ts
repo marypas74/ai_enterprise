@@ -59,7 +59,7 @@ export async function googleOAuthRoutes(fastify: FastifyInstance) {
       tags: ['auth', 'google'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
+  }, async (request: FastifyRequest, _reply: FastifyReply) => {
     const user = request.user as { id: number };
 
     const isConfigured = oauthService.isConfigured();

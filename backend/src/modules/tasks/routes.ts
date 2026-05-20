@@ -124,7 +124,7 @@ export async function taskRoutes(fastify: FastifyInstance) {
       tags: ['tasks'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest<{ Params: { projectId: string } }>, reply: FastifyReply) => {
+  }, async (request: FastifyRequest<{ Params: { projectId: string } }>, _reply: FastifyReply) => {
     const { projectId } = request.params;
 
     // Get all cards with column names
@@ -311,7 +311,7 @@ export async function taskRoutes(fastify: FastifyInstance) {
       tags: ['tasks'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest<{ Params: { taskId: string } }>, reply: FastifyReply) => {
+  }, async (request: FastifyRequest<{ Params: { taskId: string } }>, _reply: FastifyReply) => {
     const { taskId } = request.params;
 
     await fastify.db.execute('DELETE FROM kanban_cards WHERE id = ?', [taskId]);

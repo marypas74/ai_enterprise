@@ -34,7 +34,7 @@ function buildTokenParam(model: string, maxTokens?: number): Record<string, numb
 
 // OpenAI Provider
 export class OpenAIProvider implements AIProvider {
-  name: 'openai' = 'openai';
+  name = 'openai' as const;
   private client: OpenAI;
   private apiKey: string;
   private baseUrl: string;

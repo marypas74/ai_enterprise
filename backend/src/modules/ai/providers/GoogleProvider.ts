@@ -4,7 +4,7 @@ import { verifyModelExistsHttp } from './modelExistsHttp.js';
 
 // Google Gemini Provider (supports both API key and OAuth)
 export class GoogleProvider implements AIProvider {
-  name: 'google' = 'google';
+  name = 'google' as const;
   private client: GoogleGenAI;
   private userId?: number;
   private apiKey: string;
@@ -54,7 +54,7 @@ export class GoogleProvider implements AIProvider {
     // Build prompt with history
     const systemMessage = options.messages.find(m => m.role === 'system');
     const conversationMessages = options.messages.filter(m => m.role !== 'system');
-    const lastMessage = conversationMessages[conversationMessages.length - 1];
+    const _lastMessage = conversationMessages[conversationMessages.length - 1];
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const response = await (this.client.models as any).generateContent({

@@ -5,7 +5,7 @@ import path from 'path';
 import { dataExportSchema, UserPayload, safeParseInt, getRealIp } from './utils.js';
 
 // ── Background helper ────────────────────────────────────────────────
-async function generateDataExport(fastify: FastifyInstance, userId: number, exportId: number, format: string): Promise<void> {
+async function generateDataExport(fastify: FastifyInstance, userId: number, exportId: number, _format: string): Promise<void> {
   // Helper: run a query safely, return fallback on error (e.g. missing table)
   const safeQuery = async <T>(queryFn: () => Promise<T>, fallback: T): Promise<T> => {
     try { return await queryFn(); } catch (err) {
@@ -180,7 +180,7 @@ export async function dataExportRoutes(fastify: FastifyInstance) {
   fastify.get('/compliance/data-exports', {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
-  }, async (request, reply) => {
+  }, async (request, _reply) => {
     const user = request.user as UserPayload;
     const exports = await findMany<{ id: number; status: string; format: string; requested_at: string; completed_at: string | null }>(
       fastify.db,

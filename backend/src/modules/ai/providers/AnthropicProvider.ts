@@ -5,7 +5,7 @@ import { verifyModelExistsHttp } from './modelExistsHttp.js';
 
 // Anthropic Provider (supports both API key and OAuth token)
 export class AnthropicProvider implements AIProvider {
-  name: 'anthropic' = 'anthropic';
+  name = 'anthropic' as const;
   private client: Anthropic | null = null;
   private oauthToken: string | null = null;
   private apiKey: string | null = null;

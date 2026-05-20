@@ -49,7 +49,7 @@ export async function projectCrudRoutes(fastify: FastifyInstance) {
         kanbanEnabled: g.kanban_enabled === true || (g.kanban_enabled as unknown) === 1
       }));
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
-    } catch (err: any) {
+    } catch {
       // Column doesn't exist, just get group names
       const groupsResult = await findAll<{ name: string }>(
         fastify.db,
@@ -175,7 +175,7 @@ export async function projectCrudRoutes(fastify: FastifyInstance) {
       tags: ['projects'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
+  }, async (request: FastifyRequest, _reply: FastifyReply) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request.user as any).id;
     const body = createProjectSchema.parse(request.body);

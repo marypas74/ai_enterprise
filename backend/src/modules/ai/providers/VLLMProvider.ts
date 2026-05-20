@@ -14,7 +14,7 @@ import type { AIProvider, CompletionOptions, CompletionResult, ProviderConfig, S
  *  - Reasoning/thinking via vLLM's reasoning_content field
  */
 export class VLLMProvider implements AIProvider {
-  readonly name: 'vllm' = 'vllm';
+  readonly name = 'vllm' as const;
   private readonly client: OpenAI;
   private readonly timeout: number;
   private readonly healthUrl: string;

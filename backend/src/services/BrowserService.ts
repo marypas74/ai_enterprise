@@ -15,6 +15,7 @@ interface PageContent {
   tables: string[][];
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- reserved for future session tracking
 interface BrowserSession {
   id: string;
   createdAt: Date;

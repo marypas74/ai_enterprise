@@ -117,10 +117,18 @@ export function evaluateRagSufficiency(
  * @param ragChunks  Retrieved RAG chunks (passed for context, not sent externally)
  * @param maxResults Maximum number of web results to return
  */
+// ── Optional logger interface ─────────────────────────────────────────────────
+
+interface OptionalLogger {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
+  warn?: (obj: any, msg?: string) => void;
+}
+
 export async function triggerWebFallback(
   query: string,
   _ragChunks: readonly RagChunk[],
-  maxResults: number
+  maxResults: number,
+  logger?: OptionalLogger
 ): Promise<WebFallbackResult> {
   try {
     // Anonymise query: strip any potential user identifiers
@@ -143,8 +151,9 @@ export async function triggerWebFallback(
     }));
 
     return { webResults };
-  } catch {
-    // Network errors or parse failures must not crash the chat flow
+  } catch (err: unknown) {
+    // DEBT-87-I: log warn with stack trace — logger is optional (not available in all call sites)
+    logger?.warn?.({ err }, '[RagWebFallback] triggerWebFallback failed') ?? console.warn('[RagWebFallback] triggerWebFallback failed:', err);
     return { webResults: [] };
   }
 }
@@ -214,18 +223,25 @@ export async function readSettingCached(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   db: any,
   key: string,
-  defaultValue: string
+  defaultValue: string,
+  logger?: OptionalLogger
 ): Promise<string> {
   const cached = settingsCache.get(key);
   if (cached && Date.now() - cached.ts < SETTINGS_CACHE_TTL_MS) {
     return cached.value;
   }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
-  const { findOne: dbFindOne } = await import('../../../database/index.js') as any;
-  const row = await dbFindOne(db, 'SELECT setting_value FROM system_settings WHERE setting_key=?', [key]);
-  const value: string = row?.setting_value ?? defaultValue;
-  settingsCache.set(key, { value, ts: Date.now() });
-  return value;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
+    const { findOne: dbFindOne } = await import('../../../database/index.js') as any;
+    const row = await dbFindOne(db, 'SELECT setting_value FROM system_settings WHERE setting_key=?', [key]);
+    const value: string = row?.setting_value ?? defaultValue;
+    settingsCache.set(key, { value, ts: Date.now() });
+    return value;
+  } catch (err: unknown) {
+    // DEBT-87-I: log warn with stack trace on DB error, fall back to default
+    logger?.warn?.({ err }, `[RagWebFallback] readSettingCached failed for key=${key}, using default=${defaultValue}`) ?? console.warn(`[RagWebFallback] readSettingCached failed for key=${key}:`, err);
+    return defaultValue;
+  }
 }
 
 // ── Internal helpers ──────────────────────────────────────────────────────────

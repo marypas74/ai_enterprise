@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { AgentOrchestrator, CreateSessionDTO } from '../../services/AgentOrchestrator.js';
 import { WorktreeManager } from '../../services/WorktreeManager.js';
 import { AgentEventEmitter } from '../../services/AgentEventEmitter.js';
-import { findOne, findMany } from '../../database/index.js';
+// findOne and findMany reserved for future agent persistence queries
 
 // Validation schemas
 const createSessionSchema = z.object({
@@ -72,7 +72,7 @@ export async function agentRoutes(fastify: FastifyInstance) {
         }
       }
     }
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
+  }, async (request: FastifyRequest, _reply: FastifyReply) => {
     const user = request.user as { id: number };
     const query = request.query as { status?: string; limit?: string; offset?: string };
 

@@ -203,6 +203,7 @@ function processSSELine(
 }
 
 // Native streaming using capacitor-stream-http plugin (bypasses WebView fetch entirely)
+// E1 DEBT-87-N: extended signature to include onSources (mirrors streamChat web signature)
 async function streamChatNative(
   model: string,
   message: string,
@@ -219,6 +220,7 @@ async function streamChatNative(
   documentIds?: number[],
   chatMode?: string,
   forceWebSearch?: boolean,
+  onSources?: (sources: RagSources) => void,
 ): Promise<void> {
   const token = useAuthStore.getState().accessToken || '';
   const { StreamHttp } = await import('capacitor-stream-http');
@@ -241,7 +243,8 @@ async function streamChatNative(
       const lines = buffer.split('\n');
       buffer = lines.pop() || '';
       for (const line of lines) {
-        if (processSSELine(line, onChunk, onDone, onError, 0, onThinking, onVectorMemories, onRouting)) {
+        // E1 DEBT-87-N: pass onSources so Capacitor mobile receives sources events
+        if (processSSELine(line, onChunk, onDone, onError, 0, onThinking, onVectorMemories, onRouting, onSources)) {
           done();
           return;
         }
@@ -290,7 +293,8 @@ export async function streamChat(
 ): Promise<void> {
   // On native platforms, use capacitor-stream-http for real native streaming
   if (isNativePlatform()) {
-    return streamChatNative(model, message, onChunk, onDone, onError, conversationId, systemPrompt, attachmentIds, onThinking, onVectorMemories, onRouting, useRag, documentIds, chatMode, forceWebSearch);
+    // E1 DEBT-87-N: forward onSources to native implementation
+    return streamChatNative(model, message, onChunk, onDone, onError, conversationId, systemPrompt, attachmentIds, onThinking, onVectorMemories, onRouting, useRag, documentIds, chatMode, forceWebSearch, onSources);
   }
 
   // Desktop: standard fetch + ReadableStream

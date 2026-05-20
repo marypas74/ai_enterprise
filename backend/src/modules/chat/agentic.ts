@@ -1,15 +1,16 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import path from 'path';
 import { z } from 'zod';
 import { findOne, findMany, insertOne, updateOne } from '../../database/index.js';
 import { AIProviderFactory, calculateCost } from '../ai/providers.js';
 import { agenticSchema, Conversation, DbMessage } from './types.js';
 import { writeSseDone } from './streaming.js';
+// DEBT-87-J: agentic loop extracted to AgenticStreamRunner
+import { runAgenticLoop } from './runners/AgenticStreamRunner.js';
 
 export async function agenticRoutes(fastify: FastifyInstance) {
 
   fastify.post('/agentic', {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- fastify.authenticate is a JWT plugin decoration not in FastifyInstance type
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Agentic chat with tool support for file operations',
@@ -20,12 +21,10 @@ export async function agenticRoutes(fastify: FastifyInstance) {
     const user = request.user as { id: number };
     const reqId = `AG-${Date.now()}`;
 
-    fastify.log.info(`[${reqId}] ============ AGENTIC CHAT REQUEST ============`);
-    fastify.log.info(`[${reqId}] STEP 1: User: ${user.id}, Time: ${new Date().toISOString()}`);
+    fastify.log.info(`[${reqId}] Agentic request — user: ${user.id}`);
 
     try {
       const body = agenticSchema.parse(request.body);
-      fastify.log.info(`[${reqId}] STEP 1b: Body parsed - Model: ${body.model}, Message length: ${body.message?.length || 0}`);
 
       // ECHO MODE TEST
       if (body.message.startsWith('/test')) {
@@ -49,7 +48,6 @@ export async function agenticRoutes(fastify: FastifyInstance) {
       // Dynamically import tool service
       const { executeTool } = await import('../../services/ToolService.js');
 
-      // Validate projectId - fallback to default if invalid
       let validProjectId = body.projectId;
       if (!validProjectId || validProjectId === 0 || validProjectId < 1) {
         fastify.log.warn(`[${reqId}] Invalid projectId: ${body.projectId} - attempting to use user's first project`);
@@ -95,15 +93,11 @@ export async function agenticRoutes(fastify: FastifyInstance) {
         log: fastify.log
       };
 
-      // Ensure project folder exists
       const { createProjectFolder } = await import('../../services/StorageService.js');
       await createProjectFolder(toolContext.userName, toolContext.projectName);
 
-      // Get tool definitions
       const { selectTools: agenticSelectTools } = await import('../../services/ToolSelectionService.js');
       const tools = body.enableTools ? agenticSelectTools(body.message) : [];
-
-      // Build messages
       let conversationId = body.conversationId;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       let messages: { role: 'user' | 'assistant' | 'system' | 'tool'; content: any; tool_calls?: any[]; tool_call_id?: string; name?: string }[] = [];
@@ -126,7 +120,7 @@ export async function agenticRoutes(fastify: FastifyInstance) {
         );
 
         messages = dbMessages.map(m => ({
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- DbMessage.role is 'system'|'user'|'assistant'; messages union also needs 'tool' for tool-call turns
           role: m.role as any,
           content: m.content
         }));
@@ -140,7 +134,6 @@ export async function agenticRoutes(fastify: FastifyInstance) {
         );
       }
 
-      // Add user message
       messages.push({ role: 'user', content: body.message });
       await insertOne(
         fastify.db,
@@ -148,7 +141,6 @@ export async function agenticRoutes(fastify: FastifyInstance) {
         [conversationId, 'user', body.message]
       );
 
-      // Set up SSE streaming
       reply.hijack();
       reply.raw.writeHead(200, {
         'Content-Type': 'text/event-stream',
@@ -161,21 +153,17 @@ export async function agenticRoutes(fastify: FastifyInstance) {
         fastify.log.info(`[AGENTIC-DEBUG] ${msg}`);
       };
 
-      // AI provider setup
       const providerName = AIProviderFactory.getProviderName(body.model);
       const provider = AIProviderFactory.getProvider(body.model);
-      fastify.log.info(`[${reqId}] STEP 2: Using provider ${providerName} for model ${body.model}`);
+      fastify.log.info(`[${reqId}] provider=${providerName}, model=${body.model}`);
 
-      // Agentic loop
       let fullResponse = '';
       let tokensInput = 0;
       let tokensOutput = 0;
       let iteration = 0;
       const maxIterations = 10;
 
-      // DEBT-82-A / DEBT-83-E / DEBT-84-F: Per-tier hard timeout. Default 30000ms (balanced tier seed).
-      // maxInferenceMs is now part of agenticSchema — no cast needed.
-      const TIMEOUT_MS: number = body.maxInferenceMs ?? 30000;
+      const TIMEOUT_MS: number = body.maxInferenceMs ?? 30000; // per-tier hard timeout
       let watchdogTimer: NodeJS.Timeout | null = null;
       let requestAborted = false;
 
@@ -203,11 +191,11 @@ export async function agenticRoutes(fastify: FastifyInstance) {
 
       resetWatchdog('initial_connection');
 
-      // DEBT-84-D: Keepalive interval — prevents Cloudflare 524 on long agentic runs (>100s)
-      const keepaliveInterval = setInterval(() => {
+      // Keepalive prevents Cloudflare 524; declared nullable for DEBT-87-K safe clearInterval
+      let keepaliveInterval: NodeJS.Timeout | null = setInterval(() => {
         if (!reply.raw.destroyed) reply.raw.write('data: {"type":"keepalive"}\n\n');
       }, 25000);
-      reply.raw.on('close', () => { clearInterval(keepaliveInterval); });
+      reply.raw.on('close', () => { if (keepaliveInterval) { clearInterval(keepaliveInterval); keepaliveInterval = null; } });
 
       // Send immediate "thinking" notification
       reply.raw.write(`data: ${JSON.stringify({ status: 'thinking', message: 'Connecting to AI...', reqId })}\n\n`);
@@ -238,171 +226,44 @@ STRATEGY:
 - Always produce complete, working output -- never leave placeholders
 - After completing work, briefly explain what you did`;
 
-      // Inject system prompt if not present
       if (!messages.find(m => m.role === 'system')) {
         messages.unshift({ role: 'system', content: systemPrompt });
       }
 
-      // Track real download URLs from document generation tools
-      const generatedDownloads: { downloadUrl: string; downloadFilename: string; displayName: string }[] = [];
+      // DEBT-87-J: delegate streaming + tool loop to AgenticStreamRunner
+      const loopResult = await runAgenticLoop(messages, {
+        provider,
+        model: body.model,
+        tools,
+        maxIterations,
+        reqId,
+        reply,
+        log: fastify.log,
+        sendDebug,
+        resetWatchdog,
+        clearWatchdog,
+        clearKeepalive: () => { if (keepaliveInterval) { clearInterval(keepaliveInterval); keepaliveInterval = null; } },
+        toolContext,
+        executeTool,
+        timeoutMs: TIMEOUT_MS,
+      });
 
-      while (iteration < maxIterations && !requestAborted) {
-        iteration++;
-        resetWatchdog(`iteration_${iteration}_start`);
-        sendDebug(`Iteration ${iteration}/${maxIterations} - Calling AI...`);
-        fastify.log.info(`[${reqId}] STEP 3: Starting iteration ${iteration}, messages count: ${messages.length}`);
+      if (loopResult.handled) return;
 
-        try {
-          const apiStartTime = Date.now();
-
-          const response = await provider.complete({
-            model: body.model,
-            messages,
-            maxTokens: 4096,
-            temperature: 0.7,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
-            tools: tools as any
-          });
-
-          resetWatchdog(`iteration_${iteration}_processing`);
-          const apiDuration = Date.now() - apiStartTime;
-          sendDebug(`AI responded in ${apiDuration}ms`);
-          fastify.log.info(`[${reqId}] STEP 3b: Provider responded in ${apiDuration}ms`);
-
-          tokensInput += response.tokensInput;
-          tokensOutput += response.tokensOutput;
-
-          if (response.content) {
-            let content = response.content;
-            // Fix AI-hallucinated download links
-            if (generatedDownloads.length > 0) {
-              content = content.replace(
-                /\[([^\]]*)\]\(\/api\/tools\/download\/[^)]+\)/g,
-                () => {
-                  const dl = generatedDownloads[generatedDownloads.length - 1];
-                  return `[Scarica ${dl.displayName}](${dl.downloadUrl})`;
-                }
-              );
-            }
-            fullResponse += content;
-            reply.raw.write(`data: ${JSON.stringify({ content, done: false, iteration })}\n\n`);
-          }
-
-          // Process tool calls
-          const toolCalls = response.toolCalls;
-          if (toolCalls && toolCalls.length > 0) {
-            sendDebug(`Processing ${toolCalls.length} tool calls...`);
-            fastify.log.info(`[${reqId}] STEP 4: Tool calls detected: ${toolCalls.length}`);
-
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
-            const toolResults: any[] = [];
-
-            messages.push({
-              role: 'assistant',
-              content: response.content || '',
-              tool_calls: toolCalls
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
-            } as any);
-
-            for (const toolCall of toolCalls) {
-              const name = toolCall.function?.name || toolCall.name;
-              const input = typeof toolCall.function?.arguments === 'string'
-                ? JSON.parse(toolCall.function.arguments)
-                : (toolCall.function?.arguments || toolCall.input);
-              const id = toolCall.id;
-
-              sendDebug(`Tool: ${name}`);
-
-              reply.raw.write(`data: ${JSON.stringify({
-                toolUse: { name, input },
-                done: false,
-                iteration
-              })}\n\n`);
-
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
-              let result: { success: boolean; output?: any; error?: string };
-              try {
-                resetWatchdog(`tool_${name}`);
-                result = await executeTool(name, input, toolContext);
-                resetWatchdog(`tool_${name}_done`);
-                sendDebug(`${name} result: ${result.success ? 'Success' : 'Error'}`);
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
-              } catch (toolError: any) {
-                sendDebug(`${name} crashed: ${toolError.message}`);
-                result = { success: false, error: toolError.message };
-              }
-
-              // Track download URLs from document generation tools
-              if (result.success && result.output?.downloadUrl && result.output?.downloadFilename) {
-                generatedDownloads.push({
-                  downloadUrl: result.output.downloadUrl,
-                  downloadFilename: result.output.downloadFilename,
-                  displayName: result.output.path ? path.basename(result.output.path) : result.output.downloadFilename
-                });
-              }
-
-              reply.raw.write(`data: ${JSON.stringify({
-                toolResult: { name, success: result.success, output: result.output, error: result.error },
-                done: false,
-                iteration
-              })}\n\n`);
-
-              toolResults.push({
-                role: 'tool',
-                tool_call_id: id,
-                name: name,
-                content: result.success ? JSON.stringify(result.output) : `Error: ${result.error}`
-              });
-            }
-
-            messages.push(...toolResults);
-          } else {
-            // No tool calls, loop finished
-            break;
-          }
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
-        } catch (error: any) {
-          clearWatchdog();
-          const isAbort = error.name === 'AbortError' || error.message?.includes('abort');
-
-          if (isAbort) {
-            const timeoutMsg = `TIMEOUT: Request aborted after ${TIMEOUT_MS / 1000}s - AI model did not respond`;
-            sendDebug(timeoutMsg);
-            fastify.log.error({
-              msg: timeoutMsg,
-              reqId,
-              iteration,
-              source: 'backend',
-              type: 'HARD_TIMEOUT'
-            });
-            // DEBT-83-A: use writeSseDone for consistent SSE done structure
-            writeSseDone(reply, { error: 'REQUEST_TIMEOUT_30S', finishReason: null });
-          } else {
-            sendDebug(`ERROR in iteration ${iteration}: ${error.message}`);
-            fastify.log.error({
-              msg: `Agentic error in iteration ${iteration}: ${error.message}`,
-              reqId,
-              source: 'backend',
-              error: error.stack
-            });
-            // DEBT-83-A: use writeSseDone for consistent SSE done structure
-            writeSseDone(reply, { error: error.message, finishReason: null });
-          }
-
-          clearInterval(keepaliveInterval);
-          reply.raw.end();
-          return;
-        }
-      }
+      // Unpack loop results (immutable destructure)
+      fullResponse = loopResult.fullResponse;
+      tokensInput = loopResult.tokensInput;
+      tokensOutput = loopResult.tokensOutput;
+      iteration = loopResult.iteration;
+      messages.length = 0;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- AMessage.role is string; local messages expects union — safe cast
+      messages.push(...(loopResult.messages as any[]));
 
       clearWatchdog();
-      clearInterval(keepaliveInterval);
+      if (keepaliveInterval) { clearInterval(keepaliveInterval); keepaliveInterval = null; }
 
-      sendDebug(`AGENT COMPLETE - ${iteration} iterations, ${tokensInput + tokensOutput} tokens used`);
-      // DEBT-83-A: use writeSseDone for consistent SSE done structure with finish_reason
+      sendDebug(`AGENT COMPLETE - ${iteration} iterations, ${tokensInput + tokensOutput} tokens`);
       writeSseDone(reply, { conversationId, iterations: iteration, finishReason: 'stop' });
-
-      // Save assistant message
       if (fullResponse) {
         await insertOne(
           fastify.db,

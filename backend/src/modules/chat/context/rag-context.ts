@@ -14,7 +14,7 @@ export interface RagWebResult {
   readonly source?: string;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
+ 
 export interface RagInjectionResult {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   readonly chunks: any[];
@@ -67,7 +67,7 @@ export async function injectRAGSystemPrompt(
     userId: number;
     documentIds?: number[];
   }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
+ 
 ): Promise<RagInjectionResult> {
   try {
     const summaryMode = isSummaryQuery(opts.userMessage);
@@ -238,11 +238,14 @@ ${contextBlock}
 
 IMPORTANT: Rispondi SEMPRE in italiano.`;
 
+    // DEBT-87-H: immutable update — no in-place mutation (returns new array reference via map)
     const systemIndex = messages.findIndex(m => m.role === 'system');
     if (systemIndex >= 0) {
-      messages[systemIndex].content = ragSystemPrompt + '\n\n' + messages[systemIndex].content;
+      messages = messages.map((m, i) =>
+        i === systemIndex ? { ...m, content: ragSystemPrompt + '\n\n' + String(m.content) } : m
+      );
     } else {
-      messages.unshift({ role: 'system', content: ragSystemPrompt });
+      messages = [{ role: 'system', content: ragSystemPrompt }, ...messages];
     }
 
     // Inject guardrail policy AFTER RAG context (applies to all modes for AI ACT compliance)

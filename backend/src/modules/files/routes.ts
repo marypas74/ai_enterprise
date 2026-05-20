@@ -35,12 +35,6 @@ const listFilesSchema = z.object({
 export default async function fileRoutes(fastify: FastifyInstance) {
   // Helper: Get user and project info for storage path
   async function getStorageContext(userId: number, projectId: number) {
-    const user = await findOne<{ name: string; email: string }>(
-      fastify.db,
-      'SELECT name, email FROM users WHERE id = ?',
-      [userId]
-    );
-
     const project = await findOne<{ name: string; owner_id: number }>(
       fastify.db,
       'SELECT name, owner_id FROM projects WHERE id = ?',

@@ -304,3 +304,79 @@ describe('buildWebSummary', () => {
     expect(summary).toContain('[Test](https://test.com)');
   });
 });
+
+// ── Edge tests — DEBT-87-B branch coverage ──────────────────────────────────
+
+describe('triggerWebFallback edge: empty snippet', () => {
+  beforeEach(() => { vi.resetAllMocks(); });
+
+  it('returns results with empty snippet when snippet is missing', async () => {
+    const { performWebSearch } = await import('../../../services/WebSearchService.js');
+    vi.mocked(performWebSearch).mockResolvedValue({
+      query: 'q',
+      results: [{ title: 'T', url: 'https://x.com', snippet: '', source: 'x.com' }],
+      searchPerformed: true,
+    });
+    const { triggerWebFallback } = await import('./RagWebFallback.js');
+    const result = await triggerWebFallback('q', [], 5);
+    expect(result.webResults[0].snippet).toBe('');
+  });
+});
+
+describe('truncateContent edge: word boundary', () => {
+  // Access via buildAttributionContext with a chunk whose content has word boundary near limit
+  it('truncates at word boundary when last space is within 80% of limit', () => {
+    // 1200 char limit. Content = 1250 chars. Last space near position 1194 → word-boundary cut.
+    const wordBoundaryContent = 'hello '.repeat(200) + 'finalword'; // 1200 + 9 = 1209 chars, last space at 1200
+    const chunks = [{ id: 0, content: wordBoundaryContent, score: 0.9, metadata: {}, collection: 'declarative_memory' }];
+    const ctx = buildAttributionContext(chunks, []);
+    // Should end with ellipsis (truncated since content > 1200)
+    expect(ctx).toContain('…');
+    expect(ctx.length).toBeLessThan(wordBoundaryContent.length + 100);
+  });
+
+  it('truncates hard when space position is less than 80% of limit', () => {
+    // Create content where the last space is at position < 960 (80% of 1200)
+    const noSpaceBlock = 'a'.repeat(1201); // no spaces at all
+    const chunks = [{ id: 0, content: noSpaceBlock, score: 0.9, metadata: {}, collection: 'declarative_memory' }];
+    const ctx = buildAttributionContext(chunks, []);
+    expect(ctx).toContain('…');
+  });
+});
+
+// Mock database module for readSettingCached tests
+vi.mock('../../../database/index.js', () => ({
+  findOne: vi.fn(),
+}));
+
+describe('readSettingCached: cache behaviour', () => {
+  beforeEach(() => { vi.resetAllMocks(); });
+
+  it('cache hit: second call returns same value without re-querying DB', async () => {
+    const { findOne: mockFindOne } = await import('../../../database/index.js');
+    vi.mocked(mockFindOne).mockResolvedValue({ setting_value: 'cached_val' } as never);
+
+    const { readSettingCached } = await import('./RagWebFallback.js');
+    const uniqueKey = `test_cache_${Date.now()}`;
+    const mockDb = {};
+
+    const first = await readSettingCached(mockDb, uniqueKey, 'default');
+    const second = await readSettingCached(mockDb, uniqueKey, 'default');
+
+    expect(first).toBe('cached_val');
+    expect(second).toBe('cached_val');
+    // findOne called only once (second hit is from cache)
+    expect(vi.mocked(mockFindOne)).toHaveBeenCalledTimes(1);
+  });
+
+  it('cache miss on DB error: returns default value', async () => {
+    const { findOne: mockFindOne } = await import('../../../database/index.js');
+    vi.mocked(mockFindOne).mockRejectedValue(new Error('DB down'));
+
+    const { readSettingCached } = await import('./RagWebFallback.js');
+    const uniqueKey2 = `test_cache_err_${Date.now()}`;
+
+    const result = await readSettingCached({}, uniqueKey2, 'fallback_default');
+    expect(result).toBe('fallback_default');
+  });
+});

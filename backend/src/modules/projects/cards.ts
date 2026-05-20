@@ -246,7 +246,7 @@ export async function cardRoutes(fastify: FastifyInstance) {
       tags: ['projects'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest<{ Params: { projectId: string; cardId: string } }>, reply: FastifyReply) => {
+  }, async (request: FastifyRequest<{ Params: { projectId: string; cardId: string } }>, _reply: FastifyReply) => {
     const { projectId, cardId } = request.params;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request.user as any).id;

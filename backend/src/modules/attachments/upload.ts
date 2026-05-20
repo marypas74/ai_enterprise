@@ -313,7 +313,7 @@ export async function registerUploadRoutes(fastify: FastifyInstance): Promise<vo
       // Delete file
       try {
         await fs.unlink(attachment.file_path);
-      } catch (e) {
+      } catch {
         fastify.log.warn(`[Attachments] Could not delete file: ${attachment.file_path}`);
       }
 

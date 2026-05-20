@@ -110,20 +110,20 @@ export function sendRagSourcesEvent(
   const declarative = opts.recalledVectorMemories.declarative || [];
   if (declarative.length === 0) return;
 
+   
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   const documentSources = declarative
     .filter((r: any) => r.metadata?.type !== 'web_search')
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     .map((r: any) => ({
       id: r.id,
       name: r.metadata?.originalName || r.metadata?.source || 'Documento',
       score: r.score ?? 0,
     }));
 
+   
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   const webSources = declarative
     .filter((r: any) => r.metadata?.type === 'web_search')
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     .map((r: any) => ({
       url: r.metadata?.url || '',
       title: r.metadata?.title || r.content?.substring(0, 80) || 'Web result',

@@ -17,6 +17,8 @@ interface RagSettings {
   rag_web_fallback_enabled: boolean;
   rag_score_threshold: number;
   rag_web_max_results: number;
+  /** DEBT-87-A: Layer 2 — no-info detection + web retry */
+  rag_layer2_enabled: boolean;
 }
 
 interface SaveStatus {
@@ -29,6 +31,7 @@ const DEFAULT_SETTINGS: RagSettings = {
   rag_web_fallback_enabled: true,
   rag_score_threshold: 0.35,
   rag_web_max_results: 5,
+  rag_layer2_enabled: true,
 };
 
 export default function RagSettingsPage() {
@@ -47,6 +50,7 @@ export default function RagSettingsPage() {
         rag_web_fallback_enabled: Boolean(data.rag_web_fallback_enabled?.value ?? true),
         rag_score_threshold: Number(data.rag_score_threshold?.value ?? 0.35),
         rag_web_max_results: Number(data.rag_web_max_results?.value ?? 5),
+        rag_layer2_enabled: (data.rag_layer2_enabled?.value ?? 'true') === 'true' || Boolean(data.rag_layer2_enabled?.value),
       });
     } catch (err: unknown) {
       setLoadError(err instanceof Error ? err.message : 'Errore caricamento impostazioni');
@@ -170,6 +174,33 @@ export default function RagSettingsPage() {
               <span
                 className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
                   settings.rag_web_fallback_enabled ? 'translate-x-4' : ''
+                }`}
+              />
+            </button>
+          </div>
+        </div>
+
+        {/* Enable Layer 2 Web Retry Toggle — DEBT-87-A */}
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm text-surface-200">Abilita Layer 2 web retry</p>
+            <p className="text-xs text-surface-500 mt-0.5">
+              Quando il modello risponde con &quot;non so&quot;, rilancia automaticamente una ricerca web per integrare la risposta.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <StatusIcon keyName="rag_layer2_enabled" />
+            <button
+              onClick={() => handleToggle('rag_layer2_enabled', !settings.rag_layer2_enabled)}
+              className={`relative w-10 h-6 rounded-full transition-colors flex-shrink-0 ${
+                settings.rag_layer2_enabled ? 'bg-indigo-600' : 'bg-surface-600'
+              }`}
+              role="switch"
+              aria-checked={settings.rag_layer2_enabled}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+                  settings.rag_layer2_enabled ? 'translate-x-4' : ''
                 }`}
               />
             </button>

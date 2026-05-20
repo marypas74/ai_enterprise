@@ -94,7 +94,7 @@ export async function formRoutes(fastify: FastifyInstance) {
     return reply.status(201).send({ id, message: 'Form created' });
   });
 
-  fastify.patch('/definitions/:id', { onRequest: [requireAdmin] }, async (request: FastifyRequest, reply: FastifyReply) => {
+  fastify.patch('/definitions/:id', { onRequest: [requireAdmin] }, async (request: FastifyRequest, _reply: FastifyReply) => {
     const { id } = idParamSchema.parse(request.params);
     const body = updateFormSchema.parse(request.body);
 
