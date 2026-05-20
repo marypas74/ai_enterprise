@@ -23,4 +23,4 @@ resources:
 # breaking selector matching when pods don't have the same labels.
 # Use metadata labels directly in each resource instead.
 commonAnnotations:
-  app.kubernetes.io/version: "2.1.79"
+  app.kubernetes.io/version: "2.1.80"

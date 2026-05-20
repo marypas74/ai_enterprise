@@ -861,10 +861,10 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
   // Uses UPDATE with version comparison so re-running on an already-updated DB is a no-op.
   try {
     await pool.execute(
-      `UPDATE system_settings SET setting_value = '2.1.79'
-       WHERE setting_key = 'app_version' AND setting_value < '2.1.79'`
+      `UPDATE system_settings SET setting_value = '2.1.80'
+       WHERE setting_key = 'app_version' AND setting_value < '2.1.80'`
     );
-    fastify.log.info('[Migration] app_version updated to 2.1.79 (if behind)');
+    fastify.log.info('[Migration] app_version updated to 2.1.80 (if behind)');
   } catch (err: any) {
     fastify.log.warn({ err }, '[Migration] app_version update skipped');
   }

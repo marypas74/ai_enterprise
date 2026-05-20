@@ -1,6 +1,64 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ModelRouter } from './ModelRouter.js';
 
+// ─── DEBT-80-B: word-boundary scoring tests ──────────────────────────────────
+// These tests validate that "dimmi" inside "spiegami in dettaglio" does NOT
+// trigger the FAST_KEYWORDS penalty (word-boundary fix), and that the new
+// POWERFUL_KEYWORDS entries route long/detailed queries to balanced/powerful tier.
+describe('ModelRouter — DEBT-80-B word-boundary scoring', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const fastPool = (modelId = 'gpt-4o-mini') =>
+    makePool([
+      { tier_name: 'fast', model_id: modelId, provider: 'openai', priority: 1, force_short_output: 0 },
+      { tier_name: 'balanced', model_id: 'gpt-4o', provider: 'openai', priority: 1, force_short_output: 0 },
+      { tier_name: 'powerful', model_id: 'gpt-4o', provider: 'openai', priority: 2, force_short_output: 0 },
+    ]);
+
+  it('"ciao" routes to fast tier', async () => {
+    const router = new ModelRouter(fastPool());
+    const decision = await router.route({
+      query: 'ciao', conversationLength: 0, hasAttachments: false,
+      attachmentCount: 0, hasVisionAttachments: false, toolsRequested: false,
+      userId: 1, hasDocuments: false,
+    });
+    expect(decision.tier).toBe('fast');
+  });
+
+  it('"spiegami in dettaglio l\'architettura di Kubernetes con tutti i componenti" routes to balanced or powerful', async () => {
+    const router = new ModelRouter(fastPool());
+    const decision = await router.route({
+      query: "spiegami in dettaglio l'architettura di Kubernetes con tutti i componenti",
+      conversationLength: 0, hasAttachments: false,
+      attachmentCount: 0, hasVisionAttachments: false, toolsRequested: false,
+      userId: 1, hasDocuments: false,
+    });
+    expect(['balanced', 'powerful']).toContain(decision.tier);
+  });
+
+  it('"dimmi un saluto breve" routes to fast tier (word boundary — "dimmi" standalone)', async () => {
+    const router = new ModelRouter(fastPool());
+    const decision = await router.route({
+      query: 'dimmi un saluto breve', conversationLength: 0, hasAttachments: false,
+      attachmentCount: 0, hasVisionAttachments: false, toolsRequested: false,
+      userId: 1, hasDocuments: false,
+    });
+    expect(decision.tier).toBe('fast');
+  });
+
+  it('"Riassumi tutto il documento in modo dettagliato" routes to balanced or powerful', async () => {
+    const router = new ModelRouter(fastPool());
+    const decision = await router.route({
+      query: 'Riassumi tutto il documento in modo dettagliato',
+      conversationLength: 0, hasAttachments: false,
+      attachmentCount: 0, hasVisionAttachments: false, toolsRequested: false,
+      userId: 1, hasDocuments: false,
+    });
+    expect(['balanced', 'powerful']).toContain(decision.tier);
+  });
+});
+// ─────────────────────────────────────────────────────────────────────────────
+
 const makePool = (rows: object[]) => ({
   execute: vi.fn().mockResolvedValue([rows, []]),
 }) as any;

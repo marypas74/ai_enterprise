@@ -1,17 +1,35 @@
 import { z } from 'zod';
 
 // Validation schemas
-export const completionSchema = z.object({
-  conversationId: z.number().optional(),
-  model: z.string().max(100),
-  message: z.string().min(1).max(100000),
-  systemPrompt: z.string().max(10000).optional(),
-  attachmentIds: z.array(z.number()).optional(),
-  use_rag: z.boolean().optional(),
-  document_ids: z.array(z.number()).optional(),
-  chat_mode: z.enum(['free', 'rag', 'brainstorm']).optional(),
-  force_web_search: z.boolean().optional(),
-});
+
+// DEBT-80-C: completionSchema accepts both `force_web_search` (canonical) and
+// `webSearch` (camelCase alias from frontend/SDK clients).
+// z.preprocess maps `webSearch` → `force_web_search` before Zod validation.
+// `force_web_search` always wins if both are present.
+// The parsed output type is unchanged — `webSearch` is normalized away.
+export const completionSchema = z.preprocess(
+  (raw: unknown) => {
+    if (raw !== null && typeof raw === 'object') {
+      const input = raw as Record<string, unknown>;
+      if ('webSearch' in input && !('force_web_search' in input)) {
+        const { webSearch, ...rest } = input;
+        return { ...rest, force_web_search: webSearch };
+      }
+    }
+    return raw;
+  },
+  z.object({
+    conversationId: z.number().optional(),
+    model: z.string().max(100),
+    message: z.string().min(1).max(100000),
+    systemPrompt: z.string().max(10000).optional(),
+    attachmentIds: z.array(z.number()).optional(),
+    use_rag: z.boolean().optional(),
+    document_ids: z.array(z.number()).optional(),
+    chat_mode: z.enum(['free', 'rag', 'brainstorm']).optional(),
+    force_web_search: z.boolean().optional(),
+  }),
+);
 
 export const agenticSchema = z.object({
   conversationId: z.number().optional(),

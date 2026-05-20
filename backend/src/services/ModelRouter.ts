@@ -61,6 +61,20 @@ const FAST_KEYWORDS = [
   'riassumi in una riga', 'sì', 'no', 'dimmi',
 ];
 
+// DEBT-80-B: word-boundary pattern to avoid substring false positives.
+// "dimmi" inside "spiegami in dettaglio" must NOT trigger the FAST penalty.
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+const FAST_KEYWORDS_PATTERN = new RegExp(
+  '(?:^|[\\s,!?])(' + FAST_KEYWORDS.map(kw =>
+    kw.includes(' ')
+      ? escapeRegExp(kw)
+      : escapeRegExp(kw) + '(?=[\\s,!?]|$)'
+  ).join('|') + ')',
+  'i',
+);
+
 const POWERFUL_KEYWORDS = [
   'progetta', 'design', 'architettura', 'architecture',
   'business plan', 'strategia', 'strategy',
@@ -71,6 +85,8 @@ const POWERFUL_KEYWORDS = [
   'ragiona', 'reason', 'think step by step',
   'refactoring complesso', 'complex refactoring',
   'multi-step', 'pipeline', 'cerca sul web e poi',
+  // DEBT-80-B: added detailed/explanatory intent keywords
+  'spiegami in dettaglio', 'spiega tutto', 'descrivi tutti', 'in modo dettagliato',
 ];
 
 const CODING_KEYWORDS = [
@@ -110,7 +126,19 @@ function computeComplexityScore(ctx: RoutingContext): number {
   // AI-77b: web search excludes fast tier — retrieved snippets inflate context AND
   //         qwen2.5vl:7b Ollama may be unloaded due to VRAM contention with vLLM 32B.
   const estimatedTokens = ctx.estimatedTokens ?? Math.ceil(queryLen / 4);
+  // Pre-check powerful keywords — if any match, the prompt is NOT short regardless of length.
+  // This prevents the isShortPrompt penalty from overriding an explicit complexity signal.
+  const hasPowerfulKeyword = POWERFUL_KEYWORDS.some(kw => queryLower.includes(kw));
+  // AI-77: Short prompts without image attachments → fast tier.
+  // Estimated tokens: provided explicitly or approximated from query length (1 token ≈ 4 chars).
+  // AI-77b: web search excludes fast tier — retrieved snippets inflate context AND
+  //         qwen2.5vl:7b Ollama may be unloaded due to VRAM contention with vLLM 32B.
+  // DEBT-80-B: added `queryLen < 50` guard — longer prompts may contain fast keywords
+  // incidentally (e.g. "spiegami in dettaglio, dimmi tutto") and must not be pushed fast.
+  // DEBT-80-B: powerful keyword match disables short-prompt penalty entirely.
   const isShortPrompt = estimatedTokens < 512
+    && queryLen < 50
+    && !hasPowerfulKeyword
     && !ctx.hasVisionAttachments
     && !ctx.hasDocuments
     && !ctx.hasWebSearch;
@@ -125,8 +153,9 @@ function computeComplexityScore(ctx: RoutingContext): number {
   const isDocCreation = DOC_CREATION_PATTERN.test(ctx.query);
 
   // Keyword signals
-  // FAST penalty only when no doc creation or attachments (pure simple greeting/translation)
-  if (FAST_KEYWORDS.some(kw => queryLower.includes(kw)) && queryLen < 100
+  // FAST penalty only when no doc creation or attachments (pure simple greeting/translation).
+  // DEBT-80-B: use word-boundary regex to avoid matching "dimmi" inside "spiegami".
+  if (FAST_KEYWORDS_PATTERN.test(queryLower) && queryLen < 100
       && !isDocCreation && !ctx.hasAttachments) {
     score -= 2;
   }
@@ -260,7 +289,8 @@ export class ModelRouter {
     if (ctx.toolsRequested) reasons.push('tools requested');
     if (POWERFUL_KEYWORDS.some(kw => queryLower.includes(kw))) reasons.push('complex keywords');
     if (DOC_CREATION_PATTERN.test(ctx.query)) reasons.push('document creation');
-    if (FAST_KEYWORDS.some(kw => queryLower.includes(kw)) && ctx.query.length < 100 && !DOC_CREATION_PATTERN.test(ctx.query) && !ctx.hasAttachments) reasons.push('simple greeting');
+    // DEBT-80-B: use word-boundary pattern here too for consistency
+    if (FAST_KEYWORDS_PATTERN.test(queryLower) && ctx.query.length < 100 && !DOC_CREATION_PATTERN.test(ctx.query) && !ctx.hasAttachments) reasons.push('simple greeting');
 
     return {
       tier, model,

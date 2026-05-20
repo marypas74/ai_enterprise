@@ -29,6 +29,9 @@ import {
 import { getModelRouter, type RoutingDecision } from '../../services/ModelRouter.js';
 import { estimateMessageTokens, ASYNC_TOKEN_THRESHOLD, MAX_TOKEN_LIMIT } from '../../utils/tokenEstimator.js';
 import { DocumentJobQueue } from '../../services/DocumentJobQueue.js';
+// DEBT-80-D: extracted runners
+import { runToolLoop, type ToolLoopRunnerOptions } from './runners/ToolLoopRunner.js';
+import { createStreamState } from './runners/ChatStreamRunner.js';
 
 export async function completionRoutes(fastify: FastifyInstance) {
   const contentSafetyService = new ContentSafetyService(fastify);
@@ -597,11 +600,10 @@ export async function completionRoutes(fastify: FastifyInstance) {
       });
 
       let fullResponse = '';
-      let tokensInput = 0;
-      let tokensOutput = 0;
       let toolDefs: ReturnType<typeof selectTools> | undefined;
       let costModel = body.model; // Tracks actual model used (may change on escalation)
-      let firstTokenMs: number | null = null; // OBS-77: Time-to-first-token (ms)
+      // DEBT-80-D: mutable stream state managed by ChatStreamRunner
+      const streamState = createStreamState();
       const sseWrite = createSseWriter(reply);
 
       sendInitialSseEvents(sseWrite, { model: body.model, providerName, safetyResult, recalledVectorMemories });
@@ -619,15 +621,12 @@ export async function completionRoutes(fastify: FastifyInstance) {
         if (llmHookResult.data?.messages) messages = llmHookResult.data.messages;
       } catch (hookErr: any) { fastify.log.warn(`[Hook] before_llm_call failed: ${hookErr.message}`); }
 
-      let cacheCreationTokens = 0;
-      let cacheReadTokens = 0;
-      let thinkingTokens = 0;
+      // DEBT-80-D: token components read from streamState after loop completes
 
       try {
         const modelConfig = await ModelConfigService.getConfig(fastify.db, body.model);
         toolDefs = toolContext ? selectTools(body.message) : undefined;
         const MAX_TOOL_ROUNDS = 5;
-        let toolRound = 0;
 
         const isAnthropic = providerName === 'anthropic';
         const completionExtras: Record<string, any> = {};
@@ -683,94 +682,27 @@ export async function completionRoutes(fastify: FastifyInstance) {
           }
         }
 
-        let continueLoop = true;
-        while (continueLoop && toolRound < MAX_TOOL_ROUNDS && !clientDisconnected) {
-          toolRound++;
-          continueLoop = false;
-
-          const stream = provider.streamComplete({
-            model: costModel, messages, maxTokens: effectiveMaxTokens,
+        // DEBT-80-D: delegate stream+tool loop to ToolLoopRunner
+        const toolLoopOpts: ToolLoopRunnerOptions = {
+          maxRounds: MAX_TOOL_ROUNDS,
+          toolContext,
+          hookCtx,
+          rawWrite: (ev) => reply.raw.write(ev),
+          sseWrite,
+          log: fastify.log,
+          clientDisconnected: () => clientDisconnected,
+          streamStartTime,
+          state: streamState,
+          buildStream: (msgs) => provider.streamComplete({
+            model: costModel, messages: msgs as any, maxTokens: effectiveMaxTokens,
             temperature: effectiveTemperature, stream: true, tools: toolDefs,
-            signal: abortController.signal, // SECURITY: Cancel upstream LLM on client disconnect
+            signal: abortController.signal,
             ...completionExtras,
-          });
-
-          let accumulatedToolCalls: any[] = [];
-          let currentToolCall: any = null;
-          let roundContent = '';
-
-          for await (const chunk of stream) {
-            // SECURITY: Stop processing if client disconnected (prevents resource exhaustion)
-            if (clientDisconnected) {
-              fastify.log.info(`[Chat] Client disconnected, aborting stream for user ${user.id}`);
-              break;
-            }
-            if (chunk.thinking) {
-              sseWrite(`data: ${JSON.stringify({ thinking: chunk.thinking, done: false })}\n\n`);
-            }
-            if (chunk.thinkingDone) sseWrite(`data: ${JSON.stringify({ thinkingDone: true, done: false })}\n\n`);
-            if (chunk.citations?.length) sseWrite(`data: ${JSON.stringify({ citations: chunk.citations, done: false })}\n\n`);
-            if (chunk.usage) {
-              // Capture real token counts from provider (vLLM, Anthropic, etc.)
-              if (chunk.usage.inputTokens) tokensInput = chunk.usage.inputTokens;
-              if (chunk.usage.outputTokens) tokensOutput = chunk.usage.outputTokens;
-              if (chunk.usage.cacheCreationTokens) cacheCreationTokens = chunk.usage.cacheCreationTokens;
-              if (chunk.usage.cacheReadTokens) cacheReadTokens = chunk.usage.cacheReadTokens;
-              if (chunk.usage.thinkingTokens) thinkingTokens = chunk.usage.thinkingTokens;
-            }
-            if (chunk.toolCalls && chunk.toolCalls.length > 0) {
-              for (const tc of chunk.toolCalls) {
-                if (tc.function && tc.function.name) {
-                  if (currentToolCall) accumulatedToolCalls.push(currentToolCall);
-                  currentToolCall = { id: tc.id || `tool_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, name: tc.function.name, arguments: tc.function.arguments || '' };
-                } else if (tc.function && tc.function.arguments && currentToolCall) {
-                  currentToolCall.arguments += tc.function.arguments;
-                }
-              }
-            }
-            if (chunk.content) {
-              // OBS-77: Record first-token latency on first non-empty content chunk
-              if (firstTokenMs === null) {
-                firstTokenMs = Date.now() - streamStartTime;
-              }
-              fullResponse += chunk.content;
-              roundContent += chunk.content;
-              reply.raw.write(`data: ${JSON.stringify({ content: chunk.content, done: false })}\n\n`);
-            }
-          }
-
-          if (currentToolCall) accumulatedToolCalls.push(currentToolCall);
-
-          if (accumulatedToolCalls.length > 0 && toolContext) {
-            fastify.log.info(`[Chat] Tool round ${toolRound}: executing ${accumulatedToolCalls.length} tool(s)`);
-            messages.push({ role: 'assistant', content: roundContent, tool_calls: accumulatedToolCalls.map(tc => ({ id: tc.id, type: 'function', function: { name: tc.name, arguments: tc.arguments } })) } as any);
-
-            for (const tc of accumulatedToolCalls) {
-              try {
-                const args = JSON.parse(tc.arguments);
-                fastify.log.info(`[Chat] Executing tool: ${tc.name} (round ${toolRound})`);
-                await eventBus.emit('before_tool_execute', { tool: tc.name, args, toolContext }, hookCtx);
-                const result = await executeTool(tc.name, args, toolContext);
-                await eventBus.emit('after_tool_execute', { tool: tc.name, args, result, toolContext }, hookCtx);
-                const resultContent = result.success ? JSON.stringify(result.output) : `Error: ${result.error}`;
-                messages.push({ role: 'tool', tool_call_id: tc.id, name: tc.name, content: resultContent } as any);
-                if (result.success && result.output?.downloadUrl) {
-                  const notification = `\n\n📄 **Documento generato**: [Scarica ${result.output.downloadFilename || result.output.path}](${result.output.downloadUrl})`;
-                  reply.raw.write(`data: ${JSON.stringify({ content: notification, done: false })}\n\n`);
-                  fullResponse += notification;
-                } else {
-                  reply.raw.write(`data: ${JSON.stringify({ toolResult: { name: tc.name, success: result.success }, done: false })}\n\n`);
-                }
-              } catch (e: any) {
-                fastify.log.error(`[Chat] Tool execution error: ${e.message}`);
-                messages.push({ role: 'tool', tool_call_id: tc.id, name: tc.name, content: `Error: ${e.message}` } as any);
-              }
-            }
-            continueLoop = true;
-          }
-        }
-
-        if (toolRound >= MAX_TOOL_ROUNDS) fastify.log.warn(`[Chat] Tool call loop hit max rounds (${MAX_TOOL_ROUNDS})`);
+          }),
+        };
+        const loopResult = await runToolLoop(messages as any, toolLoopOpts);
+        fullResponse = loopResult.fullResponse;
+        messages = loopResult.messages as any;
 
         // Empty response recovery — escalate to balanced tier if model produced no content
         if (fullResponse.trim().length === 0) {
@@ -822,15 +754,15 @@ export async function completionRoutes(fastify: FastifyInstance) {
           recordProviderSuccess(body.model);
         }
         // Only estimate tokens if real usage wasn't provided by the stream
-        if (tokensInput === 0) {
-          tokensInput = Math.ceil(messages.reduce((acc, m) => {
+        if (streamState.tokensInput === 0) {
+          streamState.tokensInput = Math.ceil(messages.reduce((acc, m) => {
             const contentLen = typeof m.content === 'string' ? m.content.length : 0;
             const toolCallsLen = (m as any).tool_calls ? JSON.stringify((m as any).tool_calls).length : 0;
             return acc + (contentLen + toolCallsLen) / 4;
           }, 0));
         }
-        if (tokensOutput === 0) {
-          tokensOutput = Math.ceil(fullResponse.length / 4);
+        if (streamState.tokensOutput === 0) {
+          streamState.tokensOutput = Math.ceil(fullResponse.length / 4);
         }
 
         // B2: Fallback — detect tool calls embedded as plain text in the response
@@ -930,8 +862,8 @@ export async function completionRoutes(fastify: FastifyInstance) {
                 if (chunk.content) { fullResponse += chunk.content; reply.raw.write(`data: ${JSON.stringify({ content: chunk.content, done: false })}\n\n`); }
               }
               recordProviderSuccess(fallbackModel);
-              tokensInput = Math.ceil(messages.reduce((acc, m) => acc + (typeof m.content === 'string' ? m.content.length : 0) / 4, 0));
-              tokensOutput = Math.ceil(fullResponse.length / 4);
+              streamState.tokensInput = Math.ceil(messages.reduce((acc, m) => acc + (typeof m.content === 'string' ? m.content.length : 0) / 4, 0));
+              streamState.tokensOutput = Math.ceil(fullResponse.length / 4);
               providerName = AIProviderFactory.getProviderName(fallbackModel);
             } catch (fbError: any) {
               recordProviderError(fallbackModel);
@@ -999,6 +931,9 @@ export async function completionRoutes(fastify: FastifyInstance) {
         const sendHookResult = await eventBus.pipe('before_message_send', fullResponse, hookCtx);
         if (sendHookResult.data && typeof sendHookResult.data === 'string') fullResponse = sendHookResult.data;
       } catch (hookErr: any) { fastify.log.warn(`[Hook] before_message_send failed: ${hookErr.message}`); }
+
+      // DEBT-80-D: destructure token values from streamState for readability
+      const { tokensInput, tokensOutput, cacheCreationTokens, cacheReadTokens, thinkingTokens, firstTokenMs } = streamState;
 
       // Save assistant message (use costModel which may be the escalated model)
       // OBS-77: Populate latency_ms, first_token_ms, provider columns

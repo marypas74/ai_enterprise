@@ -7,6 +7,28 @@ export PATH=/snap/bin:$PATH
 
 set -e
 
+# ─── DEBT-80-A: Secrets guard ────────────────────────────────────────────────
+# k8s/secrets.yaml is the canonical TEMPLATE file (first line: "# TEMPLATE — do not apply").
+# Real secrets are managed out-of-band:
+#   kubectl create secret generic app-secrets \
+#     --from-literal=KEY=VALUE --from-literal=... \
+#     -n enterprise-ai-chat --dry-run=client -o yaml | kubectl apply -f -
+# NEVER apply k8s/secrets.yaml to production.
+#
+# The guard below:
+#   1. Skips the check if the file has the "TEMPLATE — do not apply" marker
+#      (template stays in repo for reference, BUILD does not block).
+#   2. If the marker is missing AND placeholders are present, BUILD aborts.
+if [ -f k8s/secrets.yaml ] && ! head -1 k8s/secrets.yaml | grep -q "TEMPLATE — do not apply"; then
+  if grep -qE "(change-me-in-production|your-super-secret|your-real-key|sk-your-real|sk-ant-your-real)" k8s/secrets.yaml 2>/dev/null; then
+    echo "[FATAL] k8s/secrets.yaml contains placeholder values without TEMPLATE marker."
+    echo "Either add '# TEMPLATE — do not apply' on the first line, or provide real values."
+    echo "Manage real secrets via: kubectl create secret generic app-secrets --from-literal=KEY=VALUE"
+    exit 1
+  fi
+fi
+# ─────────────────────────────────────────────────────────────────────────────
+
 echo "=========================================="
 echo "Enterprise AI Chat - Build & Deploy"
 echo "=========================================="
@@ -200,7 +222,8 @@ print_status "Schema database configurato"
 print_step "8. Deploy su Kubernetes..."
 microk8s kubectl apply -f k8s/namespace.yaml
 microk8s kubectl apply -f k8s/configmap.yaml
-microk8s kubectl apply -f k8s/secrets.yaml
+# DEBT-80-A: k8s/secrets.yaml NOT applied here (contains placeholder values).
+# Real secrets are managed via: kubectl create secret generic app-secrets --from-literal=...
 microk8s kubectl apply -f k8s/mariadb/init-configmap.yaml
 microk8s kubectl apply -f k8s/mariadb/statefulset.yaml
 microk8s kubectl apply -f k8s/redis/statefulset.yaml
@@ -262,4 +285,4 @@ echo "  - Modifica /etc/hosts per puntare chat.yourdomain.com al tuo IP"
 echo "  - Oppure usa: microk8s kubectl port-forward -n enterprise-ai-chat svc/frontend 8080:80"
 echo "    e accedi a http://localhost:8080"
 echo ""
-print_warning "RICORDA: Configura le API keys reali in k8s/secrets.yaml e riapplica!"
+print_warning "RICORDA: Gestisci i secrets reali con: kubectl create secret generic app-secrets --from-literal=KEY=VALUE -n enterprise-ai-chat"
