@@ -946,14 +946,14 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
     fastify.log.warn({ err }, '[Migration] DEBT-82-F: provider_override seed skipped');
   }
 
-  // v2.1.85: Update app_version in system_settings to current version.
+  // v2.1.86: Update app_version in system_settings to current version.
   // Uses UPDATE with version comparison so re-running on an already-updated DB is a no-op.
   try {
     await pool.execute(
-      `UPDATE system_settings SET setting_value = '2.1.85'
-       WHERE setting_key = 'app_version' AND setting_value < '2.1.85'`
+      `UPDATE system_settings SET setting_value = '2.1.86'
+       WHERE setting_key = 'app_version' AND setting_value < '2.1.86'`
     );
-    fastify.log.info('[Migration] app_version updated to 2.1.85 (if behind)');
+    fastify.log.info('[Migration] app_version updated to 2.1.86 (if behind)');
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   } catch (err: any) {
     fastify.log.warn({ err }, '[Migration] app_version update skipped');

@@ -42,6 +42,45 @@ export interface WebFallbackResult {
 const DEFAULT_THRESHOLD = 0.35;
 const MAX_CHUNK_CONTENT_LENGTH = 1200;
 
+// ── Layer 2: "no info" detection patterns ────────────────────────────────────
+
+const NO_INFO_PATTERNS: readonly RegExp[] = [
+  // IT diretti
+  /non trovo (questa )?informazion/i,
+  /il documento non (contiene|riporta|menziona)/i,
+  /non (è presente|c'è nulla) nel documento/i,
+  /il documento (non parla|non tratta)/i,
+  // IT cortesia
+  /purtroppo (non|il documento|questo)/i,
+  /mi dispiace,? (non|ma)/i,
+  // EN diretti
+  /I don't know/i,
+  /no information about/i,
+  /(the )?document (doesn't contain|does not contain)/i,
+  // EN cortesia
+  /unfortunately,? I don't/i,
+  /I'm sorry,? but/i,
+];
+
+/**
+ * Detect whether an LLM response indicates it has no information to provide.
+ * Used by Layer 2 auto-web-retry in completions.ts.
+ */
+export function detectNoInfoResponse(text: string): boolean {
+  return NO_INFO_PATTERNS.some(p => p.test(text));
+}
+
+/**
+ * Build a markdown summary of web results for inline streaming.
+ * Each result is formatted as a numbered "Fonte" entry with markdown link.
+ */
+export function buildWebSummary(webResults: readonly WebResult[]): string {
+  if (webResults.length === 0) return '';
+  return webResults.map((r, i) =>
+    `**Fonte ${i + 1}**: [${r.title}](${r.url})\n${r.snippet}\n`
+  ).join('\n');
+}
+
 // ── evaluateRagSufficiency ─────────────────────────────────────────────────────
 
 /**
@@ -154,6 +193,39 @@ export function buildAttributionContext(
   }
 
   return parts.join('\n\n');
+}
+
+// ── Settings cache (T4) ───────────────────────────────────────────────────────
+
+const SETTINGS_CACHE_TTL_MS = 30_000;
+
+interface CacheEntry {
+  readonly value: string;
+  readonly ts: number;
+}
+
+const settingsCache = new Map<string, CacheEntry>();
+
+/**
+ * Read a system_settings value with 30s in-memory cache.
+ * Reduces DB round-trips during Layer 2 detection (called once per message).
+ */
+export async function readSettingCached(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
+  db: any,
+  key: string,
+  defaultValue: string
+): Promise<string> {
+  const cached = settingsCache.get(key);
+  if (cached && Date.now() - cached.ts < SETTINGS_CACHE_TTL_MS) {
+    return cached.value;
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
+  const { findOne: dbFindOne } = await import('../../../database/index.js') as any;
+  const row = await dbFindOne(db, 'SELECT setting_value FROM system_settings WHERE setting_key=?', [key]);
+  const value: string = row?.setting_value ?? defaultValue;
+  settingsCache.set(key, { value, ts: Date.now() });
+  return value;
 }
 
 // ── Internal helpers ──────────────────────────────────────────────────────────

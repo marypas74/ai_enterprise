@@ -9,6 +9,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   evaluateRagSufficiency,
   buildAttributionContext,
+  detectNoInfoResponse,
+  buildWebSummary,
   type WebResult,
 } from './RagWebFallback.js';
 
@@ -213,5 +215,92 @@ describe('triggerWebFallback', () => {
     await triggerWebFallback('what is k8s', [], 5);
     // The query sent to search engine must not contain numeric user IDs
     expect(capturedQuery).not.toMatch(/user_?id\s*[:=]\s*\d+/i);
+  });
+});
+
+// ── detectNoInfoResponse ─────────────────────────────────────────────────────
+// TDD RED phase — T1 HOTFIX 2.1.86
+// These tests MUST fail before detectNoInfoResponse is implemented.
+
+describe('detectNoInfoResponse', () => {
+  // IT diretti — 4 positivi
+  it('IT: detects "non trovo questa informazione"', () => {
+    expect(detectNoInfoResponse('Purtroppo non trovo questa informazione nel documento.')).toBe(true);
+  });
+
+  it('IT: detects "il documento non contiene"', () => {
+    expect(detectNoInfoResponse('Il documento non contiene dettagli su questo argomento.')).toBe(true);
+  });
+
+  it('IT: detects "non è presente nel documento"', () => {
+    expect(detectNoInfoResponse('Questa notizia non è presente nel documento fornito.')).toBe(true);
+  });
+
+  it('IT: detects "purtroppo" prefix pattern', () => {
+    expect(detectNoInfoResponse('Purtroppo questo non è il tema giusto per la tua domanda.')).toBe(true);
+  });
+
+  // EN diretti — 4 positivi
+  it('EN: detects "I don\'t know"', () => {
+    expect(detectNoInfoResponse("I don't know the answer to that question.")).toBe(true);
+  });
+
+  it('EN: detects "no information about"', () => {
+    expect(detectNoInfoResponse('There is no information about this topic in the document.')).toBe(true);
+  });
+
+  it('EN: detects "document does not contain"', () => {
+    expect(detectNoInfoResponse('The document does not contain any reference to that.')).toBe(true);
+  });
+
+  it('EN: detects "I\'m sorry, but"', () => {
+    expect(detectNoInfoResponse("I'm sorry, but I cannot find that information.")).toBe(true);
+  });
+
+  // Negativi — 3 casi simili che NON devono essere rilevati
+  it('negative: "non trovo dubbi" should be FALSE', () => {
+    expect(detectNoInfoResponse('Non trovo dubbi nella tua domanda, posso rispondere subito.')).toBe(false);
+  });
+
+  it('negative: "Trovo molte info" should be FALSE', () => {
+    expect(detectNoInfoResponse('Trovo molte informazioni utili nel documento allegato.')).toBe(false);
+  });
+
+  it('negative: "I know perfectly" should be FALSE', () => {
+    expect(detectNoInfoResponse('I know perfectly well what you are asking about.')).toBe(false);
+  });
+
+  // Edge case
+  it('edge: "purtroppo questo non è il tema giusto" should be TRUE', () => {
+    expect(detectNoInfoResponse('Purtroppo questo non è il tema giusto per rispondere alla tua domanda.')).toBe(true);
+  });
+});
+
+// ── buildWebSummary ──────────────────────────────────────────────────────────
+// TDD RED phase — T1 HOTFIX 2.1.86
+
+describe('buildWebSummary', () => {
+  it('produces numbered Fonte entries for each result', () => {
+    const results: WebResult[] = [
+      { title: 'Canberra Facts', url: 'https://wiki.org/canberra', snippet: 'Capital of Australia.' },
+      { title: 'Australia Guide', url: 'https://example.com/australia', snippet: 'Travel guide.' },
+    ];
+    const summary = buildWebSummary(results);
+    expect(summary).toContain('**Fonte 1**');
+    expect(summary).toContain('**Fonte 2**');
+    expect(summary).toContain('[Canberra Facts](https://wiki.org/canberra)');
+    expect(summary).toContain('Capital of Australia.');
+  });
+
+  it('returns empty string for empty array', () => {
+    expect(buildWebSummary([])).toBe('');
+  });
+
+  it('includes URL as markdown link', () => {
+    const results: WebResult[] = [
+      { title: 'Test', url: 'https://test.com', snippet: 'A snippet.' },
+    ];
+    const summary = buildWebSummary(results);
+    expect(summary).toContain('[Test](https://test.com)');
   });
 });

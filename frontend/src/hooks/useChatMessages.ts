@@ -447,13 +447,21 @@ export function useChatMessages(currentConversationId: number | null): UseChatMe
         useDocumentStore.getState().chatMode !== 'free' ? useDocumentStore.getState().chatMode : undefined,
         // Force web search toggle
         forceWebSearch || undefined,
-        // v2.1.85: RAG sources callback (documents + web attribution)
+        // v2.1.86: RAG sources callback — MERGE (accumulate) instead of replace
+        // Supports Layer 2 web retry that emits a second sources event
         (sources: RagSources) => {
           setMessages(prev => {
             const newMessages = [...prev];
             const last = newMessages[newMessages.length - 1];
             if (last && last.role === 'assistant') {
-              newMessages[newMessages.length - 1] = { ...last, ragSources: sources };
+              const existing: RagSources = last.ragSources || { documents: [], web: [] };
+              newMessages[newMessages.length - 1] = {
+                ...last,
+                ragSources: {
+                  documents: [...existing.documents, ...(sources.documents || [])],
+                  web: [...existing.web, ...(sources.web || [])],
+                },
+              };
             }
             return newMessages;
           });

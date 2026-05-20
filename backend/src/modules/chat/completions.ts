@@ -37,6 +37,8 @@ import { runEditPdfShortCircuit } from './runners/EditPdfShortCircuit.js';
 import { runCompletionExtras } from './runners/CompletionExtras.js';
 import { runAsyncTokenGuard } from './runners/AsyncTokenGuard.js';
 import { buildCompletionExtras, applyForceShortOutputMessages } from './runners/CompletionExtrasBuilder.js';
+// HOTFIX 2.1.86: Layer 2 — no-info detection + web retry
+import { detectNoInfoResponse, buildWebSummary, triggerWebFallback } from './runners/RagWebFallback.js';
 
 export async function completionRoutes(fastify: FastifyInstance) {
   const contentSafetyService = new ContentSafetyService(fastify);
@@ -400,6 +402,41 @@ export async function completionRoutes(fastify: FastifyInstance) {
           tokensInput: fbResult.tokensInput > 0 ? fbResult.tokensInput : streamState.tokensInput,
           tokensOutput: fbResult.tokensOutput > 0 ? fbResult.tokensOutput : streamState.tokensOutput,
         };
+      }
+
+      // HOTFIX 2.1.86: Layer 2 — detect "no info" pattern, retry web automatic
+      // Activated only when: no prior web sources AND web fallback enabled AND LLM admits no-info
+      {
+        const existingWebSources = (recalledVectorMemories?.declarative || [])
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
+          .filter((r: any) => r.metadata?.type === 'web_search');
+        const webFallbackEnabled = body.force_web_search !== true && existingWebSources.length === 0;
+        if (webFallbackEnabled && detectNoInfoResponse(fullResponse)) {
+          fastify.log.info('[Layer2] Detected "no info" pattern, triggering web fallback retry');
+          try {
+            const retryWeb = await triggerWebFallback(body.message, [], 5);
+            if (retryWeb.webResults && retryWeb.webResults.length > 0) {
+              // Stream integration header + summary inline
+              const webSummary = buildWebSummary(retryWeb.webResults);
+              const integrationBlock = '\n\n🌐 **Integrazione dal web:**\n\n' + webSummary;
+              sseWrite(`data: ${JSON.stringify({ content: integrationBlock, done: false })}\n\n`);
+              // Update fullResponse BEFORE DB save for consistency
+              fullResponse = fullResponse + integrationBlock;
+              // Emit second sources event (Layer 2 web results)
+              const webMemories = {
+                declarative: retryWeb.webResults.map((r) => ({
+                  content: r.snippet,
+                  metadata: { type: 'web_search', url: r.url, title: r.title },
+                })),
+              };
+              sendRagSourcesEvent(sseWrite, { recalledVectorMemories: webMemories });
+              fastify.log.info(`[Layer2] Added ${retryWeb.webResults.length} web results to response`);
+            }
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
+          } catch (l2Err: any) {
+            fastify.log.warn(`[Layer2] Web retry failed: ${l2Err.message}`);
+          }
+        }
       }
 
             // Hook: after_llm_response
