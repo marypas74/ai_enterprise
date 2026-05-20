@@ -81,22 +81,27 @@ export async function fetchDocumentChunksForSummary(
   userId: number,
   documentIds?: number[],
   maxChunks: number = 40,
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
 ): Promise<{ content: string; metadata: Record<string, any> }[]> {
   const QDRANT_URL = process.env.QDRANT_URL || 'http://localhost:6333';
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   const filter: any = { must: [{ key: 'user_id', match: { value: userId } }] };
   if (documentIds && documentIds.length > 0) {
     filter.must.push({
       key: 'attachment_id',
+       
       match: { any: documentIds },
     });
   }
 
   // Scroll ALL points for this user/document (no vector search)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   const allPoints: any[] = [];
   let nextOffset: string | number | null = null;
 
   for (let i = 0; i < 10; i++) { // max 10 scroll pages (2000 points)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const body: any = {
       filter,
       limit: 200,
@@ -113,6 +118,7 @@ export async function fetchDocumentChunksForSummary(
         signal: AbortSignal.timeout(10000),
       });
       if (!resp.ok) break;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       const data = await resp.json() as any;
       const points = data.result?.points || [];
       allPoints.push(...points);
@@ -133,6 +139,7 @@ export async function fetchDocumentChunksForSummary(
   });
 
   // Spread-sample: take evenly distributed chunks to cover the entire document
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   let selected: any[];
   if (allPoints.length <= maxChunks) {
     selected = allPoints;

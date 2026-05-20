@@ -9,6 +9,7 @@ export async function orchestratorRoutes(fastify: FastifyInstance) {
 
   // Get orchestrator status and metrics
   fastify.get('/status', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Get orchestrator status and metrics',
@@ -28,6 +29,7 @@ export async function orchestratorRoutes(fastify: FastifyInstance) {
 
   // Get terminal slots status
   fastify.get('/terminals', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Get all terminal slots status',
@@ -46,6 +48,7 @@ export async function orchestratorRoutes(fastify: FastifyInstance) {
 
   // Get specific terminal slot
   fastify.get('/terminals/:slot', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Get specific terminal slot status',
@@ -80,6 +83,7 @@ export async function orchestratorRoutes(fastify: FastifyInstance) {
 
   // Release terminal slot (admin action)
   fastify.post('/terminals/:slot/release', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Force release a terminal slot',
@@ -96,6 +100,7 @@ export async function orchestratorRoutes(fastify: FastifyInstance) {
       'SELECT role FROM users WHERE id = ?',
       [user.id]
     );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userRole = (userRows as any[])[0]?.role;
 
     if (userRole !== 'admin') {
@@ -135,6 +140,7 @@ export async function orchestratorRoutes(fastify: FastifyInstance) {
 
   // Prune old worktrees
   fastify.post('/worktrees/prune', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Prune old/orphaned worktrees',
@@ -149,6 +155,7 @@ export async function orchestratorRoutes(fastify: FastifyInstance) {
       'SELECT role FROM users WHERE id = ?',
       [user.id]
     );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userRole = (userRows as any[])[0]?.role;
 
     if (userRole !== 'admin') {
@@ -164,6 +171,7 @@ export async function orchestratorRoutes(fastify: FastifyInstance) {
 
   // Subscribe to orchestrator events (SSE)
   fastify.get('/events', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Subscribe to orchestrator events via SSE',
@@ -202,6 +210,7 @@ export async function orchestratorRoutes(fastify: FastifyInstance) {
 
   // Get dashboard summary
   fastify.get('/dashboard', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Get dashboard data for Auto-Claude UI',
@@ -247,6 +256,7 @@ export async function orchestratorRoutes(fastify: FastifyInstance) {
         recentSessions: recentSessions.sessions,
         totalSessions: recentSessions.total
       },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       templates: (templates as any[]).map(t => ({
         id: t.id,
         name: t.name,
@@ -262,6 +272,7 @@ export async function orchestratorRoutes(fastify: FastifyInstance) {
 
   // Get execution history
   fastify.get('/history', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Get agent execution history',
@@ -287,6 +298,7 @@ export async function orchestratorRoutes(fastify: FastifyInstance) {
                FROM agent_execution_history h
                JOIN agent_sessions s ON h.session_id = s.id
                WHERE s.user_id = ?`;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const params: any[] = [user.id];
 
     if (query.sessionId) {
@@ -299,6 +311,7 @@ export async function orchestratorRoutes(fastify: FastifyInstance) {
       sql.replace('SELECT h.*, s.name as session_name', 'SELECT COUNT(*) as total'),
       params
     );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const total = (countResult as any[])[0].total;
 
     // Get results
@@ -308,6 +321,7 @@ export async function orchestratorRoutes(fastify: FastifyInstance) {
     const [rows] = await fastify.db.execute(sql, params);
 
     return {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       history: (rows as any[]).map(row => ({
         id: row.id,
         sessionId: row.session_id,
@@ -332,6 +346,7 @@ export async function orchestratorRoutes(fastify: FastifyInstance) {
 
   // Get system health check
   fastify.get('/health', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Get system health status',

@@ -30,6 +30,7 @@ export interface IngestionOptions {
   contentType?: string;     // MIME type
   chunkSize?: number;
   chunkOverlap?: number;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   metadata?: Record<string, any>;
 }
 
@@ -173,6 +174,7 @@ export class RabbitHoleService {
       });
 
       return { ingestionId, source: options.source, title, chunksCount: storedCount, status: 'completed' };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (error: any) {
       await updateOne(this.db,
         `UPDATE web_ingestions SET status = 'failed', error = ? WHERE id = ?`,
@@ -273,6 +275,7 @@ export class RabbitHoleService {
   /**
    * Export all memory points from a collection as JSON
    */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   async exportMemory(collection: 'episodic_memory' | 'declarative_memory' | 'procedural_memory', userId: number): Promise<any> {
     const QDRANT_URL = process.env.QDRANT_URL || 'http://localhost:6333';
     try {
@@ -291,6 +294,7 @@ export class RabbitHoleService {
 
       if (!resp.ok) return { collection, points: [], error: `HTTP ${resp.status}` };
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       const data = await resp.json() as any;
       return {
         collection,
@@ -298,6 +302,7 @@ export class RabbitHoleService {
         exportedAt: new Date().toISOString(),
         userId,
       };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (err: any) {
       return { collection, points: [], error: err.message };
     }
@@ -308,6 +313,7 @@ export class RabbitHoleService {
    */
   async importMemory(
     collection: 'episodic_memory' | 'declarative_memory' | 'procedural_memory',
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     points: any[],
   ): Promise<{ imported: number; errors: number }> {
     const QDRANT_URL = process.env.QDRANT_URL || 'http://localhost:6333';

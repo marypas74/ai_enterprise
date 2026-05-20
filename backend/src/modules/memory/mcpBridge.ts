@@ -98,6 +98,7 @@ async function initDatabase(): Promise<void> {
   memoryService = new MemoryService(db);
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
 function sendResponse(id: number | string, result: any): void {
   const response = JSON.stringify({ jsonrpc: '2.0', id, result });
   process.stdout.write(response + '\n');
@@ -112,6 +113,7 @@ function sendError(id: number | string | null, code: number, message: string): v
   process.stdout.write(response + '\n');
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
 async function handleToolCall(name: string, args: any): Promise<{ content: Array<{ type: string; text: string }> }> {
   const userId = MCP_USER_ID;
 
@@ -167,6 +169,7 @@ async function handleToolCall(name: string, args: any): Promise<{ content: Array
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
 async function handleMessage(msg: any): Promise<void> {
   const { id, method, params } = msg;
 
@@ -191,6 +194,7 @@ async function handleMessage(msg: any): Promise<void> {
       try {
         const result = await handleToolCall(params.name, params.arguments || {});
         sendResponse(id, result);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       } catch (err: any) {
         sendResponse(id, {
           content: [{ type: 'text', text: `Error: ${err.message}` }],
@@ -220,6 +224,7 @@ async function main(): Promise<void> {
     try {
       const msg = JSON.parse(line);
       await handleMessage(msg);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (err: any) {
       sendError(null, -32700, `Parse error: ${err.message}`);
     }

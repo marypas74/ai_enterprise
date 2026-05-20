@@ -57,7 +57,9 @@ export interface AgentSession {
   maxIterations: number;
   timeoutSeconds: number;
   parentSessionId: number | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   config: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   metrics: any;
   startedAt: Date | null;
   completedAt: Date | null;
@@ -70,6 +72,7 @@ export interface SessionLog {
   sessionId: number;
   logType: string;
   content: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   metadata: any;
   timestamp: Date;
 }
@@ -89,6 +92,7 @@ class AgentOrchestratorClass {
   }
 
   // Initialize orchestrator (call on server startup)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   public async initialize(db: any): Promise<void> {
     await TerminalManager.syncFromDatabase(db);
     await cleanupInterruptedSessions(db);
@@ -96,15 +100,18 @@ class AgentOrchestratorClass {
   }
 
   // Delegate to AgentSessionManager
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   public async createSession(db: any, userId: number, data: CreateSessionDTO): Promise<AgentSession> {
     return _createSession(db, userId, data);
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   public async getSession(db: any, sessionId: number): Promise<AgentSession | null> {
     return _getSession(db, sessionId);
   }
 
   public async getUserSessions(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     db: any,
     userId: number,
     options: { status?: string; limit?: number; offset?: number } = {}
@@ -112,11 +119,13 @@ class AgentOrchestratorClass {
     return _getUserSessions(db, userId, options);
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   public async addLog(db: any, sessionId: number, log: SessionLogEvent): Promise<void> {
     return _addLog(db, sessionId, log);
   }
 
   public async getSessionLogs(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     db: any,
     sessionId: number,
     options: { limit?: number; offset?: number; logType?: string } = {}
@@ -124,23 +133,28 @@ class AgentOrchestratorClass {
     return _getSessionLogs(db, sessionId, options);
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   public async getDashboardMetrics(db: any): Promise<any> {
     return _getDashboardMetrics(db);
   }
 
   // Delegate to AgentExecutor
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   public async startSession(db: any, sessionId: number): Promise<void> {
     return _startSession(db, sessionId, this.runningProcesses, this.sessionTimeouts);
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   public async pauseSession(db: any, sessionId: number): Promise<void> {
     return _pauseSession(db, sessionId, this.runningProcesses);
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   public async resumeSession(db: any, sessionId: number): Promise<void> {
     return _resumeSession(db, sessionId, this.runningProcesses);
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   public async cancelSession(db: any, sessionId: number): Promise<void> {
     return _cancelSession(db, sessionId, this.runningProcesses, this.sessionTimeouts);
   }

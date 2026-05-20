@@ -29,6 +29,7 @@ export async function ralphRoutes(fastify: FastifyInstance) {
    * POST /api/ralph/start
    */
   fastify.post('/start', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Start a new Ralph loop',
@@ -88,6 +89,7 @@ export async function ralphRoutes(fastify: FastifyInstance) {
           iterate: `POST /api/ralph/${loop.id}/iterate`
         }
       });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (error: any) {
       fastify.log.error(`[Ralph] Start error: ${error.message}`);
       return reply.status(400).send({
@@ -103,6 +105,7 @@ export async function ralphRoutes(fastify: FastifyInstance) {
    * POST /api/ralph/:loopId/iterate
    */
   fastify.post('/:loopId/iterate', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Execute next iteration of Ralph loop',
@@ -199,6 +202,7 @@ export async function ralphRoutes(fastify: FastifyInstance) {
 
         reply.raw.end();
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       } catch (streamError: any) {
         fastify.log.error(`[Ralph] Stream error: ${streamError.message}`);
         reply.raw.write(`data: ${JSON.stringify({
@@ -208,6 +212,7 @@ export async function ralphRoutes(fastify: FastifyInstance) {
         reply.raw.end();
       }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (error: any) {
       fastify.log.error(`[Ralph] Iterate error: ${error.message}`);
       return reply.status(500).send({
@@ -222,6 +227,7 @@ export async function ralphRoutes(fastify: FastifyInstance) {
    * GET /api/ralph/:loopId
    */
   fastify.get('/:loopId', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Get Ralph loop status',
@@ -271,6 +277,7 @@ export async function ralphRoutes(fastify: FastifyInstance) {
    * GET /api/ralph
    */
   fastify.get('/', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Get all Ralph loops for current user',
@@ -301,6 +308,7 @@ export async function ralphRoutes(fastify: FastifyInstance) {
    * DELETE /api/ralph/:loopId
    */
   fastify.delete('/:loopId', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Stop a Ralph loop',
@@ -350,6 +358,7 @@ export async function ralphRoutes(fastify: FastifyInstance) {
           message: 'Unknown error stopping the loop'
         });
       }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (error: any) {
       return reply.status(400).send({
         error: 'Failed to stop loop',
@@ -363,6 +372,7 @@ export async function ralphRoutes(fastify: FastifyInstance) {
    * GET /api/ralph/stats
    */
   fastify.get('/stats', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Get Ralph loop statistics',

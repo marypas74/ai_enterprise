@@ -190,7 +190,7 @@ export class BrowserService {
     const title = titleMatch?.[1]?.trim() || url;
 
     // Remove script, style, nav, footer, header tags
-    let cleanHtml = html
+    const cleanHtml = html
       .replace(/<script[\s\S]*?<\/script>/gi, '')
       .replace(/<style[\s\S]*?<\/style>/gi, '')
       .replace(/<nav[\s\S]*?<\/nav>/gi, '')

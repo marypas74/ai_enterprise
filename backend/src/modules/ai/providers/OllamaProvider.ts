@@ -7,8 +7,10 @@ export class OllamaProvider implements AIProvider {
   private baseUrl: string;
   private timeout: number;
   private keepAlive: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   private redisClient?: any;
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   constructor(config?: ProviderConfig & { redisClient?: any }) {
     this.baseUrl = config?.baseUrl || process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
     this.timeout = config?.timeout || 300000; // Default 5 minutes
@@ -35,6 +37,7 @@ export class OllamaProvider implements AIProvider {
     let response: Response;
     try {
       response = await fetch(`${this.baseUrl}/api/tags`, { headers, signal: ctrl.signal });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (err: any) {
       clearTimeout(t);
       return { exists: true, fetchedAt: new Date(), reason: `network_error:${err?.name || 'unknown'}` };
@@ -135,6 +138,7 @@ export class OllamaProvider implements AIProvider {
       tokensOutput: data.eval_count || 0,
       model: options.model,
       provider: 'ollama',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       toolCalls: (data as any).message?.tool_calls,
       thinkingContent: data.message?.thinking || undefined,
     };
@@ -154,6 +158,7 @@ export class OllamaProvider implements AIProvider {
       // SECURITY: Combine timeout + client disconnect signals
       const signals: AbortSignal[] = [AbortSignal.timeout(this.timeout)];
       if (options.signal) signals.push(options.signal);
+       
       const combinedSignal = AbortSignal.any(signals);
 
       return fetch(`${this.baseUrl}/api/chat`, {
@@ -284,6 +289,7 @@ export class OllamaProvider implements AIProvider {
             yield {
               content: data.message?.content || '',
               done: data.done,
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
               toolCalls: (data.message as any)?.tool_calls
             };
           } catch {
@@ -296,6 +302,7 @@ export class OllamaProvider implements AIProvider {
       if (thinkingEmitted && isInThinking) {
         yield { content: '', done: false, thinkingDone: true };
       }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (error: any) {
       const elapsed = Date.now() - startTime;
       console.error(`[Ollama] Stream error after ${elapsed}ms: ${error.name} - ${error.message}`);

@@ -45,6 +45,7 @@ export interface DocumentOCRResult {
 export class VisionService {
   private static instance: VisionService | null = null;
   private db: mysql.Pool | null = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   private redis: any = null;
 
   static getInstance(): VisionService {
@@ -60,6 +61,7 @@ export class VisionService {
   }
 
   /** Set the Redis client for OCR result caching (content-hash based) */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   setRedis(redis: any): void {
     this.redis = redis;
   }
@@ -79,6 +81,7 @@ export class VisionService {
     if (this.db) {
       try {
         // Prefer vision-capable models, ordered by context window desc (bigger = better for vision)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         const row = await findOne<any>(this.db,
           `SELECT m.model_id FROM ai_models m
            JOIN ai_providers p ON m.provider_id = p.id
@@ -113,6 +116,7 @@ export class VisionService {
     if (this.db) {
       try {
         // Prefer OCR-specialized models (name contains 'ocr')
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         const row = await findOne<any>(this.db,
           `SELECT m.model_id FROM ai_models m
            JOIN ai_providers p ON m.provider_id = p.id
@@ -202,6 +206,7 @@ export class VisionService {
       throw new Error(`Vision model request failed: ${response.status} ${response.statusText}`);
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const data = await response.json() as any;
     const description = (data.response || '').trim();
 
@@ -358,6 +363,7 @@ Output ONLY the extracted text, no commentary.`;
       throw new Error(`Vision OCR request failed: ${response.status} ${response.statusText}`);
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const data = await response.json() as any;
     return (data.response || '').trim();
   }
@@ -377,7 +383,9 @@ Output ONLY the extracted text, no commentary.`;
       });
       if (!response.ok) return false;
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       const data = await response.json() as any;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       const models = (data.models || []).map((m: any) => m.name);
       // Check for any known vision/OCR model
       return models.some((name: string) =>

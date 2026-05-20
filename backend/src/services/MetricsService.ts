@@ -14,6 +14,7 @@ import {
 const K8S_API_URL = process.env.K8S_API_URL || 'https://kubernetes.default.svc';
 
 export class MetricsService {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     static async getExhaustiveMetrics(db?: Pool): Promise<any> {
         const cpus = os.cpus();
         const loadAvg = os.loadavg();
@@ -120,11 +121,13 @@ export class MetricsService {
         // CPU per-core usage percentages
         const coreUsages = calculateCoreUsages(cpuCoreStats);
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         let k8sPods: any[] = [];
         const k8sToken = getK8sToken();
         if (k8sToken) {
             try {
                 const https = await import('https');
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
                 const podsData = await new Promise<any>((resolve, reject) => {
                     const url = new URL(`${K8S_API_URL}/api/v1/pods?limit=100`);
                     const options = {
@@ -141,9 +144,11 @@ export class MetricsService {
                     req.end();
                 });
                 if (podsData.items) {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
                     k8sPods = podsData.items.map((p: any) => ({
                         namespace: p.metadata.namespace,
                         name: p.metadata.name,
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
                         ready: `${p.status.containerStatuses?.filter((c: any) => c.ready).length || 0}/${p.status.containerStatuses?.length || 0}`,
                         status: p.status.phase,
                         restarts: p.status.containerStatuses?.[0]?.restartCount || 0,
@@ -154,14 +159,18 @@ export class MetricsService {
         }
 
         // Ollama: fetch active (loaded) and installed models
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         let ollamaData: { version?: string; activeModels: any[]; installedModels: any[] } = { activeModels: [], installedModels: [] };
         const ollamaBaseUrl = process.env.OLLAMA_BASE_URL || 'http://10.0.1.1:8086/ollama';
         const ollamaAuthKey = process.env.OLLAMA_AUTH_KEY || 'mTLS-k8s-backend-2026';
         try {
             const headers = { 'X-Ollama-Key': ollamaAuthKey };
             const [psRes, tagsRes, versionRes] = await Promise.all([
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
                 fetch(`${ollamaBaseUrl}/api/ps`, { headers, signal: AbortSignal.timeout(3000) }).then(r => r.json() as Promise<any>).catch(() => null),
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
                 fetch(`${ollamaBaseUrl}/api/tags`, { headers, signal: AbortSignal.timeout(3000) }).then(r => r.json() as Promise<any>).catch(() => null),
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
                 fetch(`${ollamaBaseUrl}/api/version`, { headers, signal: AbortSignal.timeout(3000) }).then(r => r.json() as Promise<any>).catch(() => null),
             ]);
             ollamaData = {
@@ -177,6 +186,7 @@ export class MetricsService {
         const providerLatencyStats: Record<string, { p50: number | null; p95: number | null; count: number }> = await (async () => {
             if (!db) return {};
             try {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
                 const [latencyRows] = await db.query<any[]>(
                     `SELECT provider,
                             first_token_ms

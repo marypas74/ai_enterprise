@@ -41,6 +41,7 @@ export class HyDEService {
   /** Load config from DB or use defaults */
   async loadConfig(): Promise<void> {
     try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       const row = await findOne<any>(
         this.db,
         "SELECT setting_value FROM system_settings WHERE setting_key = 'hyde_config'",
@@ -64,6 +65,7 @@ export class HyDEService {
          ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)`,
         [JSON.stringify(this.config)],
       );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (err: any) {
       this.fastify.log.warn(`[HyDE] Failed to save config: ${err.message}`);
     }
@@ -111,6 +113,7 @@ export class HyDEService {
         this.fastify.log.debug(`[HyDE] Transformed query: "${query.substring(0, 50)}..." → "${hypothetical.substring(0, 80)}..."`);
         return hypothetical;
       }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (err: any) {
       this.fastify.log.warn(`[HyDE] Failed to generate hypothetical answer: ${err.message}`);
     }
@@ -125,6 +128,7 @@ export class HyDEService {
    */
   private async generateHypotheticalAnswer(query: string): Promise<string | null> {
     // Find the default chat provider from DB (api_key and base_url are in ai_provider_settings)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const provider = await findOne<any>(
       this.db,
       `SELECT p.provider_type AS type,
@@ -188,6 +192,7 @@ export class HyDEService {
         });
 
         if (!resp.ok) return null;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         const data = await resp.json() as any;
         return data.choices?.[0]?.message?.content || null;
       }
@@ -215,6 +220,7 @@ export class HyDEService {
         });
 
         if (!resp.ok) return null;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         const data = await resp.json() as any;
         return data.content?.[0]?.text || null;
       }
@@ -238,6 +244,7 @@ export class HyDEService {
         });
 
         if (!resp.ok) return null;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         const data = await resp.json() as any;
         return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
       }
@@ -257,11 +264,13 @@ export class HyDEService {
         });
 
         if (!resp.ok) return null;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         const data = await resp.json() as any;
         return data.message?.content || null;
       }
 
       return null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (err: any) {
       this.fastify.log.debug(`[HyDE] LLM call failed: ${err.message}`);
       return null;

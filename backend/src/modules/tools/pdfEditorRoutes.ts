@@ -21,8 +21,10 @@ export async function pdfEditorRoutes(fastify: FastifyInstance) {
 
   // GET /tools/pdf-info/:attachmentId — returns page count for inline PDF viewer
   fastify.get('/tools/pdf-info/:attachmentId', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
   }, async (request, reply) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request as any).user.id;
     const { attachmentId } = request.params as { attachmentId: string };
     const id = parseInt(attachmentId, 10);
@@ -43,6 +45,7 @@ export async function pdfEditorRoutes(fastify: FastifyInstance) {
       const doc = mupdf.Document.openDocument(pdfData, 'application/pdf');
       const totalPages = doc.countPages();
       return { totalPages };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (err: any) {
       fastify.log.error(`[PDFEditor] pdf-info error: ${err.message}`);
       return reply.status(500).send({ error: 'Errore lettura PDF' });
@@ -51,8 +54,10 @@ export async function pdfEditorRoutes(fastify: FastifyInstance) {
 
   // GET /tools/pdf-page/:attachmentId/:page — renders a PDF page as PNG for inline viewer
   fastify.get('/tools/pdf-page/:attachmentId/:page', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
   }, async (request, reply) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request as any).user.id;
     const params = request.params as { attachmentId: string; page: string };
     const id = parseInt(params.attachmentId, 10);
@@ -87,6 +92,7 @@ export async function pdfEditorRoutes(fastify: FastifyInstance) {
       reply.header('Content-Type', 'image/png');
       reply.header('Cache-Control', 'private, max-age=60');
       return reply.send(Buffer.from(pngBuffer));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (err: any) {
       fastify.log.error(`[PDFEditor] pdf-page error: ${err.message}`);
       return reply.status(500).send({ error: 'Errore rendering pagina PDF' });

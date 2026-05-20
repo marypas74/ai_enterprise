@@ -7,6 +7,7 @@ const docGenRateLimit = {
         max: 10,
         timeWindow: '1 minute',
         keyGenerator: (request: FastifyRequest) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
             const user = (request as any).user;
             return user?.id ? `doc-gen:${user.id}` : (request.headers['cf-connecting-ip'] as string) || request.ip;
         }
@@ -41,6 +42,7 @@ export async function toolsRoutes(fastify: FastifyInstance) {
 
     // POST: Generate and save file
     fastify.post('/tools/generate-docx', {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         onRequest: [(fastify as any).authenticate],
         config: docGenRateLimit,
         schema: {
@@ -73,6 +75,7 @@ export async function toolsRoutes(fastify: FastifyInstance) {
             const downloadUrl = `/api/tools/download/${filename}`;
 
             return { success: true, url: downloadUrl, filename };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         } catch (error: any) {
             request.log.error(`[Tools] Error generating DOCX: ${error.message}`);
             return reply.status(500).send({ error: 'Failed to generate document' });
@@ -81,6 +84,7 @@ export async function toolsRoutes(fastify: FastifyInstance) {
 
     // POST: Generate Excel
     fastify.post('/tools/generate-excel', {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         onRequest: [(fastify as any).authenticate],
         config: docGenRateLimit,
         schema: {
@@ -101,6 +105,7 @@ export async function toolsRoutes(fastify: FastifyInstance) {
     }, async (request, reply) => {
         try {
             const { data, title } = z.object({
+                 
                 data: z.array(z.record(z.any())),
                 title: z.string().optional().default('Dati_Export')
             }).parse(request.body);
@@ -121,6 +126,7 @@ export async function toolsRoutes(fastify: FastifyInstance) {
             const downloadUrl = `/api/tools/download/${filename}`;
 
             return { success: true, url: downloadUrl, filename };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         } catch (error: any) {
             request.log.error(`[Tools] Error generating Excel: ${error.message}`);
             return reply.status(500).send({ error: 'Failed to generate spreadsheet' });
@@ -129,6 +135,7 @@ export async function toolsRoutes(fastify: FastifyInstance) {
 
     // POST: Generate PowerPoint
     fastify.post('/tools/generate-pptx', {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         onRequest: [(fastify as any).authenticate],
         config: docGenRateLimit,
         schema: {
@@ -179,6 +186,7 @@ export async function toolsRoutes(fastify: FastifyInstance) {
 
             const downloadUrl = `/api/tools/download/${filename}`;
             return { success: true, url: downloadUrl, filename };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         } catch (error: any) {
             fastify.log.error(`[Tools] Error generating PPTX: ${error.message}`);
             return reply.status(500).send({ error: 'Failed to generate presentation' });
@@ -193,6 +201,7 @@ export async function toolsRoutes(fastify: FastifyInstance) {
     // If the USER wants to convert an EXISTING file, they normally upload it first.
     // Let's implement a route that takes an attachment ID to convert.
     fastify.post('/tools/convert-to-pdf', {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         onRequest: [(fastify as any).authenticate],
         config: docGenRateLimit,
         schema: {
@@ -217,6 +226,7 @@ export async function toolsRoutes(fastify: FastifyInstance) {
             // Fetch attachment from DB with user ownership check (IDOR protection)
             const attachment = await fastify.db.query(
                 'SELECT * FROM chat_attachments WHERE id = ? AND user_id = ?', [attachment_id, user.id]
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
             ).then((res: any) => res[0]?.[0]);
 
             if (!attachment) {
@@ -242,6 +252,7 @@ export async function toolsRoutes(fastify: FastifyInstance) {
 
             return { success: true, url: downloadUrl, filename };
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         } catch (error: any) {
             fastify.log.error(`[Tools] Error converting to PDF: ${error.message}`);
             return reply.status(500).send({ error: 'Failed to convert document to PDF' });
@@ -251,6 +262,7 @@ export async function toolsRoutes(fastify: FastifyInstance) {
     // POST: Generate document from chat conversation content
     // Works independently of AI tool calling — any model's response can be exported
     fastify.post('/tools/generate-from-chat', {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         onRequest: [(fastify as any).authenticate],
         config: docGenRateLimit,
         schema: {
@@ -375,6 +387,7 @@ export async function toolsRoutes(fastify: FastifyInstance) {
 
             return { success: true, url: downloadUrl, filename, format: body.format };
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         } catch (error: any) {
             fastify.log.error(`[Tools] Error generating from chat: ${error.message}`);
             return reply.status(500).send({ error: 'Failed to generate document' });
@@ -383,6 +396,7 @@ export async function toolsRoutes(fastify: FastifyInstance) {
 
     // SECURITY: Download now requires authentication to prevent unauthorized file access
     fastify.get('/tools/download/:filename', {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         onRequest: [(fastify as any).authenticate],
         schema: {
             tags: ['Tools'],

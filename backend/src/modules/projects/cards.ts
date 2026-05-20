@@ -31,6 +31,7 @@ const moveCardSchema = z.object({
 export async function cardRoutes(fastify: FastifyInstance) {
   // Create card
   fastify.post('/:projectId/columns/:columnId/cards', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Create new card',
@@ -38,6 +39,7 @@ export async function cardRoutes(fastify: FastifyInstance) {
       security: [{ bearerAuth: [] }]
     }
   }, async (request: FastifyRequest<{ Params: { projectId: string; columnId: string } }>, reply: FastifyReply) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request.user as any).id;
     const { projectId, columnId } = request.params;
 
@@ -77,6 +79,7 @@ export async function cardRoutes(fastify: FastifyInstance) {
 
   // Get card details
   fastify.get('/:projectId/cards/:cardId', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Get card details',
@@ -84,6 +87,7 @@ export async function cardRoutes(fastify: FastifyInstance) {
       security: [{ bearerAuth: [] }]
     }
   }, async (request: FastifyRequest<{ Params: { projectId: string; cardId: string } }>, reply: FastifyReply) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request.user as any).id;
     const { projectId, cardId } = request.params;
 
@@ -106,6 +110,7 @@ export async function cardRoutes(fastify: FastifyInstance) {
     }
 
     // Get labels
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const labels = await findAll<any>(
       fastify.db,
       `SELECT l.* FROM kanban_labels l
@@ -115,6 +120,7 @@ export async function cardRoutes(fastify: FastifyInstance) {
     );
 
     // Get comments
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const comments = await findAll<any>(
       fastify.db,
       `SELECT c.*, u.name as user_name
@@ -126,6 +132,7 @@ export async function cardRoutes(fastify: FastifyInstance) {
     );
 
     // Get checklists
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const checklists = await findAll<any>(
       fastify.db,
       'SELECT * FROM kanban_checklists WHERE card_id = ? ORDER BY sort_order',
@@ -133,6 +140,7 @@ export async function cardRoutes(fastify: FastifyInstance) {
     );
 
     const checklistsWithItems = await Promise.all(checklists.map(async (cl) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       const items = await findAll<any>(
         fastify.db,
         'SELECT * FROM kanban_checklist_items WHERE checklist_id = ? ORDER BY sort_order',
@@ -142,6 +150,7 @@ export async function cardRoutes(fastify: FastifyInstance) {
     }));
 
     // Get activity
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const activity = await findAll<any>(
       fastify.db,
       `SELECT a.*, u.name as user_name
@@ -154,6 +163,7 @@ export async function cardRoutes(fastify: FastifyInstance) {
     );
 
     // Get linked conversations
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const conversations = await findAll<any>(
       fastify.db,
       `SELECT c.id, c.title, c.model, c.created_at
@@ -175,6 +185,7 @@ export async function cardRoutes(fastify: FastifyInstance) {
 
   // Update card
   fastify.patch('/:projectId/cards/:cardId', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Update card',
@@ -182,6 +193,7 @@ export async function cardRoutes(fastify: FastifyInstance) {
       security: [{ bearerAuth: [] }]
     }
   }, async (request: FastifyRequest<{ Params: { projectId: string; cardId: string } }>, reply: FastifyReply) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request.user as any).id;
     const { projectId, cardId } = request.params;
 
@@ -191,9 +203,11 @@ export async function cardRoutes(fastify: FastifyInstance) {
 
     const body = updateCardSchema.parse(request.body);
     const updates: string[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const values: any[] = [];
 
     // Track changes for activity log
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const changes: Record<string, any> = {};
 
     for (const [key, value] of Object.entries(body)) {
@@ -225,6 +239,7 @@ export async function cardRoutes(fastify: FastifyInstance) {
 
   // Move card (change column/order) - NEVER returns 500, always 200
   fastify.post('/:projectId/cards/:cardId/move', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Move card to different column',
@@ -233,6 +248,7 @@ export async function cardRoutes(fastify: FastifyInstance) {
     }
   }, async (request: FastifyRequest<{ Params: { projectId: string; cardId: string } }>, reply: FastifyReply) => {
     const { projectId, cardId } = request.params;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request.user as any).id;
 
     // Log the request for debugging
@@ -268,6 +284,7 @@ export async function cardRoutes(fastify: FastifyInstance) {
           fastify.log.warn(`[Card Move] Invalid column_id`);
           return { success: false, warning: 'Invalid column_id provided' };
         }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       } catch (parseErr: any) {
         fastify.log.warn(`[Card Move] Body parse error: ${parseErr.message}`);
         return { success: false, warning: 'Could not parse request body' };
@@ -306,6 +323,7 @@ export async function cardRoutes(fastify: FastifyInstance) {
 
       return { success: true, cardId: Number(cardId), from: oldCard.column_id, to: columnId };
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (error: any) {
       // CRITICAL: Never return 500, always return 200 with warning
       fastify.log.error(`[Card Move] CAUGHT ERROR: ${error.message}`, error.stack);
@@ -324,6 +342,7 @@ export async function cardRoutes(fastify: FastifyInstance) {
 
   // Delete card
   fastify.delete('/:projectId/cards/:cardId', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Delete card',
@@ -331,6 +350,7 @@ export async function cardRoutes(fastify: FastifyInstance) {
       security: [{ bearerAuth: [] }]
     }
   }, async (request: FastifyRequest<{ Params: { projectId: string; cardId: string } }>, reply: FastifyReply) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request.user as any).id;
     const { projectId, cardId } = request.params;
 

@@ -56,9 +56,20 @@ export class AIProviderFactory {
     if (model.startsWith('gpt-') || model.startsWith('o1-') || model.startsWith('o3-')) return 'openai';
     if (model.startsWith('claude-')) return 'anthropic';
     if (model.startsWith('gemini-')) return 'google';
+    // vllm: prefix explicitly targets vLLM
+    if (model.startsWith('vllm:')) return 'vllm';
     // HuggingFace format (org/model) routes to vLLM
     if (model.includes('/')) return 'vllm';
-    // Ollama: ONLY for vision and embedding models
+    // HOTFIX-2.1.81: explicit vLLM-served models that happen to use Ollama-tag format (name:tag).
+    // The :tag-→Ollama heuristic below incorrectly captures vLLM's primary chat model.
+    // Must be checked BEFORE the generic colon rule.
+    const VLLM_TAGGED_MODELS = new Set(['qwen25vl:32b']);
+    if (VLLM_TAGGED_MODELS.has(model)) return 'vllm';
+    // Ollama tag format (name:tag, e.g. qwen3:14b, mixtral:latest) routes to Ollama
+    // MUST be checked before the keyword-based vLLM rule so Ollama pull-format models
+    // are not incorrectly sent to vLLM.
+    if (model.includes(':')) return 'ollama';
+    // Ollama: ONLY for vision and embedding models (non-tagged format)
     if (model.match(/^(minicpm-v|granite3\.2-vision|qwen2\.5vl|deepseek-ocr|glm-ocr)/i)) return 'ollama';
     if (model.match(/^(snowflake-arctic-embed|qwen3-embedding|nomic-embed|bge-m3)/i)) return 'ollama';
     // All local chat models route to vLLM (primary inference engine)

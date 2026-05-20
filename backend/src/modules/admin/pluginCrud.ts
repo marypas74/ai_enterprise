@@ -55,6 +55,7 @@ const createPluginSchema = z.object({
   author: z.string().optional(),
   category: z.enum(['tools', 'integrations', 'utilities', 'ai', 'data', 'other']).default('other'),
   icon: z.string().optional(),
+   
   config_schema: z.record(z.any()).optional(),
   is_system: z.boolean().default(false),
   is_enabled: z.boolean().default(true)
@@ -83,6 +84,7 @@ export async function pluginCrudRoutes(fastify: FastifyInstance) {
 
   // Get all plugins
   fastify.get('/plugins', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Get all plugins',
@@ -129,6 +131,7 @@ export async function pluginCrudRoutes(fastify: FastifyInstance) {
 
   // Get single plugin with tools
   fastify.get('/plugins/:id', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Get plugin details with tools',
@@ -177,6 +180,7 @@ export async function pluginCrudRoutes(fastify: FastifyInstance) {
 
   // Create plugin (Admin only)
   fastify.post('/plugins', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Create new plugin',
@@ -209,6 +213,7 @@ export async function pluginCrudRoutes(fastify: FastifyInstance) {
 
   // Update plugin (Admin only)
   fastify.patch('/plugins/:id', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Update plugin',
@@ -231,6 +236,7 @@ export async function pluginCrudRoutes(fastify: FastifyInstance) {
     }
 
     const updates: string[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const values: any[] = [];
 
     for (const [key, value] of Object.entries(body)) {
@@ -259,6 +265,7 @@ export async function pluginCrudRoutes(fastify: FastifyInstance) {
 
   // Save plugin settings (Admin only)
   fastify.put('/plugins/:id/settings', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Save plugin settings',
@@ -267,6 +274,7 @@ export async function pluginCrudRoutes(fastify: FastifyInstance) {
     }
   }, async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
     const { id } = request.params;
+     
     const pluginSettingsSchema = z.record(z.any());
     let settings: z.infer<typeof pluginSettingsSchema>;
     try {
@@ -298,6 +306,7 @@ export async function pluginCrudRoutes(fastify: FastifyInstance) {
 
   // Delete plugin (Admin only)
   fastify.delete('/plugins/:id', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Delete plugin',
@@ -329,6 +338,7 @@ export async function pluginCrudRoutes(fastify: FastifyInstance) {
 
   // Get current user's plugin permissions
   fastify.get('/user/plugins', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Get current user plugin permissions',
@@ -336,8 +346,10 @@ export async function pluginCrudRoutes(fastify: FastifyInstance) {
       security: [{ bearerAuth: [] }]
     }
   }, async (request: FastifyRequest, reply: FastifyReply) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request.user as any).id;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const plugins = await findAll<any>(
       fastify.db,
       `SELECT p.*, COALESCE(upp.is_enabled, TRUE) as user_enabled, upp.settings_override
@@ -357,6 +369,7 @@ export async function pluginCrudRoutes(fastify: FastifyInstance) {
 
   // Update user plugin permission
   fastify.put('/user/plugins/:pluginId', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Update user plugin permission',
@@ -364,10 +377,12 @@ export async function pluginCrudRoutes(fastify: FastifyInstance) {
       security: [{ bearerAuth: [] }]
     }
   }, async (request: FastifyRequest<{ Params: { pluginId: string } }>, reply: FastifyReply) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request.user as any).id;
     const { pluginId } = request.params;
     const body = z.object({
       is_enabled: z.boolean(),
+       
       settings_override: z.record(z.any()).optional()
     }).parse(request.body);
 
@@ -390,6 +405,7 @@ export async function pluginCrudRoutes(fastify: FastifyInstance) {
 
   // Get all MCP servers
   fastify.get('/mcp-servers', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Get all MCP servers',
@@ -427,6 +443,7 @@ export async function pluginCrudRoutes(fastify: FastifyInstance) {
 
   // Get single MCP server
   fastify.get('/mcp-servers/:id', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Get MCP server details',
@@ -462,6 +479,7 @@ export async function pluginCrudRoutes(fastify: FastifyInstance) {
 
   // Create MCP server (Admin only)
   fastify.post('/mcp-servers', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Create MCP server',
@@ -492,6 +510,7 @@ export async function pluginCrudRoutes(fastify: FastifyInstance) {
 
   // Update MCP server (Admin only)
   fastify.patch('/mcp-servers/:id', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Update MCP server',
@@ -503,6 +522,7 @@ export async function pluginCrudRoutes(fastify: FastifyInstance) {
     const body = updateMCPServerSchema.parse(request.body);
 
     const updates: string[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const values: any[] = [];
 
     for (const [key, value] of Object.entries(body)) {
@@ -531,6 +551,7 @@ export async function pluginCrudRoutes(fastify: FastifyInstance) {
 
   // Delete MCP server (Admin only)
   fastify.delete('/mcp-servers/:id', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Delete MCP server',
@@ -547,6 +568,7 @@ export async function pluginCrudRoutes(fastify: FastifyInstance) {
 
   // Test MCP server connection (Admin only)
   fastify.post('/mcp-servers/:id/test', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Test MCP server connection',
@@ -608,6 +630,7 @@ export async function pluginCrudRoutes(fastify: FastifyInstance) {
           success: false,
           message: status?.error || 'Connection failed',
         };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       } catch (err: any) {
         return { success: false, message: `Connection test failed: ${err.message}` };
       }
@@ -622,6 +645,7 @@ export async function pluginCrudRoutes(fastify: FastifyInstance) {
 
   // Get current user's MCP permissions
   fastify.get('/user/mcp-servers', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Get current user MCP server permissions',
@@ -629,8 +653,10 @@ export async function pluginCrudRoutes(fastify: FastifyInstance) {
       security: [{ bearerAuth: [] }]
     }
   }, async (request: FastifyRequest, reply: FastifyReply) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request.user as any).id;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const servers = await findAll<any>(
       fastify.db,
       `SELECT m.*, COALESCE(ump.is_enabled, FALSE) as user_enabled
@@ -649,6 +675,7 @@ export async function pluginCrudRoutes(fastify: FastifyInstance) {
 
   // Update user MCP permission
   fastify.put('/user/mcp-servers/:serverId', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Enable/disable MCP server for current user',
@@ -656,6 +683,7 @@ export async function pluginCrudRoutes(fastify: FastifyInstance) {
       security: [{ bearerAuth: [] }]
     }
   }, async (request: FastifyRequest<{ Params: { serverId: string } }>, reply: FastifyReply) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request.user as any).id;
     const { serverId } = request.params;
     const body = z.object({ is_enabled: z.boolean() }).parse(request.body);

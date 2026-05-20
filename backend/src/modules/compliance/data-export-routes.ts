@@ -18,19 +18,25 @@ async function generateDataExport(fastify: FastifyInstance, userId: number, expo
     await updateOne(fastify.db, `UPDATE data_export_requests SET status = 'processing' WHERE id = ?`, [exportId]);
 
     const [user, conversations, totalMsgCount, messages, consents, totalFeedbackCount, feedback, usage] = await Promise.all([
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       safeQuery(() => findOne<any>(fastify.db, `SELECT id, email, name, role, created_at, last_login_at FROM users WHERE id = ?`, [userId]), null),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       safeQuery(() => findMany<any>(fastify.db, `SELECT id, title, model, provider, created_at, updated_at FROM conversations WHERE user_id = ? ORDER BY created_at DESC`, [userId]), []),
       safeQuery(() => findOne<{ cnt: number }>(fastify.db,
         `SELECT COUNT(*) as cnt FROM messages m JOIN conversations c ON m.conversation_id = c.id WHERE c.user_id = ?`, [userId]), { cnt: 0 }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       safeQuery(() => findMany<any>(fastify.db,
         `SELECT m.id, m.conversation_id, m.role, m.content, m.tokens_input, m.tokens_output, m.created_at
          FROM messages m JOIN conversations c ON m.conversation_id = c.id WHERE c.user_id = ? ORDER BY m.created_at DESC LIMIT 50000`, [userId]), []),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       safeQuery(() => findMany<any>(fastify.db,
         `SELECT id, consent_type, granted, granted_at, revoked_at, created_at FROM user_consents WHERE user_id = ?`, [userId]), []),
       safeQuery(() => findOne<{ cnt: number }>(fastify.db,
         `SELECT COUNT(*) as cnt FROM response_feedback WHERE user_id = ?`, [userId]), { cnt: 0 }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       safeQuery(() => findMany<any>(fastify.db,
         `SELECT id, message_id, rating, category, comment, created_at FROM response_feedback WHERE user_id = ? ORDER BY created_at DESC LIMIT 50000`, [userId]), []),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       safeQuery(() => findMany<any>(fastify.db,
         `SELECT id, year_month, provider, total_tokens_input, total_tokens_output, request_count FROM monthly_usage WHERE user_id = ? ORDER BY year_month DESC`, [userId]), []),
     ]);
@@ -78,12 +84,14 @@ export async function dataExportRoutes(fastify: FastifyInstance) {
 
   // ── POST /compliance/data-export ── (GAP-6: GDPR data export)
   fastify.post('/compliance/data-export', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
   }, async (request, reply) => {
     const user = request.user as UserPayload;
     const body = dataExportSchema.parse(request.body || {});
 
     // Check for pending export with row-level lock to prevent race condition
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const conn = await (fastify.db as any).getConnection();
     try {
       await conn.beginTransaction();
@@ -91,6 +99,7 @@ export async function dataExportRoutes(fastify: FastifyInstance) {
         `SELECT id FROM data_export_requests WHERE user_id = ? AND status IN ('pending','processing') FOR UPDATE`,
         [user.id]
       );
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       if ((rows as any[]).length > 0) {
         await conn.rollback();
         conn.release();
@@ -101,6 +110,7 @@ export async function dataExportRoutes(fastify: FastifyInstance) {
         `INSERT INTO data_export_requests (user_id, format, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 7 DAY))`,
         [user.id, body.format]
       );
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       const exportId = (result as any).insertId;
       await conn.commit();
       conn.release();
@@ -124,6 +134,7 @@ export async function dataExportRoutes(fastify: FastifyInstance) {
 
   // ── GET /compliance/data-export/:id ── (GAP-6: Download export)
   fastify.get('/compliance/data-export/:id', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
   }, async (request, reply) => {
     const user = request.user as UserPayload;
@@ -167,6 +178,7 @@ export async function dataExportRoutes(fastify: FastifyInstance) {
 
   // ── GET /compliance/data-exports ── (GAP-6: List user exports)
   fastify.get('/compliance/data-exports', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
   }, async (request, reply) => {
     const user = request.user as UserPayload;
@@ -180,6 +192,7 @@ export async function dataExportRoutes(fastify: FastifyInstance) {
 
   // ── DELETE /compliance/data-export/:id ── (Remove an export record)
   fastify.delete('/compliance/data-export/:id', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
   }, async (request, reply) => {
     const user = request.user as UserPayload;

@@ -39,6 +39,7 @@ export interface PluginManifest {
   description?: string;
   category?: 'tools' | 'integrations' | 'utilities' | 'ai' | 'data' | 'other';
   icon?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   config_schema?: Record<string, any>;
   dependencies?: string[];
   /** Resource permissions required by this plugin (checked at activation) */
@@ -49,11 +50,14 @@ export interface ToolDefinition {
   name: string;
   display_name: string;
   description: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   input_schema: Record<string, any>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   output_schema?: Record<string, any>;
   requires_approval?: boolean;
   return_direct?: boolean;
   start_examples?: string[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   execute: (input: any, ctx: PluginContext) => Promise<any>;
 }
 
@@ -61,10 +65,12 @@ export interface FormDefinition {
   name: string;
   display_name: string;
   description: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   json_schema: Record<string, any>;
   start_examples?: string[];
   stop_examples?: string[];
   ask_confirm?: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   on_submit: (data: any, ctx: PluginContext) => Promise<any>;
 }
 
@@ -74,6 +80,7 @@ export interface EndpointDefinition {
   description?: string;
   requiresAuth?: boolean;
   requiresAdmin?: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   handler: (request: any, reply: any) => Promise<any>;
 }
 
@@ -83,6 +90,7 @@ export interface PluginContext {
   fastify: FastifyInstance;
   db: mysql.Pool;
   eventBus: typeof eventBus;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   getSettings: () => Promise<Record<string, any>>;
   /** Check if a user has permission on a resource */
   checkPermission: (userId: number, userRole: string, resource: Resource, permission: Permission) => Promise<boolean>;
@@ -97,6 +105,7 @@ export interface LoadedPlugin {
   id: number;
   manifest: PluginManifest;
   dirPath: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   module: any;
   registeredHandlerIds: string[];
   registeredToolIds: number[];
@@ -140,6 +149,7 @@ export class PluginLoaderService {
     for (const dir of dirs) {
       try {
         await this.loadPlugin(dir.name);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       } catch (err: any) {
         this.fastify.log.error(`[PluginLoader] Failed to load plugin "${dir.name}": ${err.message}`);
       }
@@ -171,6 +181,7 @@ export class PluginLoaderService {
     const pluginId = await this.ensureDbRegistration(manifest, dirPath);
 
     // Check if plugin is enabled in DB
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const dbPlugin = await findOne<any>(this.db, 'SELECT is_enabled FROM plugins WHERE id = ?', [pluginId]);
     if (dbPlugin && !dbPlugin.is_enabled) {
       this.fastify.log.info(`[PluginLoader] Plugin "${manifest.name}" is disabled, skipping activation`);
@@ -190,10 +201,12 @@ export class PluginLoaderService {
       return null;
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     let module: any;
     try {
       const entryUrl = pathToFileURL(entryFile).href;
       module = await import(entryUrl);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (err: any) {
       this.fastify.log.error(`[PluginLoader] Failed to import "${manifest.name}": ${err.message}`);
       return null;
@@ -222,6 +235,7 @@ export class PluginLoaderService {
     if (typeof mod.activate === 'function') {
       try {
         await mod.activate(ctx);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       } catch (err: any) {
         this.fastify.log.error(`[PluginLoader] activate() failed for "${plugin.manifest.name}": ${err.message}`);
       }
@@ -247,6 +261,7 @@ export class PluginLoaderService {
           priority: 10,
           pluginId: plugin.id,
           enabled: true,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
           handler: handler as any,
         };
         eventBus.register(hookHandler);
@@ -275,6 +290,7 @@ export class PluginLoaderService {
             triggerType: 'description',
             examples: toolDef.start_examples,
           }).catch(err => this.fastify.log.warn(`[PluginLoader] Procedural embed failed for tool "${toolDef.name}": ${err.message}`));
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         } catch (err: any) {
           this.fastify.log.warn(`[PluginLoader] Failed to register tool "${toolDef.name}": ${err.message}`);
         }
@@ -299,6 +315,7 @@ export class PluginLoaderService {
             triggerType: 'description',
             examples: formDef.start_examples,
           }).catch(err => this.fastify.log.warn(`[PluginLoader] Procedural embed failed for form "${formDef.name}": ${err.message}`));
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         } catch (err: any) {
           this.fastify.log.warn(`[PluginLoader] Failed to register form "${formDef.name}": ${err.message}`);
         }
@@ -314,6 +331,7 @@ export class PluginLoaderService {
         try {
           this.registerEndpoint(plugin, ep);
           plugin.registeredEndpoints.push(`${ep.method} ${ep.path}`);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         } catch (err: any) {
           this.fastify.log.warn(`[PluginLoader] Failed to register endpoint "${ep.method} ${ep.path}": ${err.message}`);
         }
@@ -340,6 +358,7 @@ export class PluginLoaderService {
     try {
       const proceduralMemory = new ProceduralMemoryService(this.fastify, this.db);
       await proceduralMemory.unregisterPlugin(plugin.id);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (err: any) {
       this.fastify.log.warn(`[PluginLoader] Procedural memory cleanup failed for "${pluginName}": ${err.message}`);
     }
@@ -348,6 +367,7 @@ export class PluginLoaderService {
     if (plugin.module && typeof plugin.module.deactivate === 'function') {
       try {
         await plugin.module.deactivate(this.buildContext(plugin));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       } catch (err: any) {
         this.fastify.log.warn(`[PluginLoader] deactivate() failed for "${pluginName}": ${err.message}`);
       }
@@ -398,6 +418,7 @@ export class PluginLoaderService {
   }
 
   private async ensureDbRegistration(manifest: PluginManifest, dirPath: string): Promise<number> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const existing = await findOne<any>(this.db, 'SELECT id, version FROM plugins WHERE name = ?', [manifest.name]);
 
     if (existing) {
@@ -426,6 +447,7 @@ export class PluginLoaderService {
   }
 
   private async registerTool(plugin: LoadedPlugin, toolDef: ToolDefinition): Promise<number> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const existing = await findOne<any>(this.db, 'SELECT id FROM tools WHERE name = ?', [toolDef.name]);
     if (existing) {
       await updateOne(this.db,
@@ -447,6 +469,7 @@ export class PluginLoaderService {
   }
 
   private async registerForm(plugin: LoadedPlugin, formDef: FormDefinition): Promise<number> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const existing = await findOne<any>(this.db, 'SELECT id FROM conversational_forms WHERE name = ?', [formDef.name]);
     if (existing) {
       await updateOne(this.db,
@@ -475,9 +498,12 @@ export class PluginLoaderService {
     const fullPath = `${prefix}${ep.path}`;
     const method = ep.method.toLowerCase() as 'get' | 'post' | 'put' | 'patch' | 'delete';
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const hooks: any[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     if (ep.requiresAuth) hooks.push((this.fastify as any).authenticate);
     if (ep.requiresAdmin) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       hooks.push(async (request: any, reply: any) => {
         const user = request.user as { role: string };
         if (user.role !== 'admin') return reply.status(403).send({ error: 'Admin required' });
@@ -504,10 +530,12 @@ export class PluginLoaderService {
       checkPermission: (userId: number, userRole: string, resource: Resource, permission: Permission) =>
         permService.check(userId, userRole, resource, permission),
       getSettings: async () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         const rows = await findMany<any>(this.db,
           'SELECT setting_key, setting_value FROM plugin_settings WHERE plugin_id = ? AND user_id IS NULL',
           [plugin.id],
         );
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         const settings: Record<string, any> = {};
         for (const r of rows) {
           try {

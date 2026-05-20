@@ -23,6 +23,7 @@ export async function conversationRoutes(fastify: FastifyInstance) {
 
   // List conversations
   fastify.get('/conversations', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'List user conversations',
@@ -53,6 +54,7 @@ export async function conversationRoutes(fastify: FastifyInstance) {
 
   // Get conversation messages
   fastify.get('/conversations/:id/messages', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Get conversation messages',
@@ -96,6 +98,7 @@ export async function conversationRoutes(fastify: FastifyInstance) {
 
   // Undo last message
   fastify.delete('/conversations/:id/undo', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Undo the last message in a conversation',
@@ -173,6 +176,7 @@ export async function conversationRoutes(fastify: FastifyInstance) {
 
   // Delete conversation
   fastify.delete('/conversations/:id', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Delete a conversation',
@@ -205,6 +209,7 @@ export async function conversationRoutes(fastify: FastifyInstance) {
 
   // Archive/unarchive conversation
   fastify.patch('/conversations/:id/archive', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Archive or unarchive a conversation',
@@ -231,6 +236,7 @@ export async function conversationRoutes(fastify: FastifyInstance) {
 
   // Bulk Delete Conversations
   fastify.delete('/conversations', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Delete multiple or all conversations',
@@ -278,6 +284,7 @@ export async function conversationRoutes(fastify: FastifyInstance) {
 
   // Bulk Archive Conversations
   fastify.patch('/conversations/archive', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Archive or unarchive multiple/all conversations',

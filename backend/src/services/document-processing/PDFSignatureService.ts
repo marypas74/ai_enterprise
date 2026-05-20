@@ -218,6 +218,7 @@ export async function signPdfCertified(
         type: forge.pki.oids.messageDigest,
         value: forge.util.createBuffer(digest.toString('binary')),
       },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       { type: forge.pki.oids.signingTime, value: new Date() as any },
     ],
   });
@@ -366,6 +367,7 @@ export async function verifySignatures(buffer: Buffer): Promise<SignatureInfo[]>
   if (signatures.length === 0) {
     try {
       const mupdf = await import('mupdf');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       const doc = mupdf.Document.openDocument(buffer, 'application/pdf') as any;
 
       const trailer = doc.getTrailer();
@@ -391,6 +393,7 @@ export async function verifySignatures(buffer: Buffer): Promise<SignatureInfo[]>
               const uint8 = streamData.asUint8Array();
               const p7DerStr = Buffer.from(uint8).toString('binary');
               const p7Asn1 = forge.asn1.fromDer(p7DerStr);
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
               const p7 = forge.pkcs7.messageFromAsn1(p7Asn1) as any;
               extractSignaturesFromP7(p7, signatures);
             } catch {
@@ -436,6 +439,7 @@ function extractByteRangeSignatures(buffer: Buffer, signatures: SignatureInfo[])
 
       const derBytes = Buffer.from(hexData, 'hex').toString('binary');
       const asn1 = forge.asn1.fromDer(derBytes);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       const p7 = forge.pkcs7.messageFromAsn1(asn1) as any;
       extractSignaturesFromP7(p7, signatures);
 
@@ -459,6 +463,7 @@ function extractByteRangeSignatures(buffer: Buffer, signatures: SignatureInfo[])
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
 function extractSignaturesFromP7(p7: any, signatures: SignatureInfo[]): void {
   // forge.pkcs7.messageFromAsn1 doesn't populate signers array —
   // signer info is in rawCapture instead
@@ -469,6 +474,7 @@ function extractSignaturesFromP7(p7: any, signatures: SignatureInfo[]): void {
     // Fall back to checking signers array (in case future forge versions fix this)
     if (p7.signers && p7.signers.length > 0) {
       for (const signer of p7.signers) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         const cert = certs.find((c: any) => c.serialNumber === signer.serialNumber);
         const signerName = cert?.subject?.getField('CN')?.value ?? 'Unknown';
         signatures.push({ signerName, valid: verifyCert(cert) });
@@ -482,8 +488,10 @@ function extractSignaturesFromP7(p7: any, signatures: SignatureInfo[]): void {
   const serialHex = rc.serial ? forge.util.bytesToHex(rc.serial) : null;
 
   // Find matching certificate
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   let signerCert: any = null;
   if (serialHex && certs.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     signerCert = certs.find((c: any) =>
       c.serialNumber?.toLowerCase() === serialHex?.toLowerCase(),
     ) ?? certs[0]; // Fall back to first cert
@@ -499,6 +507,7 @@ function extractSignaturesFromP7(p7: any, signatures: SignatureInfo[]): void {
   });
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
 function verifyCert(cert: any): boolean {
   if (!cert) return false;
   try {

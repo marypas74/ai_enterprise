@@ -7,6 +7,7 @@ export interface AgentEvent {
         'terminal_assigned' | 'terminal_released' | 'iteration_started';
   sessionId?: number;
   terminalSlot?: number;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   data: any;
   timestamp: Date;
 }
@@ -15,6 +16,7 @@ export interface SessionLogEvent {
   sessionId: number;
   logType: 'stdout' | 'stderr' | 'action' | 'decision' | 'tool_call' | 'tool_result' | 'error' | 'warning' | 'info' | 'qa_iteration';
   content: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   metadata?: any;
 }
 
@@ -101,6 +103,7 @@ class AgentEventEmitterClass extends EventEmitter {
   }
 
   // Convenience methods for common events
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   public sessionCreated(sessionId: number, data: any): void {
     this.emitSessionEvent({
       type: 'session_created',
@@ -116,6 +119,7 @@ class AgentEventEmitterClass extends EventEmitter {
     });
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   public sessionUpdated(sessionId: number, data: any): void {
     this.emitSessionEvent({
       type: 'session_updated',
@@ -125,6 +129,7 @@ class AgentEventEmitterClass extends EventEmitter {
     });
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   public sessionCompleted(sessionId: number, data: any): void {
     this.emitSessionEvent({
       type: 'session_completed',

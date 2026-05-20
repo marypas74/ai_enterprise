@@ -93,13 +93,14 @@ export function createAuthToken(
 
 /**
  * Creates mock headers object with Authorization bearer token.
- * Set `withBody=false` for DELETE/GET/POST-without-body to avoid Fastify FST_ERR_CTP_EMPTY_JSON_BODY.
+ * `withBody=true` adds `content-type: application/json` (needed for POST/PUT/PATCH with JSON body).
+ * Default is false — no content-type — which is correct for DELETE/GET and POST without body.
  */
 export function createAuthHeaders(
   fastify: FastifyInstance,
   userId: number = 1,
   role: 'admin' | 'user' = 'user',
-  withBody: boolean = true
+  withBody: boolean = false
 ): Record<string, string> {
   const token = createAuthToken(fastify, userId, role);
   const base = { authorization: `Bearer ${token}` };

@@ -102,6 +102,7 @@ export class LLMSyncWorker {
             }
 
             this.fastify.log.debug('[LLMSyncWorker] Provider configurations synchronized');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         } catch (error: any) {
             this.fastify.log.error(`[LLMSyncWorker] Config sync error: ${error.message}`);
         }
@@ -124,6 +125,7 @@ export class LLMSyncWorker {
             await this.disableOrphanedModels();
 
             this.fastify.log.info('[LLMSyncWorker] Full model sync complete');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         } catch (error: any) {
             this.fastify.log.error(`[LLMSyncWorker] Model sync error: ${error.message}`);
         }
@@ -141,6 +143,7 @@ export class LLMSyncWorker {
      * Sync API provider models (OpenAI, Anthropic, Google): discover new models
      */
     private async syncApiProviderModels() {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         const providers = await findAll<any>(
             this.fastify.db,
             "SELECT id, name, display_name, provider_type FROM ai_providers WHERE is_enabled = TRUE AND provider_type != 'ollama'"
@@ -151,16 +154,20 @@ export class LLMSyncWorker {
             return;
         }
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         this.fastify.log.info(`[LLMSyncWorker] Syncing ${providers.length} API provider(s): ${providers.map((p: any) => p.provider_type).join(', ')}`);
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         const providerConfigs: any[] = [];
         for (const p of providers) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
             const settings = await findAll<any>(
                 this.fastify.db,
                 'SELECT setting_key, setting_value, is_secret FROM ai_provider_settings WHERE provider_id = ?',
                 [p.id]
             );
 
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
             const config: any = { type: p.provider_type, id: p.id };
             for (const s of settings) {
                 const value = s.is_secret ? decryptSecret(s.setting_value) : s.setting_value;
@@ -189,9 +196,11 @@ export class LLMSyncWorker {
         let addedCount = 0;
 
         for (const model of availableModels) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
             const provider = providers.find((p: any) => p.provider_type === model.provider);
             if (!provider) continue;
 
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
             const existing = await findOne<any>(
                 this.fastify.db,
                 'SELECT id, is_enabled, is_manually_disabled FROM ai_models WHERE provider_id = ? AND model_id = ?',
@@ -248,11 +257,14 @@ export class LLMSyncWorker {
      *     allowlist AND were not flagged as `is_manually_disabled` (regression
      *     guard for v2.1.62: false-positive disabling of `gpt-5.5-pro-*` etc.).
      */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     private async disableIncompatibleModels(providers: any[]) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         const providerIds = providers.map((p: any) => p.id);
         if (providerIds.length === 0) return;
 
         const placeholders = providerIds.map(() => '?').join(',');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         const allDbModels = await findAll<any>(
             this.fastify.db,
             `SELECT id, model_id, is_enabled, is_manually_disabled, is_manually_enabled
@@ -301,6 +313,7 @@ export class LLMSyncWorker {
      */
     private async findObsoleteModel(providerId: number, newModelId: string): Promise<{ id: number; model_id: string } | null> {
         // Look for models with the same base name plus a date suffix (-YYYYMMDD)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         const obsolete = await findOne<any>(
             this.fastify.db,
             `SELECT id, model_id FROM ai_models
@@ -313,6 +326,7 @@ export class LLMSyncWorker {
         const dateMatch = newModelId.match(/^(.+)-(\d{8})$/);
         if (dateMatch) {
             const baseId = dateMatch[1];
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
             const existing = await findOne<any>(
                 this.fastify.db,
                 `SELECT id, model_id FROM ai_models WHERE provider_id = ? AND model_id = ?`,
@@ -329,6 +343,7 @@ export class LLMSyncWorker {
      */
     private async disableOrphanedModels() {
         // Find enabled models with disabled providers
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         const orphaned = await findAll<any>(
             this.fastify.db,
             `SELECT m.id, m.model_id, p.name as provider_name

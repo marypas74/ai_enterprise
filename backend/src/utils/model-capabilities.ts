@@ -131,7 +131,7 @@ export const LEGACY_MODEL_REDIRECTS: Readonly<Record<string, string>> = Object.f
 export function redirectLegacyModel(modelId: string): string {
   const target = LEGACY_MODEL_REDIRECTS[modelId];
   if (!target) return modelId;
-  // eslint-disable-next-line no-console
+   
   console.warn(`[model-capabilities] legacy model "${modelId}" redirected to "${target}" (v2.1.64 deprecation)`);
   return target;
 }

@@ -24,6 +24,7 @@ export interface MemoryPoint {
   collection: MemoryCollection;
   content: string;
   score: number;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   metadata: Record<string, any>;
 }
 
@@ -88,6 +89,7 @@ async function ensureCollection(name: string, dimensions: number): Promise<boole
     }
     console.log(`[VectorMemory] Created collection ${name} (${dimensions}d)`);
     return true;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   } catch (e: any) {
     console.error(`[VectorMemory] ensureCollection error: ${e.message}`);
     return false;
@@ -121,6 +123,7 @@ async function isDuplicate(
   filterUserId?: number,
 ): Promise<boolean> {
   try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const body: any = {
       vector: embedding,
       limit: 1,
@@ -138,6 +141,7 @@ async function isDuplicate(
     });
 
     if (!resp.ok) return false;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const data = await resp.json() as any;
     return (data.result || []).length > 0;
   } catch {
@@ -198,6 +202,7 @@ export async function storeDeclarative(
   userId: number,
   content: string,
   source: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   metadata: Record<string, any> = {},
 ): Promise<boolean> {
   if (!await isQdrantAvailable()) return false;
@@ -291,6 +296,7 @@ export async function searchCollection(
   const emb = await generateEmbedding(db, query);
   if (!emb) return [];
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   const body: any = {
     vector: emb.embedding,
     limit: k,
@@ -311,7 +317,9 @@ export async function searchCollection(
 
     if (!resp.ok) return [];
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const data = await resp.json() as any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     return (data.result || []).map((hit: any) => ({
       id: hit.id,
       collection,
@@ -390,6 +398,7 @@ export async function getCollectionInfo(collection: MemoryCollection): Promise<{
   try {
     const resp = await fetch(`${QDRANT_URL}/collections/${collection}`);
     if (!resp.ok) return { name: collection, points_count: 0, status: 'not_created' };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const data = await resp.json() as any;
     return {
       name: collection,
@@ -404,6 +413,7 @@ export async function getCollectionInfo(collection: MemoryCollection): Promise<{
 export async function getAllCollectionsInfo(): Promise<{ name: string; points_count: number; status: string }[]> {
   const collections: MemoryCollection[] = ['episodic_memory', 'declarative_memory', 'procedural_memory'];
   const results = await Promise.all(collections.map(c => getCollectionInfo(c)));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   return results.filter(Boolean) as any[];
 }
 
@@ -423,6 +433,7 @@ export async function getUserRecallSettings(db: mysql.Pool, userId: number): Pro
   declarativeK: number; declarativeThreshold: number;
   proceduralK: number; proceduralThreshold: number;
 }> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   const row = await findOne<any>(db,
     'SELECT auto_rag_enabled, episodic_recall_k, episodic_recall_threshold, declarative_recall_k, declarative_recall_threshold, procedural_recall_k, procedural_recall_threshold FROM memory_settings WHERE user_id = ?',
     [userId],

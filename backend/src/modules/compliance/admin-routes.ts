@@ -7,6 +7,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
   // ── GET /admin/compliance/dashboard ──
   fastify.get('/admin/compliance/dashboard', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate, requireAdmin],
   }, async (request, reply) => {
 
@@ -42,6 +43,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
       safeQuery(() => findOne<{ cnt: number }>(fastify.db, `SELECT COUNT(*) as cnt FROM data_export_requests`), { cnt: 0 }),
       safeQuery(() => findOne<{ cnt: number }>(fastify.db, `SELECT COUNT(*) as cnt FROM data_export_requests WHERE status IN ('pending','processing')`), { cnt: 0 }),
       safeQuery(() => findOne<{ cnt: number }>(fastify.db, `SELECT COUNT(*) as cnt FROM account_deletion_requests WHERE status IN ('pending','confirmed')`), { cnt: 0 }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       safeQuery(() => findMany<any>(fastify.db,
         `SELECT id, period_start, period_end, ai_model, ai_provider, total_requests,
                 refusal_count, error_count, avg_latency_ms, negative_feedback_count,
@@ -63,12 +65,14 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
   // ── GET /admin/compliance/consent-audit ── (GAP-4)
   fastify.get('/admin/compliance/consent-audit', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate, requireAdmin],
   }, async (request, reply) => {
     const query = request.query as { limit?: string; offset?: string };
     const limit = safeParseInt(query.limit, 50, 200);
     const offset = safeParseInt(query.offset, 0);
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const consents = await findMany<any>(fastify.db,
       `SELECT uc.id, uc.user_id, uc.consent_type, uc.granted, uc.ip_address,
               uc.granted_at, uc.revoked_at, uc.created_at, u.email, u.name
@@ -81,6 +85,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
     // Audit log admin read access
     try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       const user = (request as any).user;
       await insertOne(fastify.db,
         `INSERT INTO audit_log (user_id, action, entity_type, ip_address, details) VALUES (?, ?, ?, ?, ?)`,
@@ -93,6 +98,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
   // ── GET /admin/compliance/decision-log ── (GAP-5)
   fastify.get('/admin/compliance/decision-log', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate, requireAdmin],
   }, async (request, reply) => {
     const query = request.query as { limit?: string; offset?: string; model?: string; user_id?: string };
@@ -100,6 +106,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
     const offset = safeParseInt(query.offset, 0);
 
     let where = '1=1';
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const params: any[] = [];
     if (query.model && typeof query.model === 'string' && query.model.length <= 100) {
       where += ' AND dl.ai_model = ?'; params.push(query.model);
@@ -109,6 +116,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
       if (userId > 0) { where += ' AND dl.user_id = ?'; params.push(userId); }
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const logs = await findMany<any>(fastify.db,
       `SELECT dl.id, dl.user_id, dl.conversation_id, dl.message_id, dl.ai_model, dl.ai_provider,
               dl.tokens_input, dl.tokens_output, dl.latency_ms, dl.safety_flags,
@@ -123,6 +131,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
     // Audit log admin read access
     try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       const user = (request as any).user;
       await insertOne(fastify.db,
         `INSERT INTO audit_log (user_id, action, entity_type, ip_address, details) VALUES (?, ?, ?, ?, ?)`,
@@ -135,11 +144,13 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
   // ── GET /admin/compliance/bias-report ── (GAP-11)
   fastify.get('/admin/compliance/bias-report', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate, requireAdmin],
   }, async (request, reply) => {
     const query = request.query as { days?: string };
     const days = safeParseInt(query.days, 30, 365);
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const report = await findMany<any>(fastify.db,
       `SELECT id, period_start, period_end, ai_model, ai_provider, total_requests,
               refusal_count, error_count, avg_latency_ms, negative_feedback_count,
@@ -151,6 +162,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
     );
 
     // Real-time stats from decision log
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const realtime = await findMany<any>(fastify.db,
       `SELECT ai_model, ai_provider,
               COUNT(*) as total_requests,
@@ -168,12 +180,15 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
   // ── GET /admin/compliance/feedback-stats ── (GAP-9)
   fastify.get('/admin/compliance/feedback-stats', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate, requireAdmin],
   }, async (request, reply) => {
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const byCategory = await findMany<any>(fastify.db,
       `SELECT category, rating, COUNT(*) as cnt FROM response_feedback GROUP BY category, rating ORDER BY cnt DESC`
     );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const byModel = await findMany<any>(fastify.db,
       `SELECT m.ai_model, rf.rating, COUNT(*) as cnt
        FROM response_feedback rf
@@ -188,9 +203,11 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
   // ── GET /admin/compliance/model-docs ── (GAP-8)
   fastify.get('/admin/compliance/model-docs', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate, requireAdmin],
   }, async (request, reply) => {
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const models = await findMany<any>(fastify.db,
       `SELECT m.id, m.model_id, m.display_name, p.display_name as provider_name,
               m.context_window, m.knowledge_cutoff, m.limitations, m.bias_notes,
@@ -204,6 +221,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
   // ── PUT /admin/compliance/model-docs/:id ── (GAP-8)
   fastify.put('/admin/compliance/model-docs/:id', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate, requireAdmin],
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
@@ -214,6 +232,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
     const user = request.user as UserPayload;
 
     const sets: string[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const params: any[] = [];
     if (body.knowledge_cutoff !== undefined) { sets.push('knowledge_cutoff = ?'); params.push(body.knowledge_cutoff); }
     if (body.limitations !== undefined) { sets.push('limitations = ?'); params.push(body.limitations); }
@@ -236,12 +255,14 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
   // ── GET /admin/compliance/export-requests ── (GAP-6)
   fastify.get('/admin/compliance/export-requests', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate, requireAdmin],
   }, async (request, reply) => {
     const query = request.query as { limit?: string; offset?: string };
     const limit = safeParseInt(query.limit, 50, 200);
     const offset = safeParseInt(query.offset, 0);
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const exports = await findMany<any>(fastify.db,
       `SELECT der.id, der.user_id, der.status, der.format, der.requested_at,
               der.completed_at, der.expires_at, u.email, u.name
@@ -255,12 +276,14 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
   // ── GET /admin/compliance/deletion-requests ── (GAP-7)
   fastify.get('/admin/compliance/deletion-requests', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate, requireAdmin],
   }, async (request, reply) => {
     const query = request.query as { limit?: string; offset?: string };
     const limit = safeParseInt(query.limit, 50, 200);
     const offset = safeParseInt(query.offset, 0);
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const deletions = await findMany<any>(fastify.db,
       `SELECT adr.id, adr.user_id, adr.status, adr.reason, adr.requested_at,
               adr.confirm_by, adr.completed_at, u.email, u.name

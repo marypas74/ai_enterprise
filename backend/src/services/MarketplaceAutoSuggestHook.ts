@@ -104,6 +104,7 @@ async function isUserOptedIn(db: mysql.Pool, userId: number): Promise<boolean> {
 async function searchCompetencies(
   db: mysql.Pool,
   messageContent: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   redis?: any,
 ): Promise<readonly CompetencySuggestion[]> {
   const embeddingResult = await generateEmbedding(db, messageContent, redis);
@@ -127,9 +128,12 @@ async function searchCompetencies(
 
   if (!response.ok) return [];
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   const data = (await response.json()) as any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   const hits: any[] = data.result || [];
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   return hits.map((hit: any) => ({
     id: hit.id,
     title: hit.payload?.title ?? hit.payload?.name ?? '',
@@ -142,6 +146,7 @@ async function searchCompetencies(
 // Hook Registration
 // ============================================================
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
 export function registerAutoSuggestHook(db: any, redis?: any): void {
   eventBus.register({
     id: 'marketplace-auto-suggest',
@@ -149,6 +154,7 @@ export function registerAutoSuggestHook(db: any, redis?: any): void {
     hookName: 'before_llm_call',
     priority: 50,
     enabled: true,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     handler: async (data: any, context: HookContext) => {
       try {
         // 1. Check global setting

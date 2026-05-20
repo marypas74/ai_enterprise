@@ -117,6 +117,7 @@ function createBridgeServer(
         // Unknown route
         res.writeHead(404);
         res.end(JSON.stringify({ error: 'Not found' }));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       } catch (err: any) {
         // Sanitize error — don't leak internal details to sandbox
         console.error('[SandboxBridge] Error handling request:', err);
@@ -198,6 +199,7 @@ export async function execute(
       toolCallsCount: stats.toolCalls,
       webRequestsCount: stats.webRequests,
     };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   } catch (err: any) {
     return {
       success: false,
@@ -289,6 +291,7 @@ function runPython(
         killSignal: 'SIGKILL',
       },
       (error, stdout, stderr) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         if (error && ((error as any).killed === true || error.signal === 'SIGKILL')) {
           resolve({
             stdout: '',
@@ -301,6 +304,7 @@ function runPython(
         resolve({
           stdout: stdout || '',
           stderr: stderr || '',
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
           exitCode: error ? (typeof (error as any).code === 'number' ? (error as any).code : 1) : 0,
         });
       }

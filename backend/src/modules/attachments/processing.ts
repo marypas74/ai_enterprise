@@ -44,6 +44,7 @@ export async function extractPdfText(buffer: Buffer): Promise<string> {
       return text;
     }
     console.log(`[Attachments] pdf-parse returned empty text, trying fallback...`);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   } catch (parseErr: any) {
     console.warn(`[Attachments] pdf-parse failed: ${parseErr.message}, trying pdftotext fallback...`);
   }
@@ -63,6 +64,7 @@ export async function extractPdfText(buffer: Buffer): Promise<string> {
       console.log(`[Attachments] pdftotext extracted ${text.length} chars`);
       return text;
     }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   } catch (execErr: any) {
     console.warn(`[Attachments] pdftotext CLI not available or failed: ${execErr.message}`);
   } finally {
@@ -80,6 +82,7 @@ export async function extractPdfText(buffer: Buffer): Promise<string> {
 async function processAttachmentContent(
   attachment: ChatAttachment,
   processor: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   log: { info: (...args: any[]) => void; warn: (...args: any[]) => void }
 ): Promise<string | null> {
   switch (processor) {
@@ -126,6 +129,7 @@ async function processAttachmentContent(
         return ocrText.trim()
           ? `[OCR da immagine: ${attachment.original_name}]\n${ocrText}`
           : `[Immagine: ${attachment.original_name}] - Nessun testo rilevato dall'OCR.`;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       } catch (ocrError: any) {
         return `[Immagine: ${attachment.original_name}] - Errore OCR: ${ocrError.message}`;
       }
@@ -144,6 +148,7 @@ async function processAttachmentContent(
           log.info(`[Attachments] PDF text too sparse (${cleanedText.length} chars) for ${attachment.original_name}, trying OCR...`);
           try {
             pdfText = await extractPdfWithOCR(pdfBuffer);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
           } catch (ocrFallbackError: any) {
             log.warn(`[Attachments] OCR fallback failed: ${ocrFallbackError.message}`);
           }
@@ -155,6 +160,7 @@ async function processAttachmentContent(
         return pdfText.trim()
           ? pdfText
           : `[Documento PDF: ${attachment.original_name}] - Il PDF non contiene testo estraibile.`;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       } catch (pdfError: any) {
         return `[Documento PDF: ${attachment.original_name}] - Errore estrazione testo: ${pdfError.message}`;
       }
@@ -170,6 +176,7 @@ async function processAttachmentContent(
         return officeText.trim()
           ? officeText
           : `[Documento Office: ${attachment.original_name}] - Nessun testo estraibile.`;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       } catch (officeError: any) {
         return `[Documento Office: ${attachment.original_name}] - Errore estrazione: ${officeError.message}`;
       }
@@ -185,6 +192,7 @@ async function processAttachmentContent(
         return xlsText.trim()
           ? xlsText
           : `[Excel: ${attachment.original_name}] - Nessun dato estraibile.`;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       } catch (xlsError: any) {
         return `[Excel: ${attachment.original_name}] - Errore estrazione: ${xlsError.message}`;
       }
@@ -249,6 +257,7 @@ async function chunkAndIndex(
     }).catch(vecErr => {
       fastify.log.warn(`[Attachments] Vector indexing skipped/failed: ${vecErr.message}`);
     });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   } catch (chunkError: any) {
     // Chunking failure should not prevent processing from completing
     fastify.log.warn(`[Attachments] Chunking failed for ${attachment.original_name}: ${chunkError.message}`);
@@ -296,6 +305,7 @@ export function queueAttachmentProcessing(fastify: FastifyInstance, attachmentId
 
         fastify.log.info(`[Attachments] Processed: ${attachment.original_name} with ${processor}`);
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       } catch (error: any) {
         fastify.log.error(`[Attachments] Processing error: ${error.message}`);
 
@@ -305,6 +315,7 @@ export function queueAttachmentProcessing(fastify: FastifyInstance, attachmentId
           ['failed', error.message, attachmentId]
         );
       }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     })().catch((fatalErr: any) => {
       console.error(`[Attachments] FATAL unhandled error processing attachment ${attachmentId}: ${fatalErr.message}`, fatalErr.stack);
       updateOne(

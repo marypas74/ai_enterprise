@@ -10,6 +10,7 @@ interface HybridResult {
   content: string;
   score: number;
   source: 'keyword' | 'vector' | 'both';
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   metadata: Record<string, any>;
 }
 
@@ -62,6 +63,7 @@ export class HybridSearchService {
       const words = query.split(/\s+/).filter(w => w.length > 2).join(' ');
       if (!words) return [];
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       const rows = await findMany<any>(
         db,
         `SELECT content, observation_type, importance, created_at,
@@ -74,6 +76,7 @@ export class HybridSearchService {
         [words, userId, words, limit],
       );
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       return rows.map((r: any) => ({
         content: r.content,
         score: r.relevance,
@@ -84,6 +87,7 @@ export class HybridSearchService {
           created_at: r.created_at,
         },
       }));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (error: any) {
       console.error(`[HybridSearch] Keyword search failed: ${error.message}`);
       return [];
@@ -126,6 +130,7 @@ export class HybridSearchService {
         }
       }
       return allPoints;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (error: any) {
       console.error(`[HybridSearch] Vector search failed: ${error.message}`);
       return [];

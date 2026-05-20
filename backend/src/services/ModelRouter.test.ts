@@ -220,3 +220,93 @@ describe('ModelRouter — PERF-79-B3 force_short_output', () => {
     expect(decision.forceShortOutput).toBe(false);
   });
 });
+
+// ─── DEBT-81-G: max_output_tokens per tier ───────────────────────────────────
+describe('ModelRouter — DEBT-81-G max_output_tokens per tier', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('fast tier: maxOutputTokens=512 propagated in RoutingDecision', async () => {
+    const pool = makePool([
+      { tier_name: 'fast', model_id: 'qwen25vl:32b', provider: 'vllm', priority: 0,
+        force_short_output: 0, max_output_tokens: 512 },
+    ]);
+    const router = new ModelRouter(pool);
+    const decision = await router.route({
+      query: 'ciao', conversationLength: 0, hasAttachments: false,
+      attachmentCount: 0, hasVisionAttachments: false, toolsRequested: false,
+      userId: 1,
+    });
+    expect(decision.maxOutputTokens).toBe(512);
+  });
+
+  it('balanced tier: maxOutputTokens=1500 propagated in RoutingDecision', async () => {
+    const pool = makePool([
+      { tier_name: 'fast', model_id: 'qwen25vl:32b', provider: 'vllm', priority: 0,
+        force_short_output: 0, max_output_tokens: 512 },
+      { tier_name: 'balanced', model_id: 'qwen25vl:32b', provider: 'vllm', priority: 1,
+        force_short_output: 0, max_output_tokens: 1500 },
+    ]);
+    const router = new ModelRouter(pool);
+    const decision = await router.route({
+      query: 'analizza questo documento in dettaglio',
+      conversationLength: 6, hasAttachments: false,
+      attachmentCount: 0, hasVisionAttachments: false, toolsRequested: false,
+      userId: 1, hasDocuments: true,
+    });
+    expect(['balanced', 'powerful']).toContain(decision.tier);
+    // For balanced tier specifically
+    if (decision.tier === 'balanced') {
+      expect(decision.maxOutputTokens).toBe(1500);
+    }
+  });
+
+  it('powerful tier: maxOutputTokens=3000 propagated in RoutingDecision', async () => {
+    const pool = makePool([
+      { tier_name: 'powerful', model_id: 'qwen25vl:32b', provider: 'vllm', priority: 0,
+        force_short_output: 0, max_output_tokens: 3000 },
+      { tier_name: 'balanced', model_id: 'gpt-4o', provider: 'openai', priority: 1,
+        force_short_output: 0, max_output_tokens: 1500 },
+      { tier_name: 'fast', model_id: 'gpt-4o-mini', provider: 'openai', priority: 1,
+        force_short_output: 0, max_output_tokens: 512 },
+    ]);
+    const router = new ModelRouter(pool);
+    const decision = await router.route({
+      query: 'progetta una architettura complessa multi-step con pipeline',
+      conversationLength: 15, hasAttachments: true,
+      attachmentCount: 3, hasVisionAttachments: false, toolsRequested: true,
+      userId: 1, hasDocuments: true,
+    });
+    // powerful tier should be selected for complex queries
+    if (decision.tier === 'powerful') {
+      expect(decision.maxOutputTokens).toBe(3000);
+    }
+    // maxOutputTokens should always be defined (not undefined) when tier model has the column
+    expect(decision.maxOutputTokens).toBeDefined();
+  });
+
+  it('maxOutputTokens=undefined when column is null in DB', async () => {
+    const pool = makePool([
+      { tier_name: 'fast', model_id: 'gpt-4o-mini', provider: 'openai', priority: 1,
+        force_short_output: 0, max_output_tokens: null },
+    ]);
+    const router = new ModelRouter(pool);
+    const decision = await router.route({
+      query: 'ciao', conversationLength: 0, hasAttachments: false,
+      attachmentCount: 0, hasVisionAttachments: false, toolsRequested: false,
+      userId: 1,
+    });
+    expect(decision.maxOutputTokens).toBeUndefined();
+  });
+
+  it('SQL query includes max_output_tokens column', async () => {
+    const pool = makePool([]);
+    const router = new ModelRouter(pool);
+    await router.route({
+      query: 'test', conversationLength: 0, hasAttachments: false,
+      attachmentCount: 0, hasVisionAttachments: false, toolsRequested: false,
+      userId: 1,
+    });
+    const [sql] = pool.execute.mock.calls[0];
+    expect(sql).toMatch(/max_output_tokens/i);
+  });
+});

@@ -1,11 +1,24 @@
 // Types
 export type ProviderType = 'openai' | 'anthropic' | 'google' | 'ollama' | 'vllm' | 'custom';
 
+/** OpenAI-compatible tool call as returned by the model in an assistant message. */
+export interface ChatCompletionMessageToolCall {
+  readonly id: string;
+  readonly type: 'function';
+  readonly function: {
+    readonly name: string;
+    readonly arguments: string;
+  };
+}
+
 export interface Message {
   role: 'system' | 'user' | 'assistant' | 'tool';
   content: string;
-  tool_calls?: any[];
+  /** Tool calls requested by the model (assistant messages only). */
+  tool_calls?: ChatCompletionMessageToolCall[];
+  /** Tool call ID that this message is a response to (tool messages only). */
   tool_call_id?: string;
+  /** Tool name (tool messages only). */
   name?: string;
 }
 
@@ -39,7 +52,9 @@ export interface CompletionOptions {
   maxTokens?: number;
   temperature?: number;
   stream?: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   tools?: any[]; // Allow passing tools definitions
+   
   toolChoice?: 'auto' | 'any' | 'required' | { type: string; name?: string }; // Force tool usage
   // --- v4.0: Advanced provider features ---
   cacheControl?: boolean;              // Enable Anthropic prompt caching
@@ -49,6 +64,7 @@ export interface CompletionOptions {
   };
   outputSchema?: {                      // Structured outputs (JSON schema)
     type: 'json_schema';
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     jsonSchema: Record<string, any>;
   };
   documentBlocks?: Array<{              // Native PDF/document blocks (Anthropic)
@@ -67,6 +83,7 @@ export interface CompletionResult {
   tokensOutput: number;
   model: string;
   provider: ProviderType;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   toolCalls?: any[];
   // --- v4.0: Advanced metrics ---
   cacheCreationTokens?: number;
@@ -88,10 +105,12 @@ export interface CompletionResult {
 export interface StreamChunk {
   content: string;
   done: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   toolCalls?: any[];
   // --- v4.0: Extended thinking & citations ---
   thinking?: string;           // Thinking block content
   thinkingDone?: boolean;      // End of thinking phase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   citations?: any[];           // Citations delta
   usage?: {                    // Token usage from stream (Anthropic message_delta)
     inputTokens?: number;

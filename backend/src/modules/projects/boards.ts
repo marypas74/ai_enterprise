@@ -22,6 +22,7 @@ const updateColumnSchema = createColumnSchema.partial();
 export async function boardRoutes(fastify: FastifyInstance) {
   // Get board with columns and cards
   fastify.get('/:projectId/boards/:boardId', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Get board with columns and cards',
@@ -29,6 +30,7 @@ export async function boardRoutes(fastify: FastifyInstance) {
       security: [{ bearerAuth: [] }]
     }
   }, async (request: FastifyRequest<{ Params: { projectId: string; boardId: string } }>, reply: FastifyReply) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request.user as any).id;
     const { projectId, boardId } = request.params;
 
@@ -81,6 +83,7 @@ export async function boardRoutes(fastify: FastifyInstance) {
 
   // Create board
   fastify.post('/:projectId/boards', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Create new board',
@@ -88,6 +91,7 @@ export async function boardRoutes(fastify: FastifyInstance) {
       security: [{ bearerAuth: [] }]
     }
   }, async (request: FastifyRequest<{ Params: { projectId: string } }>, reply: FastifyReply) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request.user as any).id;
     const { projectId } = request.params;
 
@@ -112,6 +116,7 @@ export async function boardRoutes(fastify: FastifyInstance) {
 
   // Create column
   fastify.post('/:projectId/boards/:boardId/columns', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Create new column',
@@ -119,6 +124,7 @@ export async function boardRoutes(fastify: FastifyInstance) {
       security: [{ bearerAuth: [] }]
     }
   }, async (request: FastifyRequest<{ Params: { projectId: string; boardId: string } }>, reply: FastifyReply) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request.user as any).id;
     const { projectId, boardId } = request.params;
 
@@ -146,6 +152,7 @@ export async function boardRoutes(fastify: FastifyInstance) {
 
   // Update column
   fastify.patch('/:projectId/columns/:columnId', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Update column',
@@ -153,6 +160,7 @@ export async function boardRoutes(fastify: FastifyInstance) {
       security: [{ bearerAuth: [] }]
     }
   }, async (request: FastifyRequest<{ Params: { projectId: string; columnId: string } }>, reply: FastifyReply) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request.user as any).id;
     const { projectId, columnId } = request.params;
 
@@ -162,6 +170,7 @@ export async function boardRoutes(fastify: FastifyInstance) {
 
     const body = updateColumnSchema.parse(request.body);
     const updates: string[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const values: any[] = [];
 
     for (const [key, value] of Object.entries(body)) {
@@ -185,6 +194,7 @@ export async function boardRoutes(fastify: FastifyInstance) {
 
   // Delete column
   fastify.delete('/:projectId/columns/:columnId', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Delete column',
@@ -192,6 +202,7 @@ export async function boardRoutes(fastify: FastifyInstance) {
       security: [{ bearerAuth: [] }]
     }
   }, async (request: FastifyRequest<{ Params: { projectId: string; columnId: string } }>, reply: FastifyReply) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request.user as any).id;
     const { projectId, columnId } = request.params;
 
@@ -206,6 +217,7 @@ export async function boardRoutes(fastify: FastifyInstance) {
 
   // Reorder columns
   fastify.put('/:projectId/boards/:boardId/columns/reorder', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Reorder columns',
@@ -213,6 +225,7 @@ export async function boardRoutes(fastify: FastifyInstance) {
       security: [{ bearerAuth: [] }]
     }
   }, async (request: FastifyRequest<{ Params: { projectId: string; boardId: string } }>, reply: FastifyReply) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request.user as any).id;
     const { projectId } = request.params;
 

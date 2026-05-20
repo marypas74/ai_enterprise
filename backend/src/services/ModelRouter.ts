@@ -25,6 +25,10 @@ export interface RoutingDecision {
    *  and prepends a concise-output system prompt. Prevents KV cache exhaustion on
    *  fast-tier vLLM models used for short conversational queries. */
   readonly forceShortOutput?: boolean;
+  /** DEBT-81-G: Per-tier output token cap. When set, completions.ts overrides
+   *  max_tokens with this value (taking the minimum vs provider modelConfig).
+   *  fast=512, balanced=1500, powerful=3000 by default seed. */
+  readonly maxOutputTokens?: number;
 }
 
 interface RoutingContext {
@@ -51,6 +55,8 @@ interface TierModel {
   readonly priority: number;
   // PERF-79-B3: from model_routing_tiers.force_short_output column
   readonly force_short_output: number; // MySQL BOOLEAN returns 0/1
+  // DEBT-81-G: per-tier output token cap (NULL = no override)
+  readonly max_output_tokens: number | null;
 }
 
 // ─── Keyword sets ───────────────────────────────────────────────────
@@ -207,6 +213,7 @@ export class ModelRouter {
       const [rows] = await this.db.execute(
         `SELECT rt.tier_name, rt.model_id, rt.provider, rt.priority,
                 COALESCE(rt.force_short_output, 0) AS force_short_output,
+                rt.max_output_tokens AS max_output_tokens,
                 p.provider_type AS provider_type,
                 m.id            AS model_pk
          FROM model_routing_tiers rt
@@ -232,7 +239,7 @@ export class ModelRouter {
         if (r.model_pk == null) {
           // Single line — keep verbosity low; the cache TTL is 60s.
           // (Logger isn't injected into this class; we surface via console.warn.)
-          // eslint-disable-next-line no-console
+           
           console.warn(`[ModelRouter] tier entry "${r.tier_name}/${r.model_id}" has no ai_models row; including via local-provider path`);
         }
       }
@@ -292,6 +299,11 @@ export class ModelRouter {
     // DEBT-80-B: use word-boundary pattern here too for consistency
     if (FAST_KEYWORDS_PATTERN.test(queryLower) && ctx.query.length < 100 && !DOC_CREATION_PATTERN.test(ctx.query) && !ctx.hasAttachments) reasons.push('simple greeting');
 
+    // DEBT-81-G: propagate per-tier token cap (null → undefined to signal "no override")
+    const maxOutputTokens = selectedTierModel?.max_output_tokens != null
+      ? selectedTierModel.max_output_tokens
+      : undefined;
+
     return {
       tier, model,
       reason: `score=${score}, ${reasons.join(', ') || 'standard routing'}`,
@@ -300,6 +312,7 @@ export class ModelRouter {
       estimatedCostPer1k: (pricing.input + pricing.output) / 2,
       routingMethod: 'rule',
       forceShortOutput: selectedTierModel?.force_short_output === 1,
+      maxOutputTokens,
     };
   }
 

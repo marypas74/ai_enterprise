@@ -8,6 +8,7 @@ const REASONING_MODELS = /^(o1|o3|o4|gpt-5|gpt-4\.5)/i;
 // Convert Anthropic-format tool definitions to OpenAI format.
 // Anthropic: { name, description, input_schema }
 // OpenAI:    { type: 'function', function: { name, description, parameters } }
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
 function toOpenAITools(tools: any[]): any[] {
   return tools.map(t => ({
     type: 'function',
@@ -37,8 +38,10 @@ export class OpenAIProvider implements AIProvider {
   private client: OpenAI;
   private apiKey: string;
   private baseUrl: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   private redisClient?: any;
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   constructor(config?: { apiKey?: string; baseUrl?: string; redisClient?: any }) {
     const apiKey = config?.apiKey || process.env.OPENAI_API_KEY;
     if (!apiKey) {
@@ -67,10 +70,13 @@ export class OpenAIProvider implements AIProvider {
 
   async complete(options: CompletionOptions): Promise<CompletionResult> {
     const reasoning = isReasoningModel(options.model);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const createOpts: any = {
       model: options.model,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       messages: options.messages as any,
       ...buildTokenParam(options.model, options.maxTokens),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       tools: options.tools ? toOpenAITools(options.tools as any[]) : undefined,
     };
     // temperature not supported by reasoning models
@@ -79,6 +85,7 @@ export class OpenAIProvider implements AIProvider {
     }
     // tool_choice enforcement for OpenAI
     if (options.toolChoice && createOpts.tools) {
+       
       if (options.toolChoice === 'required' || options.toolChoice === 'any') {
         createOpts.tool_choice = 'required';
       } else if (options.toolChoice === 'auto') {
@@ -101,11 +108,14 @@ export class OpenAIProvider implements AIProvider {
 
   async * streamComplete(options: CompletionOptions): AsyncGenerator<StreamChunk> {
     const reasoning = isReasoningModel(options.model);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const createOpts: any = {
       model: options.model,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       messages: options.messages as any,
       ...buildTokenParam(options.model, options.maxTokens),
       stream: true,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       tools: options.tools ? toOpenAITools(options.tools as any[]) : undefined,
     };
     // temperature not supported by reasoning models
@@ -114,6 +124,7 @@ export class OpenAIProvider implements AIProvider {
     }
     // tool_choice enforcement for OpenAI
     if (options.toolChoice && createOpts.tools) {
+       
       if (options.toolChoice === 'required' || options.toolChoice === 'any') {
         createOpts.tool_choice = 'required';
       } else if (options.toolChoice === 'auto') {
@@ -125,6 +136,7 @@ export class OpenAIProvider implements AIProvider {
     // SECURITY: Forward abort signal to cancel upstream request on client disconnect
     const stream = await this.client.chat.completions.create(createOpts, {
       signal: options.signal,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     }) as unknown as AsyncIterable<any>;
 
     for await (const chunk of stream) {

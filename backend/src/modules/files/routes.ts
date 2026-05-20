@@ -68,6 +68,7 @@ export default async function fileRoutes(fastify: FastifyInstance) {
    * POST /api/files/write
    */
   fastify.post('/write', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Write file to project storage (for AI code generation)',
@@ -76,6 +77,7 @@ export default async function fileRoutes(fastify: FastifyInstance) {
     },
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       const userId = (request.user as any).id;
       const body = writeFileSchema.parse(request.body);
 
@@ -98,6 +100,7 @@ export default async function fileRoutes(fastify: FastifyInstance) {
         fullPath,
         size: content.length,
       };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (error: any) {
       fastify.log.error(`[Files] Write error: ${error.message}`);
       return reply.status(500).send({ error: error.message });
@@ -109,6 +112,7 @@ export default async function fileRoutes(fastify: FastifyInstance) {
    * POST /api/files/read
    */
   fastify.post('/read', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Read file from project storage',
@@ -117,6 +121,7 @@ export default async function fileRoutes(fastify: FastifyInstance) {
     },
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       const userId = (request.user as any).id;
       const body = readFileSchema.parse(request.body);
 
@@ -134,6 +139,7 @@ export default async function fileRoutes(fastify: FastifyInstance) {
         content,
         size: content.length,
       };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (error: any) {
       fastify.log.error(`[Files] Read error: ${error.message}`);
       return reply.status(500).send({ error: error.message });
@@ -145,6 +151,7 @@ export default async function fileRoutes(fastify: FastifyInstance) {
    * POST /api/files/list
    */
   fastify.post('/list', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'List files in project storage',
@@ -153,6 +160,7 @@ export default async function fileRoutes(fastify: FastifyInstance) {
     },
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       const userId = (request.user as any).id;
       const body = listFilesSchema.parse(request.body);
 
@@ -166,6 +174,7 @@ export default async function fileRoutes(fastify: FastifyInstance) {
         count: files.length,
         basePath: getProjectFolder(userName, projectName),
       };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (error: any) {
       fastify.log.error(`[Files] List error: ${error.message}`);
       return reply.status(500).send({ error: error.message });
@@ -177,6 +186,7 @@ export default async function fileRoutes(fastify: FastifyInstance) {
    * GET /api/files/info/:projectId
    */
   fastify.get('/info/:projectId', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Get project storage information',
@@ -185,6 +195,7 @@ export default async function fileRoutes(fastify: FastifyInstance) {
     },
   }, async (request: FastifyRequest<{ Params: { projectId: string } }>, reply: FastifyReply) => {
     try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       const userId = (request.user as any).id;
       const projectId = Number(request.params.projectId);
 
@@ -201,6 +212,7 @@ export default async function fileRoutes(fastify: FastifyInstance) {
         userName,
         projectName,
       };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (error: any) {
       fastify.log.error(`[Files] Info error: ${error.message}`);
       return reply.status(500).send({ error: error.message });

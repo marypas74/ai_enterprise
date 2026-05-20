@@ -61,6 +61,7 @@ Il codice che generi verr\u00e0 salvato automaticamente nella cartella condivisa
         messages.unshift({ role: 'system', content: searchSystemMessage });
       }
     }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   } catch (searchError: any) {
     fastify.log.warn(`[Chat] Web search failed: ${searchError.message}`);
   }
@@ -184,12 +185,14 @@ Se l'utente chiede di CONVERTIRE un file in un altro formato (es. "converti il P
         fastify.log.info(`[Memory] Injected context for user ${opts.userId}`);
       }
     }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   } catch (memErr: any) {
     fastify.log.warn(`[Memory] Context injection failed: ${memErr.message}`);
   }
 
   // Inject user skills system prompts
   try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const [skillRows] = await fastify.db.execute<any[]>(
       `SELECT s.name, s.display_name, s.system_prompt, s.category, us.custom_prompt_addition
        FROM user_skills us
@@ -198,6 +201,7 @@ Se l'utente chiede di CONVERTIRE un file in un altro formato (es. "converti il P
       [opts.userId]
     );
     if (skillRows.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       const skillPrompts = skillRows.map((sk: any) => {
         let prompt = `[Skill: ${sk.display_name || sk.name}]\n${sk.system_prompt}`;
         if (sk.custom_prompt_addition) {
@@ -214,6 +218,7 @@ Se l'utente chiede di CONVERTIRE un file in un altro formato (es. "converti il P
       }
       fastify.log.info(`[Skills] Injected ${skillRows.length} skill prompt(s) for user ${opts.userId}`);
     }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   } catch (skillErr: any) {
     fastify.log.warn(`[Skills] Skill injection failed: ${skillErr.message}`);
   }

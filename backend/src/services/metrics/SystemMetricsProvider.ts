@@ -2,6 +2,7 @@ import fs from 'fs';
 import { execAsync, getHostProcPath } from './shared.js';
 
 // Helper to get IO stats from /proc/diskstats
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
 export async function getIoStats(): Promise<any[]> {
     try {
         const hostProcPath = getHostProcPath();
@@ -34,6 +35,7 @@ export async function getIoStats(): Promise<any[]> {
 }
 
 // Helper to get CPU core stats from /proc/stat
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
 export async function getCpuCoreStats(): Promise<any[]> {
     try {
         const hostProcPath = getHostProcPath();
@@ -64,7 +66,9 @@ export async function getCpuCoreStats(): Promise<any[]> {
 }
 
 // Helper to get thermal stats from /sys/class/thermal
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
 export async function getThermalStats(): Promise<any[]> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const thermalZones: any[] = [];
     try {
         const sysPath = fs.existsSync('/host/sys') ? '/host/sys' : '/sys';
@@ -81,9 +85,11 @@ export async function getThermalStats(): Promise<any[]> {
 }
 
 // Module-level cache for CPU delta calculation
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
 let previousCpuCoreStats: any[] | null = null;
 
 // Calculate per-core CPU usage percentages using delta between samples
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
 export function calculateCoreUsages(currentStats: any[]): number[] {
     if (!previousCpuCoreStats || previousCpuCoreStats.length !== currentStats.length) {
         previousCpuCoreStats = currentStats;
@@ -102,6 +108,7 @@ export function calculateCoreUsages(currentStats: any[]): number[] {
 
 // Fallback disk stats using df command
 // Note: hardcoded command, no user input - exec is safe here
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
 export async function getDiskStatsFallback(): Promise<any[]> {
     try {
         const { stdout } = await execAsync('df -B1 --output=source,size,used,avail,pcent,target -x tmpfs -x devtmpfs -x overlay 2>/dev/null');

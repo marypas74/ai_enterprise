@@ -53,6 +53,7 @@ const synthesizeSchema = z.object({
 export async function voiceRoutes(fastify: FastifyInstance) {
   // ── Speech-to-Text (Whisper) ──────────────────────────────────────
   fastify.post('/voice/transcribe', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     config: { rateLimit: { max: 15, timeWindow: '1 minute' } },
     schema: {
@@ -124,6 +125,7 @@ export async function voiceRoutes(fastify: FastifyInstance) {
       } catch { /* non-critical */ }
 
       return { text: result.text };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (err: any) {
       fastify.log.error(`[Voice] Transcription error: ${err.message}`);
       return reply.status(500).send({ error: 'Transcription failed. Please try again.' });
@@ -132,6 +134,7 @@ export async function voiceRoutes(fastify: FastifyInstance) {
 
   // ── Text-to-Speech (TTS) ──────────────────────────────────────────
   fastify.post('/voice/synthesize', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     config: { rateLimit: { max: 20, timeWindow: '1 minute' } },
     schema: {
@@ -183,6 +186,7 @@ export async function voiceRoutes(fastify: FastifyInstance) {
             .send(audioBuffer);
         }
         fastify.log.warn(`[Voice] OpenAI TTS failed (${response.status}), falling back to Piper local`);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       } catch (err: any) {
         fastify.log.warn(`[Voice] OpenAI TTS error: ${err.message}, falling back to Piper local`);
       }
@@ -209,6 +213,7 @@ export async function voiceRoutes(fastify: FastifyInstance) {
         .header('Content-Type', 'audio/wav')
         .header('Content-Length', audioBuffer.length)
         .send(audioBuffer);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (err: any) {
       fastify.log.error(`[Voice] Piper TTS error: ${err.message}`);
       return reply.status(500).send({ error: 'Speech synthesis failed.' });

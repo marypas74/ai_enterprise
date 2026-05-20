@@ -20,6 +20,7 @@ const updateProjectSchema = createProjectSchema.partial().extend({
 export async function projectCrudRoutes(fastify: FastifyInstance) {
   // Check Kanban access for current user
   fastify.get('/kanban-access', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Check if user has Kanban access',
@@ -27,6 +28,7 @@ export async function projectCrudRoutes(fastify: FastifyInstance) {
       security: [{ bearerAuth: [] }]
     }
   }, async (request: FastifyRequest) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request.user as any).id;
     const hasAccess = await checkKanbanAccess(fastify, userId);
 
@@ -46,6 +48,7 @@ export async function projectCrudRoutes(fastify: FastifyInstance) {
         name: g.name,
         kanbanEnabled: g.kanban_enabled === true || (g.kanban_enabled as unknown) === 1
       }));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (err: any) {
       // Column doesn't exist, just get group names
       const groupsResult = await findAll<{ name: string }>(
@@ -71,6 +74,7 @@ export async function projectCrudRoutes(fastify: FastifyInstance) {
 
   // Get all projects for user
   fastify.get('/', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Get all projects',
@@ -78,6 +82,7 @@ export async function projectCrudRoutes(fastify: FastifyInstance) {
       security: [{ bearerAuth: [] }]
     }
   }, async (request: FastifyRequest, reply: FastifyReply) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request.user as any).id;
 
     // Check Kanban access
@@ -110,6 +115,7 @@ export async function projectCrudRoutes(fastify: FastifyInstance) {
 
   // Get single project
   fastify.get('/:id', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Get project details',
@@ -117,6 +123,7 @@ export async function projectCrudRoutes(fastify: FastifyInstance) {
       security: [{ bearerAuth: [] }]
     }
   }, async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request.user as any).id;
     const { id } = request.params;
 
@@ -138,6 +145,7 @@ export async function projectCrudRoutes(fastify: FastifyInstance) {
     );
 
     // Get labels
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const labels = await findAll<any>(
       fastify.db,
       'SELECT * FROM kanban_labels WHERE project_id = ?',
@@ -145,6 +153,7 @@ export async function projectCrudRoutes(fastify: FastifyInstance) {
     );
 
     // Get members
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const members = await findAll<any>(
       fastify.db,
       `SELECT u.id, u.email, u.name, pm.role, pm.joined_at
@@ -159,6 +168,7 @@ export async function projectCrudRoutes(fastify: FastifyInstance) {
 
   // Create project
   fastify.post('/', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Create new project',
@@ -166,6 +176,7 @@ export async function projectCrudRoutes(fastify: FastifyInstance) {
       security: [{ bearerAuth: [] }]
     }
   }, async (request: FastifyRequest, reply: FastifyReply) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request.user as any).id;
     const body = createProjectSchema.parse(request.body);
 
@@ -189,6 +200,7 @@ export async function projectCrudRoutes(fastify: FastifyInstance) {
       const folders = await createProjectFolder(userName, body.name);
       storagePath = folders.basePath;
       fastify.log.info(`[Project] Created storage folder: ${storagePath}`);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (err: any) {
       fastify.log.warn(`[Project] Failed to create storage folder: ${err.message}`);
       // Non-blocking - project creation continues even if folder creation fails
@@ -222,6 +234,7 @@ export async function projectCrudRoutes(fastify: FastifyInstance) {
 
   // Update project
   fastify.patch('/:id', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Update project',
@@ -229,6 +242,7 @@ export async function projectCrudRoutes(fastify: FastifyInstance) {
       security: [{ bearerAuth: [] }]
     }
   }, async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request.user as any).id;
     const { id } = request.params;
 
@@ -238,6 +252,7 @@ export async function projectCrudRoutes(fastify: FastifyInstance) {
 
     const body = updateProjectSchema.parse(request.body);
     const updates: string[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const values: any[] = [];
 
     for (const [key, value] of Object.entries(body)) {
@@ -261,6 +276,7 @@ export async function projectCrudRoutes(fastify: FastifyInstance) {
 
   // Delete project
   fastify.delete('/:id', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Delete project',
@@ -268,6 +284,7 @@ export async function projectCrudRoutes(fastify: FastifyInstance) {
       security: [{ bearerAuth: [] }]
     }
   }, async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request.user as any).id;
     const { id } = request.params;
 

@@ -17,6 +17,7 @@ export interface ParlantEvent {
   source: 'customer' | 'ai_agent' | 'system';
   kind: string;
   correlation_id?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   data: any;
   creation_utc: string;
   deleted: boolean;
@@ -32,8 +33,10 @@ export interface ParlantAgent {
 async function parlantFetch(
   method: string,
   path: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   body?: any,
   timeout: number = 30000
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
 ): Promise<{ data: any; status: number }> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -52,6 +55,7 @@ async function parlantFetch(
     clearTimeout(timeoutId);
 
     const text = await response.text();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     let data: any;
     if (text && text.trim()) {
       try {
@@ -64,6 +68,7 @@ async function parlantFetch(
     }
 
     return { data, status: response.status };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   } catch (error: any) {
     clearTimeout(timeoutId);
     if (error.name === 'AbortError') {
@@ -204,6 +209,7 @@ export class ParlantProvider implements AIProvider {
 
         // Brief pause before next poll
         await new Promise(resolve => setTimeout(resolve, 500));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       } catch (err: any) {
         console.error(`[Parlant] Poll error:`, err.message);
         if (err.message.includes('timeout')) {
@@ -292,6 +298,7 @@ export class ParlantProvider implements AIProvider {
         if (!responseReceived) {
           await new Promise(resolve => setTimeout(resolve, 500));
         }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       } catch (err: any) {
         if (!err.message.includes('timeout')) {
           throw err;
@@ -335,6 +342,7 @@ export async function fetchParlantAgents(): Promise<ParlantAgent[]> {
     const { data, status } = await parlantFetch('GET', '/agents');
 
     if (status === 200 && Array.isArray(data)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       return data.map((agent: any) => ({
         id: agent.id,
         name: agent.name || `Agent ${agent.id}`,

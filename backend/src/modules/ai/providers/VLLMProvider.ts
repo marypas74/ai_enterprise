@@ -60,6 +60,7 @@ export class VLLMProvider implements AIProvider {
   }
 
   /** Prepend /no_think system prompt for fast models to skip reasoning overhead */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   private applyThinkingMode(messages: any[], model: string): any[] {
     if (this.isThinkingModel(model)) return messages;
     // For fast models, inject a system message to disable thinking
@@ -82,6 +83,7 @@ export class VLLMProvider implements AIProvider {
   }
 
   /** Convert Anthropic-style tools to OpenAI function-calling format */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   private convertTools(tools: any[]): OpenAI.ChatCompletionTool[] {
     return tools.map(t => {
       // Already in OpenAI format
@@ -171,6 +173,7 @@ export class VLLMProvider implements AIProvider {
     for (let attempt = 0; attempt <= delays.length; attempt++) {
       try {
         return await fn();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       } catch (error: any) {
         const status = error?.status ?? 0;
         const isTransient = status === 502 || status === 503;
@@ -193,6 +196,7 @@ export class VLLMProvider implements AIProvider {
 
   async complete(options: CompletionOptions): Promise<CompletionResult> {
     if (!(await this.isUpstreamHealthy())) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       const err: any = new Error(`[vLLM] preflight 503: upstream /health unreachable`);
       err.status = 503;
       err.code = 'VLLM_UNHEALTHY';
@@ -218,6 +222,7 @@ export class VLLMProvider implements AIProvider {
 
       const message = response.choices[0]?.message;
       // vLLM returns reasoning in reasoning_content for thinking-capable models
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       const reasoning = (message as any)?.reasoning_content as string | undefined;
 
       return {
@@ -229,6 +234,7 @@ export class VLLMProvider implements AIProvider {
         toolCalls: message?.tool_calls,
         thinkingContent: reasoning || undefined,
       };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (error: any) {
       const msg = error?.message || 'Unknown error';
       throw new Error(`[vLLM] complete() failed for model "${options.model}": ${msg}`);
@@ -237,6 +243,7 @@ export class VLLMProvider implements AIProvider {
 
   async *streamComplete(options: CompletionOptions): AsyncGenerator<StreamChunk> {
     if (!(await this.isUpstreamHealthy())) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       const err: any = new Error(`[vLLM] preflight 503: upstream /health unreachable`);
       err.status = 503;
       err.code = 'VLLM_UNHEALTHY';
@@ -268,6 +275,7 @@ export class VLLMProvider implements AIProvider {
       let tagBuffer = '';
       let insideThinkTag = false;
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       for await (const chunk of stream as AsyncIterable<any>) {
         const choice = chunk.choices?.[0];
         let content = choice?.delta?.content || '';
@@ -352,6 +360,7 @@ export class VLLMProvider implements AIProvider {
       if (tagBuffer.length > 0 && !insideThinkTag) {
         yield { content: tagBuffer, done: true };
       }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (error: any) {
       const elapsed = Date.now() - startTime;
       const msg = error?.message || 'Unknown error';

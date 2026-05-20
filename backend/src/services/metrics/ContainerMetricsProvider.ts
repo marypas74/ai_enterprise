@@ -1,6 +1,7 @@
 import { execAsync, formatBytesBackend } from './shared.js';
 
 // Get Cloudflare Tunnel health from cloudflared metrics endpoint
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
 export async function getCloudflaredHealth(): Promise<any> {
     const metricsUrl = process.env.CLOUDFLARED_METRICS_URL || 'http://10.0.1.1:20243/metrics';
     try {
@@ -61,19 +62,23 @@ export async function getCloudflaredHealth(): Promise<any> {
 
 // Get Docker container stats via Docker Engine API (TCP on host)
 // Note: exec fallback uses hardcoded commands only, no user input - safe from injection
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
 export async function getDockerContainers(): Promise<any[]> {
     const dockerHost = process.env.DOCKER_HOST_API || 'http://10.0.1.1:2375';
     try {
         // Get list of containers
         const listResp = await fetch(`${dockerHost}/containers/json?all=false`, { signal: AbortSignal.timeout(5000) });
         if (!listResp.ok) return [];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         const containers = await listResp.json() as any[];
 
         // Get stats for each container (one-shot, no stream)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         const results = await Promise.all(containers.map(async (c: any) => {
             try {
                 const statsResp = await fetch(`${dockerHost}/containers/${c.Id}/stats?stream=false`, { signal: AbortSignal.timeout(5000) });
                 if (!statsResp.ok) return null;
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
                 const stats = await statsResp.json() as any;
 
                 // Calculate CPU %
@@ -90,6 +95,7 @@ export async function getDockerContainers(): Promise<any[]> {
                 // Network I/O
                 let rxBytes = 0, txBytes = 0;
                 if (stats.networks) {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
                     for (const net of Object.values(stats.networks) as any[]) {
                         rxBytes += net.rx_bytes || 0;
                         txBytes += net.tx_bytes || 0;
@@ -109,6 +115,7 @@ export async function getDockerContainers(): Promise<any[]> {
                     netRx: formatBytesBackend(rxBytes),
                     netTx: formatBytesBackend(txBytes),
                     created: c.Created,
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
                     ports: c.Ports?.map((p: any) => `${p.PublicPort || ''}:${p.PrivatePort}/${p.Type}`).filter((p: string) => p) || []
                 };
             } catch { return null; }

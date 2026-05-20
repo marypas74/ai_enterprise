@@ -18,7 +18,7 @@ import type { Message } from '../../ai/providers.js';
 import type { ToolContext } from '../../../types/index.js';
 import { executeTool } from '../../../services/ToolService.js';
 import { eventBus } from '../../../services/EventBusService.js';
-import { runChatStream, type StreamState, type ChatStreamRunnerOptions } from './ChatStreamRunner.js';
+import { runChatStream, applyStreamRoundDelta, type StreamState, type ChatStreamRunnerOptions } from './ChatStreamRunner.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -46,6 +46,11 @@ export interface ToolLoopResult {
   readonly messages: readonly Message[];
   /** Number of tool rounds executed. */
   readonly toolRounds: number;
+  /**
+   * CRITICAL-3: Accumulated StreamState after all rounds.
+   * Returned as a new object — ToolLoopRunner never mutates options.state.
+   */
+  readonly state: StreamState;
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -82,6 +87,8 @@ export async function runToolLoop(
   let fullResponse = '';
   let toolRound = 0;
   let continueLoop = true;
+  // CRITICAL-3: accumulate state immutably — never mutate options.state
+  let currentState: StreamState = { ...state };
 
   while (continueLoop && toolRound < maxRounds && !clientDisconnected()) {
     toolRound++;
@@ -95,25 +102,29 @@ export async function runToolLoop(
       rawWrite,
       log,
       userId: hookCtx.userId,
-      state,
+      state: currentState,
     };
 
-    const { roundContent, toolCalls } = await runChatStream(streamRunnerOpts);
+    const roundResult = await runChatStream(streamRunnerOpts);
+    const { roundContent, toolCalls } = roundResult;
+    // CRITICAL-3: produce new state object — options.state is never touched
+    currentState = applyStreamRoundDelta(currentState, roundResult);
     fullResponse += roundContent;
 
     if (toolCalls.length > 0 && toolContext) {
       log.info(`[ToolLoopRunner] Round ${toolRound}: executing ${toolCalls.length} tool(s)`);
 
       // Append assistant message with tool_calls to message history (immutable)
+      // DEBT-81-TOOLTYPE: use typed ChatCompletionMessageToolCall instead of as any
       const assistantMsg: Message = {
         role: 'assistant',
         content: roundContent,
         tool_calls: toolCalls.map(tc => ({
           id: tc.id,
-          type: 'function',
+          type: 'function' as const,
           function: { name: tc.name, arguments: tc.arguments },
         })),
-      } as any;
+      };
       messages = [...messages, assistantMsg];
 
       // Execute each tool and collect results
@@ -130,12 +141,13 @@ export async function runToolLoop(
             ? JSON.stringify(result.output)
             : `Error: ${result.error}`;
 
+          // DEBT-81-TOOLTYPE: use typed Message for tool result (role='tool', tool_call_id, name typed)
           toolResultMsgs.push({
-            role: 'tool',
+            role: 'tool' as const,
             tool_call_id: tc.id,
             name: tc.name,
             content: resultContent,
-          } as any);
+          });
 
           // Emit document download notification if tool generated a file
           if (result.success && result.output?.downloadUrl) {
@@ -145,14 +157,15 @@ export async function runToolLoop(
           } else {
             rawWrite(`data: ${JSON.stringify({ toolResult: { name: tc.name, success: result.success }, done: false })}\n\n`);
           }
-        } catch (e: any) {
-          log.error(`[ToolLoopRunner] Tool execution error: ${e.message}`);
+        } catch (e: unknown) {
+          const errMsg = e instanceof Error ? e.message : String(e);
+          log.error(`[ToolLoopRunner] Tool execution error: ${errMsg}`);
           toolResultMsgs.push({
-            role: 'tool',
+            role: 'tool' as const,
             tool_call_id: tc.id,
             name: tc.name,
-            content: `Error: ${e.message}`,
-          } as any);
+            content: `Error: ${errMsg}`,
+          });
         }
       }
 
@@ -166,5 +179,5 @@ export async function runToolLoop(
     log.warn(`[ToolLoopRunner] Tool call loop hit max rounds (${maxRounds})`);
   }
 
-  return { fullResponse, messages, toolRounds: toolRound };
+  return { fullResponse, messages, toolRounds: toolRound, state: currentState };
 }

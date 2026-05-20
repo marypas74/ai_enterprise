@@ -25,22 +25,25 @@ const mockGetSettings = vi.fn().mockResolvedValue({ auto_capture: true, inject_c
 const mockUpdateSettings = vi.fn().mockResolvedValue(undefined);
 const mockGetStats = vi.fn().mockResolvedValue({ total: 10, archived: 2 });
 
-vi.mock('./service.js', () => ({
-  MemoryService: vi.fn().mockImplementation(() => ({
-    captureObservation: (...args: any[]) => mockCaptureObservation(...args),
-    searchMemories: (...args: any[]) => mockSearchMemories(...args),
-    getObservation: (...args: any[]) => mockGetObservation(...args),
-    updateObservation: (...args: any[]) => mockUpdateObservation(...args),
-    deleteObservation: (...args: any[]) => mockDeleteObservation(...args),
-    bulkArchive: (...args: any[]) => mockBulkArchive(...args),
-    bulkDelete: (...args: any[]) => mockBulkDelete(...args),
-    getContextForNewChat: (...args: any[]) => mockGetContextForNewChat(...args),
-    getSummaries: (...args: any[]) => mockGetSummaries(...args),
-    getSettings: (...args: any[]) => mockGetSettings(...args),
-    updateSettings: (...args: any[]) => mockUpdateSettings(...args),
-    getStats: (...args: any[]) => mockGetStats(...args),
-  })),
-}));
+vi.mock('./service.js', () => {
+  // Use class so `new MemoryService(db)` works correctly in Vitest ESM context
+  class MemoryService {
+    captureObservation = (...args: any[]) => mockCaptureObservation(...args);
+    searchMemories = (...args: any[]) => mockSearchMemories(...args);
+    getObservation = (...args: any[]) => mockGetObservation(...args);
+    updateObservation = (...args: any[]) => mockUpdateObservation(...args);
+    deleteObservation = (...args: any[]) => mockDeleteObservation(...args);
+    bulkArchive = (...args: any[]) => mockBulkArchive(...args);
+    bulkDelete = (...args: any[]) => mockBulkDelete(...args);
+    getContextForNewChat = (...args: any[]) => mockGetContextForNewChat(...args);
+    getSummaries = (...args: any[]) => mockGetSummaries(...args);
+    getSettings = (...args: any[]) => mockGetSettings(...args);
+    updateSettings = (...args: any[]) => mockUpdateSettings(...args);
+    getStats = (...args: any[]) => mockGetStats(...args);
+    autoCapture = vi.fn().mockResolvedValue(undefined);
+  }
+  return { MemoryService };
+});
 
 // Mock WorkingMemoryService
 const mockWmGet = vi.fn().mockResolvedValue(null);
@@ -50,16 +53,18 @@ const mockWmClearAllUserSessions = vi.fn().mockResolvedValue(2);
 const mockWmGetStats = vi.fn().mockResolvedValue({ totalSessions: 5 });
 const mockGetSessionTokens = vi.fn().mockReturnValue({ input: 100, output: 50 });
 
-vi.mock('../../services/WorkingMemoryService.js', () => ({
-  WorkingMemoryService: vi.fn().mockImplementation(() => ({
-    get: (...args: any[]) => mockWmGet(...args),
-    listUserSessions: (...args: any[]) => mockWmListUserSessions(...args),
-    clear: (...args: any[]) => mockWmClear(...args),
-    clearAllUserSessions: (...args: any[]) => mockWmClearAllUserSessions(...args),
-    getStats: (...args: any[]) => mockWmGetStats(...args),
-    getSessionTokens: (...args: any[]) => mockGetSessionTokens(...args),
-  })),
-}));
+vi.mock('../../services/WorkingMemoryService.js', () => {
+  // Use class so `new WorkingMemoryService(redis)` works correctly in Vitest ESM context
+  class WorkingMemoryService {
+    get = (...args: any[]) => mockWmGet(...args);
+    listUserSessions = (...args: any[]) => mockWmListUserSessions(...args);
+    clear = (...args: any[]) => mockWmClear(...args);
+    clearAllUserSessions = (...args: any[]) => mockWmClearAllUserSessions(...args);
+    getStats = (...args: any[]) => mockWmGetStats(...args);
+    getSessionTokens = (...args: any[]) => mockGetSessionTokens(...args);
+  }
+  return { WorkingMemoryService };
+});
 
 vi.mock('../../database/index.js', () => ({
   findOne: vi.fn().mockResolvedValue(null),

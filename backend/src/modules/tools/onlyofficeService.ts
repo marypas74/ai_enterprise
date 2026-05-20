@@ -35,6 +35,42 @@ export class PdfPreflightError extends Error {
   }
 }
 
+// DEBT-81: PdfConversionError — typed error for PDF-to-Office conversion failures.
+export type PdfConversionErrorCode = 'NO_TEXT' | 'TIMEOUT' | 'SCRIPT_ERROR' | 'IO_ERROR' | string;
+
+export class PdfConversionError extends Error {
+  readonly code: PdfConversionErrorCode;
+  readonly userMessage: string;
+
+  constructor(code: PdfConversionErrorCode, userMessage: string) {
+    super(userMessage);
+    this.name = 'PdfConversionError';
+    this.code = code;
+    this.userMessage = userMessage;
+  }
+}
+
+// Minimum extractable characters to consider a PDF text-based (vs image-only)
+const MIN_CHARS_FOR_CONVERTIBLE = 50;
+
+/**
+ * DEBT-81: Determines if a PDF has enough extractable text to be converted.
+ * Accepts an optional `extract` override for dependency injection in tests.
+ * Returns false on any error (fail-closed).
+ */
+export async function isPdfConvertible(
+  pdfPath: string,
+  opts?: { extract?: (path: string) => Promise<number> },
+): Promise<boolean> {
+  const extractor = opts?.extract ?? extractPdfText;
+  try {
+    const chars = await extractor(pdfPath);
+    return chars >= MIN_CHARS_FOR_CONVERTIBLE;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Extract textual content count from a PDF using pdftotext (poppler-utils).
  * Returns 0 on any failure — used only for diagnostics, no longer gates editing

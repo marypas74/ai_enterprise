@@ -29,6 +29,7 @@ const createAgentSessionSchema = z.object({
   name: z.string().optional(),
   modelId: z.number(),
   systemPrompt: z.string().optional(),
+   
   config: z.any().optional(),
   templateId: z.number().optional(),
 });
@@ -40,6 +41,7 @@ export async function cardFeatureRoutes(fastify: FastifyInstance) {
 
   // Add comment
   fastify.post('/:projectId/cards/:cardId/comments', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Add comment to card',
@@ -47,6 +49,7 @@ export async function cardFeatureRoutes(fastify: FastifyInstance) {
       security: [{ bearerAuth: [] }]
     }
   }, async (request: FastifyRequest<{ Params: { projectId: string; cardId: string } }>, reply: FastifyReply) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request.user as any).id;
     const { projectId, cardId } = request.params;
 
@@ -78,6 +81,7 @@ export async function cardFeatureRoutes(fastify: FastifyInstance) {
 
   // Create label
   fastify.post('/:projectId/labels', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Create project label',
@@ -85,6 +89,7 @@ export async function cardFeatureRoutes(fastify: FastifyInstance) {
       security: [{ bearerAuth: [] }]
     }
   }, async (request: FastifyRequest<{ Params: { projectId: string } }>, reply: FastifyReply) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request.user as any).id;
     const { projectId } = request.params;
 
@@ -105,6 +110,7 @@ export async function cardFeatureRoutes(fastify: FastifyInstance) {
 
   // Add label to card
   fastify.post('/:projectId/cards/:cardId/labels/:labelId', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Add label to card',
@@ -112,6 +118,7 @@ export async function cardFeatureRoutes(fastify: FastifyInstance) {
       security: [{ bearerAuth: [] }]
     }
   }, async (request: FastifyRequest<{ Params: { projectId: string; cardId: string; labelId: string } }>, reply: FastifyReply) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request.user as any).id;
     const { projectId, cardId, labelId } = request.params;
 
@@ -125,6 +132,7 @@ export async function cardFeatureRoutes(fastify: FastifyInstance) {
         'INSERT INTO kanban_card_labels (card_id, label_id) VALUES (?, ?)',
         [cardId, labelId]
       );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (err: any) {
       if (err.code === 'ER_DUP_ENTRY') {
         return { success: true }; // Already exists
@@ -137,6 +145,7 @@ export async function cardFeatureRoutes(fastify: FastifyInstance) {
 
   // Remove label from card
   fastify.delete('/:projectId/cards/:cardId/labels/:labelId', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Remove label from card',
@@ -144,6 +153,7 @@ export async function cardFeatureRoutes(fastify: FastifyInstance) {
       security: [{ bearerAuth: [] }]
     }
   }, async (request: FastifyRequest<{ Params: { projectId: string; cardId: string; labelId: string } }>, reply: FastifyReply) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request.user as any).id;
     const { projectId, cardId, labelId } = request.params;
 
@@ -162,6 +172,7 @@ export async function cardFeatureRoutes(fastify: FastifyInstance) {
 
   // Create checklist
   fastify.post('/:projectId/cards/:cardId/checklists', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Create checklist',
@@ -169,6 +180,7 @@ export async function cardFeatureRoutes(fastify: FastifyInstance) {
       security: [{ bearerAuth: [] }]
     }
   }, async (request: FastifyRequest<{ Params: { projectId: string; cardId: string } }>, reply: FastifyReply) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request.user as any).id;
     const { projectId, cardId } = request.params;
 
@@ -189,6 +201,7 @@ export async function cardFeatureRoutes(fastify: FastifyInstance) {
 
   // Add checklist item
   fastify.post('/:projectId/checklists/:checklistId/items', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Add checklist item',
@@ -196,6 +209,7 @@ export async function cardFeatureRoutes(fastify: FastifyInstance) {
       security: [{ bearerAuth: [] }]
     }
   }, async (request: FastifyRequest<{ Params: { projectId: string; checklistId: string } }>, reply: FastifyReply) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request.user as any).id;
     const { projectId, checklistId } = request.params;
 
@@ -216,6 +230,7 @@ export async function cardFeatureRoutes(fastify: FastifyInstance) {
 
   // Toggle checklist item
   fastify.patch('/:projectId/checklist-items/:itemId', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Toggle checklist item',
@@ -223,6 +238,7 @@ export async function cardFeatureRoutes(fastify: FastifyInstance) {
       security: [{ bearerAuth: [] }]
     }
   }, async (request: FastifyRequest<{ Params: { projectId: string; itemId: string } }>, reply: FastifyReply) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request.user as any).id;
     const { projectId, itemId } = request.params;
 
@@ -247,6 +263,7 @@ export async function cardFeatureRoutes(fastify: FastifyInstance) {
 
   // Link conversation to card
   fastify.post('/:projectId/cards/:cardId/conversations/:conversationId', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Link conversation to card',
@@ -254,6 +271,7 @@ export async function cardFeatureRoutes(fastify: FastifyInstance) {
       security: [{ bearerAuth: [] }]
     }
   }, async (request: FastifyRequest<{ Params: { projectId: string; cardId: string; conversationId: string } }>, reply: FastifyReply) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request.user as any).id;
     const { projectId, cardId, conversationId } = request.params;
 
@@ -267,6 +285,7 @@ export async function cardFeatureRoutes(fastify: FastifyInstance) {
         'INSERT INTO kanban_card_conversations (card_id, conversation_id) VALUES (?, ?)',
         [cardId, conversationId]
       );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (err: any) {
       if (err.code === 'ER_DUP_ENTRY') {
         return { success: true };
@@ -283,6 +302,7 @@ export async function cardFeatureRoutes(fastify: FastifyInstance) {
 
   // Link agent session to card
   fastify.post('/:projectId/cards/:cardId/agents/:sessionId', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Link agent session to card',
@@ -290,6 +310,7 @@ export async function cardFeatureRoutes(fastify: FastifyInstance) {
       security: [{ bearerAuth: [] }]
     }
   }, async (request: FastifyRequest<{ Params: { projectId: string; cardId: string; sessionId: string } }>, reply: FastifyReply) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request.user as any).id;
     const { projectId, cardId, sessionId } = request.params;
     const body = linkAgentSchema.parse(request.body);
@@ -311,6 +332,7 @@ export async function cardFeatureRoutes(fastify: FastifyInstance) {
         'INSERT INTO kanban_card_activity (card_id, user_id, action_type, details) VALUES (?, ?, ?, ?)',
         [cardId, userId, 'agent_linked', JSON.stringify({ session_id: sessionId })]
       );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (err: any) {
       if (err.code === 'ER_DUP_ENTRY') {
         return { success: true, message: 'Already linked' };
@@ -323,6 +345,7 @@ export async function cardFeatureRoutes(fastify: FastifyInstance) {
 
   // Unlink agent session from card
   fastify.delete('/:projectId/cards/:cardId/agents/:sessionId', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Unlink agent session from card',
@@ -330,6 +353,7 @@ export async function cardFeatureRoutes(fastify: FastifyInstance) {
       security: [{ bearerAuth: [] }]
     }
   }, async (request: FastifyRequest<{ Params: { projectId: string; cardId: string; sessionId: string } }>, reply: FastifyReply) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request.user as any).id;
     const { projectId, cardId, sessionId } = request.params;
 
@@ -355,6 +379,7 @@ export async function cardFeatureRoutes(fastify: FastifyInstance) {
 
   // Get agents linked to card
   fastify.get('/:projectId/cards/:cardId/agents', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Get agent sessions linked to card',
@@ -362,6 +387,7 @@ export async function cardFeatureRoutes(fastify: FastifyInstance) {
       security: [{ bearerAuth: [] }]
     }
   }, async (request: FastifyRequest<{ Params: { projectId: string; cardId: string } }>, reply: FastifyReply) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request.user as any).id;
     const { projectId, cardId } = request.params;
 
@@ -369,6 +395,7 @@ export async function cardFeatureRoutes(fastify: FastifyInstance) {
       return reply.status(403).send({ error: 'Insufficient permissions' });
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const agents = await findAll<any>(
       fastify.db,
       `SELECT kca.*, s.name as session_name, s.status as session_status, s.task_specification,
@@ -385,6 +412,7 @@ export async function cardFeatureRoutes(fastify: FastifyInstance) {
 
   // Create new agent session from card
   fastify.post('/:projectId/cards/:cardId/agents', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Create agent session from card',
@@ -392,6 +420,7 @@ export async function cardFeatureRoutes(fastify: FastifyInstance) {
       security: [{ bearerAuth: [] }]
     }
   }, async (request: FastifyRequest<{ Params: { projectId: string; cardId: string } }>, reply: FastifyReply) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request.user as any).id;
     const { projectId, cardId } = request.params;
     const body = createAgentSessionSchema.parse(request.body);

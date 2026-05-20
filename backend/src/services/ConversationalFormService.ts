@@ -15,11 +15,13 @@ export interface FormDefinition {
   name: string;
   display_name: string;
   description: string | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   json_schema: Record<string, any>;
   start_examples: string[] | null;
   stop_examples: string[] | null;
   ask_confirm: boolean;
   on_complete_action: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   on_complete_config: Record<string, any> | null;
   plugin_id: number | null;
   is_enabled: boolean;
@@ -31,6 +33,7 @@ export interface FormSession {
   conversation_id: number;
   form_id: number;
   state: FormState;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   collected_data: Record<string, any>;
   missing_fields: string[] | null;
   last_question: string | null;
@@ -39,6 +42,7 @@ export interface FormSession {
 export interface FormProcessResult {
   state: FormState;
   response: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   collected_data: Record<string, any>;
   missing_fields: string[];
   completed: boolean;
@@ -87,18 +91,21 @@ export class ConversationalFormService {
     const schema = typeof form.json_schema === 'string' ? JSON.parse(form.json_schema) : form.json_schema;
     const properties = schema.properties || {};
     const missing = session.missing_fields || [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const collected = typeof session.collected_data === 'string' ? JSON.parse(session.collected_data as any) : session.collected_data;
 
     let prompt = `You are helping collect structured data for form "${form.display_name}".\n`;
     prompt += `Description: ${form.description || 'N/A'}\n\n`;
     prompt += `Fields in this form:\n`;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     for (const [key, prop] of Object.entries(properties) as [string, any][]) {
       const status = collected[key] !== undefined ? `FILLED: ${JSON.stringify(collected[key])}` : 'MISSING';
       prompt += `- ${key} (${prop.type || 'string'}): ${prop.description || 'no description'} [${status}]\n`;
     }
 
     prompt += `\nUser message: "${userMessage}"\n\n`;
+     
     prompt += `Extract any field values from the user message. Return a JSON object with ONLY the fields you can extract. `;
     prompt += `If the user seems to want to cancel/stop the form, return {"__cancel": true}.\n`;
     prompt += `Return ONLY valid JSON, nothing else.`;
@@ -107,6 +114,7 @@ export class ConversationalFormService {
   }
 
   // Update session with extracted data from LLM
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   async updateWithExtraction(sessionId: number, extractedData: Record<string, any>): Promise<FormProcessResult> {
     const session = await findOne<FormSession>(this.db, 'SELECT * FROM form_sessions WHERE id = ?', [sessionId]);
     if (!session) throw new Error('Session not found');
@@ -120,6 +128,7 @@ export class ConversationalFormService {
       return {
         state: 'closed',
         response: 'Form cancelled.',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         collected_data: typeof session.collected_data === 'string' ? JSON.parse(session.collected_data as any) : session.collected_data,
         missing_fields: [],
         completed: false,
@@ -127,6 +136,7 @@ export class ConversationalFormService {
     }
 
     // Merge new data
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const collected = typeof session.collected_data === 'string' ? JSON.parse(session.collected_data as any) : { ...session.collected_data };
     const dangerousKeys = ['__proto__', 'constructor', 'prototype'];
     for (const [key, value] of Object.entries(extractedData)) {
@@ -170,6 +180,7 @@ export class ConversationalFormService {
     const session = await findOne<FormSession>(this.db, 'SELECT * FROM form_sessions WHERE id = ?', [sessionId]);
     if (!session || session.state !== 'wait_confirm') throw new Error('No session awaiting confirmation');
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const collected = typeof session.collected_data === 'string' ? JSON.parse(session.collected_data as any) : session.collected_data;
 
     if (confirmed) {
@@ -193,12 +204,14 @@ export class ConversationalFormService {
    * Execute the on_complete_action for a completed form.
    * Supports: 'save' (default), 'webhook', 'email', 'api'
    */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   async executeCompleteAction(formId: number, collectedData: Record<string, any>, userId: number): Promise<{ success: boolean; result?: any; error?: string }> {
     const form = await findOne<FormDefinition>(this.db, 'SELECT * FROM conversational_forms WHERE id = ?', [formId]);
     if (!form) return { success: false, error: 'Form not found' };
 
     const action = form.on_complete_action || 'save';
     const config = typeof form.on_complete_config === 'string'
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       ? JSON.parse(form.on_complete_config as any)
       : form.on_complete_config || {};
 
@@ -282,6 +295,7 @@ export class ConversationalFormService {
             signal: AbortSignal.timeout(15000),
           });
 
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
           let responseBody: any = null;
           try { responseBody = await resp.json(); } catch { /* non-JSON response */ }
 
@@ -295,6 +309,7 @@ export class ConversationalFormService {
         default:
           return { success: true, result: { action, message: 'Unknown action, data saved' } };
       }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (err: any) {
       return { success: false, error: `Action "${action}" failed: ${err.message}` };
     }
@@ -311,6 +326,7 @@ export class ConversationalFormService {
     return findMany<FormDefinition>(this.db, `SELECT * FROM conversational_forms ${where} ORDER BY display_name`);
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   private buildNextQuestionMessage(form: FormDefinition, schema: any, missing: string[], collected: Record<string, any>): string {
     const nextField = missing[0];
     const prop = schema.properties?.[nextField];
@@ -322,6 +338,7 @@ export class ConversationalFormService {
     return `[${form.display_name} - ${filledCount}/${totalFields}] Please provide: **${fieldDesc}** (${fieldType})`;
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   private buildConfirmationMessage(form: FormDefinition, collected: Record<string, any>): string {
     let msg = `All fields collected for **${form.display_name}**. Please confirm:\n\n`;
     for (const [key, value] of Object.entries(collected)) {

@@ -38,19 +38,21 @@ vi.mock('exceljs', () => {
             cb({ values: [null, 'Other'] }, 1);
         }),
     };
+    // Use a class so `new ExcelJS.Workbook()` works correctly in ESM Vitest context
+    class MockWorkbook {
+        xlsx = {
+            load: vi.fn().mockResolvedValue(undefined),
+            writeBuffer: vi.fn().mockResolvedValue(Buffer.from('mock-xlsx')),
+        };
+        eachSheet = vi.fn((cb: any) => {
+            cb(mockWorksheet, 1);
+            cb(mockWorksheet2, 2);
+        });
+        addWorksheet = vi.fn().mockReturnValue(mockWorksheet);
+    }
     return {
         default: {
-            Workbook: vi.fn().mockImplementation(() => ({
-                xlsx: {
-                    load: vi.fn().mockResolvedValue(undefined),
-                    writeBuffer: vi.fn().mockResolvedValue(Buffer.from('mock-xlsx')),
-                },
-                eachSheet: vi.fn((cb: any) => {
-                    cb(mockWorksheet, 1);
-                    cb(mockWorksheet2, 2);
-                }),
-                addWorksheet: vi.fn().mockReturnValue(mockWorksheet),
-            })),
+            Workbook: MockWorkbook,
         },
     };
 });

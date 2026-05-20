@@ -54,6 +54,7 @@ export interface HookContext {
   userId: number;
   conversationId?: number;
   messageId?: number;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   [key: string]: any;
 }
 
@@ -64,10 +65,12 @@ export interface HookHandler {
   priority: number;
   pluginId?: number;
   enabled: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   handler: (data: any, context: HookContext) => Promise<any> | any;
 }
 
 export interface HookResult {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   data: any;
   handlers_executed: string[];
   short_circuited: boolean;
@@ -149,6 +152,7 @@ class EventBusService {
     ]);
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   async pipe(hookName: HookName, data: any, context: HookContext): Promise<HookResult> {
     const handlers = (this.handlers.get(hookName) || []).filter(h => h.enabled);
     const executed: string[] = [];
@@ -172,6 +176,7 @@ class EventBusService {
         if (result !== undefined) {
           currentData = result;
         }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       } catch (error: any) {
         this.recordTrace(hookName, 'pipe', handler.id, handler.name, performance.now() - start, false, error.message, context);
         console.error(`[EventBus] Hook ${hookName} handler ${handler.id} error:`, error.message);
@@ -181,6 +186,7 @@ class EventBusService {
     return { data: currentData, handlers_executed: executed, short_circuited: false };
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   async emit(hookName: HookName, data: any, context: HookContext): Promise<void> {
     const handlers = (this.handlers.get(hookName) || []).filter(h => h.enabled);
     await Promise.allSettled(
@@ -189,6 +195,7 @@ class EventBusService {
         try {
           await Promise.resolve(h.handler(data, context));
           this.recordTrace(hookName, 'emit', h.id, h.name, performance.now() - start, true, undefined, context);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         } catch (err: any) {
           this.recordTrace(hookName, 'emit', h.id, h.name, performance.now() - start, false, err.message, context);
           console.error(`[EventBus] Emit ${hookName} handler ${h.id} error:`, err.message);
@@ -198,6 +205,7 @@ class EventBusService {
   }
 
   getRegisteredHandlers(): Record<string, { id: string; name: string; priority: number; pluginId?: number; enabled: boolean }[]> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const result: Record<string, any[]> = {};
     for (const [hookName, handlers] of this.handlers) {
       result[hookName] = handlers.map(h => ({
@@ -218,6 +226,7 @@ class EventBusService {
       { name: 'after_message_send', description: 'After response sent (logging/analytics)', type: 'emit' },
       // Memory recall
       { name: 'cat_recall_query', description: 'Edit the semantic search query before recall', type: 'pipe' },
+       
       { name: 'before_cat_recalls_memories', description: 'Intercept before any memory search', type: 'emit' },
       { name: 'before_cat_recalls_episodic_memories', description: 'Configure episodic recall params (k, threshold)', type: 'pipe' },
       { name: 'before_cat_recalls_declarative_memories', description: 'Configure declarative recall params (k, threshold)', type: 'pipe' },

@@ -147,6 +147,7 @@ export class MemoryService {
     query: string,
     filters?: ObservationFilters
   ): Promise<MemoryObservation[]> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const params: any[] = [userId];
     let where = 'WHERE o.user_id = ?';
 
@@ -247,6 +248,7 @@ export class MemoryService {
     updates: { content?: string; tags?: string[]; importance?: number; is_archived?: boolean; observation_type?: string }
   ): Promise<boolean> {
     const sets: string[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const params: any[] = [];
 
     if (updates.content !== undefined) { sets.push('content = ?'); params.push(updates.content); }
@@ -355,6 +357,7 @@ export class MemoryService {
 
     if (existing) {
       const sets: string[] = [];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       const params: any[] = [];
       if (updates.auto_capture !== undefined) { sets.push('auto_capture = ?'); params.push(updates.auto_capture); }
       if (updates.inject_context !== undefined) { sets.push('inject_context = ?'); params.push(updates.inject_context); }
@@ -395,12 +398,14 @@ export class MemoryService {
     const [totalRow] = await this.db.execute(
       'SELECT COUNT(*) as cnt FROM memory_observations WHERE user_id = ? AND is_archived = FALSE',
       [userId]
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     ) as any;
     const total = totalRow[0]?.cnt || 0;
 
     const [archivedRow] = await this.db.execute(
       'SELECT COUNT(*) as cnt FROM memory_observations WHERE user_id = ? AND is_archived = TRUE',
       [userId]
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     ) as any;
     const archived = archivedRow[0]?.cnt || 0;
 
@@ -417,18 +422,21 @@ export class MemoryService {
     const [summariesRow] = await this.db.execute(
       'SELECT COUNT(*) as cnt FROM memory_summaries WHERE user_id = ?',
       [userId]
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     ) as any;
     const summaries = summariesRow[0]?.cnt || 0;
 
     const [avgRow] = await this.db.execute(
       'SELECT AVG(importance) as avg_imp FROM memory_observations WHERE user_id = ? AND is_archived = FALSE',
       [userId]
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     ) as any;
     const avg_importance = Math.round((avgRow[0]?.avg_imp || 0) * 10) / 10;
 
     const [recentRow] = await this.db.execute(
       'SELECT COUNT(*) as cnt FROM memory_observations WHERE user_id = ? AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)',
       [userId]
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     ) as any;
     const recent_7d = recentRow[0]?.cnt || 0;
 

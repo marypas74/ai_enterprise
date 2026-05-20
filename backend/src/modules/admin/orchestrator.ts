@@ -32,6 +32,7 @@ export async function orchestratorAdminRoutes(fastify: FastifyInstance) {
 
   // ── GET /admin/orchestrator/stats ──────────────────────────────────
   fastify.get('/orchestrator/stats', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: { description: 'Get orchestrator routing statistics', tags: ['admin'], security: [{ bearerAuth: [] }] }
   }, async (request, reply) => {
@@ -108,6 +109,7 @@ export async function orchestratorAdminRoutes(fastify: FastifyInstance) {
 
   // ── GET /admin/orchestrator/tiers ──────────────────────────────────
   fastify.get('/orchestrator/tiers', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: { description: 'Get routing tier configuration', tags: ['admin'], security: [{ bearerAuth: [] }] }
   }, async (request, reply) => {
@@ -122,6 +124,7 @@ export async function orchestratorAdminRoutes(fastify: FastifyInstance) {
 
   // ── PUT /admin/orchestrator/tiers/:id ──────────────────────────────
   fastify.put('/orchestrator/tiers/:id', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: { description: 'Update a routing tier entry', tags: ['admin'], security: [{ bearerAuth: [] }] }
   }, async (request, reply) => {
@@ -134,6 +137,7 @@ export async function orchestratorAdminRoutes(fastify: FastifyInstance) {
     const body = request.body as { priority?: number; is_enabled?: boolean; max_concurrent?: number };
 
     const sets: string[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const params: any[] = [];
     if (body.priority !== undefined) { sets.push('priority = ?'); params.push(body.priority); }
     if (body.is_enabled !== undefined) { sets.push('is_enabled = ?'); params.push(body.is_enabled); }
@@ -148,6 +152,7 @@ export async function orchestratorAdminRoutes(fastify: FastifyInstance) {
 
   // ── POST /admin/orchestrator/tiers ─────────────────────────────────
   fastify.post('/orchestrator/tiers', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: { description: 'Add a model to a routing tier', tags: ['admin'], security: [{ bearerAuth: [] }] }
   }, async (request, reply) => {
@@ -156,6 +161,7 @@ export async function orchestratorAdminRoutes(fastify: FastifyInstance) {
 
     const body = request.body as { tier_name: string; provider: string; model_id: string; priority?: number };
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     if (!body.tier_name || !VALID_TIERS.includes(body.tier_name as any)) {
       return reply.status(400).send({ error: 'Invalid tier_name. Must be: fast, balanced, or powerful' });
     }
@@ -175,6 +181,7 @@ export async function orchestratorAdminRoutes(fastify: FastifyInstance) {
 
   // ── DELETE /admin/orchestrator/tiers/:id ────────────────────────────
   fastify.delete('/orchestrator/tiers/:id', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: { description: 'Remove a model from routing tier', tags: ['admin'], security: [{ bearerAuth: [] }] }
   }, async (request, reply) => {
@@ -190,6 +197,7 @@ export async function orchestratorAdminRoutes(fastify: FastifyInstance) {
 
   // ── GET /admin/orchestrator/settings ───────────────────────────────
   fastify.get('/orchestrator/settings', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: { description: 'Get orchestrator settings', tags: ['admin'], security: [{ bearerAuth: [] }] }
   }, async (request, reply) => {
@@ -203,6 +211,7 @@ export async function orchestratorAdminRoutes(fastify: FastifyInstance) {
 
   // ── PUT /admin/orchestrator/settings ───────────────────────────────
   fastify.put('/orchestrator/settings', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: { description: 'Update orchestrator settings', tags: ['admin'], security: [{ bearerAuth: [] }] }
   }, async (request, reply) => {

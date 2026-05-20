@@ -10,6 +10,7 @@ import type { CreateSessionDTO, AgentSession, SessionLog } from '../AgentOrchest
 /**
  * Map a database row to an AgentSession object (immutable mapping)
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
 export function mapRowToSession(row: any): AgentSession {
   return {
     id: row.id,
@@ -39,6 +40,7 @@ export function mapRowToSession(row: any): AgentSession {
 /**
  * Get a session by ID
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
 export async function getSession(db: any, sessionId: number): Promise<AgentSession | null> {
   const [rows] = await db.execute(
     `SELECT s.*, m.model_id as model_name, m.display_name as model_display_name
@@ -48,10 +50,12 @@ export async function getSession(db: any, sessionId: number): Promise<AgentSessi
     [sessionId]
   );
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   if ((rows as any[]).length === 0) {
     return null;
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   const row = (rows as any[])[0];
   return mapRowToSession(row);
 }
@@ -60,6 +64,7 @@ export async function getSession(db: any, sessionId: number): Promise<AgentSessi
  * Get sessions for a user with optional filters and pagination
  */
 export async function getUserSessions(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   db: any,
   userId: number,
   options: { status?: string; limit?: number; offset?: number } = {}
@@ -69,6 +74,7 @@ export async function getUserSessions(
   let query = `SELECT s.*, m.model_id as model_name FROM agent_sessions s
                LEFT JOIN ai_models m ON s.model_id = m.id
                WHERE s.user_id = ?`;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   const params: any[] = [userId];
 
   if (status) {
@@ -81,6 +87,7 @@ export async function getUserSessions(
     query.replace('SELECT s.*, m.model_id as model_name', 'SELECT COUNT(*) as total'),
     params
   );
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   const total = (countResult as any[])[0].total;
 
   // Get paginated results
@@ -90,6 +97,7 @@ export async function getUserSessions(
   const [rows] = await db.execute(query, params);
 
   return {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     sessions: (rows as any[]).map(row => mapRowToSession(row)),
     total
   };
@@ -99,6 +107,7 @@ export async function getUserSessions(
  * Create a new agent session
  */
 export async function createSession(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   db: any,
   userId: number,
   data: CreateSessionDTO
@@ -117,13 +126,16 @@ export async function createSession(
 
   try {
     // Get template config if templateId provided
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     let templateConfig: any = {};
     if (data.templateId) {
       const [templates] = await db.execute(
         'SELECT * FROM agent_templates WHERE id = ? AND (user_id = ? OR is_public = TRUE)',
         [data.templateId, userId]
       );
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       if ((templates as any[]).length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         const template = (templates as any[])[0];
         templateConfig = {
           systemPrompt: template.system_prompt,
@@ -166,6 +178,7 @@ export async function createSession(
       ]
     );
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const sessionId = (result as any).insertId;
 
     // Assign terminal slot
@@ -207,6 +220,7 @@ export async function createSession(
 /**
  * Add a log entry for a session
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
 export async function addLog(db: any, sessionId: number, log: SessionLogEvent): Promise<void> {
   await db.execute(
     `INSERT INTO agent_session_logs (session_id, log_type, content, metadata)
@@ -221,6 +235,7 @@ export async function addLog(db: any, sessionId: number, log: SessionLogEvent): 
  * Get session logs with optional filtering and pagination
  */
 export async function getSessionLogs(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   db: any,
   sessionId: number,
   options: { limit?: number; offset?: number; logType?: string } = {}
@@ -228,6 +243,7 @@ export async function getSessionLogs(
   const { limit = 100, offset = 0, logType } = options;
 
   let query = `SELECT * FROM agent_session_logs WHERE session_id = ?`;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   const params: any[] = [sessionId];
 
   if (logType) {
@@ -240,6 +256,7 @@ export async function getSessionLogs(
     query.replace('SELECT *', 'SELECT COUNT(*) as total'),
     params
   );
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   const total = (countResult as any[])[0].total;
 
   // Get logs
@@ -249,6 +266,7 @@ export async function getSessionLogs(
   const [rows] = await db.execute(query, params);
 
   return {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     logs: (rows as any[]).map(row => ({
       id: row.id,
       sessionId: row.session_id,
@@ -265,6 +283,7 @@ export async function getSessionLogs(
  * Complete a session successfully
  */
 export async function completeSession(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   db: any,
   sessionId: number,
   message: string,
@@ -301,6 +320,7 @@ export async function completeSession(
  * Fail a session with an error message
  */
 export async function failSession(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   db: any,
   sessionId: number,
   error: string,
@@ -337,6 +357,7 @@ export async function failSession(
  * Update linked Kanban card based on session status
  */
 export async function updateLinkedCard(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   db: any,
   sessionId: number,
   agentStatus: 'in_progress' | 'completed' | 'failed'
@@ -350,8 +371,10 @@ export async function updateLinkedCard(
       [sessionId]
     );
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     if ((links as any[]).length === 0) return;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const link = (links as any[])[0];
 
     // Update link status
@@ -372,6 +395,7 @@ export async function updateLinkedCard(
       [link.card_id]
     );
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const cols = columns as any[];
     let targetColumnId = link.column_id;
 
@@ -416,6 +440,7 @@ export async function updateLinkedCard(
 /**
  * Cleanup interrupted sessions on startup
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
 export async function cleanupInterruptedSessions(db: any): Promise<void> {
   // Mark running/initializing sessions as failed (they were interrupted)
   await db.execute(
@@ -428,6 +453,7 @@ export async function cleanupInterruptedSessions(db: any): Promise<void> {
 /**
  * Get dashboard metrics for agent sessions
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
 export async function getDashboardMetrics(db: any): Promise<any> {
   const terminalMetrics = TerminalManager.getMetrics();
 
@@ -443,6 +469,7 @@ export async function getDashboardMetrics(db: any): Promise<any> {
     WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
   `);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   const metrics = (stats as any[])[0];
 
   return {

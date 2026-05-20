@@ -78,6 +78,7 @@ export async function getCachedOCR(
   attachmentId: number,
   pageIndex: number,
   pageBuffer: Buffer,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   redisClient?: any,
 ): Promise<string | null> {
   const key = buildCacheKey(attachmentId, pageIndex, pageBuffer);
@@ -113,6 +114,7 @@ export async function setCachedOCR(
   pageIndex: number,
   pageBuffer: Buffer,
   text: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   redisClient?: any,
 ): Promise<void> {
   const key = buildCacheKey(attachmentId, pageIndex, pageBuffer);
@@ -164,6 +166,7 @@ export interface CachedDocResult {
 export async function getCachedDocOCR(
   buffer: Buffer,
   methodTag: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   redisClient?: any,
 ): Promise<CachedDocResult | null> {
   const key = buildDocCacheKey(computeContentHash(buffer), methodTag);
@@ -186,6 +189,7 @@ export async function setCachedDocOCR(
   buffer: Buffer,
   methodTag: string,
   result: CachedDocResult,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   redisClient?: any,
 ): Promise<void> {
   const key = buildDocCacheKey(computeContentHash(buffer), methodTag);
@@ -209,6 +213,7 @@ export async function setCachedDocOCR(
  */
 export async function clearOCRCache(
   attachmentId: number,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   redisClient?: any,
 ): Promise<void> {
   // Clear memory entries for this attachment

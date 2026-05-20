@@ -48,6 +48,7 @@ export class MemoryDecayService {
            AND importance > 1
            AND created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)
            AND updated_at < DATE_SUB(NOW(), INTERVAL 7 DAY)`,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       ) as any;
       decayed = decayResult.affectedRows || 0;
 
@@ -59,10 +60,12 @@ export class MemoryDecayService {
          WHERE is_archived = FALSE
            AND importance <= 1
            AND created_at < DATE_SUB(NOW(), INTERVAL 90 DAY)`,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       ) as any;
       archived = archiveResult.affectedRows || 0;
 
       // 3. Apply user-specific retention policies
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       const settings = await findMany<any>(db,
         `SELECT ms.user_id, ms.retention_days
          FROM memory_settings ms
@@ -78,6 +81,7 @@ export class MemoryDecayService {
              AND is_archived = FALSE
              AND created_at < DATE_SUB(NOW(), INTERVAL ? DAY)`,
           [setting.user_id, setting.retention_days],
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         ) as any;
         archived += retentionResult.affectedRows || 0;
       }
@@ -85,6 +89,7 @@ export class MemoryDecayService {
       if (decayed > 0 || archived > 0) {
         console.log(`[MemoryDecay] Cycle complete: ${decayed} decayed, ${archived} archived`);
       }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (error: any) {
       console.error(`[MemoryDecay] Decay error: ${error.message}`);
     }

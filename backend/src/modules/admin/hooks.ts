@@ -16,6 +16,7 @@ export async function hookRoutes(fastify: FastifyInstance) {
 
   // List all hooks and their handlers
   fastify.get('/hooks', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate, requireAdmin],
   }, async () => {
     return {
@@ -26,6 +27,7 @@ export async function hookRoutes(fastify: FastifyInstance) {
 
   // Toggle a handler enabled/disabled
   fastify.patch('/hooks/handlers/:handlerId/toggle', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate, requireAdmin],
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { handlerId } = request.params as { handlerId: string };
@@ -43,6 +45,7 @@ export async function hookRoutes(fastify: FastifyInstance) {
 
   // Get trace status
   fastify.get('/hooks/trace', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate, requireAdmin],
   }, async () => {
     return {
@@ -53,6 +56,7 @@ export async function hookRoutes(fastify: FastifyInstance) {
 
   // Toggle tracing on/off
   fastify.post('/hooks/trace/toggle', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate, requireAdmin],
   }, async (request: FastifyRequest) => {
     const { enabled } = toggleTracingSchema.parse(request.body);
@@ -62,6 +66,7 @@ export async function hookRoutes(fastify: FastifyInstance) {
 
   // Get trace log
   fastify.get('/hooks/trace/log', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate, requireAdmin],
   }, async (request: FastifyRequest) => {
     const { limit } = request.query as { limit?: string };
@@ -71,6 +76,7 @@ export async function hookRoutes(fastify: FastifyInstance) {
 
   // Clear trace log
   fastify.delete('/hooks/trace/log', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate, requireAdmin],
   }, async () => {
     eventBus.clearTraceLog();

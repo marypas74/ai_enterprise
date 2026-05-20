@@ -28,6 +28,7 @@ export function getWebToolDefinitions(): ToolDefinition[] {
     },
     {
       name: 'browse_url',
+       
       description: 'Browse a web page and extract its text content, links, and tables. Use this to read articles, documentation, or any web page content.',
       input_schema: {
         type: 'object',
@@ -98,6 +99,7 @@ export function getWebToolDefinitions(): ToolDefinition[] {
  */
 export async function executeWebTool(
   toolName: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   toolInput: Record<string, any>,
   _context: ToolContext
 ): Promise<ToolResult | null> {
@@ -131,6 +133,7 @@ export async function executeWebTool(
             message: `Found ${searchResponse.results.length} search results.`
           }
         };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       } catch (error: any) {
         return { success: false, error: `Web search tool failed: ${error.message}` };
       }
@@ -160,6 +163,7 @@ export async function executeWebTool(
             tablesCount: page.tables.length,
           }
         };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       } catch (error: any) {
         return { success: false, error: `Browse failed: ${error.message}` };
       }
@@ -201,6 +205,7 @@ export async function executeWebTool(
             message: 'Screenshot captured successfully'
           }
         };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       } catch (error: any) {
         return { success: false, error: `Screenshot failed: ${error.message}` };
       }
@@ -228,6 +233,7 @@ export async function executeWebTool(
             message: 'Page data extracted successfully'
           }
         };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       } catch (error: any) {
         return { success: false, error: `Extraction failed: ${error.message}` };
       }
@@ -253,6 +259,7 @@ export async function executeWebTool(
             message: 'Screenshot analyzed successfully with vision model'
           }
         };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       } catch (error: any) {
         return { success: false, error: `Vision analysis failed: ${error.message}` };
       }

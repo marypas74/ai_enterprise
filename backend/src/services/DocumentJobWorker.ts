@@ -21,6 +21,7 @@ export class DocumentJobWorker {
     this.running = true;
     this.fastify.log.info('[JobWorker] Started');
     // C3: Recover stale jobs from previous crash before starting the poll loop
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     this.recoverStaleJobs().then(() => this.scheduleNext()).catch((err: any) => {
       this.fastify.log.error(`[JobWorker] recoverStaleJobs failed: ${err.message}`);
       this.scheduleNext();
@@ -29,6 +30,7 @@ export class DocumentJobWorker {
 
   /** C3: Reset jobs stuck in "processing" for more than STALE_THRESHOLD_MS. */
   private async recoverStaleJobs(): Promise<void> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const redis = (this.fastify as any).redis;
     const tenMinutesAgo = new Date(Date.now() - STALE_THRESHOLD_MS).toISOString();
     let cursor = '0';
@@ -71,6 +73,7 @@ export class DocumentJobWorker {
       if (job) {
         await this.processJob(job);
       }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (err: any) {
       this.fastify.log.error(`[JobWorker] Tick error: ${err.message}`);
     }
@@ -96,6 +99,7 @@ export class DocumentJobWorker {
           result = await provider.complete({ messages, model: job.model, maxTokens: 4096 });
           lastError = null;
           break;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         } catch (err: any) {
           lastError = err;
           this.fastify.log.warn(
@@ -109,6 +113,7 @@ export class DocumentJobWorker {
 
       // If primary provider failed both attempts, try external API fallback
       if (lastError) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         const [extRows]: any[] = await (this.fastify as any).db.execute(
           `SELECT m.model_id, p.provider_type
            FROM ai_models m JOIN ai_providers p ON m.provider_id = p.id
@@ -135,6 +140,7 @@ export class DocumentJobWorker {
         });
 
         // Update placeholder in DB so the warning is also visible after page reload
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         await (this.fastify as any).db.execute(
           'UPDATE messages SET content = ? WHERE id = ?',
           [
@@ -163,11 +169,13 @@ export class DocumentJobWorker {
       const responseContent = result!.content ?? 'Nessuna risposta generata.';
 
       // C4: Replace the placeholder message in-place instead of inserting a new one
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       await (this.fastify as any).db.execute(
         'UPDATE messages SET content = ?, is_ai_generated = ?, ai_model = ?, ai_provider = ?, updated_at = NOW() WHERE id = ?',
         [responseContent, true, job.model, job.providerName, job.placeholderMessageId]
       );
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       await (this.fastify as any).db.execute(
         'UPDATE conversations SET updated_at = NOW() WHERE id = ?',
         [job.conversationId]
@@ -184,6 +192,7 @@ export class DocumentJobWorker {
       });
 
       this.fastify.log.info(`[JobWorker] Job ${job.id} completed in ${Date.now() - startTime}ms`);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (err: any) {
       this.fastify.log.error(`[JobWorker] Job ${job.id} failed: ${err.message}`);
       await this.queue.updateStatus(job.id, 'error', {

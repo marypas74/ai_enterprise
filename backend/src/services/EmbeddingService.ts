@@ -151,6 +151,7 @@ async function probeDimensions(
             });
 
             if (resp.ok) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
                 const data = await resp.json() as any;
                 const vec = data.embeddings?.[0];
                 if (Array.isArray(vec) && vec.length > 0) return vec.length;
@@ -167,6 +168,7 @@ async function probeDimensions(
             });
 
             if (resp.ok) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
                 const data = await resp.json() as any;
                 const vec = data.data?.[0]?.embedding;
                 if (Array.isArray(vec) && vec.length > 0) return vec.length;
@@ -214,6 +216,7 @@ function embeddingCacheKey(modelId: string, text: string): string {
 export async function generateEmbedding(
     db: mysql.Pool,
     text: string,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     redis?: any
 ): Promise<EmbeddingResult | null> {
     const provider = await detectEmbeddingProvider(db);
@@ -323,6 +326,7 @@ async function generateOpenAIEmbedding(
         throw new Error(`OpenAI embedding API error: ${response.status} ${response.statusText}`);
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const data = await response.json() as any;
     const embedding = data.data?.[0]?.embedding;
 
@@ -351,7 +355,9 @@ async function generateOpenAIEmbeddingBatch(
         throw new Error(`OpenAI batch embedding API error: ${response.status}`);
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const data = await response.json() as any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     return (data.data || []).map((item: any) => {
         if (!Array.isArray(item?.embedding) || item.embedding.length === 0) return null;
         return { embedding: item.embedding, model: provider.modelId, dimensions: item.embedding.length };
@@ -382,6 +388,7 @@ async function generateOllamaEmbedding(
     });
 
     if (embedResp.ok) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         const data = await embedResp.json() as any;
         const embedding = data.embeddings?.[0];
         if (Array.isArray(embedding) && embedding.length > 0) {
@@ -402,6 +409,7 @@ async function generateOllamaEmbedding(
         throw new Error(`Ollama embedding API error: ${legacyResp.status}`);
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const data = await legacyResp.json() as any;
     const embedding = data.embedding;
 
@@ -440,6 +448,7 @@ async function generateOllamaEmbeddingBatch(
         return results;
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const data = await resp.json() as any;
     const embeddings: number[][] = data.embeddings || [];
 

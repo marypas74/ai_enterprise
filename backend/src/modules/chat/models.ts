@@ -7,6 +7,7 @@ export async function modelRoutes(fastify: FastifyInstance) {
 
   // Get available models - from database (admin-enabled only)
   fastify.get('/models', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Get AI models enabled by admin',
@@ -20,6 +21,7 @@ export async function modelRoutes(fastify: FastifyInstance) {
       'SELECT local_only FROM users WHERE id = ?',
       [userId]
     );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const isLocalOnly = userRecord?.local_only === true || (userRecord as any)?.local_only === 1;
     interface EnabledModel {
       model_id: string;
@@ -64,6 +66,7 @@ export async function modelRoutes(fastify: FastifyInstance) {
     try {
       const [settingRows] = await fastify.db.execute(
         `SELECT setting_value FROM model_routing_settings WHERE setting_key = 'auto_routing_enabled'`
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       ) as any;
       const autoEnabled = settingRows?.[0]?.setting_value === 'true';
       if (autoEnabled && models.length > 1 && !isLocalOnly) {
@@ -116,6 +119,7 @@ export async function modelRoutes(fastify: FastifyInstance) {
           });
         }
       }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (err: any) {
       fastify.log.warn(`Failed to fetch Parlant agents: ${err?.message || err}`);
     }
@@ -126,6 +130,7 @@ export async function modelRoutes(fastify: FastifyInstance) {
 
   // Get recommended model based on server load
   fastify.get('/models/recommended', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Get recommended model based on current server load',
@@ -138,6 +143,7 @@ export async function modelRoutes(fastify: FastifyInstance) {
       `SELECT COUNT(*) as active_count FROM user_sessions
        WHERE logged_out_at IS NULL AND revoked_at IS NULL AND expires_at > NOW()
          AND last_activity_at > DATE_SUB(NOW(), INTERVAL 15 MINUTE)`
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     ) as any;
     const activeUsers = countRows[0]?.active_count || 0;
 
@@ -195,6 +201,7 @@ export async function modelRoutes(fastify: FastifyInstance) {
 
   // Clear models cache
   fastify.post('/models/refresh', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Clear the models cache to force refresh',

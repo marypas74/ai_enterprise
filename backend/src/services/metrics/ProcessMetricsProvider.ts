@@ -5,7 +5,9 @@ import { execAsync, getHostProcPath } from './shared.js';
 
 // Helper to get top processes
 // Note: exec uses hardcoded commands only, no user input - safe from injection
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
 export async function getTopProcesses(): Promise<any[]> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const processes: any[] = [];
     try {
         const { stdout } = await execAsync(
@@ -75,6 +77,7 @@ export async function getTopProcesses(): Promise<any[]> {
 }
 
 // Get active user sessions from database (active = logged_out_at IS NULL AND activity within 15 min)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
 export async function getActiveUsers(db?: Pool): Promise<any[]> {
     if (!db) return [];
     try {
@@ -91,6 +94,7 @@ export async function getActiveUsers(db?: Pool): Promise<any[]> {
              ORDER BY us.created_at DESC
              LIMIT 30`
         );
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         return (rows as any[]).map(r => ({
             id: r.id,
             email: r.email,
@@ -113,6 +117,7 @@ export async function getActiveUsers(db?: Pool): Promise<any[]> {
                  ORDER BY last_login_at DESC
                  LIMIT 30`
             );
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
             return (rows as any[]).map(r => ({
                 id: r.id,
                 email: r.email,

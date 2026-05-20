@@ -60,12 +60,14 @@ export const databasePlugin = fp(databaseConnector, {
 });
 
 // Query helpers
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
 export async function findOne<T>(pool: mysql.Pool, sql: string, params: any[] = []): Promise<T | null> {
   const [rows] = await pool.execute(sql, params);
   const results = rows as T[];
   return results.length > 0 ? results[0] : null;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
 export async function findMany<T>(pool: mysql.Pool, sql: string, params: any[] = []): Promise<T[]> {
   const [rows] = await pool.execute(sql, params);
   return rows as T[];
@@ -74,11 +76,13 @@ export async function findMany<T>(pool: mysql.Pool, sql: string, params: any[] =
 // Alias for findMany
 export const findAll = findMany;
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
 export async function insertOne(pool: mysql.Pool, sql: string, params: any[] = []): Promise<number> {
   const [result] = await pool.execute(sql, params);
   return (result as mysql.ResultSetHeader).insertId;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
 export async function updateOne(pool: mysql.Pool, sql: string, params: any[] = []): Promise<number> {
   const [result] = await pool.execute(sql, params);
   return (result as mysql.ResultSetHeader).affectedRows;
@@ -744,12 +748,19 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
       name: 'model_routing_tiers_add_force_short_output',
       sql: `ALTER TABLE model_routing_tiers ADD COLUMN IF NOT EXISTS force_short_output BOOLEAN DEFAULT FALSE`
     },
+    // v2.1.81: DEBT-81-G — per-tier output token cap
+    // fast=512, balanced=1500, powerful=3000 seed. NULL means no override.
+    {
+      name: 'model_routing_tiers_add_max_output_tokens',
+      sql: `ALTER TABLE model_routing_tiers ADD COLUMN IF NOT EXISTS max_output_tokens INT DEFAULT NULL`
+    },
   ];
 
   for (const migration of alterMigrations) {
     try {
       await pool.execute(migration.sql);
       fastify.log.info(`[Migration] Column ${migration.name} added`);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (err: any) {
       // Error 1060 = Duplicate column name (already exists) - expected, skip silently
       if (err?.errno !== 1060) {
@@ -787,6 +798,7 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
       ]
     );
     fastify.log.info('[Migration] vLLM provider seeded');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   } catch (err: any) {
     fastify.log.warn({ err }, '[Migration] vLLM provider seed skipped');
   }
@@ -809,6 +821,7 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
       []
     );
     fastify.log.info('[Migration] qwen25vl:32b model seeded for vLLM provider');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   } catch (err: any) {
     fastify.log.warn({ err }, '[Migration] qwen25vl:32b model seed skipped');
   }
@@ -824,6 +837,7 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
        WHERE model_id LIKE 'claude-%'
          AND (supports_thinking IS NULL OR supports_thinking = FALSE)`
     );
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   } catch (err: any) {
     // Columns might not exist yet on first run, skip
     if (err?.errno !== 1054) {
@@ -838,6 +852,7 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
        WHERE (model_id LIKE 'deepseek-r1:%' OR model_id LIKE 'qwq:%' OR model_id LIKE 'qwen3:%')
          AND (supports_thinking IS NULL OR supports_thinking = FALSE)`
     );
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   } catch (err: any) {
     if (err?.errno !== 1054) {
       fastify.log.warn({ err }, `[Migration] Ollama thinking capabilities update failed`);
@@ -853,18 +868,44 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
        WHERE tier_name = 'fast' AND provider = 'vllm' AND model_id = 'qwen25vl:32b'`
     );
     fastify.log.info('[Migration] PERF-79-B3: force_short_output seeded for fast/vllm/qwen25vl:32b');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   } catch (err: any) {
     fastify.log.warn({ err }, '[Migration] PERF-79-B3: force_short_output seed skipped');
   }
 
-  // v2.1.79: Update app_version in system_settings to current version.
+  // v2.1.81: DEBT-81-G — seed max_output_tokens per tier (idempotent)
+  // Only sets when column is NULL (preserves admin overrides)
+  try {
+    await pool.execute(
+      `UPDATE model_routing_tiers
+       SET max_output_tokens = 512
+       WHERE tier_name = 'fast' AND max_output_tokens IS NULL`
+    );
+    await pool.execute(
+      `UPDATE model_routing_tiers
+       SET max_output_tokens = 1500
+       WHERE tier_name = 'balanced' AND max_output_tokens IS NULL`
+    );
+    await pool.execute(
+      `UPDATE model_routing_tiers
+       SET max_output_tokens = 3000
+       WHERE tier_name = 'powerful' AND max_output_tokens IS NULL`
+    );
+    fastify.log.info('[Migration] DEBT-81-G: max_output_tokens seeded per tier (fast=512, balanced=1500, powerful=3000)');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
+  } catch (err: any) {
+    fastify.log.warn({ err }, '[Migration] DEBT-81-G: max_output_tokens seed skipped');
+  }
+
+  // v2.1.81: Update app_version in system_settings to current version.
   // Uses UPDATE with version comparison so re-running on an already-updated DB is a no-op.
   try {
     await pool.execute(
-      `UPDATE system_settings SET setting_value = '2.1.80'
-       WHERE setting_key = 'app_version' AND setting_value < '2.1.80'`
+      `UPDATE system_settings SET setting_value = '2.1.81'
+       WHERE setting_key = 'app_version' AND setting_value < '2.1.81'`
     );
-    fastify.log.info('[Migration] app_version updated to 2.1.80 (if behind)');
+    fastify.log.info('[Migration] app_version updated to 2.1.81 (if behind)');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   } catch (err: any) {
     fastify.log.warn({ err }, '[Migration] app_version update skipped');
   }
@@ -928,6 +969,7 @@ async function seedAIActSettings(pool: mysql.Pool, fastify: FastifyInstance): Pr
          WHERE model_id LIKE ?`,
         [m.cutoff, m.limitations, m.biasNotes, m.rating, m.url, m.pattern]
       );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (err: any) {
       if (err?.errno !== 1054) {
         fastify.log.warn({ err }, `[AI-Act] Model docs seed failed for ${m.pattern}`);
@@ -941,6 +983,7 @@ async function seedAIActSettings(pool: mysql.Pool, fastify: FastifyInstance): Pr
 async function seedPromptTemplates(pool: mysql.Pool, fastify: FastifyInstance): Promise<void> {
   try {
     const [rows] = await pool.execute('SELECT COUNT(*) as cnt FROM prompt_templates');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const count = (rows as any[])[0]?.cnt || 0;
     if (count > 0) return; // Already seeded
 
@@ -961,6 +1004,7 @@ async function seedPromptTemplates(pool: mysql.Pool, fastify: FastifyInstance): 
 async function seedGuidePages(pool: mysql.Pool, fastify: FastifyInstance): Promise<void> {
   try {
     const [rows] = await pool.execute('SELECT COUNT(*) as cnt FROM guide_pages');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const count = (rows as any[])[0]?.cnt || 0;
     if (count > 0) return; // Already seeded
 

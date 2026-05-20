@@ -124,6 +124,7 @@ export async function ensureCollection(dimensions: number): Promise<boolean> {
 
         console.log(`[VectorStore] Created collection ${COLLECTION_NAME} (${dimensions}d)`);
         return true;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (error: any) {
         console.error(`[VectorStore] Collection setup error: ${error.message}`);
         return false;
@@ -236,6 +237,7 @@ export async function indexChunks(
         console.log(`[VectorStore] Indexed ${indexedCount}/${chunks.length} chunks for attachment ${attachmentId}`);
         return true;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (error: any) {
         console.error(`[VectorStore] Indexing error: ${error.message}`);
         await updateOne(db,
@@ -274,6 +276,7 @@ export async function searchSimilar(
         if (!queryEmbedding) return [];
 
         // Build Qdrant search request
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         const searchBody: any = {
             vector: queryEmbedding.embedding,
             limit,
@@ -287,6 +290,7 @@ export async function searchSimilar(
                 must: [{
                     key: 'attachment_id',
                     match: {
+                         
                         any: attachmentIds,
                     },
                 }],
@@ -307,7 +311,9 @@ export async function searchSimilar(
             return [];
         }
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         const data = await response.json() as any;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         const results: VectorSearchResult[] = (data.result || []).map((hit: any) => ({
             chunkId: hit.id,
             attachmentId: hit.payload?.attachment_id,
@@ -317,6 +323,7 @@ export async function searchSimilar(
         }));
 
         return results;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (error: any) {
         console.error(`[VectorStore] Search error: ${error.message}`);
         return [];

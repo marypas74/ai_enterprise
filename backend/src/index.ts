@@ -146,6 +146,7 @@ const appPlugin = fp(async function (fastify) {
         continue;
       }
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       AIProviderFactory.setProviderConfig(providerName as any, {
         apiKey: settings.api_key,
         baseUrl: settings.base_url,
@@ -160,6 +161,7 @@ const appPlugin = fp(async function (fastify) {
   }
 
   // JWT Authentication Decorator with detailed logging
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   fastify.decorate('authenticate', async function (request: any, reply: any) {
     const authHeader = request.headers.authorization;
     const url = request.url;
@@ -188,6 +190,7 @@ const appPlugin = fp(async function (fastify) {
           const [mfaRows] = await fastify.db.execute(
             'SELECT setting_value FROM system_settings WHERE setting_key = ?',
             ['mfa_enforced']
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
           ) as any;
           mfaEnforced = mfaRows?.[0]?.setting_value === 'true';
         } catch { /* setting may not exist */ }
@@ -212,6 +215,7 @@ const appPlugin = fp(async function (fastify) {
              WHERE user_id = ? AND LEFT(token_hash, 16) = ? AND revoked_at IS NULL AND logged_out_at IS NULL AND expires_at > NOW()
              LIMIT 1`,
             [userId, sessionId]
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
           ) as any;
 
           if (!sessions || sessions.length === 0) {
@@ -243,6 +247,7 @@ const appPlugin = fp(async function (fastify) {
           return reply.status(401).send({ error: 'Unauthorized', reason: 'Session expired — please login again' });
         }
       }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (err: any) {
       fastify.log.warn(`[Auth] JWT verify failed for ${url}: ${err.message}`);
       return reply.status(401).send({ error: 'Unauthorized', reason: err.message });
@@ -288,6 +293,7 @@ const appPlugin = fp(async function (fastify) {
   await fastify.register(guideRoutes, { prefix: '/api/admin' });
 
   // Debug WebSocket clients set (defined early so addHook can reference it)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   const debugClients = new Set<any>();
 
   // Hook to capture all request logs
@@ -320,6 +326,7 @@ const appPlugin = fp(async function (fastify) {
   });
 
   // WebSocket JWT authentication helper
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   const authenticateWs = async (request: any): Promise<boolean> => {
     try {
       // Check token from query string (?token=xxx) since WebSocket doesn't support custom headers
@@ -406,6 +413,7 @@ const appPlugin = fp(async function (fastify) {
         return;
       }
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       const user = (request as any).user as { id: number };
 
       const { JobEventEmitter } = await import('./services/JobEventEmitter.js');
@@ -451,7 +459,9 @@ const appPlugin = fp(async function (fastify) {
       checks.status = 'degraded';
     }
     try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       if ((fastify as any).redis) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         await (fastify as any).redis.ping();
         checks.redis = 'ok';
       } else {
@@ -500,6 +510,7 @@ async function bootstrap() {
     origin: (origin, cb) => {
       if (!origin) return cb(null, true);                         // non-browser / same-origin
       if (corsOrigins.includes(origin)) return cb(null, true);    // explicit whitelist
+       
       if (LAN_ORIGIN_RE.test(origin)) return cb(null, true);     // any 192.168.x.x LAN IP
       cb(null, false);
     },
@@ -671,6 +682,7 @@ async function bootstrap() {
       syncWorker = new LLMSyncWorker(fastify);
       syncWorker.start();
       // Expose worker for on-demand trigger from admin routes
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       (fastify as any).llmSyncWorker = syncWorker;
     } catch (err) {
       fastify.log.warn('Could not initialize LLM Sync Worker: ' + String(err));
@@ -680,10 +692,12 @@ async function bootstrap() {
     try {
       const { DocumentJobQueue } = await import('./services/DocumentJobQueue.js');
       const { DocumentJobWorker } = await import('./services/DocumentJobWorker.js');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       const redis = (fastify as any).redis;
       const queue = new DocumentJobQueue(redis);
       docJobWorker = new DocumentJobWorker(fastify, queue);
       docJobWorker.start();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (err: any) {
       fastify.log.warn(`[JobWorker] Could not initialize DocumentJobWorker: ${err.message}`);
     }
@@ -713,7 +727,9 @@ async function bootstrap() {
       const { VisionService } = await import('./services/VisionService.js');
       const vs = VisionService.getInstance();
       vs.setDb(fastify.db);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       if ((fastify as any).redis) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         vs.setRedis((fastify as any).redis);
       }
       fastify.log.info('[Startup] VisionService initialized with DB pool + Redis OCR cache');

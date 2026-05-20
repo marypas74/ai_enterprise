@@ -33,6 +33,7 @@ export interface ScheduledJob {
   description?: string;
   job_type: JobType;
   action_type: ActionType;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   action_config: Record<string, any>;
   schedule_config: {
     delay_ms?: number;        // for one_shot
@@ -175,6 +176,7 @@ export class WhiteRabbitService {
   /** List jobs with optional status filter */
   async listJobs(userId?: number, status?: JobStatus): Promise<ScheduledJob[]> {
     let sql = 'SELECT * FROM scheduled_jobs WHERE 1=1';
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const params: any[] = [];
 
     if (userId) {
@@ -292,6 +294,7 @@ export class WhiteRabbitService {
       }
 
       this.fastify.log.info(`[WhiteRabbit] Job #${job.id} "${job.name}" executed successfully (run ${newRunCount})`);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (err: any) {
       // Record failure
       await updateOne(this.db,
@@ -308,6 +311,7 @@ export class WhiteRabbitService {
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   private async runAction(actionType: ActionType, config: Record<string, any>, job: ScheduledJob): Promise<void> {
     switch (actionType) {
       case 'webhook': {
@@ -355,6 +359,7 @@ export class WhiteRabbitService {
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   private calculateNextRun(jobType: JobType, config: any): string | null {
     const now = new Date();
 

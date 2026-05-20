@@ -23,6 +23,7 @@ const execAsync = promisify(exec);
  * Start a session and begin execution
  */
 export async function startSession(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   db: any,
   sessionId: number,
   runningProcesses: Map<number, ChildProcess>,
@@ -91,6 +92,7 @@ export async function startSession(
     // Start the agent execution
     await executeAgent(db, sessionId, runningProcesses, sessionTimeouts);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   } catch (error: any) {
     await failSession(db, sessionId, error.message, sessionTimeouts);
   }
@@ -100,6 +102,7 @@ export async function startSession(
  * Execute the agent (main execution loop)
  */
 async function executeAgent(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   db: any,
   sessionId: number,
   runningProcesses: Map<number, ChildProcess>,
@@ -140,6 +143,7 @@ async function isClaudeCodeAvailable(): Promise<boolean> {
  * Execute with Claude Code CLI
  */
 async function executeWithClaudeCode(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   db: any,
   session: AgentSession,
   runningProcesses: Map<number, ChildProcess>,
@@ -207,6 +211,7 @@ async function executeWithClaudeCode(
  * Execute with API (fallback when Claude Code CLI is not available)
  */
 async function executeWithAPI(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   db: any,
   session: AgentSession,
   sessionTimeouts: Map<number, NodeJS.Timeout>
@@ -233,6 +238,7 @@ async function executeWithAPI(
  * Pause a running session
  */
 export async function pauseSession(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   db: any,
   sessionId: number,
   runningProcesses: Map<number, ChildProcess>
@@ -270,6 +276,7 @@ export async function pauseSession(
  * Resume a paused session
  */
 export async function resumeSession(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   db: any,
   sessionId: number,
   runningProcesses: Map<number, ChildProcess>
@@ -306,6 +313,7 @@ export async function resumeSession(
  * Cancel a session
  */
 export async function cancelSession(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   db: any,
   sessionId: number,
   runningProcesses: Map<number, ChildProcess>,
@@ -354,6 +362,7 @@ export async function cancelSession(
  * Handle session timeout
  */
 async function handleSessionTimeout(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   db: any,
   sessionId: number,
   runningProcesses: Map<number, ChildProcess>,

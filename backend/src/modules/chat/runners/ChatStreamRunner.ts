@@ -59,6 +59,23 @@ export interface StreamRoundResult {
   readonly roundContent: string;
   /** Fully assembled tool calls found in this round. */
   readonly toolCalls: readonly AccumulatedToolCall[];
+  // ─── DEBT-81-IMMUT: delta fields ─────────────────────────────────────────
+  /** Delta content (same as roundContent — provided for symmetry with other delta fields). */
+  readonly deltaContent: string;
+  /** Input token count delta reported by the provider for this round (0 if not reported). */
+  readonly deltaTokensInput: number;
+  /** Output token count delta reported by the provider for this round (0 if not reported). */
+  readonly deltaTokensOutput: number;
+  /** Cache creation token delta (0 if not reported). */
+  readonly deltaCacheCreationTokens: number;
+  /** Cache read token delta (0 if not reported). */
+  readonly deltaCacheReadTokens: number;
+  /** Thinking token delta (0 if not reported). */
+  readonly deltaThinkingTokens: number;
+  /** First-token latency in ms (null if no content token was received). */
+  readonly firstTokenMs: number | null;
+  /** True if the stream completed normally; false if client disconnected early. */
+  readonly isComplete: boolean;
 }
 
 export interface ChatStreamRunnerOptions {
@@ -78,8 +95,16 @@ export interface ChatStreamRunnerOptions {
 /**
  * Runs a single streaming round for one AI provider call.
  *
- * Does NOT mutate `options` except via `options.state` (by design — callers own state).
- * Returns immutable round result (content + tool calls).
+ * DEBT-81-IMMUT: Does NOT mutate `options.state`. Instead returns delta fields
+ * so the caller can accumulate them immutably (spread/reassign pattern).
+ * The `state` parameter is retained in the options signature for backward
+ * compatibility but is only READ for `firstTokenMs` initial check — never written.
+ *
+ * Callers MUST accumulate deltas into their own state:
+ * ```ts
+ * const result = await runChatStream(opts);
+ * myState = applyStreamRoundDelta(myState, result);
+ * ```
  */
 export async function runChatStream(options: ChatStreamRunnerOptions): Promise<StreamRoundResult> {
   const {
@@ -92,9 +117,21 @@ export async function runChatStream(options: ChatStreamRunnerOptions): Promise<S
   let currentToolCall: MutableToolCall | null = null;
   const accumulatedToolCalls: MutableToolCall[] = [];
 
+  // DEBT-81-IMMUT: collect deltas into local variables — never write to options.state
+  let deltaTokensInput = 0;
+  let deltaTokensOutput = 0;
+  let deltaCacheCreationTokens = 0;
+  let deltaCacheReadTokens = 0;
+  let deltaThinkingTokens = 0;
+  // firstTokenMs: derived from streamStartTime when first content chunk arrives
+  // We check state.firstTokenMs to avoid overwriting a value set by a previous round.
+  let firstTokenMsLocal: number | null = state.firstTokenMs;
+  let isComplete = true;
+
   for await (const chunk of stream) {
     if (clientDisconnected()) {
       log.info(`[ChatStreamRunner] Client disconnected, aborting stream for user ${userId}`);
+      isComplete = false;
       break;
     }
 
@@ -111,13 +148,13 @@ export async function runChatStream(options: ChatStreamRunnerOptions): Promise<S
       sseWrite(`data: ${JSON.stringify({ citations: chunk.citations, done: false })}\n\n`);
     }
 
-    // Usage / token counts (update mutable state)
+    // Usage / token counts — collect into local delta vars (no state mutation)
     if (chunk.usage) {
-      if (chunk.usage.inputTokens) state.tokensInput = chunk.usage.inputTokens;
-      if (chunk.usage.outputTokens) state.tokensOutput = chunk.usage.outputTokens;
-      if (chunk.usage.cacheCreationTokens) state.cacheCreationTokens = chunk.usage.cacheCreationTokens;
-      if (chunk.usage.cacheReadTokens) state.cacheReadTokens = chunk.usage.cacheReadTokens;
-      if (chunk.usage.thinkingTokens) state.thinkingTokens = chunk.usage.thinkingTokens;
+      if (chunk.usage.inputTokens) deltaTokensInput = chunk.usage.inputTokens;
+      if (chunk.usage.outputTokens) deltaTokensOutput = chunk.usage.outputTokens;
+      if (chunk.usage.cacheCreationTokens) deltaCacheCreationTokens = chunk.usage.cacheCreationTokens;
+      if (chunk.usage.cacheReadTokens) deltaCacheReadTokens = chunk.usage.cacheReadTokens;
+      if (chunk.usage.thinkingTokens) deltaThinkingTokens = chunk.usage.thinkingTokens;
     }
 
     // Tool-call fragment accumulation
@@ -141,8 +178,8 @@ export async function runChatStream(options: ChatStreamRunnerOptions): Promise<S
 
     // Content chunk — OBS-77: record first-token latency
     if (chunk.content) {
-      if (state.firstTokenMs === null) {
-        state.firstTokenMs = Date.now() - streamStartTime;
+      if (firstTokenMsLocal === null) {
+        firstTokenMsLocal = Date.now() - streamStartTime;
       }
       roundContent += chunk.content;
       rawWrite(`data: ${JSON.stringify({ content: chunk.content, done: false })}\n\n`);
@@ -155,6 +192,42 @@ export async function runChatStream(options: ChatStreamRunnerOptions): Promise<S
   return {
     roundContent,
     toolCalls: accumulatedToolCalls,
+    deltaContent: roundContent,
+    deltaTokensInput,
+    deltaTokensOutput,
+    deltaCacheCreationTokens,
+    deltaCacheReadTokens,
+    deltaThinkingTokens,
+    firstTokenMs: firstTokenMsLocal,
+    isComplete,
+  };
+}
+
+/**
+ * DEBT-81-IMMUT / CRITICAL-2: Applies a StreamRoundResult delta to a StreamState immutably.
+ * Returns a NEW StreamState — never mutates the input.
+ *
+ * Semantics: ALWAYS SUM delta onto the accumulated state.
+ *
+ * This is correct for both provider usage patterns:
+ *  - Per-round (Anthropic): each round emits a partial delta → summing gives the running total.
+ *  - Running-total (OpenAI): intermediate chunks emit delta=0, the final chunk emits the
+ *    running total for that round → summing across rounds still gives the correct multi-round total.
+ *
+ * The previous "replace if delta > 0" logic was wrong for Anthropic multi-round tool loops:
+ * it replaced the accumulated total with only the last round's delta.
+ */
+export function applyStreamRoundDelta(
+  state: StreamState,
+  delta: Pick<StreamRoundResult, 'deltaTokensInput' | 'deltaTokensOutput' | 'deltaCacheCreationTokens' | 'deltaCacheReadTokens' | 'deltaThinkingTokens' | 'firstTokenMs'>,
+): StreamState {
+  return {
+    tokensInput: state.tokensInput + delta.deltaTokensInput,
+    tokensOutput: state.tokensOutput + delta.deltaTokensOutput,
+    cacheCreationTokens: state.cacheCreationTokens + delta.deltaCacheCreationTokens,
+    cacheReadTokens: state.cacheReadTokens + delta.deltaCacheReadTokens,
+    thinkingTokens: state.thinkingTokens + delta.deltaThinkingTokens,
+    firstTokenMs: state.firstTokenMs !== null ? state.firstTokenMs : delta.firstTokenMs,
   };
 }
 

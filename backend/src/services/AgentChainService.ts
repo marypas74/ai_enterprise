@@ -202,6 +202,7 @@ export class AgentChainService {
             if (episodic.length < eK) episodic.push(point);
           }
         }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       } catch (hybridErr: any) {
         this.fastify.log.warn(`[AgentChain] Hybrid search failed, falling back to vector-only: ${hybridErr.message}`);
         // Fallback: direct vector recall
@@ -222,7 +223,7 @@ export class AgentChainService {
         proceduralK: proceduralConfig?.k ?? recallSettings.proceduralK,
         proceduralThreshold: proceduralConfig?.threshold ?? recallSettings.proceduralThreshold,
       });
-      let procedural = proceduralFallback.procedural;
+      const procedural = proceduralFallback.procedural;
 
       // --- LLM-based Reranking (post-retrieval quality boost) ---
       const reranker = new RerankerService(this.db);
@@ -233,6 +234,7 @@ export class AgentChainService {
         ]);
         episodic = rerankedEpisodic;
         declarative = rerankedDeclarative;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       } catch (rerankErr: any) {
         this.fastify.log.warn(`[AgentChain] Reranking failed, using original order: ${rerankErr.message}`);
       }
@@ -259,6 +261,7 @@ export class AgentChainService {
       }
 
       return recalled;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (err: any) {
       this.fastify.log.warn(`[AgentChain] Memory recall failed: ${err.message}`);
       return empty;
@@ -284,6 +287,7 @@ export class AgentChainService {
         // Form agent doesn't do a separate LLM call — form handling is integrated in the chat pipeline
         return null;
       }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (err: any) {
       this.fastify.log.warn(`[AgentChain] Form check failed: ${err.message}`);
     }
@@ -302,6 +306,7 @@ export class AgentChainService {
     const filteredTools = (await eventBus.pipe('agent_allowed_tools', toolsData, hookCtx)).data || toolsData;
     if (filteredTools.length === 0) return null;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     this.fastify.log.info(`[AgentChain] ProceduresAgent found ${filteredTools.length} matching procedures: ${filteredTools.map((t: any) => t.name).join(', ')}`);
 
     // Use ProceduralMemoryService to build structured tool selection prompt

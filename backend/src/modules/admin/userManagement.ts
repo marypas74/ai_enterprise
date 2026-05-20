@@ -68,6 +68,7 @@ interface User {
 export async function userManagementRoutes(fastify: FastifyInstance) {
   // All routes require authentication + admin role
   fastify.addHook('onRequest', async (request, reply) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     await (fastify as any).authenticate(request, reply);
     const user = request.user as { role: string };
     if (user.role !== 'admin') {
@@ -100,6 +101,7 @@ export async function userManagementRoutes(fastify: FastifyInstance) {
       WHERE (u.is_hidden IS NULL OR u.is_hidden = FALSE)
     `;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const params: any[] = [];
 
     if (search) {
@@ -237,6 +239,7 @@ export async function userManagementRoutes(fastify: FastifyInstance) {
     }
 
     const updates: string[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const values: any[] = [];
 
     if (body.name) {
@@ -390,6 +393,7 @@ export async function userManagementRoutes(fastify: FastifyInstance) {
       security: [{ bearerAuth: [] }]
     }
   }, async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const sessions = await findMany<any>(
       fastify.db,
       `SELECT us.id, us.user_id, u.email, u.name, u.role, u.mfa_enabled,
@@ -402,6 +406,7 @@ export async function userManagementRoutes(fastify: FastifyInstance) {
        ORDER BY us.created_at DESC`
     );
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const mapped = sessions.map((s: any) => ({
       id: s.id,
       userId: s.user_id,

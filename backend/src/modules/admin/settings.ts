@@ -62,6 +62,7 @@ export async function settingsRoutes(fastify: FastifyInstance) {
 
   // Get all settings (admin sees all, users see only public)
   fastify.get('/settings', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Get system settings',
@@ -80,8 +81,10 @@ export async function settingsRoutes(fastify: FastifyInstance) {
     );
 
     // Convert to object format
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const result: Record<string, any> = {};
     for (const s of settings) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       let value: any = s.setting_value;
       switch (s.setting_type) {
         case 'number':
@@ -109,6 +112,7 @@ export async function settingsRoutes(fastify: FastifyInstance) {
 
   // Update setting
   fastify.put('/settings/:key', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Update system setting',
@@ -139,6 +143,7 @@ export async function settingsRoutes(fastify: FastifyInstance) {
     await insertOne(
       fastify.db,
       'INSERT INTO audit_log (user_id, action, entity_type, details, ip_address) VALUES (?, ?, ?, ?, ?)',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       [(request.user as any).id, 'update_setting', 'system_setting', JSON.stringify({ key, value: body.setting_value }), request.ip]
     );
 
@@ -151,6 +156,7 @@ export async function settingsRoutes(fastify: FastifyInstance) {
 
   // Get all groups
   fastify.get('/groups', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Get all groups',
@@ -172,6 +178,7 @@ export async function settingsRoutes(fastify: FastifyInstance) {
 
   // Get single group with model permissions
   fastify.get('/groups/:id', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Get group details with model permissions',
@@ -192,6 +199,7 @@ export async function settingsRoutes(fastify: FastifyInstance) {
     }
 
     // Get model permissions
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const permissions = await findAll<any>(
       fastify.db,
       `SELECT gmp.*, m.model_id, m.display_name, p.name as provider_name
@@ -203,6 +211,7 @@ export async function settingsRoutes(fastify: FastifyInstance) {
     );
 
     // Get users in group
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const users = await findAll<any>(
       fastify.db,
       `SELECT u.id, u.email, u.name, ug.joined_at
@@ -222,6 +231,7 @@ export async function settingsRoutes(fastify: FastifyInstance) {
 
   // Create group
   fastify.post('/groups', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Create new group',
@@ -242,6 +252,7 @@ export async function settingsRoutes(fastify: FastifyInstance) {
 
   // Update group
   fastify.patch('/groups/:id', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Update group',
@@ -253,6 +264,7 @@ export async function settingsRoutes(fastify: FastifyInstance) {
     const body = updateGroupSchema.parse(request.body);
 
     const updates: string[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const values: any[] = [];
 
     for (const [key, value] of Object.entries(body)) {
@@ -276,6 +288,7 @@ export async function settingsRoutes(fastify: FastifyInstance) {
 
   // Delete group
   fastify.delete('/groups/:id', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Delete group',
@@ -301,6 +314,7 @@ export async function settingsRoutes(fastify: FastifyInstance) {
 
   // Set model permission for group
   fastify.put('/groups/:groupId/models/:modelId', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Set model permission for group',
@@ -324,6 +338,7 @@ export async function settingsRoutes(fastify: FastifyInstance) {
 
   // Remove model permission
   fastify.delete('/groups/:groupId/models/:modelId', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Remove model permission from group',
@@ -343,6 +358,7 @@ export async function settingsRoutes(fastify: FastifyInstance) {
 
   // Bulk update model permissions for group
   fastify.put('/groups/:groupId/models', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Bulk update model permissions for group',
@@ -375,6 +391,7 @@ export async function settingsRoutes(fastify: FastifyInstance) {
 
   // Add user to group
   fastify.post('/groups/:groupId/users/:userId', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Add user to group',
@@ -390,6 +407,7 @@ export async function settingsRoutes(fastify: FastifyInstance) {
         'INSERT INTO user_groups (user_id, group_id) VALUES (?, ?)',
         [userId, groupId]
       );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (err: any) {
       if (err.code === 'ER_DUP_ENTRY') {
         return reply.status(409).send({ error: 'User already in group' });
@@ -402,6 +420,7 @@ export async function settingsRoutes(fastify: FastifyInstance) {
 
   // Remove user from group
   fastify.delete('/groups/:groupId/users/:userId', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: {
       description: 'Remove user from group',

@@ -8,6 +8,7 @@ import { agenticSchema, Conversation, DbMessage } from './types.js';
 export async function agenticRoutes(fastify: FastifyInstance) {
 
   fastify.post('/agentic', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Agentic chat with tool support for file operations',
@@ -103,6 +104,7 @@ export async function agenticRoutes(fastify: FastifyInstance) {
 
       // Build messages
       let conversationId = body.conversationId;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       let messages: { role: 'user' | 'assistant' | 'system' | 'tool'; content: any; tool_calls?: any[]; tool_call_id?: string; name?: string }[] = [];
 
       if (conversationId) {
@@ -123,6 +125,7 @@ export async function agenticRoutes(fastify: FastifyInstance) {
         );
 
         messages = dbMessages.map(m => ({
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
           role: m.role as any,
           content: m.content
         }));
@@ -253,6 +256,7 @@ STRATEGY:
             messages,
             maxTokens: 4096,
             temperature: 0.7,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
             tools: tools as any
           });
 
@@ -286,12 +290,14 @@ STRATEGY:
             sendDebug(`Processing ${toolCalls.length} tool calls...`);
             fastify.log.info(`[${reqId}] STEP 4: Tool calls detected: ${toolCalls.length}`);
 
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
             const toolResults: any[] = [];
 
             messages.push({
               role: 'assistant',
               content: response.content || '',
               tool_calls: toolCalls
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
             } as any);
 
             for (const toolCall of toolCalls) {
@@ -309,12 +315,14 @@ STRATEGY:
                 iteration
               })}\n\n`);
 
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
               let result: { success: boolean; output?: any; error?: string };
               try {
                 resetWatchdog(`tool_${name}`);
                 result = await executeTool(name, input, toolContext);
                 resetWatchdog(`tool_${name}_done`);
                 sendDebug(`${name} result: ${result.success ? 'Success' : 'Error'}`);
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
               } catch (toolError: any) {
                 sendDebug(`${name} crashed: ${toolError.message}`);
                 result = { success: false, error: toolError.message };
@@ -348,6 +356,7 @@ STRATEGY:
             // No tool calls, loop finished
             break;
           }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         } catch (error: any) {
           clearWatchdog();
           const isAbort = error.name === 'AbortError' || error.message?.includes('abort');

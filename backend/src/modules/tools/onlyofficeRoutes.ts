@@ -80,12 +80,14 @@ export async function onlyofficeRoutes(fastify: FastifyInstance) {
 
   // POST /tools/pdf-editor/onlyoffice-session — create editing session
   fastify.post('/tools/pdf-editor/onlyoffice-session', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
   }, async (request, reply) => {
     if (!isConfigured()) {
       return reply.status(503).send({ error: 'OnlyOffice non configurato' });
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request as any).user.id;
     const parsed = sessionSchema.safeParse(request.body);
     if (!parsed.success) {
@@ -246,6 +248,7 @@ export async function onlyofficeRoutes(fastify: FastifyInstance) {
             downloadPath: tempPath,
             newFilename: `${baseName}_modificato.pdf`,
             newAttachmentId: -1, // sentinel: download mode
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
           } as any);
 
           // Stash token where the status endpoint can return it (reuse newFilename trick)
@@ -284,6 +287,7 @@ export async function onlyofficeRoutes(fastify: FastifyInstance) {
             status: 'saved',
             newAttachmentId: newId,
             newFilename: `${baseName}_bozza.pdf`,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
           } as any);
 
           // Awareness loop: extract text from original + draft, compute diff summary,
@@ -314,6 +318,7 @@ export async function onlyofficeRoutes(fastify: FastifyInstance) {
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         fastify.log.error({ err }, `[OnlyOffice] Failed to save edited file: ${msg}`);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         await updateSession(key, { status: 'error' } as any);
       }
     }
@@ -323,6 +328,7 @@ export async function onlyofficeRoutes(fastify: FastifyInstance) {
 
   // GET /tools/pdf-editor/onlyoffice-session/:documentKey/status — check save status
   fastify.get('/tools/pdf-editor/onlyoffice-session/:documentKey/status', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
   }, async (request, reply) => {
     const { documentKey } = request.params as { documentKey: string };
@@ -348,8 +354,10 @@ export async function onlyofficeRoutes(fastify: FastifyInstance) {
 
   // GET /tools/pdf-editor/drafts/:parentId — list draft versions of a PDF attachment
   fastify.get('/tools/pdf-editor/drafts/:parentId', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
   }, async (request, reply) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request as any).user.id;
     const parentId = Number((request.params as { parentId: string }).parentId);
     if (!Number.isInteger(parentId) || parentId <= 0) {
@@ -369,8 +377,10 @@ export async function onlyofficeRoutes(fastify: FastifyInstance) {
 
   // GET /tools/pdf-editor/download/:token — one-shot signed download
   fastify.get('/tools/pdf-editor/download/:token', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
   }, async (request, reply) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const userId = (request as any).user.id;
     const { token } = request.params as { token: string };
     const raw = await fastify.redis.get(`${DOWNLOAD_TOKEN_PREFIX}${token}`);

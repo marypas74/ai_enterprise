@@ -42,6 +42,7 @@ export async function agentSdkRoutes(fastify: FastifyInstance) {
 
   // Run a generic agent
   fastify.post('/sdk/run', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Run a Claude agent with custom prompt',
@@ -89,6 +90,7 @@ export async function agentSdkRoutes(fastify: FastifyInstance) {
 
   // Code review agent
   fastify.post('/sdk/code-review', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Run a code review agent on a file',
@@ -129,6 +131,7 @@ export async function agentSdkRoutes(fastify: FastifyInstance) {
 
   // Bug fix agent
   fastify.post('/sdk/bug-fix', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Run a bug fix agent',
@@ -170,6 +173,7 @@ export async function agentSdkRoutes(fastify: FastifyInstance) {
 
   // Feature implementation agent
   fastify.post('/sdk/feature', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Run a feature implementation agent',
@@ -211,6 +215,7 @@ export async function agentSdkRoutes(fastify: FastifyInstance) {
 
   // Get active agent sessions
   fastify.get('/sdk/sessions', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Get active agent sessions',
@@ -224,6 +229,7 @@ export async function agentSdkRoutes(fastify: FastifyInstance) {
 
   // Cancel an agent session
   fastify.post('/sdk/sessions/:sessionId/cancel', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Cancel an active agent session',
@@ -244,6 +250,7 @@ export async function agentSdkRoutes(fastify: FastifyInstance) {
 
   // Get session details
   fastify.get('/sdk/sessions/:sessionId', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Get agent session details',

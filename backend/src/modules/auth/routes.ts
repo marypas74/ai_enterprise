@@ -404,8 +404,11 @@ export async function authRoutes(fastify: FastifyInstance) {
     // Generate new access token with session ID for single-session enforcement
     const sessionId = tokenHash.substring(0, 16);
     const accessToken = fastify.jwt.sign({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       id: (storedToken as any).user_id,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       email: (storedToken as any).email,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       role: (storedToken as any).role,
       sid: sessionId
     });
@@ -415,6 +418,7 @@ export async function authRoutes(fastify: FastifyInstance) {
 
   // Get current user
   fastify.get('/me', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Get current user profile',
@@ -445,6 +449,7 @@ export async function authRoutes(fastify: FastifyInstance) {
 
   // Update Guardrail Policy
   fastify.put('/me/guardrail', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Update user guardrail policy rules',
@@ -479,6 +484,7 @@ export async function authRoutes(fastify: FastifyInstance) {
 
   // Logout
   fastify.post('/logout', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Logout and revoke refresh token',
@@ -520,6 +526,7 @@ export async function authRoutes(fastify: FastifyInstance) {
 
   // MFA Setup - Generate TOTP secret + QR code
   fastify.post('/mfa/setup', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Generate TOTP secret and QR code for MFA setup',
@@ -580,6 +587,7 @@ export async function authRoutes(fastify: FastifyInstance) {
         timeWindow: 60000, // 5 attempts per minute per IP
       },
     },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Verify first TOTP code to enable MFA',
@@ -657,6 +665,7 @@ export async function authRoutes(fastify: FastifyInstance) {
         timeWindow: 60000, // 5 attempts per minute per IP
       },
     },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Disable MFA (requires current TOTP code)',
@@ -725,6 +734,7 @@ export async function authRoutes(fastify: FastifyInstance) {
 
   // List active sessions (admin only)
   fastify.get('/sessions', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'List all active user sessions with geo data',
@@ -749,11 +759,13 @@ export async function authRoutes(fastify: FastifyInstance) {
       ORDER BY us.created_at DESC
     `);
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     return { sessions, total: (sessions as any[]).length };
   });
 
   // Terminate a session (admin only)
   fastify.delete('/sessions/:id', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Terminate a user session',
@@ -775,6 +787,7 @@ export async function authRoutes(fastify: FastifyInstance) {
     }
 
     // Get session to find the token_hash
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const session = await findOne<any>(
       fastify.db,
       'SELECT token_hash FROM user_sessions WHERE id = ?',

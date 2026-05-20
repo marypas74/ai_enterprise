@@ -7,12 +7,14 @@ let previousNetStats: Map<string, { rx: number; tx: number; time: number }> | nu
 const VIRTUAL_IFACE_REGEX = /^(cali|veth|br-|docker|vxlan|flannel|tunl|cilium|lxc|virbr|cni)/;
 
 // Fallback network stats using /proc/net/dev with rate calculation
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
 export async function getNetworkStatsFallback(): Promise<any[]> {
     try {
         const hostNetPath = getHostNetPath();
         const netdev = fs.readFileSync(`${hostNetPath}/dev`, 'utf8');
         const lines = netdev.trim().split('\n').slice(2);
         const currentStats = new Map<string, { rx: number; tx: number; time: number }>();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         const results: any[] = [];
 
         for (const line of lines) {
@@ -58,6 +60,7 @@ export async function getNetworkStatsFallback(): Promise<any[]> {
 }
 
 // Get detailed network stats per interface (packets, errors, drops) from Prometheus or /proc/net/dev
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
 export async function getNetworkDetailedStats(): Promise<any[]> {
     try {
         const [rxPackets, txPackets, rxErrors, txErrors, rxDrops, txDrops, rxBytes, txBytes] = await Promise.all([
@@ -75,6 +78,7 @@ export async function getNetworkDetailedStats(): Promise<any[]> {
                 .filter(r => !VIRTUAL_IFACE_REGEX.test(r.metric.device))
                 .map(r => {
                     const dev = r.metric.device;
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
                     const find = (arr: any[]) => arr.find(x => x.metric.device === dev);
                     return {
                         interface: dev,
@@ -95,6 +99,7 @@ export async function getNetworkDetailedStats(): Promise<any[]> {
 }
 
 // Get TCP/UDP stats: retransmits, timeouts, connection failures from /proc/net/snmp
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
 export async function getTcpUdpStats(): Promise<any> {
     // Try Prometheus first
     try {
@@ -114,6 +119,7 @@ export async function getTcpUdpStats(): Promise<any> {
             queryPrometheus('node_netstat_Udp_InErrors'),
             queryPrometheus('node_netstat_Udp_NoPorts'),
         ]);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         const v = (arr: any[]) => parseInt(arr[0]?.value?.[1] || '0');
         if (retrans.length > 0 || tcpTimeouts.length > 0) {
             const outTotal = v(outSegs);

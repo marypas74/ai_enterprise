@@ -14,7 +14,9 @@ const createJobSchema = z.object({
   description: z.string().optional(),
   job_type: z.enum(['one_shot', 'interval', 'cron']),
   action_type: z.enum(['scheduled_message', 'webhook', 'hook', 'plugin_action']),
+   
   action_config: z.record(z.any()),
+   
   schedule_config: z.record(z.any()),
   max_runs: z.number().optional(),
 });
@@ -36,6 +38,7 @@ export async function schedulerRoutes(fastify: FastifyInstance) {
 
   // List all jobs (admin)
   fastify.get('/jobs', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: { description: 'List scheduled jobs', tags: ['scheduler'], security: [{ bearerAuth: [] }] },
   }, async (request: FastifyRequest) => {
@@ -44,6 +47,7 @@ export async function schedulerRoutes(fastify: FastifyInstance) {
 
     const jobs = await scheduler.listJobs(
       user.role === 'admin' ? undefined : user.id,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       query.status as any || undefined,
     );
     return { jobs };
@@ -51,6 +55,7 @@ export async function schedulerRoutes(fastify: FastifyInstance) {
 
   // Create a job
   fastify.post('/jobs', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: { description: 'Create a scheduled job', tags: ['scheduler'], security: [{ bearerAuth: [] }] },
   }, async (request: FastifyRequest, reply: FastifyReply) => {
@@ -82,6 +87,7 @@ export async function schedulerRoutes(fastify: FastifyInstance) {
 
   // Pause a job
   fastify.patch('/jobs/:id/pause', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: { description: 'Pause a scheduled job', tags: ['scheduler'], security: [{ bearerAuth: [] }] },
   }, async (request: FastifyRequest, reply: FastifyReply) => {
@@ -93,6 +99,7 @@ export async function schedulerRoutes(fastify: FastifyInstance) {
 
   // Resume a job
   fastify.patch('/jobs/:id/resume', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: { description: 'Resume a paused job', tags: ['scheduler'], security: [{ bearerAuth: [] }] },
   }, async (request: FastifyRequest, reply: FastifyReply) => {
@@ -104,6 +111,7 @@ export async function schedulerRoutes(fastify: FastifyInstance) {
 
   // Cancel a job
   fastify.delete('/jobs/:id', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: { description: 'Cancel a scheduled job', tags: ['scheduler'], security: [{ bearerAuth: [] }] },
   }, async (request: FastifyRequest, reply: FastifyReply) => {
@@ -115,6 +123,7 @@ export async function schedulerRoutes(fastify: FastifyInstance) {
 
   // Get execution history for a job
   fastify.get('/jobs/:id/executions', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: { description: 'Get job execution history', tags: ['scheduler'], security: [{ bearerAuth: [] }] },
   }, async (request: FastifyRequest) => {

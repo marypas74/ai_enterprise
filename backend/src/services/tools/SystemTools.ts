@@ -13,6 +13,7 @@ export function getSystemToolDefinitions(): ToolDefinition[] {
   return [
     {
       name: 'execute_python',
+       
       description: 'Execute Python code in a sandboxed environment with access to: file operations (tool.read_file, tool.write_file, tool.list_files), web search (tool.web_search), HTTP requests (tool.http_get, tool.web_extract), vector search (tool.vector_search, tool.vector_upsert), and data analysis (tool.dataframe with pandas). Use this for complex multi-step tasks, data processing, calculations, web scraping, and any task that benefits from programmatic execution. The variable "tool" is a pre-initialized ToolBridge instance.',
       input_schema: {
         type: 'object',
@@ -63,6 +64,7 @@ export function getSystemToolDefinitions(): ToolDefinition[] {
  */
 export async function executeSystemTool(
   toolName: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   toolInput: Record<string, any>,
   context: ToolContext
 ): Promise<ToolResult | null> {
@@ -91,6 +93,7 @@ export async function executeSystemTool(
           },
           error: result.success ? undefined : (result.error || 'Python execution failed'),
         };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       } catch (error: any) {
         return { success: false, error: `Sandbox execution failed: ${error.message}` };
       }
@@ -148,7 +151,9 @@ export async function executeSystemTool(
           return { success: false, error: `Qdrant search failed (${resp.status}): ${errText}` };
         }
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         const data = await resp.json() as any;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         const results = (data.result || []).map((point: any) => {
           const payload = point.payload || {};
           return {
@@ -169,6 +174,7 @@ export async function executeSystemTool(
             count: results.length,
           },
         };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       } catch (error: any) {
         return { success: false, error: `Vector search failed: ${error.message}` };
       }

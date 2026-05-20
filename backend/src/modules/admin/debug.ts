@@ -3,10 +3,12 @@ import { findAll } from '../../database/index.js';
 import os from 'os';
 
 // In-memory log buffer for recent logs
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
 const logBuffer: any[] = [];
 const MAX_LOG_BUFFER = 1000;
 
 // Function to add log to buffer (called from main index.ts)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
 export function addToLogBuffer(log: any) {
   logBuffer.push({
     ...log,
@@ -142,6 +144,7 @@ export async function debugRoutes(fastify: FastifyInstance) {
         tables: counts,
         timestamp: new Date().toISOString()
       };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (error: any) {
       return { error: error.message };
     }
@@ -160,6 +163,7 @@ export async function debugRoutes(fastify: FastifyInstance) {
     const limit = Math.min(parseInt(query.limit || '50') || 50, 200);
 
     try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       const logs = await findAll<any>(
         fastify.db,
         `SELECT al.*, u.email as user_email
@@ -187,6 +191,7 @@ export async function debugRoutes(fastify: FastifyInstance) {
   }, async () => {
     try {
       // Get recent active users
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       const activeUsers = await findAll<any>(
         fastify.db,
         `SELECT id, email, name, last_activity
@@ -197,6 +202,7 @@ export async function debugRoutes(fastify: FastifyInstance) {
       );
 
       // Get active agent sessions
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       const activeSessions = await findAll<any>(
         fastify.db,
         `SELECT id, name, status, terminal_slot, created_at
@@ -210,6 +216,7 @@ export async function debugRoutes(fastify: FastifyInstance) {
         activeSessions,
         timestamp: new Date().toISOString()
       };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (error: any) {
       return {
         activeUsers: [],

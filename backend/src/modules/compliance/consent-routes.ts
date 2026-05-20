@@ -13,6 +13,7 @@ export async function consentRoutes(fastify: FastifyInstance) {
 
   // ── GET /compliance/disclosure ── (GAP-1: Art. 50 disclosure info)
   fastify.get('/compliance/disclosure', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
   }, async (request, reply) => {
     const settings = await findMany<{ setting_key: string; setting_value: string }>(
@@ -31,6 +32,7 @@ export async function consentRoutes(fastify: FastifyInstance) {
 
   // ── POST /compliance/consent ── (GAP-4: User consent)
   fastify.post('/compliance/consent', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
   }, async (request, reply) => {
     const user = request.user as UserPayload;
@@ -59,6 +61,7 @@ export async function consentRoutes(fastify: FastifyInstance) {
 
   // ── GET /compliance/consent/status ── (GAP-4: Check consent status)
   fastify.get('/compliance/consent/status', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
   }, async (request, reply) => {
     const user = request.user as UserPayload;
@@ -94,6 +97,7 @@ export async function consentRoutes(fastify: FastifyInstance) {
 
   // ── POST /compliance/consent/revoke ── (GAP-4: Revoke consent)
   fastify.post('/compliance/consent/revoke', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
   }, async (request, reply) => {
     const user = request.user as UserPayload;
@@ -114,6 +118,7 @@ export async function consentRoutes(fastify: FastifyInstance) {
 
   // ── POST /compliance/feedback ── (GAP-9: User feedback on AI responses)
   fastify.post('/compliance/feedback', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
   }, async (request, reply) => {
     const user = request.user as UserPayload;
@@ -138,6 +143,7 @@ export async function consentRoutes(fastify: FastifyInstance) {
         [body.message_id, user.id, body.rating, body.category || null, body.comment || null]
       );
       return { success: true };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (err: any) {
       if (err?.code === 'ER_DUP_ENTRY') {
         await updateOne(fastify.db,
@@ -152,6 +158,7 @@ export async function consentRoutes(fastify: FastifyInstance) {
 
   // ── GET /compliance/transparency ── (GAP-2/5: User transparency report)
   fastify.get('/compliance/transparency', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
   }, async (request, reply) => {
     const user = request.user as UserPayload;
@@ -185,6 +192,7 @@ export async function consentRoutes(fastify: FastifyInstance) {
 
   // ── GET /compliance/models ── (GAP-8: Model documentation for users)
   fastify.get('/compliance/models', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
   }, async (request, reply) => {
     const models = await findMany<{

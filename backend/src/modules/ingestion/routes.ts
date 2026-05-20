@@ -26,12 +26,14 @@ const ingestTextSchema = z.object({
 });
 
 const importMemorySchema = z.object({
+   
   points: z.array(z.any()).min(1),
 });
 
 export async function ingestionRoutes(fastify: FastifyInstance) {
   // Ingest a URL into declarative memory (hookable pipeline)
   fastify.post('/url', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Ingest a URL into vector memory via Rabbit Hole pipeline',
@@ -93,6 +95,7 @@ export async function ingestionRoutes(fastify: FastifyInstance) {
       });
 
       return result;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (err: any) {
       return reply.status(500).send({ error: err.message });
     }
@@ -100,6 +103,7 @@ export async function ingestionRoutes(fastify: FastifyInstance) {
 
   // Ingest raw text
   fastify.post('/text', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Ingest raw text into vector memory',
@@ -128,6 +132,7 @@ export async function ingestionRoutes(fastify: FastifyInstance) {
 
   // List ingestion history
   fastify.get('/history', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'List URL ingestion history',
@@ -152,6 +157,7 @@ export async function ingestionRoutes(fastify: FastifyInstance) {
 
   // Export a collection
   fastify.get('/memory/export/:collection', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Export vector memory collection as JSON',
@@ -168,6 +174,7 @@ export async function ingestionRoutes(fastify: FastifyInstance) {
     }
 
     const rabbitHole = new RabbitHoleService(fastify, fastify.db);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const exported = await rabbitHole.exportMemory(collection as any, user.id);
 
     reply.header('Content-Disposition', `attachment; filename="${collection}_export.json"`);
@@ -177,6 +184,7 @@ export async function ingestionRoutes(fastify: FastifyInstance) {
 
   // Import into a collection
   fastify.post('/memory/import/:collection', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Import vector memory from JSON',
@@ -202,6 +210,7 @@ export async function ingestionRoutes(fastify: FastifyInstance) {
     }
 
     const rabbitHole = new RabbitHoleService(fastify, fastify.db);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const result = await rabbitHole.importMemory(collection as any, body.points);
     return { ...result, collection };
   });

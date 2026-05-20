@@ -13,6 +13,7 @@ import type { ToolDefinition, ToolContext, ToolResult } from '../ToolService.js'
  * Log a document operation to the activity_log table for audit trail.
  */
 async function logDocumentActivity(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   db: any,
   userId: number,
   action: string,
@@ -41,6 +42,7 @@ export function getDocumentToolDefinitions(): ToolDefinition[] {
 WHEN TO USE:
 - User says "crea un docx", "genera un documento Word", "create a Word file", "convert to docx"
 - User uploads a PDF/image and asks for a docx version
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
 - User asks for a report, letter, essay, or any written document in Word format
 
 WHEN NOT TO USE:
@@ -145,6 +147,7 @@ WHEN NOT TO USE:
 WHEN TO USE:
 - User uploads a DOCX/XLSX/PPTX and says "creami un pdf", "converti in pdf", "convert to pdf", "genera un pdf"
 - User says "trasforma in pdf", "fammi il pdf", "voglio il pdf di questo file"
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
 - User uploads any Office document and asks for a PDF version
 
 WHEN NOT TO USE:
@@ -526,12 +529,14 @@ async function copyToDownloadDir(
 async function loadAttachmentBuffer(
   attachmentId: number,
   userId: number,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   db: any,
 ): Promise<{ buffer: Buffer; name: string; mime_type: string }> {
   const [rows] = await db.query(
     'SELECT file_path, original_name, mime_type FROM chat_attachments WHERE id = ? AND user_id = ?',
     [attachmentId, userId]
   );
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   const att = (rows as any[])?.[0];
   if (!att) throw new Error(`Attachment ${attachmentId} not found or access denied`);
   const fsPromises = await import('fs/promises');
@@ -543,6 +548,7 @@ async function loadAttachmentBuffer(
  */
 export async function executeDocumentTool(
   toolName: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   toolInput: Record<string, any>,
   context: ToolContext
 ): Promise<ToolResult | null> {
@@ -631,6 +637,7 @@ export async function executeDocumentTool(
         return { success: false, error: 'Missing required parameter: attachment_id' };
       }
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       const attachment = context.db ? await findOne<any>(
         context.db,
         'SELECT file_path, original_name, mime_type FROM chat_attachments WHERE id = ? AND user_id = ?',
@@ -677,6 +684,7 @@ export async function executeDocumentTool(
             downloadFilename: download.downloadFilename
           }
         };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       } catch (convErr: any) {
         await fsp.rm(tmpDir, { recursive: true, force: true });
         return { success: false, error: `PDF conversion failed: ${convErr.message}` };
@@ -961,6 +969,7 @@ export async function executeDocumentTool(
       if (!attachment_id) return { success: false, error: 'Missing attachment_id' };
       // Verify attachment exists
       if (context.db) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         const att = await findOne<any>(context.db, 'SELECT original_name FROM chat_attachments WHERE id = ? AND user_id = ?', [attachment_id, context.userId]);
         if (!att) return { success: false, error: `Attachment ${attachment_id} not found` };
       }
@@ -1176,6 +1185,7 @@ export async function executeDocumentTool(
             [certificate_id, context.userId],
           );
           if (!Array.isArray(rows) || rows.length === 0) return { success: false, error: 'Certificate not found' };
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
           const certRow = (rows as any[])[0];
           const privateKeyPem = decryptPrivateKey(certRow.private_key_encrypted, passphrase, certRow.key_encryption_iv, certRow.key_encryption_salt);
           const result = await signPdfCertified(buffer, {
@@ -1195,6 +1205,7 @@ export async function executeDocumentTool(
           const { buffer } = await loadAttachmentBuffer(attachment_id, context.userId, db);
           const sigs = await verifySignatures(buffer);
           if (sigs.length === 0) return { success: true, output: 'No digital signatures found in this PDF.' };
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
           const summary = sigs.map((s: any, i: number) => `${i + 1}. Signer: ${s.signerName}, Valid: ${s.valid ? 'Yes' : 'No'}`).join('\n');
           return { success: true, output: `Found ${sigs.length} signature(s):\n${summary}` };
         }
@@ -1251,14 +1262,17 @@ export async function executeDocumentTool(
             'SELECT id, name, subject_cn, issuer_cn, valid_from, valid_to, is_self_signed, created_at FROM user_certificates WHERE user_id = ? ORDER BY created_at DESC',
             [context.userId],
           );
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
           const certs = rows as any[];
           if (certs.length === 0) return { success: true, output: 'No certificates found. Use "generate" to create a self-signed certificate.' };
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
           const list = certs.map((c: any) => `- ID ${c.id}: ${c.name} (CN: ${c.subject_cn}, valid ${c.valid_from} to ${c.valid_to}, self-signed: ${c.is_self_signed ? 'yes' : 'no'})`).join('\n');
           return { success: true, output: `Your certificates:\n${list}` };
         }
         case 'delete': {
           if (!certificate_id) return { success: false, error: 'Missing certificate_id' };
           const [result] = await certDb.query('DELETE FROM user_certificates WHERE id = ? AND user_id = ?', [certificate_id, context.userId]);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
           if ((result as any).affectedRows === 0) return { success: false, error: 'Certificate not found' };
           return { success: true, output: `Certificate ${certificate_id} deleted.` };
         }
@@ -1273,6 +1287,7 @@ export async function executeDocumentTool(
         return { success: false, error: 'Missing required parameter: attachment_id' };
       }
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       const attachment = context.db ? await findOne<any>(
         context.db,
         'SELECT processed_content, original_name FROM chat_attachments WHERE id = ? AND user_id = ?',

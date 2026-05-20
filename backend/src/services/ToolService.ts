@@ -15,6 +15,7 @@ export interface ToolDefinition {
   description: string;
   input_schema: {
     type: 'object';
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     properties: Record<string, any>;
     required: string[];
   };
@@ -27,6 +28,7 @@ export type { ToolContext };
 // Tool execution result
 export interface ToolResult {
   success: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   output?: any;
   error?: string;
 }
@@ -75,6 +77,7 @@ export function getAllToolDefinitions(): ToolDefinition[] {
  */
 export async function executeTool(
   toolName: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   toolInput: Record<string, any>,
   context: ToolContext
 ): Promise<ToolResult> {
@@ -104,6 +107,7 @@ export async function executeTool(
     }
 
     return { success: false, error: `Unknown tool: ${toolName}` };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   } catch (error: any) {
     (context.log || console).error(`[ToolService] Tool execution error:`, error);
     return { success: false, error: error.message || 'Tool execution failed' };
@@ -115,6 +119,7 @@ export async function executeTool(
  */
 async function executeMCPTool(
   toolName: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   toolInput: Record<string, any>,
 ): Promise<ToolResult> {
   const mcpManager = MCPClientManager.getInstance();
