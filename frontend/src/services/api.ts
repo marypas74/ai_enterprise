@@ -171,6 +171,8 @@ function processSSELine(
   try {
     const data = JSON.parse(line.slice(6));
     if (data.error) { onError(data.error); return true; }
+    // DEBT-84-D: keepalive no-op — ignore heartbeat events, do not trigger onDone
+    if (data.type === 'keepalive') return false;
     if (data.routing && onRouting) onRouting(data.routing);
     if (data.type === 'open_pdf_editor' && data.attachmentId) {
       window.dispatchEvent(new CustomEvent('open-pdf-editor', {

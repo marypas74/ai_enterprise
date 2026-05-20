@@ -1,5 +1,4 @@
 import { FastifyInstance } from 'fastify';
-import { z } from 'zod';
 import { findOne, findMany, insertOne, updateOne } from '../../database/index.js';
 import {
   consentSchema,
@@ -15,7 +14,7 @@ export async function consentRoutes(fastify: FastifyInstance) {
   fastify.get('/compliance/disclosure', {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
-  }, async (request, reply) => {
+  }, async (_request, _reply) => {
     const settings = await findMany<{ setting_key: string; setting_value: string }>(
       fastify.db,
       `SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN ('ai_disclosure_banner_text', 'ai_disclosure_banner_enabled', 'ai_content_labeling_enabled', 'feedback_enabled')`
@@ -34,7 +33,7 @@ export async function consentRoutes(fastify: FastifyInstance) {
   fastify.post('/compliance/consent', {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
-  }, async (request, reply) => {
+  }, async (request, _reply) => {
     const user = request.user as UserPayload;
     const body = consentSchema.parse(request.body);
 
@@ -63,7 +62,7 @@ export async function consentRoutes(fastify: FastifyInstance) {
   fastify.get('/compliance/consent/status', {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
-  }, async (request, reply) => {
+  }, async (request, _reply) => {
     const user = request.user as UserPayload;
 
     const consents = await findMany<{
@@ -99,7 +98,7 @@ export async function consentRoutes(fastify: FastifyInstance) {
   fastify.post('/compliance/consent/revoke', {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
-  }, async (request, reply) => {
+  }, async (request, _reply) => {
     const user = request.user as UserPayload;
     const body = revokeConsentSchema.parse(request.body);
 
@@ -160,7 +159,7 @@ export async function consentRoutes(fastify: FastifyInstance) {
   fastify.get('/compliance/transparency', {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
-  }, async (request, reply) => {
+  }, async (request, _reply) => {
     const user = request.user as UserPayload;
 
     const [usage, models, feedbackStats] = await Promise.all([
@@ -194,7 +193,7 @@ export async function consentRoutes(fastify: FastifyInstance) {
   fastify.get('/compliance/models', {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
-  }, async (request, reply) => {
+  }, async (_request, _reply) => {
     const models = await findMany<{
       id: number; model_id: string; display_name: string; provider_id: number;
       context_window: number; knowledge_cutoff: string | null; limitations: string | null;

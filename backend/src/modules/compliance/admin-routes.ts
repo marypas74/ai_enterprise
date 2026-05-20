@@ -9,7 +9,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
   fastify.get('/admin/compliance/dashboard', {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate, requireAdmin],
-  }, async (request, reply) => {
+  }, async (_request, _reply) => {
 
     // Helper: run a query safely, return fallback on error (e.g. missing table)
     const safeQuery = async <T>(queryFn: () => Promise<T>, fallback: T): Promise<T> => {
@@ -67,7 +67,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
   fastify.get('/admin/compliance/consent-audit', {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate, requireAdmin],
-  }, async (request, reply) => {
+  }, async (request, _reply) => {
     const query = request.query as { limit?: string; offset?: string };
     const limit = safeParseInt(query.limit, 50, 200);
     const offset = safeParseInt(query.offset, 0);
@@ -100,7 +100,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
   fastify.get('/admin/compliance/decision-log', {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate, requireAdmin],
-  }, async (request, reply) => {
+  }, async (request, _reply) => {
     const query = request.query as { limit?: string; offset?: string; model?: string; user_id?: string };
     const limit = safeParseInt(query.limit, 50, 200);
     const offset = safeParseInt(query.offset, 0);
@@ -146,7 +146,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
   fastify.get('/admin/compliance/bias-report', {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate, requireAdmin],
-  }, async (request, reply) => {
+  }, async (request, _reply) => {
     const query = request.query as { days?: string };
     const days = safeParseInt(query.days, 30, 365);
 
@@ -182,7 +182,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
   fastify.get('/admin/compliance/feedback-stats', {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate, requireAdmin],
-  }, async (request, reply) => {
+  }, async (_request, _reply) => {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const byCategory = await findMany<any>(fastify.db,
@@ -205,7 +205,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
   fastify.get('/admin/compliance/model-docs', {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate, requireAdmin],
-  }, async (request, reply) => {
+  }, async (_request, _reply) => {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const models = await findMany<any>(fastify.db,
@@ -257,7 +257,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
   fastify.get('/admin/compliance/export-requests', {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate, requireAdmin],
-  }, async (request, reply) => {
+  }, async (request, _reply) => {
     const query = request.query as { limit?: string; offset?: string };
     const limit = safeParseInt(query.limit, 50, 200);
     const offset = safeParseInt(query.offset, 0);
@@ -278,7 +278,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
   fastify.get('/admin/compliance/deletion-requests', {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate, requireAdmin],
-  }, async (request, reply) => {
+  }, async (request, _reply) => {
     const query = request.query as { limit?: string; offset?: string };
     const limit = safeParseInt(query.limit, 50, 200);
     const offset = safeParseInt(query.offset, 0);

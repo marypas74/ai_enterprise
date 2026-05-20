@@ -37,3 +37,43 @@ describe('completionSchema — DEBT-80-C webSearch alias', () => {
   });
 });
 // ─────────────────────────────────────────────────────────────────────────────
+
+// ─── DEBT-84-F: agenticSchema maxInferenceMs ─────────────────────────────────
+describe('agenticSchema — DEBT-84-F maxInferenceMs', () => {
+  const basePayload = {
+    projectId: 1,
+    model: 'gpt-4o',
+    message: 'hello',
+  };
+
+  it('accepts maxInferenceMs as optional positive integer', async () => {
+    const { agenticSchema } = await import('./types.js');
+    const result = agenticSchema.parse({ ...basePayload, maxInferenceMs: 30000 });
+    expect(result.maxInferenceMs).toBe(30000);
+  });
+
+  it('rejects maxInferenceMs=0 (not positive)', async () => {
+    const { agenticSchema } = await import('./types.js');
+    const { z } = await import('zod');
+    expect(() => agenticSchema.parse({ ...basePayload, maxInferenceMs: 0 })).toThrow(z.ZodError);
+  });
+
+  it('rejects negative maxInferenceMs', async () => {
+    const { agenticSchema } = await import('./types.js');
+    const { z } = await import('zod');
+    expect(() => agenticSchema.parse({ ...basePayload, maxInferenceMs: -1000 })).toThrow(z.ZodError);
+  });
+
+  it('rejects non-integer maxInferenceMs', async () => {
+    const { agenticSchema } = await import('./types.js');
+    const { z } = await import('zod');
+    expect(() => agenticSchema.parse({ ...basePayload, maxInferenceMs: 30000.5 })).toThrow(z.ZodError);
+  });
+
+  it('parses without maxInferenceMs (optional)', async () => {
+    const { agenticSchema } = await import('./types.js');
+    const result = agenticSchema.parse(basePayload);
+    expect(result.maxInferenceMs).toBeUndefined();
+  });
+});
+// ─────────────────────────────────────────────────────────────────────────────

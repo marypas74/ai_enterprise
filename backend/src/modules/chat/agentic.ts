@@ -25,7 +25,6 @@ export async function agenticRoutes(fastify: FastifyInstance) {
 
     try {
       const body = agenticSchema.parse(request.body);
-      const maxInferenceMsOverride: number | undefined = (request.body as Record<string, unknown>)?.maxInferenceMs as number | undefined;
       fastify.log.info(`[${reqId}] STEP 1b: Body parsed - Model: ${body.model}, Message length: ${body.message?.length || 0}`);
 
       // ECHO MODE TEST
@@ -41,7 +40,7 @@ export async function agenticRoutes(fastify: FastifyInstance) {
         reply.raw.write(`data: ${JSON.stringify({ content: 'Second chunk received. ', done: false })}\n\n`);
         await new Promise(resolve => setTimeout(resolve, 500));
         reply.raw.write(`data: ${JSON.stringify({ content: 'Third chunk. Stream OK!', done: false })}\n\n`);
-        reply.raw.write(`data: ${JSON.stringify({ content: '', done: true, conversationId: 0 })}\n\n`);
+        writeSseDone(reply, { conversationId: 0, finishReason: 'stop' });
         reply.raw.end();
         fastify.log.info(`[${reqId}] ECHO MODE: Test complete`);
         return;
@@ -174,10 +173,9 @@ export async function agenticRoutes(fastify: FastifyInstance) {
       let iteration = 0;
       const maxIterations = 10;
 
-      // DEBT-82-A / DEBT-83-E: Per-tier hard timeout. Default 30000ms (balanced tier seed).
-      // maxInferenceMs is NOT in agenticSchema (agentic endpoint) — read from raw body.
-      // When called from completions.ts via routing, the value is passed as raw body field.
-      const TIMEOUT_MS: number = maxInferenceMsOverride ?? 30000;
+      // DEBT-82-A / DEBT-83-E / DEBT-84-F: Per-tier hard timeout. Default 30000ms (balanced tier seed).
+      // maxInferenceMs is now part of agenticSchema — no cast needed.
+      const TIMEOUT_MS: number = body.maxInferenceMs ?? 30000;
       let watchdogTimer: NodeJS.Timeout | null = null;
       let requestAborted = false;
 
@@ -204,6 +202,12 @@ export async function agenticRoutes(fastify: FastifyInstance) {
       };
 
       resetWatchdog('initial_connection');
+
+      // DEBT-84-D: Keepalive interval — prevents Cloudflare 524 on long agentic runs (>100s)
+      const keepaliveInterval = setInterval(() => {
+        if (!reply.raw.destroyed) reply.raw.write('data: {"type":"keepalive"}\n\n');
+      }, 25000);
+      reply.raw.on('close', () => { clearInterval(keepaliveInterval); });
 
       // Send immediate "thinking" notification
       reply.raw.write(`data: ${JSON.stringify({ status: 'thinking', message: 'Connecting to AI...', reqId })}\n\n`);
@@ -385,12 +389,14 @@ STRATEGY:
             writeSseDone(reply, { error: error.message, finishReason: null });
           }
 
+          clearInterval(keepaliveInterval);
           reply.raw.end();
           return;
         }
       }
 
       clearWatchdog();
+      clearInterval(keepaliveInterval);
 
       sendDebug(`AGENT COMPLETE - ${iteration} iterations, ${tokensInput + tokensOutput} tokens used`);
       // DEBT-83-A: use writeSseDone for consistent SSE done structure with finish_reason

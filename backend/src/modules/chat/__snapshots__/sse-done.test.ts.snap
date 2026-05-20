@@ -36,3 +36,22 @@ exports[`writeSseDone — DEBT-83-A > snapshot: normal completion path (completi
   "finish_reason": "stop",
 }
 `;
+
+exports[`writeSseDone — DEBT-84-B callsite paths > snapshot: echo path done event 1`] = `
+{
+  "content": "",
+  "conversationId": 0,
+  "done": true,
+  "finish_reason": "stop",
+}
+`;
+
+exports[`writeSseDone — DEBT-84-B callsite paths > snapshot: max-token-limit done event 1`] = `
+{
+  "content": "",
+  "conversationId": 42,
+  "done": true,
+  "error": "message too large",
+  "finish_reason": "length",
+}
+`;

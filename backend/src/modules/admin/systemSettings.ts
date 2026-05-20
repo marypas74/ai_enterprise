@@ -382,7 +382,7 @@ export async function systemSettingsRoutes(fastify: FastifyInstance) {
       description: 'Public system metrics console (exhaustive) - Legacy redirect',
       tags: ['public']
     }
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
+  }, async (_request: FastifyRequest, _reply: FastifyReply) => {
     return MetricsService.getExhaustiveMetrics(fastify.db);
   });
 
@@ -404,7 +404,7 @@ export async function systemSettingsRoutes(fastify: FastifyInstance) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate, requireAdmin],
     schema: { description: 'List all prompt templates', tags: ['admin'], security: [{ bearerAuth: [] }] }
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
+  }, async (_request: FastifyRequest, _reply: FastifyReply) => {
     const { PromptTemplateService } = await import('../../services/PromptTemplateService.js');
     const service = new PromptTemplateService(fastify.db);
     const templates = await service.getAllTemplates();

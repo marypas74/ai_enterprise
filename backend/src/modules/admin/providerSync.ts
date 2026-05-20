@@ -360,7 +360,7 @@ export async function providerSyncRoutes(fastify: FastifyInstance) {
       tags: ['admin'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
+  }, async (_request: FastifyRequest, _reply: FastifyReply) => {
     try {
       const { stdout } = await execCommand('docker', [
         'inspect', OLLAMA_CONTAINER_NAME,

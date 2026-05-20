@@ -41,7 +41,7 @@ export async function debugRoutes(fastify: FastifyInstance) {
       tags: ['debug'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
+  }, async (request: FastifyRequest, _reply: FastifyReply) => {
     const query = request.query as { limit?: string; level?: string };
     const limit = Math.min(parseInt(query.limit || '100') || 100, 200);
     const level = query.level;

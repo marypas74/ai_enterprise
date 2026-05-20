@@ -418,7 +418,7 @@ export async function skillRoutes(fastify: FastifyInstance) {
       tags: ['skills'],
       security: [{ bearerAuth: [] }]
     }
-  }, async (request: FastifyRequest, _reply: FastifyReply) => {
+  }, async (_request: FastifyRequest, _reply: FastifyReply) => {
     const templates = await findAll<SkillTemplate>(
       fastify.db,
       'SELECT * FROM skill_templates WHERE is_active = TRUE ORDER BY display_name'

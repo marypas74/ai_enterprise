@@ -38,7 +38,8 @@ export const agenticSchema = z.object({
   model: z.string().max(100),
   message: z.string().min(1).max(100000),
   systemPrompt: z.string().max(10000).optional(),
-  enableTools: z.boolean().optional().default(true)
+  enableTools: z.boolean().optional().default(true),
+  maxInferenceMs: z.number().int().positive().optional(),
 });
 
 // Types

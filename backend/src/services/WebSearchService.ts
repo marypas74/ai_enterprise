@@ -166,7 +166,7 @@ export async function performWebSearch(query: string): Promise<WebSearchResponse
     // Fallback: Try Google search scraping
     try {
       return await performGoogleSearch(query);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
+     
     } catch {
       return {
         query,

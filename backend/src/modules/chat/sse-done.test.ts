@@ -153,3 +153,58 @@ describe('completionSchema — DEBT-83-E maxInferenceMs', () => {
     expect((result as { maxInferenceMs?: number }).maxInferenceMs).toBeUndefined();
   });
 });
+
+// ─── DEBT-84-B: SSE done callsite residui ────────────────────────────────────
+// Verifica che writeSseDone sia usato correttamente nei 2 path specifici:
+// 1. Echo path in agentic.ts (conversationId=0, finishReason='stop')
+// 2. MAX_TOKEN_LIMIT path in completions.ts (finishReason='length', error presente)
+describe('writeSseDone — DEBT-84-B callsite paths', () => {
+  let writtenData: string[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let mockReply: any;
+
+  beforeEach(() => {
+    writtenData = [];
+    mockReply = {
+      raw: {
+        write: (data: string) => { writtenData.push(data); },
+        destroyed: false,
+      },
+    };
+  });
+
+  it('echo path: writeSseDone with conversationId=0 and finish_reason=stop', async () => {
+    const { writeSseDone } = await import('./streaming.js');
+    writeSseDone(mockReply, { conversationId: 0, finishReason: 'stop' });
+    const parsed = JSON.parse(writtenData[0].replace(/^data: /, '').trim());
+    expect(parsed.done).toBe(true);
+    expect(parsed.finish_reason).toBe('stop');
+    expect(parsed.conversationId).toBe(0);
+    expect(parsed.content).toBe('');
+  });
+
+  it('max-token-limit path: writeSseDone with finish_reason=length and error field', async () => {
+    const { writeSseDone } = await import('./streaming.js');
+    writeSseDone(mockReply, { conversationId: 42, finishReason: 'length', error: 'message too large' });
+    const parsed = JSON.parse(writtenData[0].replace(/^data: /, '').trim());
+    expect(parsed.done).toBe(true);
+    expect(parsed.finish_reason).toBe('length');
+    expect(parsed.error).toBe('message too large');
+    expect(parsed.conversationId).toBe(42);
+  });
+
+  it('snapshot: echo path done event', async () => {
+    const { writeSseDone } = await import('./streaming.js');
+    writeSseDone(mockReply, { conversationId: 0, finishReason: 'stop' });
+    const parsed = JSON.parse(writtenData[0].replace(/^data: /, '').trim());
+    expect(parsed).toMatchSnapshot();
+  });
+
+  it('snapshot: max-token-limit done event', async () => {
+    const { writeSseDone } = await import('./streaming.js');
+    writeSseDone(mockReply, { conversationId: 42, finishReason: 'length', error: 'message too large' });
+    const parsed = JSON.parse(writtenData[0].replace(/^data: /, '').trim());
+    expect(parsed).toMatchSnapshot();
+  });
+});
+// ─────────────────────────────────────────────────────────────────────────────

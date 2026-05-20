@@ -1,7 +1,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { findOne, insertOne, updateOne } from '../../database/index.js';
-import { AIProviderFactory, calculateCost, Message } from '../ai/providers.js';
+import { calculateCost } from '../ai/providers.js';
 import { selectTools } from '../../services/ToolSelectionService.js';
 import { ConversationalFormService } from '../../services/ConversationalFormService.js';
 import { ModelConfigService } from '../../services/ModelConfigService.js';
@@ -14,11 +14,8 @@ import {
   isDirectConversionRequest, directConvertAttachment, detectDocumentFormat,
   writeSseDone,
 } from './streaming.js';
-import {
-  loadOrCreateConversation, injectFormContext, processAttachments,
-} from './context-builder.js';
+import { loadOrCreateConversation } from './context-builder.js';
 import { getModelRouter, type RoutingDecision } from '../../services/ModelRouter.js';
-import { estimateMessageTokens, ASYNC_TOKEN_THRESHOLD, MAX_TOKEN_LIMIT } from '../../utils/tokenEstimator.js';
 import { eventBus } from '../../services/EventBusService.js';
 // DEBT-80-D: extracted runners
 import { runToolLoop, type ToolLoopRunnerOptions } from './runners/ToolLoopRunner.js';
@@ -26,7 +23,6 @@ import { createStreamState } from './runners/ChatStreamRunner.js';
 // DEBT-81-D: additional extracted runners
 import { runAutoRouting } from './runners/AutoRoutingRunner.js';
 import { applyRagGuard } from './runners/RagGuard.js';
-import { maybeDispatchToAsyncQueue } from './runners/AsyncQueueRunner.js';
 import { runFallbackChain } from './runners/FallbackChain.js';
 // HIGH-1: escalation + embedded tool fallback + post-processing extracted from completions.ts
 import { runEmptyResponseEscalation } from './runners/EscalationRunner.js';
@@ -36,6 +32,11 @@ import { runPostProcessing } from './runners/PostProcessingRunner.js';
 import { resolveRoutedModel } from './runners/RoutedModelResolver.js';
 import { runSafetyAndContentInjection, checkContentSafety } from './runners/SafetyContentRunner.js';
 import { runMemoryHooks } from './runners/MemoryHooksRunner.js';
+// DEBT-84-A: new runners extracted from completions.ts (T5)
+import { runEditPdfShortCircuit } from './runners/EditPdfShortCircuit.js';
+import { runCompletionExtras } from './runners/CompletionExtras.js';
+import { runAsyncTokenGuard } from './runners/AsyncTokenGuard.js';
+import { buildCompletionExtras, applyForceShortOutputMessages } from './runners/CompletionExtrasBuilder.js';
 
 export async function completionRoutes(fastify: FastifyInstance) {
   const contentSafetyService = new ContentSafetyService(fastify);
@@ -135,7 +136,8 @@ export async function completionRoutes(fastify: FastifyInstance) {
         if (err.statusCode === 404) return reply.status(404).send({ error: err.message });
         throw err;
       }
-      let { conversationId, messages, conversation } = result;
+      const { conversationId, conversation } = result;
+      let { messages } = result;
 
       const hookCtx = Object.freeze({ userId: user.id, conversationId });
 
@@ -149,40 +151,13 @@ export async function completionRoutes(fastify: FastifyInstance) {
         return;
       }
 
-      // ── Edit-PDF intent short-circuit ──
-      // If user asks to "modifica pdf" / "edit pdf" with a PDF attachment in the
-      // current turn, return an open_pdf_editor event instead of streaming an LLM response.
-      if (body.attachmentIds && body.attachmentIds.length > 0) {
-        const { detectEditPdfIntent } = await import('../tools/onlyofficeService.js');
-        if (detectEditPdfIntent(body.message)) {
-          const pdfAttachmentRow = await findOne<{ id: number; original_name: string; mime_type: string }>(
-            fastify.db,
-            `SELECT id, original_name, mime_type FROM chat_attachments
-             WHERE id IN (${body.attachmentIds.map(() => '?').join(',')}) AND user_id = ? AND mime_type = 'application/pdf'
-             LIMIT 1`,
-            [...body.attachmentIds, user.id],
-          );
-          if (pdfAttachmentRow) {
-            fastify.log.info(`[Chat] Edit-PDF intent detected, opening editor for attachment ${pdfAttachmentRow.id}`);
-            await insertOne(fastify.db,
-              'INSERT INTO messages (conversation_id, role, content) VALUES (?, ?, ?)',
-              [conversationId, 'user', body.message]);
-            const reply_text = `Apertura editor PDF per "${pdfAttachmentRow.original_name}". Modifica il documento e clicca "Salva" per persistere come bozza.`;
-            await insertOne(fastify.db,
-              'INSERT INTO messages (conversation_id, role, content, is_ai_generated, ai_model, ai_provider) VALUES (?, ?, ?, ?, ?, ?)',
-              [conversationId, 'assistant', reply_text, false, 'pdf-editor-intent', 'system']);
-            await updateOne(fastify.db, 'UPDATE conversations SET updated_at = NOW() WHERE id = ?', [conversationId]);
-            sendFastReply(reply, {
-              conversationId,
-              model: body.model,
-              providerName,
-              safetyResult,
-              content: reply_text,
-              extra: { open_pdf_editor: { attachmentId: pdfAttachmentRow.id, filename: pdfAttachmentRow.original_name } },
-            });
-            return;
-          }
-        }
+      // ── Edit-PDF intent short-circuit — DEBT-84-A: delegated to EditPdfShortCircuit ──
+      {
+        const pdfResult = await runEditPdfShortCircuit(fastify, {
+          message: body.message, attachmentIds: body.attachmentIds, userId: user.id,
+          conversationId, model: body.model, providerName, safetyResult, reply,
+        });
+        if (pdfResult.handled) return;
       }
 
       // ── Direct format conversion short-circuit (bypass LLM entirely) ──
@@ -223,38 +198,17 @@ export async function completionRoutes(fastify: FastifyInstance) {
         }
       }
 
-      // Process user message through hooks
-      let userMessage = body.message;
-      const msgHook = await eventBus.pipe('before_message_read', userMessage, hookCtx);
-      userMessage = msgHook.data || userMessage;
-      await eventBus.emit('after_message_read', { message: userMessage, userId: user.id, conversationId }, hookCtx);
-
-      // Conversational Form injection
+      // DEBT-84-A: hooks + form + attachments + message persist — delegated to CompletionExtras
+      const extrasResult = await runCompletionExtras(fastify, {
+        userId: user.id, conversationId, model: body.model, message: body.message,
+        attachmentIds: body.attachmentIds, hookCtx, reply,
+      }, messages);
+      const { userMessage } = extrasResult;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
-      let activeFormSession: any = null;
-      try {
-        if (conversationId) {
-          activeFormSession = await injectFormContext(fastify, user.id, conversationId, userMessage, messages);
-        }
+      const activeFormSession: any = extrasResult.activeFormSession;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
-      } catch (formErr: any) {
-        fastify.log.warn(`[Form] Form check failed: ${formErr.message}`);
-      }
-
-      // Handle attachments
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
-      let nativeDocBlocks: any[] = [];
-      if (body.attachmentIds && body.attachmentIds.length > 0) {
-        const attachResult = await processAttachments(fastify, {
-          attachmentIds: body.attachmentIds, userId: user.id,
-          model: body.model, originalMessage: body.message, userMessage
-        });
-        nativeDocBlocks = attachResult.nativeDocBlocks;
-        userMessage = attachResult.userMessage;
-      }
-
-      messages.push({ role: 'user', content: userMessage });
-      await insertOne(fastify.db, 'INSERT INTO messages (conversation_id, role, content) VALUES (?, ?, ?)', [conversationId, 'user', userMessage]);
+      const nativeDocBlocks: any[] = extrasResult.nativeDocBlocks;
+      messages = extrasResult.messages;
 
       // DEBT-83-G: chat mode system prompt injection via SafetyContentRunner
       const contentResult = await runSafetyAndContentInjection(fastify, {
@@ -279,42 +233,17 @@ export async function completionRoutes(fastify: FastifyInstance) {
       messages = contentResult.messages;
       const { recalledVectorMemories, webSearchPerformed, autoGenerateDoc } = contentResult;
 
-      // ── Async document queue: intercept large requests ──────────────
-      const estimatedTokens = estimateMessageTokens(messages);
-
-      // C2: Reject documents exceeding the model's context limit
-      if (estimatedTokens > MAX_TOKEN_LIMIT) {
-        reply.hijack();
-        writeSseHeaders(reply, { conversationId, webSearchPerformed: false, model: body.model, providerName });
-        const sseWrite = createSseWriter(reply);
-        sendInitialSseEvents(sseWrite, { model: body.model, providerName, safetyResult, recalledVectorMemories });
-        sseWrite(`data: ${JSON.stringify({
-          content: `Il documento è troppo lungo per essere elaborato (${estimatedTokens.toLocaleString('it-IT')} token stimati, limite ${MAX_TOKEN_LIMIT.toLocaleString('it-IT')}). Per favore, dividi il documento in sezioni più piccole (massimo ~200 pagine o ~50.000 parole ciascuna) e invia ogni sezione separatamente.`,
-          done: true,
-          conversationId,
-        })}\n\n`);
-        fastify.log.warn({ estimatedTokens, limit: MAX_TOKEN_LIMIT, userId: user.id }, '[Chat] Document exceeds MAX_TOKEN_LIMIT, rejected');
-        return;
-      }
-
-      if (estimatedTokens > ASYNC_TOKEN_THRESHOLD) {
-        // DEBT-81-D: delegated to AsyncQueueRunner
-        const queueResult = await maybeDispatchToAsyncQueue(fastify, reply, {
-          userId: user.id,
-          conversationId,
-          model: body.model,
-          providerName,
-          originalModel: parsedBody.model,
-          estimatedTokens,
-          messages,
-          safetyResult,
-          recalledVectorMemories,
+      // ── Async document queue + MAX_TOKEN_LIMIT — DEBT-84-A: delegated to AsyncTokenGuard ──
+      {
+        const guardResult = await runAsyncTokenGuard(fastify, {
+          userId: user.id, conversationId, model: body.model, providerName,
+          originalModel: parsedBody.model, messages, safetyResult,
+          recalledVectorMemories, webSearchPerformed, reply,
         });
-        if (queueResult.dispatched) return;
-        body.model = queueResult.model;
-        providerName = queueResult.providerName;
+        if (guardResult.abort) return;
+        body.model = guardResult.model;
+        providerName = guardResult.providerName;
       }
-      // ── End async queue check ────────────────────────────────────────
 
       // Set up SSE streaming
       reply.hijack();
@@ -361,67 +290,17 @@ export async function completionRoutes(fastify: FastifyInstance) {
         toolDefs = toolContext ? selectTools(body.message) : undefined;
         const MAX_TOOL_ROUNDS = 5;
 
-        const isAnthropic = providerName === 'anthropic';
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
-        const completionExtras: Record<string, any> = {};
-
-        if (modelConfig.supportsThinking) {
-          if (isAnthropic) {
-            const isOpus = body.model.includes('opus');
-            const maxOut = modelConfig.maxOutputTokens || 4096;
-            // Adaptive thinking only for opus-4-5+ and opus-4-6+ models
-            const supportsAdaptive = isOpus && (body.model.includes('opus-4-5') || body.model.includes('opus-4-6'));
-            if (supportsAdaptive) {
-              completionExtras.thinking = { type: 'adaptive' as const };
-            } else if (isOpus) {
-              // Older opus models (e.g. claude-opus-4-20250514) use budget-based thinking
-              const budgetTokens = Math.min(16000, maxOut - 1024);
-              if (budgetTokens >= 1024) completionExtras.thinking = { type: 'enabled' as const, budgetTokens };
-            } else {
-              const budgetTokens = Math.min(16000, maxOut - 1024);
-              if (budgetTokens >= 1024) completionExtras.thinking = { type: 'enabled' as const, budgetTokens };
-            }
-          } else if (providerName === 'ollama') {
-            // Ollama models use think: true flag — OllamaProvider reads options.thinking
-            completionExtras.thinking = true;
-          }
-          // vLLM handles thinking natively via reasoning_content — no workarounds needed
-        }
-
-        if (isAnthropic) {
-          completionExtras.cacheControl = modelConfig.supportsCaching;
-          if (nativeDocBlocks.length > 0) completionExtras.documentBlocks = nativeDocBlocks;
-        }
-
-        // B1: Force tool usage when document generation is expected
-        if (autoGenerateDoc && typeof autoGenerateDoc === 'string' && /^(docx|xlsx|pptx)$/i.test(autoGenerateDoc) && toolDefs && toolDefs.length > 0) {
-           
-          completionExtras.toolChoice = 'any';
-           
+        // DEBT-84-A: build completion extras via CompletionExtrasBuilder
+        const extrasBuilt = buildCompletionExtras({
+          model: body.model, providerName, modelConfig, nativeDocBlocks,
+          autoGenerateDoc, toolDefs, applyForceShortOutput, routingDecision,
+        });
+        const { completionExtras, effectiveMaxTokens, effectiveTemperature } = extrasBuilt;
+        if (autoGenerateDoc && completionExtras.toolChoice === 'any') {
           fastify.log.info(`[Chat] Forcing tool_choice=any for document generation (${autoGenerateDoc})`);
         }
-
-        // PERF-79-B3: force_short_output override — applies AFTER modelConfig is loaded
-        // so we override only the specific fields, not the entire config object.
-        // DEBT-81-G: tier-level max_output_tokens cap (fast=512, balanced=1500, powerful=3000).
-        // Takes minimum vs modelConfig to never exceed provider limit.
-        const tierTokenCap = routingDecision?.maxOutputTokens ?? null;
-        const baseMaxTokens = modelConfig.maxOutputTokens ?? 4096;
-        const effectiveMaxTokens = applyForceShortOutput
-            ? Math.min(baseMaxTokens, 512)
-            : tierTokenCap !== null
-              ? Math.min(baseMaxTokens, tierTokenCap)
-              : baseMaxTokens;
-        const effectiveTemperature = applyForceShortOutput ? 0 : modelConfig.temperature;
         if (applyForceShortOutput) {
-          // Prepend concise-output instruction as first system message
-          const conciseInstruction: Message = {
-            role: 'system',
-            content: 'You are a concise assistant. Answer in maximum 3 sentences unless the user explicitly asks for more.',
-          };
-          if (!messages.some(m => m.role === 'system' && m.content?.toString().includes('concise assistant'))) {
-            messages = [conciseInstruction, ...messages];
-          }
+          messages = applyForceShortOutputMessages(messages);
         }
 
         // DEBT-80-D: delegate stream+tool loop to ToolLoopRunner
@@ -472,19 +351,10 @@ export async function completionRoutes(fastify: FastifyInstance) {
         } else {
           recordProviderSuccess(body.model);
         }
-        // Only estimate tokens if real usage wasn't provided by the stream
-        // CRITICAL-3: immutable update — create new object instead of mutating streamState
-        const estimatedInput = streamState.tokensInput === 0
-          ? Math.ceil(messages.reduce((acc, m) => {
-              const contentLen = typeof m.content === 'string' ? m.content.length : 0;
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
-              const toolCallsLen = (m as any).tool_calls ? JSON.stringify((m as any).tool_calls).length : 0;
-              return acc + (contentLen + toolCallsLen) / 4;
-            }, 0))
-          : streamState.tokensInput;
-        const estimatedOutput = streamState.tokensOutput === 0
-          ? Math.ceil(fullResponse.length / 4)
-          : streamState.tokensOutput;
+        // CRITICAL-3: estimate tokens if real usage not provided; immutable update
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
+        const estimatedInput = streamState.tokensInput || Math.ceil(messages.reduce((acc, m) => acc + (typeof m.content === 'string' ? m.content.length : 0) / 4 + ((m as any).tool_calls ? JSON.stringify((m as any).tool_calls).length / 4 : 0), 0));
+        const estimatedOutput = streamState.tokensOutput || Math.ceil(fullResponse.length / 4);
         if (estimatedInput !== streamState.tokensInput || estimatedOutput !== streamState.tokensOutput) {
           streamState = { ...streamState, tokensInput: estimatedInput, tokensOutput: estimatedOutput };
         }
