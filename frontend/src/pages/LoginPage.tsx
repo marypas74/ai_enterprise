@@ -203,6 +203,22 @@ export default function LoginPage() {
               </a>
             </div>
           )}
+
+          {/* DEBT-88-C: Internal CA download for browser trust import (LAN aia2.lan) */}
+          {!isNativePlatform() && (
+            <div className="mt-2">
+              <a
+                href={`${import.meta.env.VITE_API_URL || '/api'}/public/internal-ca.crt`}
+                download="enterprise-ai-ca.crt"
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-surface-200 dark:border-surface-700 hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors text-sm text-surface-600 dark:text-surface-400"
+                title="Importa nel browser per evitare warning certificato su aia2.lan"
+              >
+                <span>🔐</span>
+                <span>Scarica Certificato CA (fidati del sito)</span>
+                <Download className="w-3.5 h-3.5" />
+              </a>
+            </div>
+          )}
         </div>
 
         {/* Login guide video — public endpoint, streams from backend with Range support */}

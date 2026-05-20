@@ -37,6 +37,29 @@ function scheduleProactiveRefresh(token: string, refresh: () => Promise<void>) {
   }, delay);
 }
 
+// DEBT-88-B: visibilitychange handler — fix browser throttling on inactive tabs.
+// When the user returns to the tab, if the token is about to expire (< MARGIN),
+// force an immediate refresh. setTimeout in background tabs can be heavily
+// throttled by browsers and miss the scheduled refresh slot.
+function isTokenAboutToExpire(token: string): boolean {
+  const expMs = decodeJwtExpMs(token);
+  if (expMs === null) return false;
+  return expMs - REFRESH_MARGIN_MS - Date.now() <= 0;
+}
+
+let visibilityListenerInstalled = false;
+function installVisibilityListener(getToken: () => string | null, refresh: () => Promise<void>) {
+  if (visibilityListenerInstalled || typeof document === 'undefined') return;
+  visibilityListenerInstalled = true;
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) return;
+    const token = getToken();
+    if (token && isTokenAboutToExpire(token)) {
+      refresh().catch(() => { /* refresh handles its own failure */ });
+    }
+  });
+}
+
 interface User {
   id: number;
   email: string;
@@ -86,6 +109,7 @@ export const useAuthStore = create<AuthState>()(
               isLoading: false
             });
             scheduleProactiveRefresh(accessToken, () => get().refreshToken());
+            installVisibilityListener(() => get().accessToken, () => get().refreshToken());
             return response.data;
           }
 
@@ -96,6 +120,7 @@ export const useAuthStore = create<AuthState>()(
             isLoading: false
           });
           scheduleProactiveRefresh(accessToken, () => get().refreshToken());
+          installVisibilityListener(() => get().accessToken, () => get().refreshToken());
           return response.data;
         } catch (err: any) {
           set({
@@ -141,6 +166,8 @@ export const useAuthStore = create<AuthState>()(
           const { accessToken } = response.data;
           set({ accessToken });
           scheduleProactiveRefresh(accessToken, () => get().refreshToken());
+          // DEBT-88-B: install visibilitychange listener (idempotent, once per session)
+          installVisibilityListener(() => get().accessToken, () => get().refreshToken());
         } catch {
           clearProactiveRefresh();
           set({

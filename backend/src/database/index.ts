@@ -946,17 +946,91 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
     fastify.log.warn({ err }, '[Migration] DEBT-82-F: provider_override seed skipped');
   }
 
-  // v2.1.87: Update app_version in system_settings to current version.
+  // v2.1.88: Update app_version in system_settings to current version.
   // Uses UPDATE with version comparison so re-running on an already-updated DB is a no-op.
   try {
     await pool.execute(
-      `UPDATE system_settings SET setting_value = '2.1.87'
-       WHERE setting_key = 'app_version' AND setting_value < '2.1.87'`
+      `UPDATE system_settings SET setting_value = '2.1.88'
+       WHERE setting_key = 'app_version' AND setting_value < '2.1.88'`
     );
-    fastify.log.info('[Migration] app_version updated to 2.1.87 (if behind)');
+    fastify.log.info('[Migration] app_version updated to 2.1.88 (if behind)');
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   } catch (err: any) {
     fastify.log.warn({ err }, '[Migration] app_version update skipped');
+  }
+
+  // v2.1.88: DEBT-88-A — Force 100% local routing: disable all cloud providers in DB.
+  // This ensures OpenAI/Anthropic/Google are never called even if accidentally re-enabled.
+  // CONSTRAINT chk_cloud_provider_disabled enforces this at DB level going forward.
+  try {
+    // 1. Disable cloud providers in model_routing_tiers
+    await pool.execute(
+      `UPDATE model_routing_tiers SET is_enabled = FALSE
+       WHERE provider IN ('OpenAI','Anthropic','Google','openai','anthropic','google')
+          OR model_id REGEXP '^(gpt-|claude-|gemini-|o[13]-|text-davinci)'`
+    );
+    fastify.log.info('[Migration] DEBT-88-A: cloud model_routing_tiers disabled');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
+  } catch (err: any) {
+    fastify.log.warn({ err }, '[Migration] DEBT-88-A: model_routing_tiers cloud disable skipped');
+  }
+
+  try {
+    // 2. Disable cloud ai_providers
+    await pool.execute(
+      `UPDATE ai_providers SET is_enabled = FALSE
+       WHERE provider_type IN ('openai','anthropic','google')`
+    );
+    fastify.log.info('[Migration] DEBT-88-A: cloud ai_providers disabled');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
+  } catch (err: any) {
+    fastify.log.warn({ err }, '[Migration] DEBT-88-A: ai_providers cloud disable skipped');
+  }
+
+  try {
+    // 3. Fast tier: qwen25vl:32b must have priority 0 (highest) in fast tier
+    await pool.execute(
+      `UPDATE model_routing_tiers SET priority = 0
+       WHERE tier_name = 'fast' AND provider = 'vllm' AND model_id = 'qwen25vl:32b'`
+    );
+    // Disable all non-local fast-tier entries (keep only vllm/ollama)
+    await pool.execute(
+      `UPDATE model_routing_tiers SET is_enabled = FALSE
+       WHERE tier_name = 'fast' AND model_id != 'qwen25vl:32b'
+          AND provider NOT IN ('Ollama','ollama','vllm')`
+    );
+    fastify.log.info('[Migration] DEBT-88-A: fast tier pinned to qwen25vl:32b priority=0');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
+  } catch (err: any) {
+    fastify.log.warn({ err }, '[Migration] DEBT-88-A: fast tier priority seed skipped');
+  }
+
+  try {
+    // 4. Add CONSTRAINT to prevent re-enabling cloud providers (idempotent: drop first)
+    // MariaDB 10.11+ supports DROP CONSTRAINT IF EXISTS
+    await pool.execute(
+      `ALTER TABLE ai_providers DROP CONSTRAINT IF EXISTS chk_cloud_provider_disabled`
+    );
+    await pool.execute(
+      `ALTER TABLE ai_providers ADD CONSTRAINT chk_cloud_provider_disabled
+       CHECK (NOT (provider_type IN ('openai','anthropic','google') AND is_enabled = TRUE))`
+    );
+    fastify.log.info('[Migration] DEBT-88-A: CONSTRAINT chk_cloud_provider_disabled applied');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
+  } catch (err: any) {
+    fastify.log.warn({ err }, '[Migration] DEBT-88-A: CONSTRAINT skipped (may need MariaDB 10.11+)');
+  }
+
+  // v2.1.88: Update app_version
+  try {
+    await pool.execute(
+      `UPDATE system_settings SET setting_value = '2.1.88'
+       WHERE setting_key = 'app_version' AND setting_value < '2.1.88'`
+    );
+    fastify.log.info('[Migration] app_version updated to 2.1.88 (if behind)');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
+  } catch (err: any) {
+    fastify.log.warn({ err }, '[Migration] app_version update to 2.1.88 skipped');
   }
 
   // v2.1.85: RAG Web Fallback settings
