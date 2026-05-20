@@ -16,6 +16,7 @@ export function estimateMessageTokens(messages: Message[]): number {
     if (typeof msg.content === 'string') {
       total += Math.ceil(msg.content.length / 4);
     } else if (Array.isArray(msg.content)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       for (const part of msg.content as any[]) {
         if (part.type === 'text' && typeof part.text === 'string') {
           total += Math.ceil(part.text.length / 4);

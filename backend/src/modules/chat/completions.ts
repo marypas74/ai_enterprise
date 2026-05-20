@@ -497,6 +497,8 @@ export async function completionRoutes(fastify: FastifyInstance) {
       let costModel = body.model; // Tracks actual model used (may change on escalation)
       // CRITICAL-3: streamState is immutably updated via loopResult.state — never mutated in-place
       let streamState = createStreamState();
+      // DEBT-82-D: final finish_reason for SSE done event (stop|length|tool_calls|content_filter|null)
+      let finalFinishReason: string | null = null;
       const sseWrite = createSseWriter(reply);
 
       sendInitialSseEvents(sseWrite, { model: body.model, providerName, safetyResult, recalledVectorMemories });
@@ -611,6 +613,8 @@ export async function completionRoutes(fastify: FastifyInstance) {
         messages = loopResult.messages as any;
         // CRITICAL-3: reassign streamState from loopResult — immutable update, no mutation
         streamState = loopResult.state;
+        // DEBT-82-D: capture finish_reason for SSE done event
+        finalFinishReason = loopResult.finishReason ?? null;
 
         // Empty response recovery — HIGH-1: delegated to EscalationRunner
         if (fullResponse.trim().length === 0) {
@@ -780,7 +784,8 @@ export async function completionRoutes(fastify: FastifyInstance) {
 
       eventBus.emit('after_message_send', { userMessage: body.message, assistantResponse: fullResponse, model: body.model, provider: providerName, tokensInput, tokensOutput, cost }, hookCtx).catch(() => { });
 
-      reply.raw.write(`data: ${JSON.stringify({ content: '', done: true, conversationId })}\n\n`);
+      // DEBT-82-D: include finish_reason in the final SSE done event
+      reply.raw.write(`data: ${JSON.stringify({ content: '', done: true, conversationId, finish_reason: finalFinishReason })}\n\n`);
       reply.raw.end();
 
     } catch (err) {

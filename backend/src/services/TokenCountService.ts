@@ -15,10 +15,13 @@ export interface TokenCountResult {
 export async function countTokensAnthropic(
   apiKey: string,
   model: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   messages: any[],
   system?: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   tools?: any[]
 ): Promise<TokenCountResult> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   const body: any = { model, messages };
   if (system) body.system = system;
   if (tools?.length) body.tools = tools;

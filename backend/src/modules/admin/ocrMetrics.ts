@@ -14,6 +14,7 @@ export async function ocrMetricsRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/ocr-metrics',
     {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       onRequest: [(fastify as any).authenticate, requireAdmin],
       schema: {
         description: 'Per-pod OCR cache counters (page + doc level)',
@@ -34,6 +35,7 @@ export async function ocrMetricsRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/ocr-metrics/reset',
     {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       onRequest: [(fastify as any).authenticate, requireAdmin],
       schema: {
         description: 'Reset OCR cache counters (does NOT evict cached entries)',

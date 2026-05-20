@@ -193,6 +193,7 @@ class TerminalManagerClass {
   }
 
   // Sync with database (call after restart to restore state)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   public async syncFromDatabase(db: any): Promise<void> {
     try {
       const [rows] = await db.execute(`
@@ -214,6 +215,7 @@ class TerminalManagerClass {
       }
 
       // Assign slots from database
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       for (const row of rows as any[]) {
         if (row.terminal_slot >= 0 && row.terminal_slot < this.MAX_TERMINALS) {
           this.slots.set(row.terminal_slot, {

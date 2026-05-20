@@ -41,6 +41,7 @@ export async function convertOfficeToPdf(
         await fs.unlink(inputPath).catch(() => { });
 
         return pdfPath;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (error: any) {
         console.error(`[DocumentProcessor] PDF conversion error: ${error.message}`);
         throw new Error(`PDF conversion failed: ${error.message}`);
@@ -72,6 +73,7 @@ export async function convertPdfToDocx(
         await execFilePromise('python3', ['-c', pyScript, inputPath, docxPath], { timeout: 120000 });
         await fs.access(docxPath);
         console.log(`[DocumentProcessor] PDF→DOCX via pdf2docx: ${originalName}`);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (pdf2docxErr: any) {
         console.warn(`[DocumentProcessor] pdf2docx failed (${pdf2docxErr.message}), trying LibreOffice...`);
 
@@ -90,6 +92,7 @@ export async function convertPdfToDocx(
                 await fs.rename(loDocxPath, docxPath);
             }
             console.log(`[DocumentProcessor] PDF→DOCX via LibreOffice: ${originalName}`);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         } catch (loErr: any) {
             // Clean up
             await fs.unlink(inputPath).catch(() => {});

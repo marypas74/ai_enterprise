@@ -52,6 +52,7 @@ export async function googleOAuthRoutes(fastify: FastifyInstance) {
 
   // Check if OAuth is configured
   fastify.get('/google/status', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Check Google OAuth configuration status',
@@ -86,6 +87,7 @@ export async function googleOAuthRoutes(fastify: FastifyInstance) {
 
   // Start OAuth flow - redirect to Google
   fastify.get('/google/authorize', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Start Google OAuth authorization flow',
@@ -199,6 +201,7 @@ export async function googleOAuthRoutes(fastify: FastifyInstance) {
 
   // Disconnect Google account
   fastify.post('/google/disconnect', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Disconnect Google account and revoke OAuth tokens',
@@ -229,6 +232,7 @@ export async function googleOAuthRoutes(fastify: FastifyInstance) {
 
   // Test Google connection
   fastify.get('/google/test', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Test Google API connection with current credentials',

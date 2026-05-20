@@ -342,6 +342,8 @@ export class VLLMProvider implements AIProvider {
           content,
           done,
           toolCalls: choice?.delta?.tool_calls,
+          // DEBT-82-D: propagate finish_reason from provider chunk to ChatStreamRunner
+          ...(finishReason ? { finishReason } : {}),
           ...(usage ? {
             usage: {
               inputTokens: usage.prompt_tokens,

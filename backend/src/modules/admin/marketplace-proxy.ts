@@ -58,6 +58,7 @@ export async function marketplaceProxyRoutes(fastify: FastifyInstance): Promise<
     fastify.route({
       method,
       url: '/*',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       onRequest: [(fastify as any).authenticate],
       handler: async (request: FastifyRequest, reply: FastifyReply) => {
         const targetUrl = buildTargetUrl(request.url);

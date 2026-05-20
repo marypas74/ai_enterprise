@@ -84,6 +84,7 @@ export function getFileToolDefinitions(): ToolDefinition[] {
  */
 export async function executeFileTool(
   toolName: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   toolInput: Record<string, any>,
   context: ToolContext
 ): Promise<ToolResult | null> {

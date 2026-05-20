@@ -23,6 +23,7 @@ interface ActivityLog {
 export async function activityRoutes(fastify: FastifyInstance) {
   // Log activity from extension/clients
   fastify.post('/activity/log', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Log user activity from extension',
@@ -53,6 +54,7 @@ export async function activityRoutes(fastify: FastifyInstance) {
 
   // Get activity logs (admin only)
   fastify.get('/admin/activity', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Get activity logs (admin)',
@@ -90,6 +92,7 @@ export async function activityRoutes(fastify: FastifyInstance) {
       JOIN users u ON a.user_id = u.id
       WHERE 1=1
     `;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const params: any[] = [];
 
     if (query.action) {
@@ -125,6 +128,7 @@ export async function activityRoutes(fastify: FastifyInstance) {
 
   // Get activity statistics (admin only)
   fastify.get('/admin/activity/stats', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: {
       description: 'Get activity statistics (admin)',

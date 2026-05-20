@@ -6,6 +6,7 @@
 export interface BatchRequest {
   customId: string;
   model: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   messages: any[];
   system?: string;
   maxTokens?: number;
@@ -106,6 +107,7 @@ export async function cancelBatch(apiKey: string, batchId: string): Promise<Batc
 /**
  * Stream batch results as JSONL.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
 export async function* streamBatchResults(apiKey: string, batchId: string): AsyncGenerator<any> {
   const status = await getBatchStatus(apiKey, batchId);
   if (!status.results_url) {

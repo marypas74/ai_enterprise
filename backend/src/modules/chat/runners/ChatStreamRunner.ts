@@ -17,6 +17,8 @@ import type { FastifyBaseLogger } from 'fastify';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
+export type FinishReason = 'stop' | 'length' | 'tool_calls' | 'content_filter' | null;
+
 export interface StreamChunk {
   readonly content?: string;
   readonly thinking?: string;
@@ -36,6 +38,8 @@ export interface StreamChunk {
       readonly arguments?: string;
     };
   }>;
+  /** DEBT-82-D: Provider finish reason (emitted on last chunk). */
+  readonly finishReason?: FinishReason;
 }
 
 export interface AccumulatedToolCall {
@@ -76,6 +80,8 @@ export interface StreamRoundResult {
   readonly firstTokenMs: number | null;
   /** True if the stream completed normally; false if client disconnected early. */
   readonly isComplete: boolean;
+  /** DEBT-82-D: Provider finish reason from last chunk (null if provider did not emit one). */
+  readonly finishReason: FinishReason;
 }
 
 export interface ChatStreamRunnerOptions {
@@ -127,6 +133,8 @@ export async function runChatStream(options: ChatStreamRunnerOptions): Promise<S
   // We check state.firstTokenMs to avoid overwriting a value set by a previous round.
   let firstTokenMsLocal: number | null = state.firstTokenMs;
   let isComplete = true;
+  // DEBT-82-D: track finish_reason from provider (last non-null value wins)
+  let finishReasonLocal: FinishReason = null;
 
   for await (const chunk of stream) {
     if (clientDisconnected()) {
@@ -184,6 +192,11 @@ export async function runChatStream(options: ChatStreamRunnerOptions): Promise<S
       roundContent += chunk.content;
       rawWrite(`data: ${JSON.stringify({ content: chunk.content, done: false })}\n\n`);
     }
+
+    // DEBT-82-D: capture finish_reason from provider chunk (last non-null value)
+    if (chunk.finishReason != null) {
+      finishReasonLocal = chunk.finishReason;
+    }
   }
 
   // Push last in-progress tool call
@@ -200,6 +213,7 @@ export async function runChatStream(options: ChatStreamRunnerOptions): Promise<S
     deltaThinkingTokens,
     firstTokenMs: firstTokenMsLocal,
     isComplete,
+    finishReason: finishReasonLocal,
   };
 }
 

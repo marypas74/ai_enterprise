@@ -67,6 +67,7 @@ export class PermissionService {
     if (userRole === 'admin') return true;
 
     // Check DB for custom permissions
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const row = await findOne<any>(
       this.db,
       'SELECT can_read, can_write, can_edit, can_delete, can_list FROM resource_permissions WHERE user_id = ? AND resource = ?',
@@ -96,6 +97,7 @@ export class PermissionService {
       }));
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const rows = await findMany<any>(
       this.db,
       'SELECT resource, can_read, can_write, can_edit, can_delete, can_list FROM resource_permissions WHERE user_id = ?',
@@ -126,6 +128,7 @@ export class PermissionService {
     resource: Resource,
     permissions: Partial<Record<Permission, boolean>>,
   ): Promise<void> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const existing = await findOne<any>(
       this.db,
       'SELECT id FROM resource_permissions WHERE user_id = ? AND resource = ?',
@@ -134,6 +137,7 @@ export class PermissionService {
 
     if (existing) {
       const fields: string[] = [];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       const values: any[] = [];
       for (const [perm, val] of Object.entries(permissions)) {
         if (['read', 'write', 'edit', 'delete', 'list'].includes(perm)) {

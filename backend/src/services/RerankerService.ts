@@ -40,6 +40,7 @@ export class RerankerService {
     if (this.db) {
       try {
         // Prefer small models: order by context_window ascending to get the lightest
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         const row = await findOne<any>(this.db,
           `SELECT m.model_id FROM ai_models m
            JOIN ai_providers p ON m.provider_id = p.id
@@ -77,6 +78,7 @@ export class RerankerService {
 
       scoredPoints.sort((a, b) => b.rerankScore - a.rerankScore);
       return scoredPoints.slice(0, topK).map(({ rerankScore, ...point }) => point);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (error: any) {
       console.error(`[Reranker] Reranking failed, returning original order: ${error.message}`);
       return points.slice(0, topK);
@@ -114,6 +116,7 @@ Relevance score (0-10):`;
 
       if (!response.ok) return 0.5;
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       const data = await response.json() as any;
       const text = (data.response || '').trim();
       const score = parseFloat(text);

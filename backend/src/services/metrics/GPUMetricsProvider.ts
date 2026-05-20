@@ -25,6 +25,7 @@ function parseDcgmMetric(text: string, metricName: string): Map<string, { value:
 }
 
 // Helper to get GPU metrics via Prometheus DCGM, direct DCGM exporter, or nvidia-smi
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
 export async function getGpuMetrics(): Promise<any[]> {
     // Method 1: Try Prometheus DCGM queries (works when ServiceMonitor is configured)
     try {
@@ -67,6 +68,7 @@ export async function getGpuMetrics(): Promise<any[]> {
             const powerMap = parseDcgmMetric(text, 'DCGM_FI_DEV_POWER_USAGE');
 
             if (utilMap.size > 0) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
                 const gpus: any[] = [];
                 for (const [gpuId, utilEntry] of utilMap) {
                     const fbUsedMB = fbUsedMap.get(gpuId)?.value || 0;

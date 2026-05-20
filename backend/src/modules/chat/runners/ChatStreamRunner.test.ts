@@ -247,3 +247,44 @@ describe('applyStreamRoundDelta — CRITICAL-2 multi-round accumulation', () => 
     expect(state.tokensOutput).toBe(200);
   });
 });
+
+// ─── DEBT-82-D: finishReason in StreamRoundResult ────────────────────────────
+
+describe('ChatStreamRunner — DEBT-82-D finishReason', () => {
+  it('runChatStream returns finishReason from final chunk with done=true', async () => {
+    const chunks: StreamChunk[] = [
+      { content: 'Hello ' },
+      { content: 'world', finishReason: 'stop' },
+    ];
+    const { opts } = makeOpts(makeStream(chunks));
+    const result = await runChatStream(opts);
+    expect(result.finishReason).toBe('stop');
+  });
+
+  it('runChatStream returns finishReason=length when provider signals length', async () => {
+    const chunks: StreamChunk[] = [
+      { content: 'partial response', finishReason: 'length' },
+    ];
+    const { opts } = makeOpts(makeStream(chunks));
+    const result = await runChatStream(opts);
+    expect(result.finishReason).toBe('length');
+  });
+
+  it('runChatStream returns finishReason=null when no provider signal received', async () => {
+    const chunks: StreamChunk[] = [
+      { content: 'no finish reason in this stream' },
+    ];
+    const { opts } = makeOpts(makeStream(chunks));
+    const result = await runChatStream(opts);
+    expect(result.finishReason).toBeNull();
+  });
+
+  it('runChatStream propagates finishReason=tool_calls for tool use streams', async () => {
+    const chunks: StreamChunk[] = [
+      { toolCalls: [{ id: 'tc1', function: { name: 'my_tool', arguments: '{}' } }], finishReason: 'tool_calls' },
+    ];
+    const { opts } = makeOpts(makeStream(chunks));
+    const result = await runChatStream(opts);
+    expect(result.finishReason).toBe('tool_calls');
+  });
+});

@@ -22,6 +22,7 @@ export function buildCacheKey(provider: string, modelId: string): string {
 export async function getCachedExists(
     provider: string,
     modelId: string,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     redisClient?: any,
 ): Promise<Readonly<ModelExistsResult> | null> {
     const key = buildCacheKey(provider, modelId);
@@ -51,6 +52,7 @@ export async function setCachedExists(
     provider: string,
     modelId: string,
     result: ModelExistsResult,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     redisClient?: any,
 ): Promise<void> {
     const key = buildCacheKey(provider, modelId);

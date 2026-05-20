@@ -17,6 +17,7 @@ export class CustomProvider implements AIProvider {
   async complete(options: CompletionOptions): Promise<CompletionResult> {
     const response = await this.client.chat.completions.create({
       model: options.model,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       messages: options.messages as any,
       max_tokens: options.maxTokens || 4096,
       temperature: options.temperature || 0.7,
@@ -35,6 +36,7 @@ export class CustomProvider implements AIProvider {
   async *streamComplete(options: CompletionOptions): AsyncGenerator<StreamChunk> {
     const stream = await this.client.chat.completions.create({
       model: options.model,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       messages: options.messages as any,
       max_tokens: options.maxTokens || 4096,
       temperature: options.temperature || 0.7,

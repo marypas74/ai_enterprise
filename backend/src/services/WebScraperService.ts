@@ -156,6 +156,7 @@ export async function ingestUrl(
     );
 
     return { url, title: scraped.title, chunksCount: storedCount, status: 'completed' };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   } catch (error: any) {
     await updateOne(db,
       `UPDATE web_ingestions SET status = 'failed', error = ? WHERE id = ?`,

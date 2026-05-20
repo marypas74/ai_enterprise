@@ -51,6 +51,8 @@ export interface ToolLoopResult {
    * Returned as a new object — ToolLoopRunner never mutates options.state.
    */
   readonly state: StreamState;
+  /** DEBT-82-D: finish_reason from the last provider round (stop|length|tool_calls|content_filter|null). */
+  readonly finishReason?: string | null;
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -85,6 +87,8 @@ export async function runToolLoop(
 
   let messages: readonly Message[] = initialMessages;
   let fullResponse = '';
+  // DEBT-82-D: track last round's finish_reason to propagate to the SSE done event
+  let lastFinishReason: string | null = null;
   let toolRound = 0;
   let continueLoop = true;
   // CRITICAL-3: accumulate state immutably — never mutate options.state
@@ -110,6 +114,10 @@ export async function runToolLoop(
     // CRITICAL-3: produce new state object — options.state is never touched
     currentState = applyStreamRoundDelta(currentState, roundResult);
     fullResponse += roundContent;
+    // DEBT-82-D: capture finish_reason from this round (last round's value is propagated)
+    if (roundResult.finishReason !== undefined) {
+      lastFinishReason = roundResult.finishReason;
+    }
 
     if (toolCalls.length > 0 && toolContext) {
       log.info(`[ToolLoopRunner] Round ${toolRound}: executing ${toolCalls.length} tool(s)`);
@@ -179,5 +187,5 @@ export async function runToolLoop(
     log.warn(`[ToolLoopRunner] Tool call loop hit max rounds (${maxRounds})`);
   }
 
-  return { fullResponse, messages, toolRounds: toolRound, state: currentState };
+  return { fullResponse, messages, toolRounds: toolRound, state: currentState, finishReason: lastFinishReason };
 }

@@ -99,6 +99,7 @@ export async function downloadRoutes(fastify: FastifyInstance) {
       security: [{ bearerAuth: [] }]
     }
   }, async (request: FastifyRequest, reply: FastifyReply) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const user = (request as any).user;
     if (user?.role !== 'admin') return reply.status(403).send({ error: 'Admin access required' });
     const guide = await findOne<{ content: string }>(
@@ -120,6 +121,7 @@ export async function downloadRoutes(fastify: FastifyInstance) {
     }
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       const user = (request as any).user;
       const guides = [
         {

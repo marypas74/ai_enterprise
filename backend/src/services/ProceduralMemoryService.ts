@@ -99,6 +99,7 @@ export class ProceduralMemoryService {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ points: pointIds }),
       });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (err: any) {
       this.fastify.log.warn(`[ProceduralMemory] Failed to unregister "${name}": ${err.message}`);
     }
@@ -116,6 +117,7 @@ export class ProceduralMemoryService {
           filter: { must: [{ key: 'plugin_id', match: { value: pluginId } }] },
         }),
       });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (err: any) {
       this.fastify.log.warn(`[ProceduralMemory] Failed to unregister plugin ${pluginId}: ${err.message}`);
     }
@@ -201,6 +203,7 @@ ${toolDescriptions}
   private async upsertPoint(
     pointId: number,
     text: string,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     payload: Record<string, any>,
   ): Promise<boolean> {
     try {
@@ -228,6 +231,7 @@ ${toolDescriptions}
       });
 
       return resp.ok;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (err: any) {
       this.fastify.log.warn(`[ProceduralMemory] upsertPoint failed: ${err.message}`);
       return false;

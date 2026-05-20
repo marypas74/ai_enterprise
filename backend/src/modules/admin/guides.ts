@@ -95,6 +95,7 @@ export async function guideRoutes(fastify: FastifyInstance) {
 
     // Build update fields
     const fields: string[] = ['content = ?', 'updated_by_user_id = ?'];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const params: any[] = [body.content, user.id];
 
     if (body.title) {

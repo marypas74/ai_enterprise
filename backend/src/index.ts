@@ -624,6 +624,14 @@ async function bootstrap() {
   // Database & Cache
   await fastify.register(databasePlugin);
 
+  // DEBT-82-F hotfix: initialise ProviderRegistryService cache from DB.
+  // AIProviderFactory.getProviderName() consults this cache for provider_override
+  // (e.g. qwen25vl:32b → vllm). Without init, the cache stays empty and the
+  // fallback regex incorrectly routes `name:tag` models to Ollama.
+  const { ProviderRegistryService } = await import('./modules/ai/ProviderRegistryService.js');
+  await ProviderRegistryService.init(fastify.db);
+  fastify.log.info('[ProviderRegistryService] initialised (DEBT-82-F)');
+
   await fastify.register(redisPlugin);
 
   // Geo-Referencing Middleware

@@ -67,6 +67,7 @@ export async function checkKanbanAccess(fastify: FastifyInstance, userId: number
     );
 
     return result?.kanban_enabled === true || (result?.kanban_enabled as unknown) === 1;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   } catch (err: any) {
     // Column doesn't exist yet - allow access by default
     fastify.log.warn(`kanban_enabled column not found, allowing access by default: ${err.message}`);

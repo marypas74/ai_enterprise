@@ -248,35 +248,17 @@ describe('System Settings Routes (Admin)', () => {
 
   // ─── OLLAMA MANAGEMENT ────────────────────────────────────
 
-  describe('POST /admin/ollama/pull', () => {
-    // TODO 2.1.82: Route moved to /providers/ollama/docker/pull-model — update tests when route is consolidated.
+  describe('POST /admin/ollama/pull (legacy route — moved)', () => {
+    // TODO 2.1.83: Route is now /providers/ollama/docker/pull-model in providerSync.ts.
+    // These tests require providerSync to be registered — move to providerSync.test.ts in 2.1.83.
     it.skip('should return 400 when model name is missing', async () => {
-      const response = await fastify.inject({
-        method: 'POST',
-        url: '/admin/ollama/pull',
-        headers: createAuthHeaders(fastify, 1, 'admin'),
-        payload: {},
-      });
-
-      expect(response.statusCode).toBe(400);
+      // Route /admin/ollama/pull no longer exists; new route is in providerSyncRoutes.
+      // Kept as skip to track test debt — add coverage in providerSync.test.ts.
     });
 
     it.skip('should start pulling model and return success message', async () => {
-      // TODO 2.1.82: Route moved to /providers/ollama/docker/pull-model — update tests when route is consolidated.
-      const originalFetch = globalThis.fetch;
-      globalThis.fetch = vi.fn().mockResolvedValue({ ok: true });
-
-      const response = await fastify.inject({
-        method: 'POST',
-        url: '/admin/ollama/pull',
-        headers: createAuthHeaders(fastify, 1, 'admin'),
-        payload: { model: 'llama3:latest' },
-      });
-
-      expect(response.statusCode).toBe(200);
-      expect(JSON.parse(response.body).message).toContain('llama3:latest');
-
-      globalThis.fetch = originalFetch;
+      // Route /admin/ollama/pull no longer exists; new route is in providerSyncRoutes.
+      // Kept as skip to track test debt — add coverage in providerSync.test.ts.
     });
   });
 });

@@ -56,6 +56,7 @@ async function buildProvider(
         cfg[s.setting_key] = s.is_secret ? decrypt(s.setting_value) : s.setting_value;
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const redisClient = (fastify as any).redis;
     const type = provider.provider_type.toLowerCase();
 
@@ -101,6 +102,7 @@ export async function verifyModelOnProvider(
     try {
         const result = await built.instance.verifyModelExists(modelId);
         return { skipped: false, result, providerType: built.type };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (err: any) {
         fastify.log.warn(
             { err: err?.message },

@@ -200,6 +200,7 @@ async function callLlamaSwapOcr(
         throw new Error(`llama-swap OCR error ${resp.status}: ${body.slice(0, 200)}`);
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const data = await resp.json() as any;
     const content: string = data?.choices?.[0]?.message?.content ?? '';
 

@@ -153,10 +153,14 @@ describe('Auth Routes — Extended', () => {
       mfa_secret: 'SECRET123',
     };
 
-    it.skip('should return mfa_required when MFA enabled but no TOTP code from external IP', async () => {
-      // TODO 2.1.82: MFA response shape changed — verify body.mfa_required field name in current auth flow.
+    it('should return mfa_required when MFA enabled but no TOTP code from external IP', async () => {
       const bcrypt = await import('bcrypt');
-      mockFindOne.mockResolvedValueOnce(validUser);
+      // findOne calls: 1=mfa_enforced setting (true), 2=user lookup, 3=geo (optional)
+      // The actual order: login handler queries user first, then mfa_enforced setting
+      mockFindOne
+        .mockResolvedValueOnce(validUser)           // user lookup
+        .mockResolvedValueOnce({ setting_value: 'true' }) // mfa_enforced = true
+        .mockResolvedValue(null);                    // any further queries
       (bcrypt.default.compare as any).mockResolvedValueOnce(true);
 
       const response = await fastify.inject({
@@ -207,11 +211,13 @@ describe('Auth Routes — Extended', () => {
       expect(body.accessToken).toBeDefined();
     });
 
-    it.skip('should return mfa_setup_required for external user without MFA configured', async () => {
-      // TODO 2.1.82: MFA response shape changed — verify body.mfa_setup_required field name in current auth flow.
+    it('should return mfa_setup_required for external user without MFA configured', async () => {
       const bcrypt = await import('bcrypt');
       const userNoMfa = { ...validUser, mfa_enabled: false, mfa_secret: null };
-      mockFindOne.mockResolvedValueOnce(userNoMfa);
+      mockFindOne
+        .mockResolvedValueOnce(userNoMfa)           // user lookup
+        .mockResolvedValueOnce({ setting_value: 'true' }) // mfa_enforced = true
+        .mockResolvedValue(null);
       (bcrypt.default.compare as any).mockResolvedValueOnce(true);
 
       const response = await fastify.inject({

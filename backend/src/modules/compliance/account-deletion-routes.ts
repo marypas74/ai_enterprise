@@ -6,6 +6,7 @@ export async function accountDeletionRoutes(fastify: FastifyInstance) {
 
   // ── POST /compliance/delete-account ── (GAP-7: Request account deletion)
   fastify.post('/compliance/delete-account', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
   }, async (request, reply) => {
     const user = request.user as UserPayload;
@@ -41,6 +42,7 @@ export async function accountDeletionRoutes(fastify: FastifyInstance) {
 
   // ── POST /compliance/delete-account/confirm ── (GAP-7: Confirm deletion)
   fastify.post('/compliance/delete-account/confirm', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
   }, async (request, reply) => {
     const user = request.user as UserPayload;
@@ -67,6 +69,7 @@ export async function accountDeletionRoutes(fastify: FastifyInstance) {
 
   // ── POST /compliance/delete-account/cancel ── (GAP-7: Cancel deletion)
   fastify.post('/compliance/delete-account/cancel', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
   }, async (request, reply) => {
     const user = request.user as UserPayload;

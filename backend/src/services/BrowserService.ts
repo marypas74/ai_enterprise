@@ -87,6 +87,7 @@ export class BrowserService {
 
       const html = await response.text();
       return this.parseHtml(url, html);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (error: any) {
       console.error(`[Browser] Navigation failed for ${url}: ${error.message}`);
       throw error;
@@ -151,6 +152,7 @@ export class BrowserService {
   /**
    * Run JavaScript on a page and return the result
    */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   async evaluateScript(url: string, script: string): Promise<any> {
     if (!this.isUrlAllowed(url)) {
       throw new Error('URL blocked');

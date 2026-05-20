@@ -33,6 +33,7 @@ export async function publicRoutes(fastify: FastifyInstance) {
             // Strip heavy process list from public endpoint, keep activeUsers for dashboard
             const { processes, ...safeMetrics } = metrics as Record<string, unknown>;
             return safeMetrics;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         } catch (error: any) {
             fastify.log.error(`[PublicMetrics] Error: ${error.message}`);
             return reply.status(500).send({ error: 'Failed to fetch metrics' });
@@ -73,6 +74,7 @@ export async function publicRoutes(fastify: FastifyInstance) {
                 .header('Content-Disposition', `attachment; filename="${latest.filename}"`)
                 .header('Content-Length', latest.size)
                 .send(stream);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         } catch (err: any) {
             if (err.code === 'ENOENT') {
                 return reply.status(404).send({ error: 'APK directory not found' });
@@ -135,6 +137,7 @@ export async function publicRoutes(fastify: FastifyInstance) {
                 .header('Content-Range', `bytes ${start}-${end}/${totalSize}`)
                 .header('Content-Length', chunkSize)
                 .send(createReadStream(getLoginGuidePath(), { start, end }));
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         } catch (err: any) {
             if (err.code === 'ENOENT') {
                 return reply.status(404).send({ error: 'Login guide video not available' });

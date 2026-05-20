@@ -351,6 +351,7 @@ export async function convertPdfToXlsx(
  */
 export async function convertPdfToPptx(pdfBuffer: Buffer, title?: string): Promise<Buffer> {
   const pptxMod = await import('pptxgenjs');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   const PptxGenJS = pptxMod.default as any;
 
   const doc = mupdf.Document.openDocument(pdfBuffer, 'application/pdf');

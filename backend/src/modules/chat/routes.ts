@@ -14,16 +14,19 @@ export async function chatRoutes(fastify: FastifyInstance) {
 
   // Async document job status
   fastify.get('/jobs/:jobId', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     onRequest: [(fastify as any).authenticate],
     schema: { description: 'Get async document job status', tags: ['chat'] }
   }, async (request, reply) => {
     const { jobId } = request.params as { jobId: string };
     const { DocumentJobQueue } = await import('../../services/DocumentJobQueue.js');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const redis = (fastify as any).redis;
     const queue = new DocumentJobQueue(redis);
     const job = await queue.getJob(jobId);
     if (!job) return reply.status(404).send({ error: 'Job not found' });
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const user = (request as any).user as { id: number };
     if (job.userId !== user.id) return reply.status(403).send({ error: 'Forbidden' });
 

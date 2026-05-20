@@ -13,6 +13,7 @@ export async function extractDocxContent(buffer: Buffer): Promise<string> {
     try {
         const result = await mammoth.extractRawText({ buffer });
         return result.value || '';
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (error: any) {
         console.error(`[DocumentProcessor] DOCX extraction error: ${error.message}`);
         throw new Error(`DOCX extraction failed: ${error.message}`);
@@ -32,6 +33,7 @@ export async function extractExcelContent(buffer: Buffer): Promise<string> {
             parts.push(`--- Foglio: ${worksheet.name} ---`);
             const rows: string[] = [];
             worksheet.eachRow((row) => {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
                 const values = (row.values as any[]).slice(1); // ExcelJS row.values is 1-indexed
                 rows.push(values.map(v => v != null ? String(v) : '').join(','));
             });
@@ -39,6 +41,7 @@ export async function extractExcelContent(buffer: Buffer): Promise<string> {
         });
 
         return parts.join('\n\n');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (error: any) {
         console.error(`[DocumentProcessor] Excel extraction error: ${error.message}`);
         throw new Error(`Excel extraction failed: ${error.message}`);

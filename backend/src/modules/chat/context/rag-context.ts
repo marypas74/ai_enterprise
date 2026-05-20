@@ -50,10 +50,12 @@ export async function injectRAGSystemPrompt(
     userId: number;
     documentIds?: number[];
   }
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
 ): Promise<any[]> {
   try {
     const summaryMode = isSummaryQuery(opts.userMessage);
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     let results: { content: string; metadata: Record<string, any>; score?: number; id?: any; collection?: string }[];
     let contextBlock: string;
 
@@ -164,6 +166,7 @@ IMPORTANT: Rispondi SEMPRE in italiano.`;
 
     fastify.log.info(`[RAG] Injected ${results.length} chunks (${summaryMode ? 'summary' : 'specific'} mode) into system prompt for user ${opts.userId}`);
     return results;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   } catch (ragErr: any) {
     fastify.log.warn(`[RAG] System prompt injection failed: ${ragErr.message}`);
     return [];

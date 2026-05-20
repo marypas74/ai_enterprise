@@ -34,6 +34,7 @@ const JOB_TTL_SECONDS = 86400;
 const DEFAULT_TOKENS_PER_SEC = 50;
 
 export class DocumentJobQueue {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   constructor(private readonly redis: any) {}
 
   async enqueue(params: EnqueueParams): Promise<{ jobId: string; eta: number }> {

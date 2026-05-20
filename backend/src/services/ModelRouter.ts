@@ -29,6 +29,10 @@ export interface RoutingDecision {
    *  max_tokens with this value (taking the minimum vs provider modelConfig).
    *  fast=512, balanced=1500, powerful=3000 by default seed. */
   readonly maxOutputTokens?: number;
+  /** DEBT-82-A: Per-tier hard inference timeout in ms. When set, agentic.ts uses
+   *  this value for the TIMEOUT_MS watchdog instead of the hardcoded 30000.
+   *  fast=8000, balanced=30000, powerful=60000 by default seed. */
+  readonly maxInferenceMs?: number;
 }
 
 interface RoutingContext {
@@ -57,6 +61,8 @@ interface TierModel {
   readonly force_short_output: number; // MySQL BOOLEAN returns 0/1
   // DEBT-81-G: per-tier output token cap (NULL = no override)
   readonly max_output_tokens: number | null;
+  // DEBT-82-A: per-tier hard inference timeout in ms (NULL = use default 30000)
+  readonly max_inference_ms: number | null;
 }
 
 // ─── Keyword sets ───────────────────────────────────────────────────
@@ -93,7 +99,13 @@ const POWERFUL_KEYWORDS = [
   'multi-step', 'pipeline', 'cerca sul web e poi',
   // DEBT-80-B: added detailed/explanatory intent keywords
   'spiegami in dettaglio', 'spiega tutto', 'descrivi tutti', 'in modo dettagliato',
+  // DEBT-82-C: long-form document keywords (for unstructured queries)
+  'saggio', 'articolo lungo', 'documento dettagliato',
 ];
+
+// DEBT-82-C: Pattern per rilevare richiesta di N parole (saggio/articolo/ecc.)
+// Se il numero di parole richiesto è ≥200 → forza routing balanced o superior.
+const WORD_COUNT_PATTERN = /\b(saggio|articolo|documento|testo|post|relazione)\s+(?:di|da)?\s*(\d{2,4})\s+parole/i;
 
 const CODING_KEYWORDS = [
   'codice', 'code', 'funzione', 'function', 'classe', 'class',
@@ -158,6 +170,14 @@ function computeComplexityScore(ctx: RoutingContext): number {
   // Document creation detection — needs real processing, not a simple chat
   const isDocCreation = DOC_CREATION_PATTERN.test(ctx.query);
 
+  // DEBT-82-C: Detect explicit word-count request (e.g. "saggio di 500 parole")
+  // If the requested word count is >=200 then force balanced+ tier with score +3.
+  const wordCountMatch = WORD_COUNT_PATTERN.exec(ctx.query);
+  if (wordCountMatch) {
+    const requestedWords = parseInt(wordCountMatch[2], 10);
+    if (requestedWords >= 200) score += 3;
+  }
+
   // Keyword signals
   // FAST penalty only when no doc creation or attachments (pure simple greeting/translation).
   // DEBT-80-B: use word-boundary regex to avoid matching "dimmi" inside "spiegami".
@@ -214,6 +234,7 @@ export class ModelRouter {
         `SELECT rt.tier_name, rt.model_id, rt.provider, rt.priority,
                 COALESCE(rt.force_short_output, 0) AS force_short_output,
                 rt.max_output_tokens AS max_output_tokens,
+                rt.max_inference_ms AS max_inference_ms,
                 p.provider_type AS provider_type,
                 m.id            AS model_pk
          FROM model_routing_tiers rt
@@ -232,9 +253,13 @@ export class ModelRouter {
          ORDER BY rt.tier_name,
            CASE WHEN p.provider_type IN ('vllm', 'ollama') THEN 0 ELSE 1 END,
            rt.priority ASC`
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mysql2 RowDataPacket interop
       ) as any;
       // Runtime filter: log a warning for tier entries with no ai_models row
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       // but still include them (local provider may serve the model directly).
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mysql2 RowDataPacket interop
       for (const r of rows as any[]) {
         if (r.model_pk == null) {
           // Single line — keep verbosity low; the cache TTL is 60s.
@@ -304,6 +329,11 @@ export class ModelRouter {
       ? selectedTierModel.max_output_tokens
       : undefined;
 
+    // DEBT-82-A: propagate per-tier hard inference timeout (null → undefined)
+    const maxInferenceMs = selectedTierModel?.max_inference_ms != null
+      ? selectedTierModel.max_inference_ms
+      : undefined;
+
     return {
       tier, model,
       reason: `score=${score}, ${reasons.join(', ') || 'standard routing'}`,
@@ -313,6 +343,7 @@ export class ModelRouter {
       routingMethod: 'rule',
       forceShortOutput: selectedTierModel?.force_short_output === 1,
       maxOutputTokens,
+      maxInferenceMs,
     };
   }
 

@@ -110,6 +110,7 @@ async function fetchAnthropicModels(apiKey: string): Promise<AvailableModel[]> {
       // Legacy
       { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku (Legacy)', provider: 'anthropic' },
     ];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   } catch (error: any) {
     console.error(`[ModelFetcher] Failed to verify Anthropic API: ${error.message}`);
     return [];

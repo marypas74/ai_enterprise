@@ -133,6 +133,7 @@ export async function processDocument(
                     return { text: result.text, method: 'vision-ocr', charCount: result.text.length };
                 }
             }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         } catch (err: any) {
             console.warn(`[DocumentProcessor] Vision OCR failed for image, falling back to Tesseract: ${err.message}`);
         }
@@ -183,6 +184,7 @@ export async function processDocument(
                         method = 'vision-ocr';
                     }
                 }
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
             } catch (visionErr: any) {
                 console.warn(`[DocumentProcessor] Vision OCR failed: ${visionErr.message}`);
             }
@@ -195,6 +197,7 @@ export async function processDocument(
                         text = ocrText;
                         method = 'ocr';
                     }
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
                 } catch (ocrErr: any) {
                     console.warn(`[DocumentProcessor] Tesseract OCR fallback failed: ${ocrErr.message}`);
                 }

@@ -50,6 +50,7 @@ export class ConversationCleanupService {
              updated_at = CURRENT_TIMESTAMP
          WHERE is_archived = FALSE
            AND updated_at < DATE_SUB(NOW(), INTERVAL 24 HOUR)`
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       ) as any;
       archived = archiveResult.affectedRows || 0;
 
@@ -58,6 +59,7 @@ export class ConversationCleanupService {
       const [deleteResult] = await db.execute(
         `DELETE FROM conversations
          WHERE created_at < DATE_SUB(NOW(), INTERVAL 60 DAY)`
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
       ) as any;
       deleted = deleteResult.affectedRows || 0;
 
@@ -66,6 +68,7 @@ export class ConversationCleanupService {
           `[ConversationCleanup] Cycle complete: ${archived} archived, ${deleted} deleted`
         );
       }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (error: any) {
       console.error(`[ConversationCleanup] Error: ${error.message}`);
     }

@@ -150,6 +150,7 @@ export async function findAndReplaceText(
 ): Promise<Buffer> {
   // Use mupdf to find text locations, then overlay replacement text
   const mupdf = await import('mupdf');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   const doc = mupdf.Document.openDocument(buffer, 'application/pdf') as any;
 
   if (pageNum < 1 || pageNum > doc.countPages()) {

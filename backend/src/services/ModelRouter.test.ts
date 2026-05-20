@@ -310,3 +310,137 @@ describe('ModelRouter — DEBT-81-G max_output_tokens per tier', () => {
     expect(sql).toMatch(/max_output_tokens/i);
   });
 });
+
+// ─── DEBT-82-A: max_inference_ms per tier ────────────────────────────────────
+describe('ModelRouter — DEBT-82-A max_inference_ms per tier', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('fast tier: maxInferenceMs=8000 propagated in RoutingDecision', async () => {
+    const pool = makePool([
+      { tier_name: 'fast', model_id: 'qwen25vl:32b', provider: 'vllm', priority: 0,
+        force_short_output: 0, max_output_tokens: 512, max_inference_ms: 8000 },
+    ]);
+    const router = new ModelRouter(pool);
+    const decision = await router.route({
+      query: 'ciao', conversationLength: 0, hasAttachments: false,
+      attachmentCount: 0, hasVisionAttachments: false, toolsRequested: false,
+      userId: 1,
+    });
+    expect(decision.maxInferenceMs).toBe(8000);
+  });
+
+  it('balanced tier: maxInferenceMs=30000 propagated in RoutingDecision', async () => {
+    const pool = makePool([
+      { tier_name: 'fast', model_id: 'qwen25vl:32b', provider: 'vllm', priority: 0,
+        force_short_output: 0, max_output_tokens: 512, max_inference_ms: 8000 },
+      { tier_name: 'balanced', model_id: 'gpt-4o', provider: 'openai', priority: 1,
+        force_short_output: 0, max_output_tokens: 1500, max_inference_ms: 30000 },
+    ]);
+    const router = new ModelRouter(pool);
+    const decision = await router.route({
+      query: 'analizza questo documento in dettaglio',
+      conversationLength: 6, hasAttachments: false,
+      attachmentCount: 0, hasVisionAttachments: false, toolsRequested: false,
+      userId: 1, hasDocuments: true,
+    });
+    if (decision.tier === 'balanced') {
+      expect(decision.maxInferenceMs).toBe(30000);
+    }
+  });
+
+  it('powerful tier: maxInferenceMs=60000 propagated in RoutingDecision', async () => {
+    const pool = makePool([
+      { tier_name: 'powerful', model_id: 'gpt-4o', provider: 'openai', priority: 0,
+        force_short_output: 0, max_output_tokens: 3000, max_inference_ms: 60000 },
+      { tier_name: 'balanced', model_id: 'gpt-4o', provider: 'openai', priority: 1,
+        force_short_output: 0, max_output_tokens: 1500, max_inference_ms: 30000 },
+      { tier_name: 'fast', model_id: 'gpt-4o-mini', provider: 'openai', priority: 1,
+        force_short_output: 0, max_output_tokens: 512, max_inference_ms: 8000 },
+    ]);
+    const router = new ModelRouter(pool);
+    const decision = await router.route({
+      query: 'progetta una architettura complessa multi-step con pipeline',
+      conversationLength: 15, hasAttachments: true,
+      attachmentCount: 3, hasVisionAttachments: false, toolsRequested: true,
+      userId: 1, hasDocuments: true,
+    });
+    if (decision.tier === 'powerful') {
+      expect(decision.maxInferenceMs).toBe(60000);
+    }
+  });
+
+  it('maxInferenceMs=undefined when column is null in DB', async () => {
+    const pool = makePool([
+      { tier_name: 'fast', model_id: 'gpt-4o-mini', provider: 'openai', priority: 1,
+        force_short_output: 0, max_output_tokens: null, max_inference_ms: null },
+    ]);
+    const router = new ModelRouter(pool);
+    const decision = await router.route({
+      query: 'ciao', conversationLength: 0, hasAttachments: false,
+      attachmentCount: 0, hasVisionAttachments: false, toolsRequested: false,
+      userId: 1,
+    });
+    expect(decision.maxInferenceMs).toBeUndefined();
+  });
+
+  it('SQL query includes max_inference_ms column', async () => {
+    const pool = makePool([]);
+    const router = new ModelRouter(pool);
+    await router.route({
+      query: 'test', conversationLength: 0, hasAttachments: false,
+      attachmentCount: 0, hasVisionAttachments: false, toolsRequested: false,
+      userId: 1,
+    });
+    const [sql] = pool.execute.mock.calls[0];
+    expect(sql).toMatch(/max_inference_ms/i);
+  });
+});
+
+// ─── DEBT-82-C: Routing saggio N parole ─────────────────────────────────────
+describe('ModelRouter — DEBT-82-C routing saggio N parole', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const allTiersPool = () =>
+    makePool([
+      { tier_name: 'fast', model_id: 'gpt-4o-mini', provider: 'openai', priority: 1,
+        force_short_output: 0, max_output_tokens: 512, max_inference_ms: 8000 },
+      { tier_name: 'balanced', model_id: 'gpt-4o', provider: 'openai', priority: 1,
+        force_short_output: 0, max_output_tokens: 1500, max_inference_ms: 30000 },
+      { tier_name: 'powerful', model_id: 'gpt-4o', provider: 'openai', priority: 2,
+        force_short_output: 0, max_output_tokens: 3000, max_inference_ms: 60000 },
+    ]);
+
+  it('"scrivi saggio di 500 parole" routes to balanced or powerful', async () => {
+    const router = new ModelRouter(allTiersPool());
+    const decision = await router.route({
+      query: 'scrivi saggio di 500 parole sulla rivoluzione industriale',
+      conversationLength: 0, hasAttachments: false,
+      attachmentCount: 0, hasVisionAttachments: false, toolsRequested: false,
+      userId: 1,
+    });
+    expect(['balanced', 'powerful']).toContain(decision.tier);
+  });
+
+  it('"articolo di 1000 parole su python" routes to balanced or powerful', async () => {
+    const router = new ModelRouter(allTiersPool());
+    const decision = await router.route({
+      query: 'articolo di 1000 parole su python e il futuro della programmazione',
+      conversationLength: 0, hasAttachments: false,
+      attachmentCount: 0, hasVisionAttachments: false, toolsRequested: false,
+      userId: 1,
+    });
+    expect(['balanced', 'powerful']).toContain(decision.tier);
+  });
+
+  it('"scrivi una poesia di 2 versi" routes to fast (no regression)', async () => {
+    const router = new ModelRouter(allTiersPool());
+    const decision = await router.route({
+      query: 'scrivi una poesia di 2 versi',
+      conversationLength: 0, hasAttachments: false,
+      attachmentCount: 0, hasVisionAttachments: false, toolsRequested: false,
+      userId: 1,
+    });
+    // 2 versi < 200 parole threshold — must NOT trigger balanced routing
+    expect(decision.tier).toBe('fast');
+  });
+});

@@ -11,6 +11,7 @@ import { requireAdmin } from '../../middleware/index.js';
 const permissionBodySchema = z.record(z.boolean());
 
 export async function permissionRoutes(fastify: FastifyInstance) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   fastify.addHook('onRequest', (fastify as any).authenticate);
 
 

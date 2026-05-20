@@ -27,6 +27,7 @@ export async function extractWithOCR(
         const worker = await getOCRWorker(lang);
         const { data } = await worker.recognize(buffer);
         return data.text || '';
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (error: any) {
         console.error(`[DocumentProcessor] OCR error: ${error.message}`);
         throw new Error(`OCR extraction failed: ${error.message}`);
@@ -92,6 +93,7 @@ export async function extractPdfWithOCR(
         const result = pageResults.join('\n\n--- Page Break ---\n\n');
         console.log(`[DocumentProcessor] PDF OCR: extracted ${result.length} chars from ${pageImages.length} pages`);
         return result;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (error: any) {
         console.error(`[DocumentProcessor] PDF OCR error: ${error.message}`);
         throw new Error(`PDF OCR extraction failed: ${error.message}`);

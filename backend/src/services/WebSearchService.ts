@@ -159,12 +159,14 @@ export async function performWebSearch(query: string): Promise<WebSearchResponse
       searchPerformed: true
     };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   } catch (error: any) {
     console.error(`[WebSearch] Error: ${error.message}`);
 
     // Fallback: Try Google search scraping
     try {
       return await performGoogleSearch(query);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (fallbackError: any) {
       return {
         query,

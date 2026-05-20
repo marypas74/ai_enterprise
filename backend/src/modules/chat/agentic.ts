@@ -172,8 +172,10 @@ export async function agenticRoutes(fastify: FastifyInstance) {
       let iteration = 0;
       const maxIterations = 10;
 
-      // 30-SECOND WATCHDOG TIMER
-      const TIMEOUT_MS = 30000;
+      // DEBT-82-A: Per-tier hard timeout. Default 30000ms (balanced tier seed).
+      // The caller (completions.ts) may pass maxInferenceMs from RoutingDecision
+      // via body.maxInferenceMs when routing is used. Falls back to 30000.
+      const TIMEOUT_MS: number = (body as Record<string, unknown>).maxInferenceMs as number | undefined ?? 30000;
       let watchdogTimer: NodeJS.Timeout | null = null;
       let requestAborted = false;
 
@@ -182,11 +184,11 @@ export async function agenticRoutes(fastify: FastifyInstance) {
         watchdogTimer = setTimeout(() => {
           if (!requestAborted) {
             requestAborted = true;
-            const timeoutMsg = `TIMEOUT: No response after 30s during "${context}"`;
+            const timeoutMsg = `TIMEOUT: No response after ${TIMEOUT_MS / 1000}s during "${context}"`;
             fastify.log.error(`[${reqId}] ${timeoutMsg}`);
             sendDebug(`${timeoutMsg}`);
             reply.raw.write(`data: ${JSON.stringify({
-              error: 'REQUEST_TIMEOUT_30S',
+              error: 'REQUEST_TIMEOUT',
               message: timeoutMsg,
               context,
               done: true

@@ -43,6 +43,7 @@ const classifySchema = z.object({
 });
 
 export async function vectorMemoryRoutes(fastify: FastifyInstance) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   fastify.addHook('onRequest', (fastify as any).authenticate);
 
 
@@ -156,6 +157,7 @@ export async function vectorMemoryRoutes(fastify: FastifyInstance) {
     }
 
     const fields: string[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const values: any[] = [];
 
     const mapping: Record<string, string> = {
@@ -168,6 +170,7 @@ export async function vectorMemoryRoutes(fastify: FastifyInstance) {
       proceduralThreshold: 'procedural_recall_threshold',
     };
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const bodyRecord = body as Record<string, any>;
     for (const [jsKey, dbKey] of Object.entries(mapping)) {
       if (bodyRecord[jsKey] !== undefined) {
@@ -274,6 +277,7 @@ export async function vectorMemoryRoutes(fastify: FastifyInstance) {
        WHERE created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)`,
       [days],
     );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const overall = (overallRows as any[])[0] || {};
 
     // Daily breakdown

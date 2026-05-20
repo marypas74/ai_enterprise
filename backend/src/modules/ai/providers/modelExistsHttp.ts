@@ -14,6 +14,7 @@ export interface ModelExistsHttpInput {
     /** Override fetch (used in tests). */
     fetchImpl?: typeof fetch;
     /** Optional Redis client for shared cache. */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     redisClient?: any;
     /** Defaults to 8 seconds — admin requests must not hang. */
     timeoutMs?: number;
@@ -44,6 +45,7 @@ export async function verifyModelExistsHttp(input: ModelExistsHttpInput): Promis
     let response: Response;
     try {
         response = await doFetch(url, { method: 'GET', headers, signal: ctrl.signal });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     } catch (err: any) {
         clearTimeout(t);
         // Network / abort: do NOT cache, surface as "exists=true" so admin save

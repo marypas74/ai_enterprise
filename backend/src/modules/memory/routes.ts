@@ -40,6 +40,7 @@ export async function memoryRoutes(fastify: FastifyInstance) {
   fastify.decorate('memoryService', memoryService);
 
   // All routes require authentication
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   fastify.addHook('onRequest', (fastify as any).authenticate);
 
   // --- Observations ---

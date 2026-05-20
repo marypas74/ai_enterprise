@@ -64,6 +64,7 @@ export class PromptTemplateService {
     // Parse variables JSON if needed
     for (const t of templates) {
       if (typeof t.variables === 'string') {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         t.variables = JSON.parse(t.variables as any);
       }
     }
@@ -80,6 +81,7 @@ export class PromptTemplateService {
     );
     for (const t of templates) {
       if (typeof t.variables === 'string') {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
         t.variables = JSON.parse(t.variables as any);
       }
     }
@@ -171,6 +173,7 @@ Restituisci SOLO il JSON, nient'altro.`;
   async updateTemplate(id: number, data: Partial<PromptTemplate>): Promise<number> {
     this.invalidateCache();
     const sets: string[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const params: any[] = [];
 
     if (data.name !== undefined) { sets.push('name = ?'); params.push(data.name); }

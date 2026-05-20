@@ -27,6 +27,7 @@ export interface WorkingMemoryState {
   activeFormSessionId: number | null;
   agentOutput: AgentOutput | null;
   modelInteractions: ModelInteraction[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   customData: Record<string, any>;
   updatedAt: string;
 }
@@ -169,6 +170,7 @@ export class WorkingMemoryService {
   }
 
   /** Store custom plugin data */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   async setCustomData(userId: number, conversationId: number, key: string, value: any): Promise<void> {
     const state = await this.get(userId, conversationId);
     if (!state) return;

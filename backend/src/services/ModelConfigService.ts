@@ -62,6 +62,7 @@ export class ModelConfigService {
     const cached = configCache.get(modelId);
     if (cached && Date.now() - cached.ts < CACHE_TTL) return cached.config;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
     const row = await findOne<any>(db,
       `SELECT m.model_id, m.model_family, m.context_window, m.max_output_tokens,
               m.optimal_temperature, m.optimal_top_p, m.optimal_repeat_penalty,

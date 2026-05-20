@@ -6,6 +6,7 @@ import { GoogleProvider } from './providers/GoogleProvider.js';
 import { OllamaProvider } from './providers/OllamaProvider.js';
 import { VLLMProvider } from './providers/VLLMProvider.js';
 import { CustomProvider } from './providers/CustomProvider.js';
+import { ProviderRegistryService } from './ProviderRegistryService.js';
 
 // Provider Factory with dynamic configuration support
 export class AIProviderFactory {
@@ -53,6 +54,11 @@ export class AIProviderFactory {
   }
 
   static getProviderName(model: string): ProviderType {
+    // DEBT-82-F: DB-driven override takes precedence over all regex rules.
+    // ProviderRegistryService is loaded at startup and refreshed every 60s.
+    const dbOverride = ProviderRegistryService.getOverride(model);
+    if (dbOverride) return dbOverride;
+
     if (model.startsWith('gpt-') || model.startsWith('o1-') || model.startsWith('o3-')) return 'openai';
     if (model.startsWith('claude-')) return 'anthropic';
     if (model.startsWith('gemini-')) return 'google';
@@ -60,11 +66,6 @@ export class AIProviderFactory {
     if (model.startsWith('vllm:')) return 'vllm';
     // HuggingFace format (org/model) routes to vLLM
     if (model.includes('/')) return 'vllm';
-    // HOTFIX-2.1.81: explicit vLLM-served models that happen to use Ollama-tag format (name:tag).
-    // The :tag-→Ollama heuristic below incorrectly captures vLLM's primary chat model.
-    // Must be checked BEFORE the generic colon rule.
-    const VLLM_TAGGED_MODELS = new Set(['qwen25vl:32b']);
-    if (VLLM_TAGGED_MODELS.has(model)) return 'vllm';
     // Ollama tag format (name:tag, e.g. qwen3:14b, mixtral:latest) routes to Ollama
     // MUST be checked before the keyword-based vLLM rule so Ollama pull-format models
     // are not incorrectly sent to vLLM.

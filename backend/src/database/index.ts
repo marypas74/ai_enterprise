@@ -754,6 +754,18 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
       name: 'model_routing_tiers_add_max_output_tokens',
       sql: `ALTER TABLE model_routing_tiers ADD COLUMN IF NOT EXISTS max_output_tokens INT DEFAULT NULL`
     },
+    // v2.1.82: DEBT-82-A — per-tier hard inference timeout in ms
+    // fast=8000, balanced=30000, powerful=60000 seed. NULL means use default 30000.
+    {
+      name: 'model_routing_tiers_add_max_inference_ms',
+      sql: `ALTER TABLE model_routing_tiers ADD COLUMN IF NOT EXISTS max_inference_ms INT DEFAULT NULL`
+    },
+    // v2.1.82: DEBT-82-F — provider_override on ai_models for DB-driven routing
+    // Allows routing a model to a specific provider without code changes.
+    {
+      name: 'ai_models_add_provider_override',
+      sql: `ALTER TABLE ai_models ADD COLUMN IF NOT EXISTS provider_override VARCHAR(32) NULL`
+    },
   ];
 
   for (const migration of alterMigrations) {
@@ -897,14 +909,51 @@ async function runAutoMigrations(pool: mysql.Pool, fastify: FastifyInstance): Pr
     fastify.log.warn({ err }, '[Migration] DEBT-81-G: max_output_tokens seed skipped');
   }
 
-  // v2.1.81: Update app_version in system_settings to current version.
+  // v2.1.82: DEBT-82-A — seed max_inference_ms per tier (idempotent)
+  // Only sets when column is NULL (preserves admin overrides)
+  try {
+    await pool.execute(
+      `UPDATE model_routing_tiers
+       SET max_inference_ms = 8000
+       WHERE tier_name = 'fast' AND max_inference_ms IS NULL`
+    );
+    await pool.execute(
+      `UPDATE model_routing_tiers
+       SET max_inference_ms = 30000
+       WHERE tier_name = 'balanced' AND max_inference_ms IS NULL`
+    );
+    await pool.execute(
+      `UPDATE model_routing_tiers
+       SET max_inference_ms = 60000
+       WHERE tier_name = 'powerful' AND max_inference_ms IS NULL`
+    );
+    fastify.log.info('[Migration] DEBT-82-A: max_inference_ms seeded per tier (fast=8000, balanced=30000, powerful=60000)');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
+  } catch (err: any) {
+    fastify.log.warn({ err }, '[Migration] DEBT-82-A: max_inference_ms seed skipped');
+  }
+
+  // v2.1.82: DEBT-82-F — seed provider_override for qwen25vl:32b → vllm (idempotent)
+  try {
+    await pool.execute(
+      `UPDATE ai_models
+       SET provider_override = 'vllm'
+       WHERE model_id = 'qwen25vl:32b' AND provider_override IS NULL`
+    );
+    fastify.log.info('[Migration] DEBT-82-F: provider_override seeded for qwen25vl:32b');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
+  } catch (err: any) {
+    fastify.log.warn({ err }, '[Migration] DEBT-82-F: provider_override seed skipped');
+  }
+
+  // v2.1.82: Update app_version in system_settings to current version.
   // Uses UPDATE with version comparison so re-running on an already-updated DB is a no-op.
   try {
     await pool.execute(
-      `UPDATE system_settings SET setting_value = '2.1.81'
-       WHERE setting_key = 'app_version' AND setting_value < '2.1.81'`
+      `UPDATE system_settings SET setting_value = '2.1.82'
+       WHERE setting_key = 'app_version' AND setting_value < '2.1.82'`
     );
-    fastify.log.info('[Migration] app_version updated to 2.1.81 (if behind)');
+    fastify.log.info('[Migration] app_version updated to 2.1.82 (if behind)');
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   } catch (err: any) {
     fastify.log.warn({ err }, '[Migration] app_version update skipped');

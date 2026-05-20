@@ -25,6 +25,7 @@ function initializeStorage(): void {
     fs.writeFileSync(testFile, 'test', 'utf-8');
     fs.unlinkSync(testFile);
     console.log(`[Storage] ✅ Write access verified for: ${STORAGE_ROOT}`);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic/untyped interop
   } catch (error: any) {
     console.error(`[Storage] ❌ CRITICAL: Cannot initialize storage at ${STORAGE_ROOT}: ${error.message}`);
     console.error(`[Storage] ❌ Make sure the path exists and is writable!`);
